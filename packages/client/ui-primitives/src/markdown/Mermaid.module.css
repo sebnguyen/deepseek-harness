@@ -1,0 +1,16 @@
+/* Matches CodeBlock's outer rhythm (margin, radius, background) so a
+   rendered diagram sits at the same visual weight as a code fence. */
+
+.diagram {
+  margin: 16px 0;
+  padding: 16px;
+  overflow-x: auto;
+  text-align: center;
+  background: var(--dsw-alias-markdown-code-block);
+  border-radius: 12px;
+}
+
+.diagram :global(svg) {
+  max-width: 100%;
+  height: auto;
+}

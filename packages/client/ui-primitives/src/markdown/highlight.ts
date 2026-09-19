@@ -1,9 +1,23 @@
 /**
- * The client's ONE syntax highlighter: a synchronous fine-grained shiki core
- * (JavaScript regex engine — no oniguruma WASM, bundle-friendly) with an
- * explicit grammar allowlist and a CSS-variables theme. Colors live in the
- * theme package's token sheets as `--shiki-*` custom properties (light and
- * dark blocks), never here — the repo's tokens-only styling rule.
+ * The client's ONE syntax highlighter: a shiki core with an explicit grammar
+ * allowlist and a CSS-variables theme. Colors live in the theme package's
+ * token sheets as `--shiki-*` custom properties (light and dark blocks),
+ * never here — the repo's tokens-only styling rule.
+ *
+ * Regex engine: Oniguruma via WASM (`shiki/engine/oniguruma`), the same
+ * engine VSCode itself uses for every TextMate grammar in production — not
+ * the pure-JS regex engine this file used originally. That JS engine's
+ * naive backtracking hit a catastrophic case on ordinary content: a Go
+ * struct with a trailing doc comment containing literal `{ }` (e.g.
+ * `// {policy, version}`) hung `codeToHtml` indefinitely (verified: 10+s
+ * with no return, vs. 76ms for the identical input under Oniguruma) —
+ * reproducible with realistic model-authored Go, not adversarial input.
+ * `createOnigurumaEngine` is async (it loads and instantiates the WASM
+ * module once); every highlight call after that resolves stays synchronous,
+ * so the one-time load is gated the same way a {@link LAZY_GRAMMARS} entry
+ * is — not ready yet renders the plain fallback, and
+ * {@link subscribeGrammarLoaded} fires once loading completes. The 456 KB
+ * `.wasm` binary loads lazily on first highlight, not at boot.
  *
  * Only the three markdown-fence and `run_code` grammars (TypeScript, shell,
  * JSON) load into the singleton at boot — the set every session renders. The
@@ -19,11 +33,11 @@
  */
 
 import { createHighlighterCoreSync, createCssVariablesTheme } from 'shiki/core'
-import { createJavaScriptRegexEngine, defaultJavaScriptRegexConstructor } from 'shiki/engine/javascript'
+import { createOnigurumaEngine } from 'shiki/engine/oniguruma'
 import langTs from '@shikijs/langs/typescript'
 import langBash from '@shikijs/langs/shellscript'
 import langJson from '@shikijs/langs/json'
-import type { GrammarState, HighlighterCore, ThemedToken } from 'shiki/core'
+import type { GrammarState, HighlighterCore, RegexEngine, ThemedToken } from 'shiki/core'
 import type { CSSProperties } from 'react'
 
 /** A shiki grammar module's default export (a `LanguageRegistration[]`), taken
@@ -148,21 +162,9 @@ const cssVariablesTheme = createCssVariablesTheme({
   fontStyle: true,
 })
 
-/**
- * The client regex engine compiles each TextMate pattern when its scanner is
- * created. Shiki otherwise defers patterns longer than 3,000 characters until
- * their first match; that compilation counts against Shiki's 500 ms per-line
- * budget and can return a partial token stream under host contention. Eager
- * compilation leaves the same budget in place for scanning user content.
- */
-const regexEngine = createJavaScriptRegexEngine({
-  forgiving: true,
-  regexConstructor: pattern => defaultJavaScriptRegexConstructor(pattern, {
-    lazyCompileLength: Number.POSITIVE_INFINITY,
-  }),
-})
-
 let singleton: HighlighterCore | undefined
+/** Set once the Oniguruma WASM load has started, so a second caller doesn't race a duplicate `import()`. */
+let engineRequested = false
 
 /** Representative paths through every boot grammar, compiled before user content is timed. */
 const BOOT_GRAMMAR_WARMUPS = [
@@ -172,11 +174,11 @@ const BOOT_GRAMMAR_WARMUPS = [
 ] as const
 
 /** Construct and pre-tokenize the boot grammars outside the user-content scan budget. */
-function createHighlighter(): HighlighterCore {
+function createHighlighter(engine: RegexEngine): HighlighterCore {
   const instance = createHighlighterCoreSync({
     themes: [cssVariablesTheme],
     langs: LANGS,
-    engine: regexEngine,
+    engine,
   })
   for (const sample of BOOT_GRAMMAR_WARMUPS) {
     instance.codeToTokens(sample.code, {
@@ -188,9 +190,29 @@ function createHighlighter(): HighlighterCore {
   return instance
 }
 
-/** The synchronous highlighter (one instance per document); pre-warmed below, lazy as the fallback. */
+/**
+ * Ensure the Oniguruma-backed singleton exists. The WASM engine load is
+ * one-time and async; a caller before it resolves gets `false` (render the
+ * plain fallback) and the same {@link subscribeGrammarLoaded} notification a
+ * lazy grammar load fires, once it's ready.
+ * @returns whether the singleton is constructed and ready to tokenize now.
+ */
+function ensureHighlighterReady(): boolean {
+  if (singleton !== undefined) return true
+  if (!engineRequested) {
+    engineRequested = true
+    void createOnigurumaEngine(() => import('shiki/wasm')).then((engine) => {
+      singleton = createHighlighter(engine)
+      loadCount += 1
+      for (const listener of listeners) listener()
+    })
+  }
+  return false
+}
+
+/** The synchronous highlighter singleton; only called once {@link ensureHighlighterReady} reports true. */
 function highlighter(): HighlighterCore {
-  singleton ??= createHighlighter()
+  if (singleton === undefined) throw new Error('highlighter() called before ensureHighlighterReady() confirmed readiness')
   return singleton
 }
 
@@ -226,15 +248,18 @@ export function grammarLoadCount(): number {
 }
 
 /**
- * Ensure the grammar `resolved` names is registered. A boot grammar (not in
+ * Ensure the grammar `resolved` names is registered. The engine itself not
+ * being ready yet (see {@link ensureHighlighterReady}) reports not-ready the
+ * same way an unloaded grammar does. A boot grammar (not in
  * {@link LAZY_GRAMMARS}) and an already-loaded lazy grammar report ready
- * synchronously; a lazy grammar not yet loaded starts its import (once) and
- * reports not-ready, so the caller renders plain until a
- * {@link subscribeGrammarLoaded} listener fires.
+ * synchronously once the engine is up; a lazy grammar not yet loaded starts
+ * its import (once) and reports not-ready, so the caller renders plain until
+ * a {@link subscribeGrammarLoaded} listener fires.
  * @param resolved - the grammar id an alias resolved to.
  * @returns whether the grammar is registered and ready to tokenize now.
  */
 function ensureGrammar(resolved: string): boolean {
+  if (!ensureHighlighterReady()) return false
   const load = LAZY_GRAMMARS.get(resolved)
   // A boot grammar (already registered) has no lazy loader; it is always ready.
   if (load === undefined) return true
@@ -250,13 +275,13 @@ function ensureGrammar(resolved: string): boolean {
   return false
 }
 
-// Engine + grammar construction costs a long task (~120-175ms); building it
-// during the first finalized fence's render would jank exactly when a stream
-// completes. Warm the singleton in a deferred task at module load (= plugin
-// boot) instead; the lazy path above stays as the correctness fallback for a
-// fence that renders before the timer fires. `unref` (Node-only) keeps a
+// Engine + grammar construction costs a long task; building it during the
+// first finalized fence's render would jank exactly when a stream completes.
+// Warm the singleton in a deferred task at module load (= plugin boot)
+// instead; the lazy path above stays as the correctness fallback for a fence
+// that renders before the WASM load resolves. `unref` (Node-only) keeps a
 // non-browser import from pinning the event loop.
-const warmupTimer = setTimeout(() => { highlighter() }, 0)
+const warmupTimer = setTimeout(() => { ensureHighlighterReady() }, 0)
 ;(warmupTimer as { unref?: () => void }).unref?.()
 
 /**
