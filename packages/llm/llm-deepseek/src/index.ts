@@ -112,6 +112,13 @@ const DEFAULT_MODELS: DeepSeekCatalogModel[] = [
     contextWindow: DEFAULT_CONTEXT_WINDOW,
   },
   {
+    id: 'deepseek-v4-pro-0813',
+    name: 'DeepSeek-V4-Pro-0813',
+    description: 'GA V4 Pro with stronger agentic coding and up to 384K output per request.',
+    contextWindow: DEFAULT_CONTEXT_WINDOW,
+    maxTokens: 393_216,
+  },
+  {
     id: 'deepseek-v4-flash-vision-exp',
     name: 'DeepSeek-V4-Flash-Vision-Exp',
     contextWindow: DEFAULT_CONTEXT_WINDOW,
@@ -144,7 +151,7 @@ export interface Config {
   maxTokens?: number
   /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
   defaultContextWindow?: number
-  /** Advisory models shown by discovery consumers; defaults to V41 Flash, V4 Flash, V4 Pro, and V4 Flash Vision Exp. */
+  /** Advisory models shown by discovery consumers; defaults to V41 Flash, V4 Flash, V4 Pro, V4 Pro 0813, and V4 Flash Vision Exp. */
   models?: DeepSeekCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
