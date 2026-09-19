@@ -339,6 +339,28 @@ Depends on: [`LocalConfig`](#deepseek-aidsh-bash-local)
 
 Source: [`packages/shell/bash-sandbox/src/index.ts:36`](../packages/shell/bash-sandbox/src/index.ts)
 
+<a id="deepseek-aidsh-claim-settlement"></a>
+
+## `@deepseek-ai/dsh-claim-settlement`
+
+Requires: `agents` · `claims` · `shell`
+
+```ts config-catalog
+/** Plugin configuration: the deployment's settlement policy. */
+export interface Config {
+  /** Repair steers allowed for one claim before it is blocked (default: `3`). */
+  repairBudget?: number
+  /** Verifier re-runs allowed after an inconclusive result (default: `2`). */
+  inconclusiveRetries?: number
+  /** Per-run verifier timeout in milliseconds (default: `600000`). */
+  verifierTimeoutMs?: number
+  /** Evidence lines kept when steering a failure back (default: `40`). */
+  evidenceLines?: number
+}
+```
+
+Source: [`packages/claim/claim-settlement/src/index.ts:23`](../packages/claim/claim-settlement/src/index.ts)
+
 <a id="deepseek-aidsh-client-connection"></a>
 
 ## `@deepseek-ai/dsh-client-connection`
@@ -2607,7 +2629,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:246`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:247`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3465,6 +3487,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-api-remotes` — requires `typertGateway` ([`packages/api/remotes/src/index.ts`](../packages/api/remotes/src/index.ts))
 - `@deepseek-ai/dsh-api-workspace-controller` — requires `typert` · `workspaceRegistry` ([`packages/api/workspace-controller/src/index.ts`](../packages/api/workspace-controller/src/index.ts))
 - `@deepseek-ai/dsh-authorization` — requires `credentials` ([`packages/credentials/authorization/src/index.ts`](../packages/credentials/authorization/src/index.ts))
+- `@deepseek-ai/dsh-claim` — requires `agents` · `sessionProjections` ([`packages/claim/claim/src/index.ts`](../packages/claim/claim/src/index.ts))
 - `@deepseek-ai/dsh-client-file-upload` — requires `agents` · `attachments` · `commands` · `connection` ([`packages/client/file-upload/src/index.ts`](../packages/client/file-upload/src/index.ts))
 - `@deepseek-ai/dsh-client-locale` ([`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts))
 - `@deepseek-ai/dsh-client-modules` — requires `loader` ([`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts))
@@ -3475,7 +3498,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-brand-official` ([`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-chat` ([`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-commands` ([`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-context-window` ([`packages/client/ui-context-window/src/index.ts`](../packages/client/ui-context-window/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-conversation` ([`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-cordis` ([`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
@@ -3539,6 +3561,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-terminal` ([`packages/terminal/terminal/src/index.ts`](../packages/terminal/terminal/src/index.ts))
 - `@deepseek-ai/dsh-tool-ask-user` — requires `tools` · `userQuestions` ([`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts))
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — requires `tools` ([`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts))
+- `@deepseek-ai/dsh-tool-claim` — requires `agents` · `claims` · `tools` · `systemPrompt` · `sessionProjections` ([`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts))
 - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
 - `@deepseek-ai/dsh-tool-subagent-control` — requires `tools` · `subagents` ([`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts))
 - `@deepseek-ai/dsh-user-questions` ([`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts))

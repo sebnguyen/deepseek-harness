@@ -242,6 +242,44 @@ Types: [TokenUsage](subsystems/llm-streaming.md)
 
 Source: [`packages/core/session/src/types.ts:321`](../packages/core/session/src/types.ts)
 
+### `claim/*`
+
+<a id="claimdeclared--log-only"></a>
+
+#### `claim/declared` — log-only
+
+```ts persistence-catalog
+/**
+ * Opens one turn's claim. Log-only: the claim is durable evidence and
+ * never part of the model transcript.
+ */
+'claim/declared': ClaimDeclaredMeta
+```
+
+Source: [`packages/claim/claim/src/domain.ts:54`](../packages/claim/claim/src/domain.ts)
+
+<a id="claimresult--log-only"></a>
+
+#### `claim/result` — log-only
+
+```ts persistence-catalog
+/** Records one verifier execution against the open claim. Log-only. */
+'claim/result': ClaimResultMeta
+```
+
+Source: [`packages/claim/claim/src/domain.ts:56`](../packages/claim/claim/src/domain.ts)
+
+<a id="claimsettled--log-only"></a>
+
+#### `claim/settled` — log-only
+
+```ts persistence-catalog
+/** Closes the open claim. Log-only. */
+'claim/settled': ClaimSettledMeta
+```
+
+Source: [`packages/claim/claim/src/domain.ts:58`](../packages/claim/claim/src/domain.ts)
+
 ### `command/*`
 
 <a id="commanddone--log-only"></a>

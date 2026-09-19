@@ -18,6 +18,7 @@ import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SqliteSessionQueryEngine from '@deepseek-ai/dsh-session-query-sqlite'
 import GoalService from '@deepseek-ai/dsh-goal'
+import ClaimService from '@deepseek-ai/dsh-claim'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type Config as ToolsConfig } from '@deepseek-ai/dsh-tools'
 import LocalBashExecutor from '@deepseek-ai/dsh-bash-local'
@@ -53,6 +54,7 @@ import * as ToolStrReplaceEditor from '@deepseek-ai/dsh-tool-str-replace-editor'
 import TerminalSessionService from '@deepseek-ai/dsh-terminal'
 import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
 import * as ToolGoal from '@deepseek-ai/dsh-tool-goal'
+import * as ToolClaim from '@deepseek-ai/dsh-tool-claim'
 import * as ToolSchedule from '@deepseek-ai/dsh-schedule'
 import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
@@ -385,6 +387,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-claim',
+    dir: 'tool-claim',
+    source: 'packages/claim/tool-claim/src/index.ts',
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.claims', 'ctx.systemPrompt', 'a calling Agent in the live registry'],
+    writes: ['tool/call', 'claim/declared or claim/settled for mutations', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(AgentRegistry)
+      await ctx.plugin(ClaimService)
+      await ctx.plugin(ToolClaim)
+    },
+    note:
+      'A claim is immutable once declared, and abandon_claim is refused until the bound check has run at least once. A declaration that binds no script settles as unverified unless the service sets requireVerifier.',
   },
   {
     pkg: '@deepseek-ai/dsh-schedule',

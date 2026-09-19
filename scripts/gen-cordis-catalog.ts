@@ -245,6 +245,12 @@ export const EVENT_WALK_EXEMPTIONS: Record<string, string> = {
  * appear on more than one page.
  */
 export const LINK_MAP: Readonly<Record<string, string>> = {
+  Claim: 'claim.md',
+  ClaimError: 'claim.md',
+  ClaimSettlement: 'claim.md',
+  DeclareClaimRequest: 'claim.md',
+  Verifier: 'claim.md',
+  VerifierResult: 'claim.md',
   Agent: 'core.md',
   AgentCancelCause: 'core.md',
   AgentFactory: 'core.md',

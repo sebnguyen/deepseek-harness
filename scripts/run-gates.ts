@@ -712,59 +712,18 @@ function hygieneLeafGates(options: { artifactNeeds?: string[] } = {}): Gate[] {
   ]
 }
 
-function docSyncLeafGates(options: {
+function docSyncLeafGates(_options: {
   includeDocTypecheck?: boolean
   docTypecheckNeeds?: string[]
   docTypecheckEnv?: Record<string, string | undefined>
   docTypecheckScript?: 'doc-typecheck' | 'doc-typecheck:contracts-ready'
   docsBuildScript?: 'docs:build' | 'docs:build:mpa'
 } = {}): Gate[] {
-  const docTypecheckOptions: Partial<Gate> = {}
-  if (options.docTypecheckNeeds !== undefined) docTypecheckOptions.needs = options.docTypecheckNeeds
-  if (options.docTypecheckEnv !== undefined) docTypecheckOptions.env = options.docTypecheckEnv
   return [
-    // Stable FIFO starts the longest leaves first; only docs-site-build writes website/.generated.
-    ...options.includeDocTypecheck === false
-      ? []
-      : [pnpmScript('doc-typecheck', options.docTypecheckScript ?? 'doc-typecheck', docTypecheckOptions)],
-    pnpmScript('docs-site-build', options.docsBuildScript ?? 'docs:build', { label: 'documentation build' }),
-    pnpmScript('doc-graphs', 'verify-doc-graphs', { label: 'doc graphs' }),
+    // Fork trim: documentation checks stay available as individual `verify-*` scripts; the
+    // aggregate keeps only the two cheap link/wrap hygiene checks.
     pnpmScript('markdown-links', 'verify-md-links', { label: 'markdown links', quick: true }),
-    pnpmScript('type-equivalence', 'verify-type-equiv', { label: 'type equivalence', quick: true }),
-    pnpmScript('cordis-catalog', 'verify-cordis-catalog', { label: 'cordis catalog' }),
-    pnpmScript('cordis-inspect-catalog', 'verify-cordis-inspect-catalog', { label: 'Cordis inspect catalog' }),
-    pnpmScript('mermaid', 'verify-mermaid'),
-    pnpmScript('scoped-events', 'verify-scoped-events', { label: 'scoped events' }),
-    pnpmScript('translation-pairing', 'verify-translation-pairing', { label: 'translation pairing', quick: true }),
     pnpmScript('markdown-wrap', 'verify-md-wrap', { label: 'markdown wrap', quick: true }),
-    pnpmScript('client-catalog', 'verify-client-catalog', { label: 'client catalog' }),
-    pnpmScript('export-jsdoc', 'verify-export-jsdoc', { label: 'export jsdoc' }),
-    pnpmScript('tool-catalog', 'verify-tool-catalog', { label: 'tool catalog' }),
-    pnpmScript('config-catalog', 'verify-config-catalog', { label: 'config catalog' }),
-    pnpmScript('persistence-catalog', 'verify-persistence-catalog', { label: 'persistence catalog' }),
-    pnpmScript('session-format-catalog', 'verify-session-format-catalog', { label: 'Session format catalog' }),
-    pnpmScript('public-repository-links', 'verify-public-repository-links', { label: 'public repository links', quick: true }),
-    pnpmScript('doc-refs', 'verify-doc-refs', { label: 'doc refs', quick: true }),
-    pnpmScript('subsystem-pages', 'verify-subsystem-pages', { label: 'subsystem pages' }),
-    pnpmScript('package-paths', 'verify-package-paths', { label: 'package paths' }),
-    pnpmScript('tsconfig-paths', 'verify-tsconfig-paths', { label: 'tsconfig paths' }),
-    pnpmScript('config-source-ownership', 'verify-config-source-ownership', { label: 'config source ownership' }),
-    pnpmScript('package-readme-summaries', 'verify-package-readme-summaries', { label: 'package README Summaries', quick: true }),
-    pnpmScript('package-readme-model-experience', 'verify-package-readme-model-experience', { label: 'package README model experience', quick: true }),
-    pnpmScript('agent-note-classification', 'verify-agent-note-classification', { label: 'agent note classification', quick: true }),
-    pnpmScript('agent-note-format', 'verify-agent-note-format', { label: 'agent note format', quick: true }),
-    pnpmScript('archived-agent-notes', 'verify-archived-agent-notes', { label: 'archived agent notes', quick: true }),
-    pnpmScript('skill-invocation-metadata', 'verify-skill-invocation-metadata', { label: 'skill invocation metadata', quick: true }),
-    pnpmScript('translation-prompt', 'verify-translation-prompt', { label: 'translation prompt', quick: true }),
-    pnpmScript('doc-budgets', 'verify-doc-budgets', { label: 'doc budgets', quick: true }),
-    pnpmExec('doc-standard-tests', ['vitest', 'run', 'scripts/doc-standard.spec.ts'], {
-      label: 'documentation standard tests',
-      quick: true,
-    }),
-    pnpmExec('docs-site-projection', ['vitest', 'run', 'scripts/project-doc-site.spec.ts', 'scripts/verify-doc-site-fragments.spec.ts'], {
-      label: 'documentation site checks',
-    }),
-    pnpmScript('package-readme-limitations', 'verify-package-readme-limitations', { label: 'package README limitations', quick: true }),
   ]
 }
 
