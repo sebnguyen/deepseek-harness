@@ -257,6 +257,9 @@
     - id: fs-observation-policy
       name: '@deepseek-ai/dsh-fs-observation-policy'
 
+    - id: knowledge-notes
+      name: '@deepseek-ai/dsh-knowledge-notes'
+
     - id: tool-fs
       name: '@deepseek-ai/dsh-tool-fs'
 
