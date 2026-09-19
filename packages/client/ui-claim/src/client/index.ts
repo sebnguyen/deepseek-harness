@@ -1,12 +1,11 @@
 /**
- * Claim chip plugin, browser half: the per-Turn claim status in two
- * placements. While the session's claim is pending, a strip docked above the
- * composer shows it — visible while deep diving through a long turn. After
- * settlement the verdict chip sits in the finished Turn's icon action row,
- * between copy / Like / Dislike and the usage / time pills, and stays there,
- * so a failed claim remains visible on the finished Turn. Durable state
- * arrives through the `claim` Session projection; this plugin only reads it
- * and has no actions.
+ * Claim chip plugin, browser half: the claim status in two placements.
+ * While the session's claim is pending, a strip docked above the composer
+ * shows it and every turn's icon action row carries its chip — the chip
+ * follows the session's current pending claim, not the owning turn. Once no
+ * claim is pending, the action-row chip is gone. Durable state arrives
+ * through the `claim` Session projection; this plugin only reads it and
+ * has no actions.
  * @module @deepseek-ai/dsh-client-ui-claim/client
  */
 

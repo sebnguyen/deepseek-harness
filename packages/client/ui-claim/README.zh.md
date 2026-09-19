@@ -1,5 +1,5 @@
 ---
-description: "Web GUI 的 claim 界面：chat turn 尾部的每轮声明状态行，显示每轮承诺了什么以及核验器如何裁定；供 claim 体验的用户与维护者阅读。"
+description: "Web GUI 的 claim 界面：chat turn 尾部的声明状态行，显示当前的待决声明；供 claim 体验的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-Web GUI 的 claim 界面把每轮的持久声明显示为该轮尾部的一条状态行，位于 assistant 操作行（复制 / 点赞 / 点踩）正上方。声明一经声明，该行随即挂载——以动画圆点显示核验中——并在裁定后保持挂载，因此失败或被篡改的声明在完成的轮次上依然可见。悬停或聚焦芯片会显示声明目的、完成条件、最近一次核验结果，以及未通过裁定的解释。本插件只读取 `claim` session projection，不声明任何操作，也不创建声明。随附的 Web preset 会挂载它；从 web-app bundle 的 patch 中移除 `ui-claim` 行即可整体关闭该界面。
+Web GUI 的 claim 界面把 Session 的持久声明显示为 chat turn 尾部的状态行，位于 assistant 操作行（复制 / 点赞 / 点踩）正上方。声明待决期间，每一轮都挂载同一枚芯片——芯片跟随 Session 当前的待决声明，而非所属轮次——Session 运行时输入框上方的停靠条也会重复显示它。悬停或聚焦芯片会显示声明目的、完成条件和最近一次核验结果。本插件只读取 `claim` session projection，不声明任何操作，也不创建声明。随附的 Web preset 会挂载它；从 web-app bundle 的 patch 中移除 `ui-claim` 行即可整体关闭该界面。
 
 ## 目录
 
@@ -24,7 +24,7 @@ Web GUI 的 claim 界面把每轮的持久声明显示为该轮尾部的一条�
 <a id="use-this-package"></a>
 ## 使用本包
 
-与 `ui-chat` 一同挂载本插件；声明过 claim 的每一轮都会在其复制 / 点赞 / 点踩操作行正上方出现该状态行。声明打开时芯片显示 `核验声明中`，通过裁定后显示 `声明已通过`，未通过的裁定显示 `声明未通过` 或 `声明被篡改`。没有 claim 能力的 Session 没有 `claim` projection，什么都不渲染；未声明 claim 的轮次同样不渲染。
+与 `ui-chat` 一同挂载本插件；声明待决期间，该状态行出现在复制 / 点赞 / 点踩操作行正上方。声明打开时芯片显示 `核验声明中`；一旦没有待决声明，该行不渲染任何内容。没有 claim 能力的 Session 没有 `claim` projection，什么都不渲染；没有待决声明的 Session 同样不渲染。
 
 -----
 
@@ -34,7 +34,7 @@ Web GUI 的 claim 界面把每轮的持久声明显示为该轮尾部的一条�
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-芯片是纯读取端：`useProjection('claim')` 以整体快照的形式交付主机计算的按轮排序账本，turn-status 条目从中选择 `turn` 与所属 Turn 位置一致的那一行。这里没有客户端折叠、没有领域存储、也没有变更路径。`conversation.chat.turnStatus` 是 list 而非 chain，因此 claim 行可以与其他 turn-status 贡献者以及上方的 turn-tail 链共存。
+芯片是纯读取端：`useProjection('claim')` 以整体快照的形式交付主机计算的按轮排序账本，action-row 条目从中选择 Session 当前的待决声明，而不论它由哪一轮声明。这里没有客户端折叠、没有领域存储、也没有变更路径。
 
 </details>
 

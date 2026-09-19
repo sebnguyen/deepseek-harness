@@ -3,9 +3,10 @@
  * Both are toggles — clicking opens a small card with three accordions
  * (purpose, satisfy condition, raw verifier script) instead of a text blob.
  * While the session's claim is pending, the dock strip above the composer
- * shows it; after settlement the verdict chip sits in the finished Turn's
- * icon action row. Durable state arrives through the `claim` Session
- * projection; this plugin only reads it and has no actions.
+ * shows it and the action row carries its chip on every turn; once no claim
+ * is pending, the action-row chip is gone. Durable state arrives through
+ * the `claim` Session projection; this plugin only reads it and has no
+ * actions.
  * @module @deepseek-ai/dsh-client-ui-claim/client/ClaimChip
  */
 
@@ -133,12 +134,13 @@ export type ClaimActionProps =
   & import('@deepseek-ai/dsh-client-ui-slots').PropsLocale<'claim'>
 
 /**
- * Action-row adapter: picks this turn's claim out of the projection ledger.
+ * Action-row adapter: picks the session's current pending claim out of the
+ * projection ledger, regardless of which turn declared it.
  * @param props - the action-row owner share (message id and owning Turn) and the locale seat.
- * @returns the chip for this turn's claim, or nothing.
+ * @returns the chip for the pending claim, or nothing.
  */
-export function ClaimAction({ turn, useProjection, t }: ClaimActionProps) {
-  const claim = useProjection('claim', claims => claims?.find(entry => entry.turn === turn.turn))
+export function ClaimAction({ useProjection, t }: ClaimActionProps) {
+  const claim = useProjection('claim', claims => claims?.find(entry => entry.settlement.kind === 'pending'))
   if (claim === undefined) return null
   return <Chip claim={claim} t={t} className={css.chip} />
 }
@@ -150,10 +152,10 @@ export type ClaimDockProps =
 
 /**
  * Dock adapter: renders the session's open claim as a strip above the
- * composer while the Session is running; the settled verdict lives in the
- * finished Turn's action row. A claim left pending by a dead session's
- * interrupted turn stays hidden here — the strip is a live-work affordance,
- * and the durable chip on its turn still reports the un-settled state.
+ * composer while the Session is running. A claim left pending by a dead
+ * session's interrupted turn stays hidden here — the strip is a
+ * live-work affordance, and the action-row chip still reports the
+ * un-settled state.
  * @param props - the dock runtime share and the locale seat.
  * @returns the dock strip for the open claim, or nothing.
  */

@@ -119,8 +119,8 @@ describe('claim chip', () => {
     expect(screen.getByText('核验声明中')).toBeTruthy()
   })
 
-  it('passed claim: passed label in the action row', () => {
-    render(<ClaimAction {...actionProps([makeClaim({ settlement: { kind: 'passed' } })])} />)
+  it('passed claim: passed label in the direct chip', () => {
+    render(<ClaimChip claim={makeClaim({ settlement: { kind: 'passed' } })} t={t} />)
     expect(screen.getByText('声明已通过')).toBeTruthy()
   })
 
@@ -157,12 +157,21 @@ describe('claim chip', () => {
     expect(screen.getByText(/最近核验: 失败/)).toBeTruthy()
   })
 
-  it('picks the owning turn out of the ledger and ignores other turns', () => {
+  it('shows the current pending claim regardless of which turn declared it', () => {
     const claims = [
       makeClaim({ id: 'c0' as Claim['id'], turn: 2, settlement: { kind: 'passed' } }),
-      makeClaim({ id: 'c1' as Claim['id'], turn: 3 }),
+      makeClaim({ id: 'c1' as Claim['id'], turn: 7 }),
     ]
     render(<ClaimAction {...actionProps(claims, 3)} />)
     expect(screen.getByText('核验声明中')).toBeTruthy()
+  })
+
+  it('renders nothing in the action row once no claim is pending', () => {
+    const settled = render(<ClaimAction {...actionProps([makeClaim({ settlement: { kind: 'passed' } })])} />)
+    expect(settled.container.firstChild).toBeNull()
+    cleanup()
+
+    const blocked = render(<ClaimAction {...actionProps([makeClaim({ settlement: { kind: 'blocked', code: 'abandoned', message: 'wrong' } })])} />)
+    expect(blocked.container.firstChild).toBeNull()
   })
 })
