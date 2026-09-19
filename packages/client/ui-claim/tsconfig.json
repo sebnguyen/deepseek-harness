@@ -15,7 +15,10 @@
       "path": "../locale"
     },
     {
-      "path": "../store"
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../ui-chat"
     },
     {
       "path": "../ui-conversation"
@@ -30,19 +33,7 @@
       "path": "../ui-slots"
     },
     {
-      "path": "../ui-primitives"
-    },
-    {
-      "path": "../../llm/token-meter"
-    },
-    {
-      "path": "../../llm/llm"
-    },
-    {
-      "path": "../../core/session"
-    },
-    {
-      "path": "../../api/session-controller/tsconfig.client.json"
+      "path": "../../claim/claim"
     }
   ]
 }

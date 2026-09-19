@@ -46,6 +46,8 @@ export interface TurnTailOwnerProps {
 /** Owner currency of finalized-assistant actions. */
 export interface AssistantActionOwnerProps {
   messageId: MessageId
+  /** The Turn owning the closing message, for Turn-scoped readers such as claims. */
+  turn: TurnLocation
 }
 
 /** Optional prose file-mention provider consumed by Chat. */

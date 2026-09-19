@@ -279,6 +279,11 @@
     - id: ui-deliverables
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
+    # Claim chip: per-Turn claim status row in the turn-status strip, over the
+    # claim session projection. Remove this entry to turn the surface off.
+    - id: ui-claim
+      name: '@deepseek-ai/dsh-client-ui-claim'
+
 
     - id: ui-workspace
       name: '@deepseek-ai/dsh-client-ui-workspace'
@@ -347,9 +352,6 @@
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
-
-    - id: ui-context-window
-      name: '@deepseek-ai/dsh-client-ui-context-window'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

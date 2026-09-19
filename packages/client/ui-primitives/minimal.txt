@@ -1,0 +1,3 @@
+type Foo struct {
+    URN string `json:"urn"`
+}
