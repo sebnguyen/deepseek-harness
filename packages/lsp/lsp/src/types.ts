@@ -106,6 +106,14 @@ export interface LspProvider {
   query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>
 }
 
+/** One currently registered extension → language route, for coverage introspection only. */
+export interface LspRoute {
+  /** Lowercase leading-dot extension (e.g. `.go`). */
+  readonly extension: string
+  /** The LSP language id this extension resolves to. */
+  readonly languageId: string
+}
+
 /**
  * The LSP capability seam (`ctx.lsp`). Owns provider registration/selection and normalized query
  * execution; exposes exactly the four operations and no protocol escape hatch.
@@ -127,4 +135,11 @@ export interface LspService {
    * @returns the normalized, closed-union result.
    */
   query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * List every currently registered extension → language route. For introspection only (e.g.
+   * describing live coverage in prompt guidance) — `query()` remains the seam's actual lookup, and
+   * this snapshot is not ordered by registration or priority.
+   * @returns the routes sorted by extension.
+   */
+  listRoutes(): readonly LspRoute[]
 }

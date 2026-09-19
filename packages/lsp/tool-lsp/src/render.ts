@@ -7,7 +7,7 @@
  */
 
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
-import type { LspHover, LspLocation, LspOperation, LspPosition } from '@deepseek-ai/dsh-lsp'
+import type { LspHover, LspLocation, LspOperation, LspPosition, LspRoute } from '@deepseek-ai/dsh-lsp'
 import { posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -117,6 +117,19 @@ export function formatLocations(
 export function formatHover(hover: LspHover | null, maxResultChars: number): string {
   const text = hover === null ? 'No hover information.' : hover.contents
   return boundResult(text, maxResultChars, 'hover')
+}
+
+/**
+ * Describe live `lsp` coverage from the seam's currently registered routes, for the dynamic
+ * `tool:lsp-coverage` prompt section (`TOOL_LSP_COVERAGE`). Contributes nothing when no provider is
+ * registered, matching the empty-section convention for an absent capability.
+ * @param routes - `ctx.lsp.listRoutes()`'s live snapshot.
+ * @returns one guidance sentence naming every covered extension, or `''`.
+ */
+export function describeLspCoverage(routes: readonly LspRoute[]): string {
+  if (routes.length === 0) return ''
+  const list = routes.map(({ extension, languageId }) => `${extension} (${languageId})`).join(', ')
+  return `lsp currently covers: ${list}. A file outside these extensions returns LSP_UNAVAILABLE — use search/read for it instead of retrying lsp.`
 }
 
 /** Bound a complete rendered result, including the truncation notice itself. */

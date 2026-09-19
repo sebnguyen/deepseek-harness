@@ -18,6 +18,7 @@ import type {
   LspProvider,
   LspQueryRequest,
   LspQueryResult,
+  LspRoute,
   LspService,
 } from './types.ts'
 
@@ -32,6 +33,7 @@ export type {
   LspQueryRequest,
   LspQueryResult,
   LspRange,
+  LspRoute,
   LspService,
 } from './types.ts'
 
@@ -146,6 +148,12 @@ export class Lsp extends Service implements LspService {
       throw new LspError(`no LSP provider handles "${request.filePath}"`, 'LSP_UNAVAILABLE')
     }
     return route.provider.query({ ...request, languageId: route.languageId }, signal)
+  }
+
+  listRoutes(): readonly LspRoute[] {
+    return [...this.routes.entries()]
+      .map(([extension, route]) => ({ extension, languageId: route.languageId }))
+      .sort((a, b) => a.extension.localeCompare(b.extension))
   }
 }
 

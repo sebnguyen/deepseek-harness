@@ -137,6 +137,10 @@ const SECTION_ORDERS = {
   TOOL_WEB_SEARCH: 2000,
   TOOL_WEB_FETCH: 2100,
   TOOL_LSP: 2200,
+  // Appended after the fixed lsp guidance, never replacing it: live coverage
+  // depends on which providers are actually registered, so it is dynamic
+  // where TOOL_LSP's guidance text is not.
+  TOOL_LSP_COVERAGE: 2210,
   TOOL_SESSION_QUERY: 2300,
   TOOL_GOAL: 2400,
   TOOL_CORDIS: 2500,

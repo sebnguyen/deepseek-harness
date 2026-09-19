@@ -20,6 +20,7 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 import {
   DEFAULT_MAX_LOCATIONS,
   DEFAULT_MAX_RESULT_CHARS,
+  describeLspCoverage,
   formatHover,
   formatLocations,
   LSP_OPERATIONS,
@@ -31,6 +32,7 @@ import { sessionCwd } from './session-cwd.ts'
 export {
   DEFAULT_MAX_LOCATIONS,
   DEFAULT_MAX_RESULT_CHARS,
+  describeLspCoverage,
   formatHover,
   formatLocations,
   LSP_OPERATIONS,
@@ -104,6 +106,17 @@ export function apply(ctx: Context, config: Config): void {
     name: 'tool:lsp',
     order: ctx.systemPrompt.getSectionOrder('TOOL_LSP'),
     text: LSP_PROMPT_TEXT,
+  })
+
+  // Appended after the fixed guidance above, never replacing it: which
+  // extensions are covered depends on which providers are registered right
+  // now, so this section is re-resolved on every assembly instead of being
+  // fixed text like TOOL_LSP. Empty (registers nothing) until a provider
+  // exists — no false claim of coverage before one does.
+  ctx.systemPrompt.section({
+    name: 'tool:lsp-coverage',
+    order: ctx.systemPrompt.getSectionOrder('TOOL_LSP_COVERAGE'),
+    text: () => describeLspCoverage(ctx.lsp.listRoutes()),
   })
 
   ctx.tools.register(defineTool({
