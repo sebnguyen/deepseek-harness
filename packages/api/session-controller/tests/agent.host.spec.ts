@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionLogOffset, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
@@ -294,6 +295,36 @@ describe('ApiSession model selection', () => {
 
     const untouched = agent(ctx, header('uninstalled-model'))
     expect(agents.consumeSelection(untouched, 'fixture', 'fixture-model', undefined)).toBe(false)
+  })
+
+  it('applies deployment reasoning effort when the logged header omitted it on the same route', async () => {
+    const ctx = new Context()
+    roots.push(ctx)
+    await ctx.plugin(TypertRegistry)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    installSessionReadTestServices(ctx)
+    ctx.sessionProjections.register(agentPresetProjectionDefinition)
+    installModelSelectionProjection(ctx)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({
+        provider: 'logged-provider',
+        model: 'logged-model',
+        reasoningEffort: ReasoningEffortId('high'),
+      }),
+      saveSelection: () => Promise.resolve(),
+    } as never)
+    const agents = new ApiSessionAgentController(ctx)
+    const logged = agent(ctx, header('logged-model-effort'))
+    logged.session.append('request/header', {
+      header: { config: { provider: 'logged-provider', model: 'logged-model' } },
+      reason: 'initial',
+    })
+    expect(agents.selectionFor(logged).current).toEqual({
+      provider: 'logged-provider',
+      model: 'logged-model',
+      reasoningEffort: 'high',
+    })
   })
 })
 

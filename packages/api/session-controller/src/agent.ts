@@ -8,6 +8,7 @@ import type {
 } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-presets'
+import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
@@ -15,6 +16,44 @@ import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-ses
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type {} from '@deepseek-ai/dsh-typert-registry'
 import type { ModelSelection } from './types.ts'
+
+type LoggedRequestHeader = {
+  config: LlmCallConfig
+  adapterDefaults?: { reasoningEffort?: boolean }
+}
+
+/**
+ * Derive the live Agent model selection from a durable request header and the
+ * deployment default. Explicit logged effort wins; otherwise the default's
+ * effort applies when the route matches so settings can supply reasoning for
+ * gateways that stream chain-of-thought only when `reasoning_effort` is set.
+ */
+function agentModelSelectionFromLogged(
+  loggedHeader: LoggedRequestHeader,
+  defaultSelection: AgentModelSelection,
+): AgentModelSelection {
+  const logged = loggedHeader.config
+  const explicitEffort = logged.reasoningEffort !== undefined
+    && loggedHeader.adapterDefaults?.reasoningEffort !== true
+    ? logged.reasoningEffort
+    : undefined
+  if (explicitEffort !== undefined) {
+    return {
+      provider: logged.provider,
+      model: logged.model,
+      reasoningEffort: ReasoningEffortId(explicitEffort),
+    }
+  }
+  const sameRoute = defaultSelection.provider === logged.provider
+    && defaultSelection.model === logged.model
+  return {
+    provider: logged.provider,
+    model: logged.model,
+    ...(sameRoute && defaultSelection.reasoningEffort !== undefined
+      ? { reasoningEffort: defaultSelection.reasoningEffort }
+      : {}),
+  }
+}
 
 /** Cold Session identity absent from persistence. */
 export class ApiSessionNotFound extends Error {}
@@ -289,17 +328,7 @@ export class ApiSessionAgentController {
         if (picked !== undefined) return picked
         const loggedHeader = agent.session.requestHeader()
         if (loggedHeader === undefined) return defaultModel.currentSelection()
-        const logged = loggedHeader.config
-        return {
-          provider: logged.provider,
-          model: logged.model,
-          // An effort the adapter defaulted is not a conversation choice: restoring
-          // it as one would make an unchanged default read as a request change.
-          ...(logged.reasoningEffort === undefined
-            || loggedHeader.adapterDefaults?.reasoningEffort === true
-            ? {}
-            : { reasoningEffort: logged.reasoningEffort }),
-        }
+        return agentModelSelectionFromLogged(loggedHeader, defaultModel.currentSelection())
       },
       set current(next: AgentModelSelection) {
         picked = next
@@ -488,8 +517,12 @@ export class ApiSessionAgentController {
   }
 
   private agentOptions(): AgentOptions {
-    const { provider, model } = this.ctx.agentDefaultModel.currentSelection()
-    return { provider, model }
+    const selection = this.ctx.agentDefaultModel.currentSelection()
+    return {
+      provider: selection.provider,
+      model: selection.model,
+      ...(selection.reasoningEffort === undefined ? {} : { reasoningEffort: selection.reasoningEffort }),
+    }
   }
 
   private installSelection(agent: Agent): void {
