@@ -1,11 +1,16 @@
 /**
  * The note store: one plain JSON file per source-file note under the harness
- * home, written only by this package through the `fs` capability. The store is
- * not session state — replay never reads it.
+ * home. Note files are harness state, not model file mutation, so writes go
+ * through `node:fs` directly — the same channel session-log persistence uses —
+ * instead of the sandbox-fenced `fs` capability. Reads use `ctx.fs` (never
+ * fenced) to share its path resolution with the tools. The store is not
+ * session state — replay never reads it.
  *
  * @module @deepseek-ai/dsh-knowledge-notes/store
  */
 
+import { mkdir, writeFile } from 'node:fs/promises'
+import { dirname } from 'node:path'
 import type { FileSystem, FsTarget } from '@deepseek-ai/dsh-fs'
 import type { NoteRecord, NoteState } from './types.ts'
 import { sourceHash } from './hash.ts'
@@ -33,13 +38,29 @@ function asRecord(value: unknown, target: string): NoteRecord | undefined {
 }
 
 /**
+ * Write one note file through `node:fs` directly, creating parent directories.
+ * This is harness state, outside the sandbox fence — the same channel
+ * session-log persistence uses — so a note persists regardless of the session
+ * sandbox mode. A non-atomic write is accepted: a torn or truncated file
+ * degrades to "no note" on read and is re-affirmed by a later `upsert_note`.
+ * @param notePath - absolute note-file path (derived, never a free model path).
+ * @param content - the complete document to store.
+ * @param signal - caller-owned cancellation.
+ */
+async function writeNote(notePath: string, content: string, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted()
+  await mkdir(dirname(notePath), { recursive: true })
+  await writeFile(notePath, content, 'utf8')
+}
+
+/**
  * Read and validate one note file. Every failure mode — absent file, unreadable
  * JSON, tombstone, schema mismatch, `target` disagreeing with the location —
  * yields `undefined`, the same answer as "no note".
  */
 export class NoteStore {
   /**
-   * @param fs - the filesystem capability; the only writer of note files.
+   * @param fs - the filesystem capability used to resolve and read note files.
    * @param root - absolute store root, `<home>/knowledge/notes`.
    */
   constructor(private readonly fs: FileSystem, readonly root: string) {}
@@ -88,26 +109,26 @@ export class NoteStore {
 
   /**
    * Write one note record. The store is the only writer of note files and
-   * writes unconditionally — note files are never observed through a tool, so
-   * no guarding write intent can apply.
+   * writes unconditionally through `node:fs` — harness state, outside the
+   * sandbox fence, like session-log persistence — so `upsert_note` persists a
+   * note under every session sandbox mode.
    * @param record - the complete record to store.
    * @param signal - caller-owned cancellation.
    */
   async put(record: NoteRecord, signal?: AbortSignal): Promise<void> {
-    const noteTarget = await this.fs.resolve(this.notePathFor(record.target), this.resolveOpts(signal))
-    await this.fs.writeText(noteTarget, `${JSON.stringify(record, null, 2)}\n`, undefined, signal)
+    const notePath = this.notePathFor(record.target)
+    await writeNote(notePath, `${JSON.stringify(record, null, 2)}\n`, signal)
   }
 
   /**
-   * Tombstone the note for one target. The file system capability has no
+   * Tombstone the note for one target. The filesystem capability has no
    * delete, so an empty-claim delete leaves the tombstone document, which
    * every reader treats exactly as an absent note.
    * @param target - the resolved source file whose note is retracted.
    * @param signal - caller-owned cancellation.
    */
   async remove(target: FsTarget, signal?: AbortSignal): Promise<void> {
-    const noteTarget = await this.fs.resolve(this.notePathFor(target.displayPath), this.resolveOpts(signal))
-    await this.fs.writeText(noteTarget, `${TOMBSTONE}\n`, undefined, signal)
+    await writeNote(this.notePathFor(target.displayPath), `${TOMBSTONE}\n`, signal)
   }
 
   /**

@@ -42,7 +42,7 @@ Reading a noted file attaches one pointer line as injected context, rendered as 
 
 ## Store layout
 
-One file per note at `<home>/knowledge/notes/<absolute-target-path>.json`, the leading separator dropped. The layout is private: no tool argument, tool result, or prompt text ever names a note path. The store is the only writer of note files and writes unconditionally through the `fs` capability, so the write tool's observed-version policy never sees a note file.
+One file per note at `<home>/knowledge/notes/<absolute-target-path>.json`, the leading separator dropped. The layout is private: no tool argument, tool result, or prompt text ever names a note path. The store is the only writer of note files and writes through `node:fs` directly — harness state, outside the sandbox fence, like session-log persistence — so a note persists under every session sandbox mode, and the write tool's observed-version policy never sees a note file.
 
 ## Freshness
 
