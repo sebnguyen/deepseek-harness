@@ -44,6 +44,7 @@ const CHILD_ID = 'child-1' as SessionId
 const SECOND_ID = 'child-2' as SessionId
 
 type TrajectoryState = Parameters<Parameters<WorkflowRunPanelProps['useTrajectory']>[0]>[0]
+type TrajectoryCompositionState = Parameters<Parameters<WorkflowRunPanelProps['useTrajectoryComposition']>[0]>[0]
 
 const panelSession = sessionSnapshot(PARENT_ID)
 const panelAttention = new Map<SessionId, never>()
@@ -58,6 +59,7 @@ const panelTrajectory: TrajectoryState = {
   partial: null,
   runningCalls: [],
 }
+const panelTrajectoryComposition: TrajectoryCompositionState = { events: new Map() }
 
 interface ChatSnapshot {
   readonly nodes: ReadonlyMap<string, ChatConversationViewNode>
@@ -322,6 +324,7 @@ function panelProps(data: WorkflowRunChatData, sessions = listState(), openSessi
     useConversation: selector => selector(panelConversation),
     useChat: selector => selector(panelChat),
     useTrajectory: selector => selector(panelTrajectory),
+    useTrajectoryComposition: selector => selector(panelTrajectoryComposition),
     useInput: () => { throw new Error('unused') },
     inputActions: {
       setDraft: () => {},

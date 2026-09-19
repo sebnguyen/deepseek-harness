@@ -65,6 +65,30 @@ export interface ContextBreakdownProjection {
   messageTokens: number
 }
 
+/** One retained surface node's role and heuristic token price, in surface order. */
+export interface ContextCompositionNode {
+  /** Durable sequence number of the surface event this node prices (the owning `request/header` event's seq for `'tools'`). */
+  seq: number
+  /**
+   * The surface event type this node derives from, collapsed to its role.
+   * `'tools'` is synthetic — the newest request envelope's tool schemas,
+   * priced the same way {@link ContextBreakdownProjection}'s `toolsTokens`
+   * bucket is, positioned once, immediately after the current system prompt.
+   */
+  role: 'system' | 'user' | 'assistant' | 'tool' | 'tools'
+  /** Heuristic tokens of this node's exact message. */
+  heuristicTokens: number
+}
+
+/**
+ * Ordered heuristic composition of the current retained surface: one entry
+ * per surface node, plus a synthetic `'tools'` entry for the current request
+ * envelope's tool schemas, in surface order. Same heuristic and cost profile
+ * as {@link ContextBreakdownProjection} — this is the per-primitive detail
+ * that projection aggregates away.
+ */
+export type ContextCompositionProjection = readonly ContextCompositionNode[]
+
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /** Provider-reported usage accumulated across the complete durable log. */
@@ -73,5 +97,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     contextPressure: ContextPressureProjection
     /** Heuristic system/tools/message composition of the next request. */
     contextBreakdown: ContextBreakdownProjection
+    /** Ordered per-node composition of the current retained surface. */
+    contextComposition: ContextCompositionProjection
   }
 }

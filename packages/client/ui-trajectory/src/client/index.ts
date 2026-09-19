@@ -6,18 +6,22 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
-import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type { } from '@deepseek-ai/dsh-client-locale/client'
 // Type-only: the 'conversation.view' SlotMap row (declared by the slot's
 // owning package) must be in the program for the register calls to type.
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type { } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { } from '@deepseek-ai/dsh-client-ui-session/client'
 import { createTrajectoryDurationStore } from './duration-store.ts'
 import { en, NS, zh } from './locales.ts'
 import { registerTrajectoryAssistantDefinition } from './trajectory-assistant-definition.ts'
 import { registerTrajectoryCompactionDefinitions } from './trajectory-compaction-definition.ts'
+import {
+  EMPTY_RAW_SURFACE_SNAPSHOT, registerTrajectoryCompositionDefinition,
+} from './trajectory-composition-definition.ts'
+import type { TrajectoryRawSurfaceSnapshot } from './trajectory-composition-definition.ts'
 import { registerTrajectoryMessageDefinitions } from './trajectory-message-definitions.ts'
 import { registerTrajectoryRequestHeaderDefinition } from './trajectory-request-header-definition.ts'
 import {
@@ -35,6 +39,12 @@ export type {
   TrajectorySnapshot,
   UseTrajectory,
 } from './trajectory-contract.ts'
+export type { TrajectoryRawSurfaceSnapshot, UseTrajectoryComposition } from './trajectory-composition-definition.ts'
+export {
+  classifyComposition, compositionBackfillThroughSeq, describeEventContent, foldCompositionUpTo,
+  tryFoldCompositionUpTo, totalHeuristicTokens,
+} from './trajectory-composition.ts'
+export type { CacheClass, CompositionNode, CompositionSegment } from './trajectory-composition.ts'
 
 /** Required services: the conversation slot, registries, ordinary Session paging, and the locale service. */
 export const inject = ['slots', 'sessions', 'uiSession', 'uiConversation', 'locale']
@@ -58,6 +68,19 @@ export function apply(ctx: Context): void {
     }
     return source
   }
+  const compositionSources = new WeakMap<SessionBinding, ObservableSnapshot<TrajectoryRawSurfaceSnapshot>>()
+  const compositionSource = (binding: SessionBinding): ObservableSnapshot<TrajectoryRawSurfaceSnapshot> => {
+    let source = compositionSources.get(binding)
+    if (source === undefined) {
+      const target = ctx.uiConversation.binding(binding).target('trajectory-composition')
+      source = {
+        getSnapshot: () => target.getSnapshot() ?? EMPTY_RAW_SURFACE_SNAPSHOT,
+        subscribe: listener => target.subscribe(listener),
+      }
+      compositionSources.set(binding, source)
+    }
+    return source
+  }
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-trajectory: dictionaries')
   // Registration-time text (the view tab label) reads through the bound
   // translate as a thunk, so it follows the active locale without
@@ -70,9 +93,12 @@ export function apply(ctx: Context): void {
   registerTrajectoryToolDefinition(ctx)
   registerTrajectoryCompactionDefinitions(ctx)
   registerTrajectoryConversationView(ctx)
+  registerTrajectoryCompositionDefinition(ctx)
   ctx.uiSession.provide({
-    hooks: ['trajectory'],
-    resolve: binding => ({ hooks: { trajectory: trajectorySource(binding) } }),
+    hooks: ['trajectory', 'trajectoryComposition'],
+    resolve: binding => ({
+      hooks: { trajectory: trajectorySource(binding), trajectoryComposition: compositionSource(binding) },
+    }),
   })
   ctx.slots.inject('conversation.view', () => ctx.slots.register({
     name: 'conversation.view',
@@ -96,6 +122,7 @@ export function apply(ctx: Context): void {
           await session.loadOlder()
           return trajectory.getSnapshot() !== before
         },
+        loadThrough: seq => session.loadThrough(SessionSeq(seq)),
         loadImage: Object.assign(
           (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
           { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },

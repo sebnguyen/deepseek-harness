@@ -1137,6 +1137,128 @@
   padding: 0;
 }
 
+/* --- Context tab: this request's exact prompt composition, colored by real
+   KV-cache hit/miss. `.contextSpan`/`.contextRow` share one cache-class
+   palette; `hit`/`miss` reuse the house pass/fail tokens, `partial` splits
+   the same two colors by `--context-hit-fraction`, `unknown` is neutral
+   (the request's own cache accounting was indeterminate, not confirmed
+   zero — see trajectory-composition.ts's classifyComposition). --- */
+
+.contextPanel {
+  padding: 8px 0 14px;
+}
+
+.contextSummary {
+  padding: 0 14px 6px;
+  font: var(--dsw-font-xs-strong-13);
+}
+
+.contextNote {
+  margin: 0;
+  padding: 0 14px 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.contextTrack {
+  display: flex;
+  height: 8px;
+  margin: 0 14px 10px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.contextSpan {
+  flex: 0 0 auto;
+  min-width: 2px;
+  height: 100%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.contextSpan_hit {
+  background: var(--dsw-alias-state-success-secondary);
+}
+
+.contextSpan_miss {
+  background: var(--dsw-alias-state-error-secondary);
+}
+
+.contextSpan_partial {
+  background: linear-gradient(
+    to right,
+    var(--dsw-alias-state-success-secondary) 0%,
+    var(--dsw-alias-state-success-secondary) calc(var(--context-hit-fraction) * 100%),
+    var(--dsw-alias-state-error-secondary) calc(var(--context-hit-fraction) * 100%),
+    var(--dsw-alias-state-error-secondary) 100%
+  );
+}
+
+.contextSpan_unknown {
+  background: var(--dsw-alias-label-caption);
+  opacity: 0.5;
+}
+
+.contextSpan[aria-pressed='true'] {
+  outline: 2px solid var(--dsw-alias-label-primary);
+  outline-offset: 1px;
+}
+
+.contextRows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 14px;
+}
+
+.contextRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contextRow_hit {
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.contextRow_miss {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+.contextRow_partial {
+  background: linear-gradient(
+    to right,
+    var(--dsw-alias-state-success-tertiary) 0%,
+    var(--dsw-alias-state-success-tertiary) calc(var(--context-hit-fraction) * 100%),
+    var(--dsw-alias-interactive-bg-hover-danger) calc(var(--context-hit-fraction) * 100%),
+    var(--dsw-alias-interactive-bg-hover-danger) 100%
+  );
+}
+
+.contextRow_unknown {
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.contextRow[aria-pressed='true'] {
+  box-shadow: inset 0 0 0 2px var(--dsw-alias-label-primary);
+}
+
+.contextRowTokens {
+  flex: none;
+  font: var(--dsw-font-xxs-12);
+  color: var(--dsw-alias-label-tertiary);
+}
+
 .overview dt {
   color: var(--dsw-alias-label-tertiary);
 }

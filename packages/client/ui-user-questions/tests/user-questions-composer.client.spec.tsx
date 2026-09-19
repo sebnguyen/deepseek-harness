@@ -27,6 +27,7 @@ type SessionState = Parameters<Parameters<QuestionComposerProps['useSession']>[0
 type ConversationState = Parameters<Parameters<QuestionComposerProps['useConversation']>[0]>[0]
 type ChatState = Parameters<Parameters<QuestionComposerProps['useChat']>[0]>[0]
 type TrajectoryState = Parameters<Parameters<QuestionComposerProps['useTrajectory']>[0]>[0]
+type TrajectoryCompositionState = Parameters<Parameters<QuestionComposerProps['useTrajectoryComposition']>[0]>[0]
 type InputState = Parameters<Parameters<QuestionComposerProps['useInput']>[0]>[0]
 type AttentionState = Parameters<Parameters<QuestionComposerProps['useSessionPendingInteraction']>[0]>[0]
 
@@ -97,6 +98,7 @@ const trajectoryState: TrajectoryState = {
   partial: null,
   runningCalls: [],
 }
+const trajectoryCompositionState: TrajectoryCompositionState = { events: new Map() }
 const inputState: InputState = {
   draft: '',
   attachmentIds: [],
@@ -121,6 +123,7 @@ const kitBase: Omit<QuestionComposerProps, 'matched' | 'useStore' | 'actions'> =
   useConversation: selector => selector(conversationState),
   useChat: selector => selector(chatState),
   useTrajectory: selector => selector(trajectoryState),
+  useTrajectoryComposition: selector => selector(trajectoryCompositionState),
   useProjection: (() => undefined),
   useInput: selector => selector(inputState),
   inputActions: {

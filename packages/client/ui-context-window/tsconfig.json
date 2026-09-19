@@ -30,28 +30,19 @@
       "path": "../ui-slots"
     },
     {
-      "path": "../../api/session-controller/tsconfig.client.json"
-    },
-    {
-      "path": "../../core/agent"
-    },
-    {
-      "path": "../../core/session"
-    },
-    {
-      "path": "../../core/tools"
-    },
-    {
-      "path": "../../compaction/compaction"
-    },
-    {
-      "path": "../../llm/llm"
+      "path": "../ui-primitives"
     },
     {
       "path": "../../llm/token-meter"
     },
     {
-      "path": "../../attachment/attachment"
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../../core/session"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
     }
   ]
 }

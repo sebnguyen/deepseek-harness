@@ -374,6 +374,7 @@ function makeHarness(
     useChatNodeProcess,
     useConversation: bindSnapshotSelector(createSnapshotStore(EMPTY_CONVERSATION_SNAPSHOT)),
     useTrajectory: (() => { throw new Error('unused') }),
+    useTrajectoryComposition: (() => { throw new Error('unused') }),
     useSessions: emptySessions(),
     useResource,
     useSessionPendingInteraction: bindSnapshotSelector(

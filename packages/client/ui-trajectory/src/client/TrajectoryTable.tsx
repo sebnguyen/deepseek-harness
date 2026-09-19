@@ -30,6 +30,12 @@ import type { TrajectoryTurnModel } from './layout.ts'
 import { trajectoryPreviewText } from './trajectory-preview.ts'
 import type { TrajectoryKey, TrajectoryTranslate } from './locales.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
+import {
+  classifyComposition, compositionBackfillThroughSeq, describeEventContent, tryFoldCompositionUpTo,
+  totalHeuristicTokens,
+} from './trajectory-composition.ts'
+import type { CompositionSegment } from './trajectory-composition.ts'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import css from './TrajectoryTable.module.css'
 
 const BOTTOM_FOLLOW_THRESHOLD_PX = 2
@@ -38,6 +44,7 @@ const HISTORY_LOAD_ROW_HEIGHT_PX = 30
 const VIRTUALIZATION_THRESHOLD = 100
 const VIRTUAL_OVERSCAN_ROWS = 12
 const VIRTUAL_INITIAL_VIEWPORT_HEIGHT_PX = 600
+const EMPTY_RAW_SURFACE_EVENTS: ReadonlyMap<number, SessionEvent> = new Map()
 
 const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
   system: 'kind.system',
@@ -170,6 +177,7 @@ type DetailTab =
   | 'usage'
   | 'timing'
   | 'diff'
+  | 'context'
 type RecordState = 'complete' | 'running' | 'error'
 
 interface DetailTabItem {
@@ -221,6 +229,7 @@ const REQUEST_TABS: readonly DetailTabItem[] = [
   { id: 'options', labelKey: 'tab.options' },
   { id: 'usage', labelKey: 'tab.usage' },
   { id: 'timing', labelKey: 'tab.timing' },
+  { id: 'context', labelKey: 'tab.context' },
 ]
 
 function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
@@ -408,6 +417,10 @@ export interface TrajectoryTableProps {
   hasOlderRecords?: boolean
   /** Load one older history page. */
   onLoadOlder?: () => Promise<boolean>
+  /** Whether the session event window still has older pages not yet fetched. */
+  sessionHasOlderHistory?: boolean
+  /** Page session history backward until the window covers `seq`. */
+  loadCompositionThrough?: (seq: number) => Promise<void>
   /** Clear selection state owned by the ledger host. */
   onClearSelection?: () => void
   /** Turn ids whose rows after the first are folded into a summary. */
@@ -422,6 +435,12 @@ export interface TrajectoryTableProps {
   inspectCallId?: string | null
   /** Acknowledge a consumed (or unresolvable) inspect request. */
   onInspectApplied?: (() => void) | undefined
+  /**
+   * Raw surface/header events captured so far, keyed by seq — folded on demand into the selected
+   * request's exact composition for the Context tab. Absent renders the Context tab's "not loaded"
+   * fallback.
+   */
+  rawSurfaceEvents?: ReadonlyMap<number, SessionEvent>
 }
 
 /** Request-inspector fields shared by ordinary generation and compaction. */
@@ -837,6 +856,110 @@ function RequestUsagePanel({
         <h4 className={css.usageHeading}>{t('usage.sessionCumulative')}</h4>
         <UsageRows usage={cumulative} t={t} />
       </section>
+    </div>
+  )
+}
+
+/**
+ * Tag class per composition role, matching the ledger's own live `.kindTag` scheme
+ * (`systemNeutral`/`user`/`assistantVioletBright`/`toolAmber`); `'tools'` shares `tool`'s amber.
+ */
+const CONTEXT_TAG_CLASS: Record<CompositionSegment['role'], string | undefined> = {
+  system: css.systemNeutral,
+  user: css.user,
+  assistant: css.assistantVioletBright,
+  tool: css.toolAmber,
+  tools: css.toolAmber,
+}
+
+/** Cache-class label key per segment, for both the row list and the strip's `title`. */
+const CONTEXT_CACHE_LABEL_KEY: Record<CompositionSegment['cacheClass'], TrajectoryKey> = {
+  hit: 'context.cache.hit',
+  miss: 'context.cache.miss',
+  partial: 'context.cache.partial',
+  unknown: 'context.cache.unknown',
+}
+
+type ContextSpanStyle = CSSProperties & { '--context-hit-fraction'?: number }
+
+/**
+ * This request's exact prompt composition — the ordered surface nodes it
+ * was built from, sized by heuristic token estimate and colored by real
+ * KV-cache hit/miss — plus a click-to-inspect body for each node's full
+ * text. `segments` is `undefined` while the fold is still pending (the
+ * request has no fixed boundary seq yet) and empty when the boundary seq
+ * resolved but no raw surface events have been captured for it yet.
+ */
+function RequestContextPanel({
+  segments,
+  rawSurfaceEvents,
+  compositionLoading,
+  compositionUnavailable,
+  t,
+}: {
+  segments: readonly CompositionSegment[] | undefined
+  rawSurfaceEvents: ReadonlyMap<number, SessionEvent>
+  compositionLoading: boolean
+  compositionUnavailable: boolean
+  t: TrajectoryTranslate
+}) {
+  const [selectedSeq, setSelectedSeq] = useState<number | null>(null)
+  if (segments === undefined || segments.length === 0) {
+    if (compositionLoading) return <p className={css.noPayload}>{t('context.loading')}</p>
+    if (compositionUnavailable) return <p className={css.noPayload}>{t('context.unavailable')}</p>
+    return <p className={css.noPayload}>{t('context.notLoaded')}</p>
+  }
+  const total = totalHeuristicTokens(segments)
+  const selected = segments.find(segment => segment.seq === selectedSeq)
+  const cacheUnknown = segments.every(segment => segment.cacheClass === 'unknown')
+  return (
+    <div className={css.contextPanel}>
+      <div className={css.contextSummary}>
+        <span>{t('context.usage', { used: total.toLocaleString(), capacity: '?' })}</span>
+      </div>
+      {cacheUnknown && <p className={css.contextNote}>{t('context.cacheUnknown')}</p>}
+      <div className={css.contextTrack}>
+        {segments.map((segment) => {
+          const style: ContextSpanStyle = { flexGrow: Math.max(segment.heuristicTokens, 1) }
+          if (segment.cacheClass === 'partial') style['--context-hit-fraction'] = segment.hitFraction
+          return (
+            <button
+              key={segment.seq}
+              type="button"
+              className={`${css.contextSpan} ${css[`contextSpan_${segment.cacheClass}`]}`}
+              style={style}
+              aria-pressed={selectedSeq === segment.seq}
+              title={`${t(`context.role.${segment.role}`)} — ${segment.heuristicTokens.toLocaleString()} — ${t(CONTEXT_CACHE_LABEL_KEY[segment.cacheClass])}`}
+              onClick={() => { setSelectedSeq(segment.seq) }}
+            />
+          )
+        })}
+      </div>
+      <div className={css.contextRows}>
+        {segments.map((segment) => {
+          const style: ContextSpanStyle = segment.cacheClass === 'partial' ? { '--context-hit-fraction': segment.hitFraction } : {}
+          return (
+            <button
+              key={segment.seq}
+              type="button"
+              className={`${css.contextRow} ${css[`contextRow_${segment.cacheClass}`]}`}
+              style={style}
+              aria-pressed={selectedSeq === segment.seq}
+              onClick={() => { setSelectedSeq(segment.seq) }}
+            >
+              <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[segment.role]}`}>{t(`context.role.${segment.role}`)}</span>
+              <span className={css.contextRowTokens}>{segment.heuristicTokens.toLocaleString()}</span>
+            </button>
+          )
+        })}
+      </div>
+      {selected !== undefined && (() => {
+        const event = rawSurfaceEvents.get(selected.seq)
+        const content = event === undefined ? undefined : describeEventContent(event)
+        return content === undefined || content === ''
+          ? <p className={css.noPayload}>{content === undefined ? t('context.notLoaded') : t('context.empty')}</p>
+          : <pre className={css.payload}>{content}</pre>
+      })()}
     </div>
   )
 }
@@ -1817,6 +1940,8 @@ export function TrajectoryTable({
   historyStartSeq,
   hasOlderRecords = false,
   onLoadOlder,
+  sessionHasOlderHistory = false,
+  loadCompositionThrough,
   onClearSelection,
   collapsedTurns,
   onToggleTurn,
@@ -1824,6 +1949,7 @@ export function TrajectoryTable({
   onToggleAssistant,
   inspectCallId = null,
   onInspectApplied,
+  rawSurfaceEvents = EMPTY_RAW_SURFACE_EVENTS,
 }: TrajectoryTableProps) {
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<SelectedRequest | null>(null)
@@ -1932,8 +2058,8 @@ export function TrajectoryTable({
     : Math.max(
       0,
       rowVirtualizer.getTotalSize()
-        + virtualScrollMargin
-        - (virtualItems.at(-1)?.end ?? 0),
+      + virtualScrollMargin
+      - (virtualItems.at(-1)?.end ?? 0),
     )
   const renderedRecords = virtualizationEnabled
     ? virtualItems.flatMap((item) => {
@@ -1975,7 +2101,7 @@ export function TrajectoryTable({
     ? []
     : allRecords.filter(record =>
       record.turn === selectedRequestInfo.turn
-        && record.group === selectedRequestInfo.group,
+      && record.group === selectedRequestInfo.group,
     ), [allRecords, selectedRequestInfo])
   const selectedRequestRecords = selectedRequestRecordTemplates.map(currentRecord)
   const selectedRequestAssistant = selectedRequestRecords.find(
@@ -1986,12 +2112,12 @@ export function TrajectoryTable({
   const selectedRequestState: RecordState | undefined = selectedRequestInfo === undefined
     ? undefined
     : selectedRequestInfo.status
-      ?? (selectedRequestAssistant?.cell.assistantMetrics?.completedTime === null
+    ?? (selectedRequestAssistant?.cell.assistantMetrics?.completedTime === null
+      ? 'running'
+      : selectedRequestAssistant === undefined
+        && selectedRequestRecords.some(record => stateOf(record) === 'running')
         ? 'running'
-        : selectedRequestAssistant === undefined
-          && selectedRequestRecords.some(record => stateOf(record) === 'running')
-          ? 'running'
-          : 'complete')
+        : 'complete')
   const selectedRequestToolCalls = selectedRequestRecords.filter(
     record => record.cell.kind === 'tool',
   ).length
@@ -2028,12 +2154,60 @@ export function TrajectoryTable({
   const selectedRequestCumulativeUsage =
     selectedRequestInfo?.cumulativeUsage ?? selectedRequestUsage
   const selectedRequestOptions = selectedRequestInfo?.requestConfig
+  // `seq` is this request's anchor event — the last raw event logged before
+  // the model was called, so folding the surface up to and including it
+  // reconstructs exactly what that call's prompt was, excluding this
+  // request's own reply. Absent only for the currently streaming request,
+  // which has no fixed prompt to reconstruct yet.
+  const selectedRequestBoundarySeq = selectedRequestInfo?.seq
+  const selectedRequestComposition = useMemo(() => {
+    if (selectedRequestBoundarySeq === undefined) return undefined
+    const nodes = tryFoldCompositionUpTo([...rawSurfaceEvents.values()], selectedRequestBoundarySeq)
+    return nodes === undefined ? undefined : classifyComposition(nodes, selectedRequestUsage?.cacheRead)
+  }, [rawSurfaceEvents, selectedRequestBoundarySeq, selectedRequestUsage?.cacheRead])
+  const [compositionBackfill, setCompositionBackfill] = useState(false)
+  const compositionHistoryLoad = useRef(false)
+  useEffect(() => {
+    if (selectedRequestBoundarySeq === undefined) return
+    if (selectedRequestComposition !== undefined) return
+    if (loadCompositionThrough === undefined) return
+    if (compositionHistoryLoad.current) return
+    if (!sessionHasOlderHistory && rawSurfaceEvents.size === 0) return
+    const throughSeq = compositionBackfillThroughSeq(
+      [...rawSurfaceEvents.values()],
+      selectedRequestBoundarySeq,
+    )
+    if (!sessionHasOlderHistory) return
+    compositionHistoryLoad.current = true
+    setCompositionBackfill(true)
+    void loadCompositionThrough(throughSeq).finally(() => {
+      compositionHistoryLoad.current = false
+      setCompositionBackfill(false)
+    })
+  }, [
+    loadCompositionThrough,
+    rawSurfaceEvents,
+    selectedRequestBoundarySeq,
+    selectedRequestComposition,
+    sessionHasOlderHistory,
+  ])
+  const compositionUnavailable = selectedRequestBoundarySeq !== undefined
+    && selectedRequestComposition === undefined
+    && !compositionBackfill
+    && !sessionHasOlderHistory
+    && rawSurfaceEvents.size > 0
+  const compositionLoading = compositionBackfill
+    || (selectedRequestBoundarySeq !== undefined
+      && selectedRequestComposition === undefined
+      && sessionHasOlderHistory)
   const activeTurn = selectedRequestInfo === undefined ? selected?.turn : selectedRequestInfo.turn
   const activeSection = selectedRequestInfo === undefined
     ? selected?.section
     : selectedRequestRecords[0]?.section
   const selectedTabs = selectedRequestInfo !== undefined
-    ? REQUEST_TABS.filter(tab => tab.id !== 'options' || selectedRequestOptions !== undefined)
+    ? REQUEST_TABS.filter(tab =>
+      (tab.id !== 'options' || selectedRequestOptions !== undefined)
+      && (tab.id !== 'context' || selectedRequestBoundarySeq !== undefined))
     : selected === undefined ? [] : detailTabs(selected)
   const selectedParents: ParentRecords = selected === undefined
     ? {}
@@ -2182,8 +2356,8 @@ export function TrajectoryTable({
     if (timelineFocusIndexes === null || timelineFocusIndexes.size === 0) return
     const focusedPositions = records.flatMap((record, position) =>
       record.collapsedSummary === undefined
-      && record.cell.requestOnly !== true
-      && timelineFocusIndexes.has(record.cell.index)
+        && record.cell.requestOnly !== true
+        && timelineFocusIndexes.has(record.cell.index)
         ? [position]
         : [])
     const first = focusedPositions.at(0)
@@ -2231,7 +2405,7 @@ export function TrajectoryTable({
       focusHeight > paneHeight
         ? firstVirtual
         : focusedVirtualIndexes[Math.floor((focusedVirtualIndexes.length - 1) / 2)]
-          ?? firstVirtual,
+        ?? firstVirtual,
       {
         behavior: 'smooth',
         align: focusHeight > paneHeight ? 'start' : 'center',
@@ -2312,7 +2486,7 @@ export function TrajectoryTable({
           const pane = event.currentTarget
           followsTableTail.current =
             pane.scrollHeight - pane.clientHeight - pane.scrollTop
-              <= BOTTOM_FOLLOW_THRESHOLD_PX
+            <= BOTTOM_FOLLOW_THRESHOLD_PX
           requestOlder(pane, true)
         }}
         onClick={(event) => {
@@ -2389,18 +2563,18 @@ export function TrajectoryTable({
                   const isCollapsedSummary = record.collapsedSummary !== undefined
                   const isRequestOnly = record.cell.requestOnly === true
                   const isInitialSystem = record.cell.kind === 'system'
-                && record.cell.index === allRecords[0]?.cell.index
+                    && record.cell.index === allRecords[0]?.cell.index
                   const key = requestKey(record.turn, record.group)
                   const request = requestBoundaries.get(key) === record.cell.index
-                && !isCollapsedSummary
-                && (record.turn === null || !collapsedTurns.has(record.turn))
+                    && !isCollapsedSummary
+                    && (record.turn === null || !collapsedTurns.has(record.turn))
                     ? requestNumbers.get(key)
                     : undefined
                   const requestInfo = request === undefined
                     ? undefined
                     : sessionRequestNumbers?.find(candidate => candidate.number === request)
                   const requestStatus = requestInfo?.status
-                ?? (record.cell.isError === true ? 'error' : undefined)
+                    ?? (record.cell.isError === true ? 'error' : undefined)
                   const requestRunIndex = requestBoundaryRuns.get(record.cell.index) ?? 0
                   const requestBoundaryStyle: RequestBoundaryStyle = {
                     '--request-boundary-offset': `${requestRunIndex * 8}px`,
@@ -2411,7 +2585,7 @@ export function TrajectoryTable({
                       ? 'request.labelCompaction'
                       : 'request.label', { request })
                   const requestSelected = requestInfo !== undefined
-                && selectedRequest?.identity === requestIdentity(requestInfo)
+                    && selectedRequest?.identity === requestIdentity(requestInfo)
                   const sectionActive = record.turn === null
                     ? activeSection === record.section
                     : activeTurn === record.turn
@@ -2470,7 +2644,7 @@ export function TrajectoryTable({
                         }
                         if (
                           record.cell.kind === 'message'
-                      && assistantToolCalls(allRecords, record.cell.index).length > 0
+                          && assistantToolCalls(allRecords, record.cell.index).length > 0
                         ) {
                           event.preventDefault()
                           onToggleAssistant(trajectoryRecordId(record.cell))
@@ -2480,8 +2654,8 @@ export function TrajectoryTable({
                         if (record.turn === null) return
                         if (allRecords.filter(candidate =>
                           candidate.turn === record.turn
-                      && candidate.cell.requestOnly !== true
-                      && candidate.cell.kind !== 'system').length <= 1) return
+                          && candidate.cell.requestOnly !== true
+                          && candidate.cell.kind !== 'system').length <= 1) return
                         event.preventDefault()
                         onToggleTurn(record.turn)
                       }}
@@ -2521,16 +2695,16 @@ export function TrajectoryTable({
                           />
                         )}
                         {record.turn !== null
-                    && activeTurn === record.turn
-                    && !isInitialSystem && (
+                          && activeTurn === record.turn
+                          && !isInitialSystem && (
                           <span className={css.turnRail} aria-hidden="true" />
                         )}
                         {!isCollapsedSummary && selectedIndex === record.cell.index && (
                           <span className={css.selectionRail} aria-hidden="true" />
                         )}
                         {!isCollapsedSummary
-                    && !isRequestOnly
-                    && record.turnStart && (
+                          && !isRequestOnly
+                          && record.turnStart && (
                           <span
                             className={sectionActive
                               ? `${css.turnLabel} ${css.turnLabelActive}`
@@ -2557,20 +2731,19 @@ export function TrajectoryTable({
                               className={css.kindSlot}
                             >
                               <span
-                                className={`${css.kindTag} ${
-                                  record.cell.kind === 'system'
-                                    ? css.systemNeutral
-                                    : record.cell.kind === 'context'
-                                      ? css.contextGreen
-                                      : record.cell.kind === 'compacted'
-                                        ? css.compacted
-                                        : record.cell.kind === 'tool'
-                                          ? css.toolAmber
-                                          : record.cell.kind === 'message'
-                                            ? css.assistantVioletBright
-                                            : record.cell.kind === 'subtool'
-                                              ? css.subtoolAmber
-                                              : css[record.cell.kind]
+                                className={`${css.kindTag} ${record.cell.kind === 'system'
+                                  ? css.systemNeutral
+                                  : record.cell.kind === 'context'
+                                    ? css.contextGreen
+                                    : record.cell.kind === 'compacted'
+                                      ? css.compacted
+                                      : record.cell.kind === 'tool'
+                                        ? css.toolAmber
+                                        : record.cell.kind === 'message'
+                                          ? css.assistantVioletBright
+                                          : record.cell.kind === 'subtool'
+                                            ? css.subtoolAmber
+                                            : css[record.cell.kind]
                                 }`}
                                 data-role-kind={record.cell.kind}
                               >
@@ -2696,7 +2869,7 @@ export function TrajectoryTable({
               setDetailsWidth(nextDetailsWidth)
               setToolRequestOffset(
                 drag.startToolRequestOffset
-                + (nextDetailsWidth - drag.startWidth) * TOOL_REQUEST_SHARE,
+                  + (nextDetailsWidth - drag.startWidth) * TOOL_REQUEST_SHARE,
               )
             }}
             onPointerUp={(event) => {
@@ -2726,7 +2899,7 @@ export function TrajectoryTable({
               setDetailsWidth(nextDetailsWidth)
               setToolRequestOffset(
                 currentToolRequestOffset
-                + (nextDetailsWidth - currentDetailsWidth) * TOOL_REQUEST_SHARE,
+                  + (nextDetailsWidth - currentDetailsWidth) * TOOL_REQUEST_SHARE,
               )
               event.preventDefault()
             }}
@@ -2756,18 +2929,17 @@ export function TrajectoryTable({
                   )
                   : selected !== undefined && (
                     <>
-                      <span className={`${css.kindTag} ${
-                        selected.cell.kind === 'context'
-                          ? css.contextGreen
-                          : selected.cell.kind === 'compacted'
-                            ? css.compacted
-                            : selected.cell.kind === 'tool'
-                              ? css.toolAmber
-                              : selected.cell.kind === 'message'
-                                ? css.assistantVioletBright
-                                : selected.cell.kind === 'subtool'
-                                  ? css.subtoolAmber
-                                  : css[selected.cell.kind]
+                      <span className={`${css.kindTag} ${selected.cell.kind === 'context'
+                        ? css.contextGreen
+                        : selected.cell.kind === 'compacted'
+                          ? css.compacted
+                          : selected.cell.kind === 'tool'
+                            ? css.toolAmber
+                            : selected.cell.kind === 'message'
+                              ? css.assistantVioletBright
+                              : selected.cell.kind === 'subtool'
+                                ? css.subtoolAmber
+                                : css[selected.cell.kind]
                       }`}
                       >
                         {t(KIND_LABEL_KEY[selected.cell.kind])}
@@ -2814,8 +2986,8 @@ export function TrajectoryTable({
             aria-labelledby={`trajectory-detail-${activeTab}`}
           >
             {selectedRequestInfo !== undefined
-              && selectedRequestState !== undefined
-              && activeTab === 'overview' && (
+                && selectedRequestState !== undefined
+                && activeTab === 'overview' && (
               <>
                 <dl
                   className={`${css.overview} ${css.summaryScrollRegion}`}
@@ -2834,22 +3006,22 @@ export function TrajectoryTable({
                     </div>
                   )}
                   {(selectedRequestInfo.provider
-                    ?? selectedRequestInfo.requestConfig?.provider) !== undefined && (
+                        ?? selectedRequestInfo.requestConfig?.provider) !== undefined && (
                     <div>
                       <dt>{t('details.provider')}</dt>
                       <dd>
                         {selectedRequestInfo.provider
-                          ?? selectedRequestInfo.requestConfig?.provider}
+                                ?? selectedRequestInfo.requestConfig?.provider}
                       </dd>
                     </div>
                   )}
                   {(selectedRequestInfo.model
-                    ?? selectedRequestInfo.requestConfig?.model) !== undefined && (
+                        ?? selectedRequestInfo.requestConfig?.model) !== undefined && (
                     <div>
                       <dt>{t('details.model')}</dt>
                       <dd>
                         {selectedRequestInfo.model
-                          ?? selectedRequestInfo.requestConfig?.model}
+                                ?? selectedRequestInfo.requestConfig?.model}
                       </dd>
                     </div>
                   )}
@@ -2951,9 +3123,18 @@ export function TrajectoryTable({
                 t={t}
               />
             )}
+            {selectedRequestInfo !== undefined && activeTab === 'context' && (
+              <RequestContextPanel
+                segments={selectedRequestComposition}
+                rawSurfaceEvents={rawSurfaceEvents}
+                compositionLoading={compositionLoading}
+                compositionUnavailable={compositionUnavailable}
+                t={t}
+              />
+            )}
             {selectedPrompt !== undefined
-              && selectedPreviousPrompt !== undefined
-              && activeTab === 'diff' && (
+                && selectedPreviousPrompt !== undefined
+                && activeTab === 'diff' && (
               <SystemPromptDiff
                 before={selectedPreviousPrompt}
                 after={selectedPrompt}
@@ -2973,9 +3154,9 @@ export function TrajectoryTable({
               <ToolCatalog tools={selectedPrompt.tools} t={t} />
             )}
             {!promptSelected
-              && selected?.cell.kind === 'compacted'
-              && selectedState !== undefined
-              && activeTab === 'overview' && (
+                && selected?.cell.kind === 'compacted'
+                && selectedState !== undefined
+                && activeTab === 'overview' && (
               <>
                 <dl
                   className={`${css.overview} ${css.summaryScrollRegion}`}
@@ -3015,10 +3196,10 @@ export function TrajectoryTable({
               </>
             )}
             {!promptSelected
-              && selected !== undefined
-              && selected.cell.kind !== 'compacted'
-              && selectedState !== undefined
-              && activeTab === 'overview' && (
+                && selected !== undefined
+                && selected.cell.kind !== 'compacted'
+                && selectedState !== undefined
+                && activeTab === 'overview' && (
               <>
                 <dl
                   className={`${css.overview} ${css.summaryScrollRegion}`}

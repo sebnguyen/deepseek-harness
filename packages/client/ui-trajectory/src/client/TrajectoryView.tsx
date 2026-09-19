@@ -78,6 +78,7 @@ export interface TrajectoryViewInjected {
     duration: SnapshotStore<boolean>
   }
   loadOlder: () => Promise<boolean>
+  loadThrough: (seq: number) => Promise<void>
   loadImage: MessageImageLoader
   setActualDuration: (actualDuration: boolean) => void
 }
@@ -127,7 +128,7 @@ function addUsage(
 }
 
 export function TrajectoryView({
-  useSession, useTrajectory, useDuration, loadOlder, loadImage, setActualDuration,
+  useSession, useTrajectory, useTrajectoryComposition, useDuration, loadOlder, loadThrough, loadImage, setActualDuration,
   viewRequest, completeViewRequest, renderSlot, t,
 }: ConvViewProps
   & PropsRenderSlots<'conversation.trajectory.images'>
@@ -156,6 +157,7 @@ export function TrajectoryView({
     readonly index: number
   } | null>(null)
   const completeInspection = useTrajectory(snapshot => snapshot)
+  const rawSurfaceEvents = useTrajectoryComposition(snapshot => snapshot.events)
   const latestNodeSeq = completeInspection.eventNodes.at(-1)?.seq
   const [historyTailSeq, setHistoryTailSeq] = useState(latestNodeSeq)
   const [historyNodeLimit, setHistoryNodeLimit] = useState(HISTORY_PAGE_NODES)
@@ -556,6 +558,8 @@ export function TrajectoryView({
           historyStartSeq={historyBaseSeq}
           hasOlderRecords={hasOlderHistory}
           onLoadOlder={loadEarlierHistory}
+          sessionHasOlderHistory={sessionHasOlderHistory}
+          loadCompositionThrough={loadThrough}
           onClearSelection={() => { setTimelineSelection(null) }}
           collapsedTurns={collapsedTurns}
           onToggleTurn={toggleTurn}
@@ -563,6 +567,7 @@ export function TrajectoryView({
           onToggleAssistant={toggleAssistant}
           inspectCallId={inspectCallId}
           onInspectApplied={completeViewRequest}
+          rawSurfaceEvents={rawSurfaceEvents}
         />
       </div>
     </div>

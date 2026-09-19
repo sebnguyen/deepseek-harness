@@ -50,6 +50,7 @@ const useSessionPendingInteraction: MessageImagesProps['useSessionPendingInterac
 const useConversation: MessageImagesProps['useConversation'] = selector => selector(EMPTY_CONVERSATION_SNAPSHOT)
 const useChat: MessageImagesProps['useChat'] = selector => selector(EMPTY_CHAT_SNAPSHOT)
 const useTrajectory: MessageImagesProps['useTrajectory'] = selector => selector(emptyTrajectory)
+const useTrajectoryComposition: MessageImagesProps['useTrajectoryComposition'] = selector => selector({ events: new Map() })
 
 describe('MessageImage', () => {
   it('renders a cached URL on the first frame while refreshing it', () => {
@@ -280,6 +281,7 @@ describe('ImageGallery', () => {
       useConversation,
       useChat,
       useTrajectory,
+      useTrajectoryComposition,
       useInput,
       inputActions: {
         setDraft: vi.fn(),

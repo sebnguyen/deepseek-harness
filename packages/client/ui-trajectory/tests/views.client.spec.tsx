@@ -49,12 +49,13 @@ import {
 } from '../src/client/TrajectoryView.tsx'
 import { createTrajectoryDurationStore } from '../src/client/duration-store.ts'
 import { EMPTY_TRAJECTORY_SNAPSHOT } from '../src/client/trajectory-snapshot-builder.ts'
+import { EMPTY_RAW_SURFACE_SNAPSHOT } from '../src/client/trajectory-composition-definition.ts'
 import type { TrajectorySnapshot } from '../src/client/trajectory-contract.ts'
 import { deriveTrajectoryTimeline } from '../src/client/timeline.ts'
 import { t as tTrajectory, tZh } from './locale.client.ts'
 
 // Every session-scope fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
-const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => { } })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 function TrajectoryTimeline(
@@ -149,7 +150,7 @@ function standaloneHistory(
   snapshot: TrajectorySnapshot,
 ): Pick<
   ComponentProps<typeof TrajectoryView>,
-  'useSession' | 'useTrajectory' | 'loadOlder'
+  'useSession' | 'useTrajectory' | 'loadOlder' | 'loadThrough'
 > {
   const session = createSnapshotStore(sessionSnapshot(snapshot.eventNodes))
   const trajectory = createSnapshotStore(snapshot)
@@ -157,6 +158,7 @@ function standaloneHistory(
     useSession: bindSnapshotSelector(session),
     useTrajectory: bindSnapshotSelector(trajectory),
     loadOlder: () => Promise.resolve(false),
+    loadThrough: () => Promise.resolve(),
   }
 }
 
@@ -203,7 +205,7 @@ const useProjection: UseProjection = emptyProjection
 
 type StandaloneBaseProps = Omit<
   ComponentProps<typeof TrajectoryView>,
-  'useSession' | 'useTrajectory' | 'useDuration' | 'loadOlder' | 'setActualDuration'
+  'useSession' | 'useTrajectory' | 'useDuration' | 'loadOlder' | 'loadThrough' | 'setActualDuration'
 >
 
 /** Standalone view props: the session-scope standard kit the outlet would bake. */
@@ -215,15 +217,16 @@ function standaloneProps(
     draft: '', attachmentIds: [], draftRev: 0, phase: 'plain', occurrences: [], queue: [],
   })
   const inputActions: InputActions = {
-    setDraft: () => {},
+    setDraft: () => { },
     addAttachments: () => false,
-    removeAttachment: () => {},
-    pruneAttachments: () => {},
-    submit: () => {},
+    removeAttachment: () => { },
+    pruneAttachments: () => { },
+    submit: () => { },
   }
   return {
     sessionId: SID,
     useChat: bindSnapshotSelector(createSnapshotStore(EMPTY_CHAT_SNAPSHOT)),
+    useTrajectoryComposition: bindSnapshotSelector(createSnapshotStore(EMPTY_RAW_SURFACE_SNAPSHOT)),
     useSessions: emptySessions(),
     usePanelInfo, useResource,
     useSessionPendingInteraction: bindSnapshotSelector(
@@ -235,8 +238,8 @@ function standaloneProps(
     inputActions,
     useProjection,
     viewRequest: null,
-    openView: () => {},
-    completeViewRequest: () => {},
+    openView: () => { },
+    completeViewRequest: () => { },
     // Image seats the outlet would bake: standalone renders omit the gallery.
     renderSlot: () => null,
     SessionProvider: ({ children }) => <>{children}</>,
@@ -270,10 +273,11 @@ async function bench(snapshot = historySnapshot(NODES)) {
   const targetSources: ConversationTargetSources = {
     chat: createSnapshotStore<ChatSnapshot | undefined>(undefined),
     trajectory: trajectoryStore,
+    'trajectory-composition': createSnapshotStore(EMPTY_RAW_SURFACE_SNAPSHOT),
   }
   const binding: ConversationBinding = {
     snapshot: conversationStore,
-    activate: () => {},
+    activate: () => { },
     target: target => targetSources[target],
   }
   vi.spyOn(uiConversation, 'binding').mockReturnValue(binding)
@@ -289,7 +293,7 @@ async function bench(snapshot = historySnapshot(NODES)) {
   // inject); its settings scope needs a connection handle and the
   // forwarded-event port.
   ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
-  ctx.provide('remote', { $on: () => () => {} } as never)
+  ctx.provide('remote', { $on: () => () => { } } as never)
   ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   await runtime.mount({ inject: [...localeInject], apply: localeApply })
   const provide = vi.spyOn(ctx.uiSession, 'provide')
@@ -323,6 +327,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
   if (session === undefined) throw new Error('trajectory fixture session is unavailable')
   const useSession = bindSnapshotSelector<SessionSnapshot>(session)
   const useTrajectory = bindSnapshotSelector<TrajectorySnapshot>(trajectoryStore)
+  const useTrajectoryComposition = bindSnapshotSelector(createSnapshotStore(EMPTY_RAW_SURFACE_SNAPSHOT))
   const useConversation = bindSnapshotSelector<ConversationSnapshot>(conversationStore)
   const useChat = bindSnapshotSelector(createSnapshotStore(EMPTY_CHAT_SNAPSHOT))
   const useSessions = emptySessions()
@@ -348,6 +353,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
     sessionId: SID,
     useSession,
     useTrajectory,
+    useTrajectoryComposition,
     useChat,
     useConversation,
     useConversationViews,
@@ -376,6 +382,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         const trajectory = injected as TrajectoryViewInjected
         return {
           loadOlder: trajectory.loadOlder,
+          loadThrough: trajectory.loadThrough,
           setActualDuration: trajectory.setActualDuration,
           useDuration: bindSnapshotSelector(trajectory.hooks.duration),
           t: tZh,
@@ -409,7 +416,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
         useStore={bindSnapshotSelector(conversation)}
         actions={conversation.actions}
         renderSlot={renderSlot}
-        bindDraftMirror={() => () => {}}
+        bindDraftMirror={() => () => { }}
         openView={conversation.actions.openView}
       />
     </>,
@@ -809,7 +816,7 @@ describe('timeline projection', () => {
   })
 
   it('marks an unloaded history prefix without inventing timeline duration', () => {
-    const onLoadEarlier = vi.fn(() => new Promise<boolean>(() => {}))
+    const onLoadEarlier = vi.fn(() => new Promise<boolean>(() => { }))
     const view = render(
       <TrajectoryTimeline
         turns={turns}
@@ -1126,7 +1133,7 @@ describe('timeline projection', () => {
         turns={errorTurns}
         mode="sequence"
         range={null}
-        onRangeChange={() => {}}
+        onRangeChange={() => { }}
       />,
     )
 
@@ -1300,10 +1307,12 @@ describe('TrajectoryView state', () => {
     expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('101')
     expect(loadOlder).not.toHaveBeenCalled()
 
-    act(() => { trajectory.set(historySnapshot([...nodes, {
-      kind: 'user', seq: 5_001, time: 5_001,
-      content: [{ type: 'text', text: 'appended prompt' }], source: null,
-    }])) })
+    act(() => {
+      trajectory.set(historySnapshot([...nodes, {
+        kind: 'user', seq: 5_001, time: 5_001,
+        content: [{ type: 'text', text: 'appended prompt' }], source: null,
+      }]))
+    })
     expect(screen.getByRole('table').getAttribute('aria-rowcount')).toBe('102')
   })
 
