@@ -3386,6 +3386,24 @@ export interface Config {
 
 Source: [`packages/web/web-search-perplexity/src/index.ts:30`](../packages/web/web-search-perplexity/src/index.ts)
 
+<a id="deepseek-aidsh-web-search-searxng"></a>
+
+## `@deepseek-ai/dsh-web-search-searxng`
+
+Requires: `web` · `subprocess`
+
+```ts config-catalog
+/** Plugin config (all optional — `apply` fills the constant defaults). */
+export interface Config {
+  /** Docker image reference for the managed container. Defaults to a moving `latest` tag. */
+  image?: string
+  /** Upper bound (ms) to wait for the container to become ready. Defaults to 60000. */
+  readyTimeoutMs?: number
+}
+```
+
+Source: [`packages/web/web-search-searxng/src/index.ts:33`](../packages/web/web-search-searxng/src/index.ts)
+
 <a id="deepseek-aidsh-webhook-github"></a>
 
 ## `@deepseek-ai/dsh-webhook-github`

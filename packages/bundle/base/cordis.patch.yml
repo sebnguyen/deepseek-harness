@@ -424,25 +424,24 @@
 
     # The shared base enables the stable model-facing web_search and web_fetch
     # tools. The Web app disables this host row and composes both tools per agent
-    # preset; products with a stricter network policy override tool-web. DeepSeek
-    # search resolves the same DEEPSEEK_API_KEY
-    # credential the Models page manages for chat, at each search; its Messages
-    # endpoint is separate from the chat-completions endpoint, so it takes its own
-    # base-URL override. Anonymous fetch accepts only public HTTP(S) destinations,
-    # resolves and validates every destination, and pins every actual connection.
-    # Search is a full auxiliary model request with server-side retrieval, so this
-    # shipped DeepSeek route gets 60s while the provider-neutral tool default
-    # remains 30s.
+    # preset; products with a stricter network policy override tool-web. SearXNG
+    # search needs no credential: the provider launches and manages its own
+    # Docker container (see dsh-web-search-searxng), so search works without a
+    # DEEPSEEK_API_KEY or any other vendor key — `subprocess` above is what its
+    # managed container's docker invocations run through. Anonymous fetch
+    # accepts only public HTTP(S) destinations, resolves and validates every
+    # destination, and pins every actual connection. The container's cold start
+    # (image pull, if not cached, plus SearXNG's own startup) can take up to its
+    # readyTimeoutMs (60s default), so the tool timeout below gives margin
+    # beyond that for the first search's actual HTTP round trip.
     - id: web
       name: '@deepseek-ai/dsh-web'
       config:
-        searchProvider: deepseek-official
+        searchProvider: searxng
         fetchProvider: http
 
-    - id: web-search-deepseek
-      name: '@deepseek-ai/dsh-web-search-deepseek'
-      config:
-        apiKeyEnv: DEEPSEEK_API_KEY
+    - id: web-search-searxng
+      name: '@deepseek-ai/dsh-web-search-searxng'
 
     - id: web-fetch-http
       name: '@deepseek-ai/dsh-web-fetch-http'
@@ -451,7 +450,7 @@
       name: '@deepseek-ai/dsh-tool-web'
       config:
         fetch: true
-        searchTimeoutMs: 60000
+        searchTimeoutMs: 90000
 
     # ── rows every mode mounts, whose values each overlay may state ──────────────
 

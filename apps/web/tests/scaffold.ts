@@ -364,9 +364,11 @@ export interface LaunchOptions {
   /** Leave the current welcome notice pending; ordinary scenarios pre-acknowledge it before browser boot. */
   welcomeNoticePending?: boolean
   /**
-   * Patch the shipped DeepSeek search row to a deterministic endpoint and
-   * credential reference. Browser search scenarios keep the real provider and
-   * credentials seam while avoiding external search traffic and ambient keys.
+   * Mount DeepSeek search pointed at a deterministic endpoint and credential
+   * reference, and pin it as the active search provider (the shipped default
+   * is SearXNG, which has no fixture-swappable endpoint). Browser search
+   * scenarios keep the real DeepSeek provider and credentials seam while
+   * avoiding external search traffic and ambient keys.
    */
   deepSeekSearch?: {
     /** Anthropic-compatible base URL; the provider appends `/messages`. */
@@ -626,13 +628,22 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
       : [],
     ...options.deepSeekSearch === undefined
       ? []
-      : [{
-        id: 'web-search-deepseek',
-        config: {
-          apiKeyEnv: options.deepSeekSearch.apiKeyEnv,
-          baseURL: options.deepSeekSearch.baseURL,
-        },
-      }],
+      : [
+        // The shipped default is SearXNG (no fixture-swappable endpoint), so a
+        // scenario that wants the deterministic DeepSeek double must both
+        // mount the row (an insert, not a patch — it is off by default) and
+        // pin it explicitly; otherwise both providers end up registered with
+        // no configured id, which is WEB_PROVIDER_AMBIGUOUS.
+        { id: 'web', config: { searchProvider: 'deepseek-official' } },
+        { insert: [{
+          id: 'web-search-deepseek',
+          name: '@deepseek-ai/dsh-web-search-deepseek',
+          config: {
+            apiKeyEnv: options.deepSeekSearch.apiKeyEnv,
+            baseURL: options.deepSeekSearch.baseURL,
+          },
+        }] },
+      ],
     ...mode === 'record' || options.deepSeekMissingCredential === true
       ? []
       : [{ id: 'llm-deepseek', disabled: true }],

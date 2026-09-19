@@ -1,7 +1,8 @@
-// Web e2e scenario for the shipped default search composition. A real browser
-// drives `web_search`; the model stream is replayed while the real DeepSeek
-// provider calls a deterministic local Anthropic-compatible endpoint through
-// the real credentials service.
+// Web e2e scenario exercising DeepSeek-backed search (explicitly pinned; the
+// shipped default is SearXNG, which has no fixture-swappable endpoint). A
+// real browser drives `web_search`; the model stream is replayed while the
+// real DeepSeek provider calls a deterministic local Anthropic-compatible
+// endpoint through the real credentials service.
 import { readFile } from 'node:fs/promises'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
