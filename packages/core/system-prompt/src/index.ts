@@ -125,6 +125,7 @@ const SECTION_ORDERS = {
   TEAM_POLICY: 600,
   PTC_ONLY: 800,
   FILE_REFERENCE: 900,
+  TOOL_BATCHING: 950,
   TOOL_BASH: 1000,
   TOOL_PWSH: 1010,
   TOOL_READ: 1100,
@@ -180,6 +181,20 @@ export const PERSONA_PREFIX_SECTION = 'deployment:persona-prefix'
 
 /** Deployment persona suffix section name shared by global and scoped contributions. */
 export const PERSONA_SUFFIX_SECTION = 'deployment:persona-suffix'
+
+/**
+ * Harness tool-batching guidance section name. Reserved by the plugin like the
+ * persona sections: one owner per section, so compositions replace it by
+ * suppressing the built-in rather than re-registering the name.
+ */
+export const TOOL_BATCHING_SECTION = 'harness:tool-batching'
+
+/**
+ * Batch-independent-tool-calls guidance. Model-visible verbatim; snapshot
+ * sidecars under snapshots/ pin this text.
+ */
+export const TOOL_BATCHING_TEXT =
+  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
 
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
@@ -247,6 +262,8 @@ function compareToolNames(a: ToolSchema, b: ToolSchema): number {
 export interface Config {
   /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
   includeHarnessIdentity?: boolean
+  /** Include harness tool-batching guidance before tool sections (default true). */
+  includeToolBatchingGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -404,6 +421,7 @@ class PromptLayer implements ScopeLayer {
 export class SystemPrompt extends Service {
   static Config: z<Config> = z.object({
     includeHarnessIdentity: z.boolean().default(true),
+    includeToolBatchingGuidance: z.boolean().default(true),
     includeRuntimeContext: z.boolean().default(true),
     personaPrefix: z.string().default(''),
     personaSuffix: z.string().default(''),
@@ -426,6 +444,13 @@ export class SystemPrompt extends Service {
         name: 'harness:identity',
         order: this.getSectionOrder('HARNESS_IDENTITY'),
         text: 'You are an AI agent powered by DeepSeek Harness.',
+      })
+    }
+    if (config.includeToolBatchingGuidance ?? true) {
+      this.section({
+        name: TOOL_BATCHING_SECTION,
+        order: this.getSectionOrder('TOOL_BATCHING'),
+        text: TOOL_BATCHING_TEXT,
       })
     }
     this.section({
