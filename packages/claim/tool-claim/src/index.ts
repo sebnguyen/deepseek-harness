@@ -8,7 +8,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Claim } from '@deepseek-ai/dsh-claim'
-import { HarnessError } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
+import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -23,9 +24,23 @@ export const inject = ['agents', 'claims', 'tools', 'systemPrompt', 'sessionProj
 export const CLAIM_DEMAND =
   'At the start of a work turn, declare a claim with declare_claim: say why the turn exists (purpose) '
   + 'and what must be true when it is done (satisfy), and bind exactly one shell script that exits 0 only '
-  + 'when satisfy holds. A claim is immutable once declared. Re-run or repair when the check fails; if '
+  + 'when satisfy holds, and make the check verify the change: run the focused unit tests and lint covering it, '
+  + 'not an always-passing assertion. A claim is immutable once declared. Re-run or repair when the check fails; if '
   + 'the condition itself is wrong, abandon_claim it after its check has run at least once and say why. '
   + 'When the turn is about to end, the bound check runs again and any failure is returned to you.'
+
+/** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
+const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
+
+/**
+ * Render the turn-boundary declaration reminder. A first-step pre-step
+ * injection marks each new turn model-visibly, so the agent never has to
+ * infer a turn boundary from the transcript; the loop's pre-step positions
+ * are one-based, so step 1 is the turn's first step.
+ */
+function renderTurnReminder(turn: number): string {
+  return `New work turn (turn ${turn}). Declare this turn's claim with declare_claim — purpose, satisfy, and the one bound shell check — before changing anything.`
+}
 
 /** Compact status the model reads back after either tool call. */
 interface ClaimToolValue {
@@ -116,6 +131,17 @@ export function apply(ctx: Context): void {
     name: 'tool:claim',
     order: ctx.systemPrompt.getSectionOrder('TOOL_CLAIM'),
     text: CLAIM_DEMAND,
+  })
+
+  ctx.on('agent/pre-step', async ({ agent, turn, step }, next) => {
+    const decision = await next()
+    if (decision.kind !== 'enter' || step !== 1) return decision
+    if (ctx.agents.get(agent.id) !== agent) return decision
+    const reminder = createUserMessage({
+      content: [{ type: 'text', text: renderTurnReminder(turn) }],
+      source: CLAIM_SOURCE,
+    })
+    return { ...decision, messages: [...decision.messages, reminder] }
   })
 
   ctx.tools.register(defineTool({

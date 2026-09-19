@@ -46,7 +46,7 @@ Both return the compact claim status — id, turn, revision, `purpose`, `satisfy
 
 ### Design
 
-- **The demand is a prompt section, not a per-turn injection.** The declaration requirement is stable text registered through `ctx.systemPrompt.section` under the `TOOL_CLAIM` order slot, so it needs no re-injection, no rewrite, and no turn scoping. The package registers no `agent/pre-step` listener.
+- **The demand is a prompt section plus a turn-boundary reminder.** The declaration requirement is stable text registered through `ctx.systemPrompt.section` under the `TOOL_CLAIM` order slot. An `agent/pre-step` waterfall listener appends one plugin-sourced reminder message at the first step of every turn, so the agent receives an explicit model-visible turn marker instead of inferring the boundary from the transcript; the loop logs injected pre-step messages as `user/message` events, keeping model-visible identical to logged.
 - **Tools own the model-facing surface.** The package validates only what the tool boundary needs — a calling agent, a non-empty done-condition — and delegates every state rule to `ctx.claims`, so tool and service cannot disagree about what a legal claim is.
 - **Authority is the live agent.** Both tools resolve `exec.agent` and require it to be the registry's current instance.
 
@@ -54,7 +54,8 @@ Both return the compact claim status — id, turn, revision, `purpose`, `satisfy
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Function plugin: the two tools, the demand constant, and the prompt section |
+| [`src/index.ts`](src/index.ts) | Function plugin: the two tools, the demand constant, the pre-step reminder, and the prompt section |
+| [`tests/reminder.spec.ts`](tests/reminder.spec.ts) | Reminder timing, pass-through, and live-agent gating |
 
 </details>
 
@@ -76,11 +77,11 @@ Both return the compact claim status — id, turn, revision, `purpose`, `satisfy
 
 #### What the model sees
 
-One prompt section, always present, stating that the agent must declare what "done" means with `declare_claim` and bind the check that proves it, that a claim is immutable once declared, that it may be abandoned once its check has run, and that the bound verifier runs when the turn is about to end. The package also contributes the two tool schemas.
+One prompt section, always present, stating that the agent must declare what "done" means with `declare_claim` and bind the check that proves it, that a claim is immutable once declared, that it may be abandoned once its check has run, and that the bound verifier runs when the turn is about to end. Each turn's first step also receives a short plugin-sourced reminder message naming the turn and pointing at `declare_claim`. The package also contributes the two tool schemas.
 
 #### Token effect
 
-Fixed. The section is constant text paid on every request; it does not grow with the session and is not repeated per turn.
+Fixed for the section; one short reminder line is appended at each turn's first step. Neither grows with the session.
 
 #### KV Cache effect
 
@@ -108,7 +109,7 @@ These limits define when the package needs special care. They are current constr
 
 - **The demand is a prompt, not an enforcement.** Nothing forces the agent to call `declare_claim`; an agent that ignores it simply ends the turn without a claim. The group is deliberately advisory about ordering.
 - **No claim editing.** The tools can open and abandon a claim but not revise one, matching the service's immutability.
-- **No tests yet.** The package has no test file, so the per-file coverage gate does not cover its tool schemas or prompt text; adding `tests/` is deferred work.
+- **The reminder fires on every turn's first step.** There is no work-turn discrimination; a chat-shaped turn receives the reminder too, and it pays one short appended message per turn.
 
 **Runtime invariant:** No companion is published. This package owns no durable event stream of its own; every state change it causes is a `claim/*` event validated by the `dsh-claim` fold, so an independent observation here would duplicate that fold rather than diverge from it.
 

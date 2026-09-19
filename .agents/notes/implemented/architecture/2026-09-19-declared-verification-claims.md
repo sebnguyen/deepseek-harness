@@ -12,7 +12,7 @@ Before this change, `agent/turn-stopping` was published and had no listener anyw
 
 ## Decision
 
-The claim group prompts the agent to declare, at the start of each work turn, why the turn exists and what must be true when it completes, binds one shell verifier to that declaration, and runs the verifier when the turn is about to close. One claim per turn, immutable once declared, one verifier per claim, multiple recorded verifier results per claim as the agent repairs in turn, and a bounded number of model round-trips before the claim settles as blocked. The agent-loop is not modified: every piece composes on an extension point that already exists.
+The claim group marks each turn's first step with a plugin-sourced reminder and prompts the agent to declare why the turn exists and what must be true when it completes, binds one shell verifier to that declaration, and runs the verifier when the turn is about to close. One claim per turn, immutable once declared, one verifier per claim, multiple recorded verifier results per claim as the agent repairs in turn, and a bounded number of model round-trips before the claim settles as blocked. The agent-loop is not modified: every piece composes on an extension point that already exists.
 
 The group is **advisory about ordering**. It prompts a declaration and records it; it does not escalate privileges, block tools, observe when the declaration was made, or change the sandbox mode. The reasons are in [Ordering is not enforced](#ordering-is-not-enforced), and the property that costs is stated under Risks.
 
@@ -106,7 +106,6 @@ Mount all three for the complete loop. Mounting `claim` alone stores and serves 
 - **Ordering is advisory.** A declaration can be retrofitted mid-turn; nothing observes when it was made relative to the work.
 - **Semantic claims cannot be verified.** A `satisfy` like "the design is coherent" has no script; the agent still declares one, but the check will be a proxy at best.
 - **A claim does not make remote effects stashable.** An agent that pushed a branch or sent a message before a failed verifier cannot undo it; repair steers it to fix forward, and `abandon` records that it gave up.
-- **`tool-claim` has no tests.** The per-file coverage gate therefore does not exercise its schemas or prompt text.
 - **Nothing mounts the group.** No bundle or preset ships `claim`, `tool-claim`, or `claim-settlement` yet; adoption needs a real-composition test through the Loader, which is also outstanding for `claim-settlement`.
 
 ## Testing
@@ -114,5 +113,6 @@ Mount all three for the complete loop. Mounting `claim` alone stores and serves 
 - [`packages/claim/claim/tests/claim.spec.ts`](../../../../packages/claim/claim/tests/claim.spec.ts) covers the service: open-turn refusal, one claim per turn, per-turn keys, revision and failure counting, `abandon` refusal before the verifier runs, settlement shapes, live-agent authority, and log-folded replay.
 - [`packages/claim/claim/tests/invariant.spec.ts`](../../../../packages/claim/claim/tests/invariant.spec.ts) exercises the invariant companion against committed event streams: unsettled turn ends, out-of-turn records, double declarations, and malformed outcomes rejected before commit.
 - [`packages/claim/claim-settlement/tests/settlement.spec.ts`](../../../../packages/claim/claim-settlement/tests/settlement.spec.ts) drives the `turn-stopping` listener against a real `ClaimService` with a scripted shell seam: pass, steered failure, budget exhaustion, inconclusive retries, infrastructure rejection, and the tampered digest.
+- [`packages/claim/tool-claim/tests/reminder.spec.ts`](../../../../packages/claim/tool-claim/tests/reminder.spec.ts) covers the turn-boundary reminder: appended once at each turn's first step, skipped on repair steps and agents that left the registry, and a rejection passed through untouched.
 
 Deferred: `tool-claim` has no tests; `claim-settlement` lacks a real-composition Loader test; no bundle mounts the group.
