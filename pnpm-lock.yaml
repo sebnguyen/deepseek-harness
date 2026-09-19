@@ -1366,6 +1366,12 @@ importers:
       '@deepseek-ai/dsh-bash-sandbox':
         specifier: workspace:^
         version: link:../../shell/bash-sandbox
+      '@deepseek-ai/dsh-claim':
+        specifier: workspace:^
+        version: link:../../claim/claim
+      '@deepseek-ai/dsh-claim-settlement':
+        specifier: workspace:^
+        version: link:../../claim/claim-settlement
       '@deepseek-ai/dsh-command-compact':
         specifier: workspace:^
         version: link:../../compaction/command-compact
@@ -1525,6 +1531,9 @@ importers:
       '@deepseek-ai/dsh-tool-call-timeout-policy':
         specifier: workspace:^
         version: link:../../guard/timeout-policy
+      '@deepseek-ai/dsh-tool-claim':
+        specifier: workspace:^
+        version: link:../../claim/tool-claim
       '@deepseek-ai/dsh-tool-fs':
         specifier: workspace:^
         version: link:../../fs/tool-fs

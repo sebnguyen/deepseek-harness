@@ -289,6 +289,14 @@
     - id: command-feedback
       name: '@deepseek-ai/dsh-command-feedback'
 
+    # Declared verification claims: the durable service, the model tools, and
+    # the turn-boundary settlement listener that runs each claim's verifier.
+    - id: claim
+      name: '@deepseek-ai/dsh-claim'
+
+    - id: claim-settlement
+      name: '@deepseek-ai/dsh-claim-settlement'
+
     - id: goal
       name: '@deepseek-ai/dsh-goal'
 
@@ -407,6 +415,11 @@
     # domain, driver, and `/goal` command are above.
     - id: tool-goal
       name: '@deepseek-ai/dsh-tool-goal'
+
+    # Turn-open claim declaration reaches the model here; the claim service
+    # and settlement listener are above.
+    - id: tool-claim
+      name: '@deepseek-ai/dsh-tool-claim'
 
     # Fresh-agent Ralph iteration over a build-time-fixed script.
     - id: tool-ralph
