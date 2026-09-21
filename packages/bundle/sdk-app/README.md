@@ -42,7 +42,7 @@ The SDK uses the base `read`, `write`, and `edit` defaults. To add `str_replace_
 
 #### What the model sees
 
-The profile supplies `You are a coding agent powered by the {{model}} model.` before first-party guidance and `Your working directory is {{cwd}}.` in a separate persona suffix. The exact SDK initialization route and session cwd resolve the placeholders. Default file tool schemas include `read`, `write`, and `edit`; they omit `str_replace_editor`.
+The profile supplies `You are a coding agent powered by the {{model}} model. When a step depends on an assumption you cannot settle by inspection, ask the user with ask_user_question instead of reasoning through a long chain of guesses.` before first-party guidance and `Your working directory is {{cwd}}.` in a separate persona suffix. The exact SDK initialization route and session cwd resolve the placeholders. Default file tool schemas include `read`, `write`, and `edit`; they omit `str_replace_editor`.
 
 #### Token effect
 

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import {
-  compositionBackfillThroughSeq, foldCompositionUpTo, tryFoldCompositionUpTo,
+  compositionBackfillThroughSeq, foldCompositionUpTo, requestContextWindow, tryFoldCompositionUpTo,
 } from '../src/client/trajectory-composition.ts'
 
 function surfaceEvent(
@@ -72,5 +72,38 @@ describe('trajectory-composition fold', () => {
     ]
     expect(tryFoldCompositionUpTo(events, 4)).toBeUndefined()
     expect(() => foldCompositionUpTo(events, 4)).toThrow(/invalid current range/)
+  })
+})
+
+describe('trajectory-composition context window', () => {
+  function contextEvent(seq: number, contextWindow?: number): SessionEvent {
+    return {
+      seq,
+      time: seq,
+      type: 'request/context',
+      data: contextWindow === undefined
+        ? { provider: 'deepseek', model: 'deepseek-chat' }
+        : { provider: 'deepseek', model: 'deepseek-chat', contextWindow },
+    } as SessionEvent
+  }
+
+  it('returns the latest advertised capacity at or before the boundary', () => {
+    const events = [
+      contextEvent(2, 64000),
+      surfaceEvent(3, 'user/message', 'append'),
+      contextEvent(5, 131072),
+    ]
+    expect(requestContextWindow(events, 7)).toBe(131072)
+    expect(requestContextWindow(events, 4)).toBe(64000)
+  })
+
+  it('ignores context records that do not advertise a capacity', () => {
+    expect(requestContextWindow([contextEvent(2)], 4)).toBeUndefined()
+    expect(requestContextWindow([contextEvent(2), contextEvent(3, 64000)], 4)).toBe(64000)
+  })
+
+  it('returns undefined when no record by the boundary advertises a capacity', () => {
+    expect(requestContextWindow([contextEvent(2)], 4)).toBeUndefined()
+    expect(requestContextWindow([contextEvent(9, 64000)], 4)).toBeUndefined()
   })
 })

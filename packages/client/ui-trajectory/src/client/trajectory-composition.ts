@@ -163,6 +163,32 @@ export function totalHeuristicTokens(nodes: readonly { heuristicTokens: number }
   return nodes.reduce((sum, node) => sum + node.heuristicTokens, 0)
 }
 
+/**
+ * Model context-window capacity in force at (and before) `boundarySeq`, as
+ * advertised by the latest `request/context` at or before that seq.
+ * `request/context` is appended only when the route changes, so the newest
+ * record ≤ the boundary is the capacity that request ran under.
+ * @param events - raw events the Trajectory ledger has captured (unordered).
+ * @param boundarySeq - the request anchor seq; later records are excluded.
+ * @returns capacity in tokens, or `undefined` when no such record advertised one.
+ */
+export function requestContextWindow(
+  events: readonly SessionEvent[],
+  boundarySeq: number,
+): number | undefined {
+  let latestSeq = -1
+  let contextWindow: number | undefined
+  for (const event of events) {
+    if (event.type !== 'request/context' || event.seq > boundarySeq) continue
+    if (event.data.contextWindow === undefined) continue
+    if (event.seq > latestSeq) {
+      latestSeq = event.seq
+      contextWindow = event.data.contextWindow
+    }
+  }
+  return contextWindow
+}
+
 /** Render one content block as plain text; unknown block types fall through to a bracketed tag. */
 function blockText(block: ContentBlock): string {
   switch (block.type) {

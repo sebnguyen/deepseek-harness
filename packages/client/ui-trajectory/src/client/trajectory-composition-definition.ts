@@ -1,9 +1,10 @@
 /**
  * Raw-surface capture for the Trajectory Context tab: an independent
  * Definition retaining each `system/message`/`user/message`/
- * `assistant/message`/`tool/result`/`request/header` event verbatim, keyed
- * by seq, so `trajectory-composition.ts` can fold any request's exact
- * composition on demand. Deliberately a separate target from `'trajectory'`
+ * `assistant/message`/`tool/result`/`request/header`/`request/context` event
+ * verbatim, keyed by seq, so `trajectory-composition.ts` can fold any
+ * request's exact composition (and its model context-window capacity) on
+ * demand. Deliberately a separate target from `'trajectory'`
  * — that target's builder (`trajectory-snapshot-builder.ts`) interprets
  * these same events into `TrajectoryContribution`s for the ledger's own
  * display model, which does not retain the raw `SessionEvent` shape
@@ -56,6 +57,7 @@ const trajectoryRawSurfaceDefinition: ConversationNodeDefinition<RawSurfaceState
       || event.type === 'assistant/message'
       || event.type === 'tool/result'
       || event.type === 'request/header'
+      || event.type === 'request/context'
     ) return { id: String(event.seq), role: 'start' }
     return null
   },

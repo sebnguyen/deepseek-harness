@@ -948,6 +948,52 @@ describe('TrajectoryTable', () => {
     expect(screen.queryByText('You are a coding agent.')).toBeNull()
   })
 
+  it('shows the advertised context-window capacity on the Context tab', () => {
+    const systemEvent = {
+      seq: 1,
+      time: 1,
+      type: 'system/message',
+      data: {
+        turn: 1,
+        step: 1,
+        message: {
+          role: 'system',
+          content: [{ type: 'text', text: 'You are a coding agent.' }],
+          source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' },
+          id: 'msg-1',
+        },
+      },
+      surfaceOp: 'append',
+    } as unknown as SessionEvent
+    const contextEvent = {
+      seq: 2,
+      time: 2,
+      type: 'request/context',
+      data: { provider: 'deepseek', model: 'deepseek-chat', contextWindow: 512 },
+    } as unknown as SessionEvent
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [{
+        title: 'Step 1',
+        cells: [{ index: 1, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+      }],
+    }]
+    render(
+      <TrajectoryTable
+        turns={turns}
+        requestNumbers={[{ turn: 1, step: 1, seq: 2, group: 'Step 1', number: 1 }]}
+        rawSurfaceEvents={new Map([[1, systemEvent], [2, contextEvent]])}
+        {...FOLD_PROPS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+
+    expect(screen.getByText(/512 tokens/)).toBeTruthy()
+    expect(screen.queryByText(/\? tokens/)).toBeNull()
+  })
+
   it('shows the custom role tooltip only from the responsive icon', () => {
     const view = render(<TrajectoryTable turns={TURNS} {...FOLD_PROPS} />)
     const toolTag = view.container.querySelector<HTMLElement>('[data-role-kind="tool"]')

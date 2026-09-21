@@ -31,8 +31,8 @@ import { trajectoryPreviewText } from './trajectory-preview.ts'
 import type { TrajectoryKey, TrajectoryTranslate } from './locales.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
 import {
-  classifyComposition, compositionBackfillThroughSeq, describeEventContent, tryFoldCompositionUpTo,
-  totalHeuristicTokens,
+  classifyComposition, compositionBackfillThroughSeq, describeEventContent, requestContextWindow,
+  tryFoldCompositionUpTo, totalHeuristicTokens,
 } from './trajectory-composition.ts'
 import type { CompositionSegment } from './trajectory-composition.ts'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
@@ -893,12 +893,14 @@ type ContextSpanStyle = CSSProperties & { '--context-hit-fraction'?: number }
 function RequestContextPanel({
   segments,
   rawSurfaceEvents,
+  contextWindow,
   compositionLoading,
   compositionUnavailable,
   t,
 }: {
   segments: readonly CompositionSegment[] | undefined
   rawSurfaceEvents: ReadonlyMap<number, SessionEvent>
+  contextWindow: number | undefined
   compositionLoading: boolean
   compositionUnavailable: boolean
   t: TrajectoryTranslate
@@ -914,7 +916,10 @@ function RequestContextPanel({
   return (
     <div className={css.contextPanel}>
       <div className={css.contextSummary}>
-        <span>{t('context.usage', { used: total.toLocaleString(), capacity: '?' })}</span>
+        <span>{t('context.usage', {
+          used: total.toLocaleString(),
+          capacity: contextWindow === undefined ? '?' : contextWindow.toLocaleString(),
+        })}</span>
       </div>
       {cacheUnknown && <p className={css.contextNote}>{t('context.cacheUnknown')}</p>}
       <div className={css.contextTrack}>
@@ -2171,6 +2176,10 @@ export function TrajectoryTable({
     const nodes = tryFoldCompositionUpTo([...rawSurfaceEvents.values()], selectedRequestBoundarySeq)
     return nodes === undefined ? undefined : classifyComposition(nodes, selectedRequestUsage?.cacheRead)
   }, [rawSurfaceEvents, selectedRequestBoundarySeq, selectedRequestUsage?.cacheRead])
+  const selectedRequestContextWindow = useMemo(() => {
+    if (selectedRequestBoundarySeq === undefined) return undefined
+    return requestContextWindow([...rawSurfaceEvents.values()], selectedRequestBoundarySeq)
+  }, [rawSurfaceEvents, selectedRequestBoundarySeq])
   const [compositionBackfill, setCompositionBackfill] = useState(false)
   const compositionHistoryLoad = useRef(false)
   useEffect(() => {
@@ -3133,6 +3142,7 @@ export function TrajectoryTable({
               <RequestContextPanel
                 segments={selectedRequestComposition}
                 rawSurfaceEvents={rawSurfaceEvents}
+                contextWindow={selectedRequestContextWindow}
                 compositionLoading={compositionLoading}
                 compositionUnavailable={compositionUnavailable}
                 t={t}
