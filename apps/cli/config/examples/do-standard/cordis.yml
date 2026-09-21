@@ -1,0 +1,207 @@
+# DO Standard Bundle — cordis.patch.yml
+# ==============================================================================
+# A single `--patch` overlay that adds DigitalOcean inference, LSP code
+# navigation, and SearXNG web search to any dsh profile (web or headless).
+#
+# Usage:
+#   dsh --profile web    --patch do-standard-bundle.patch.yml
+#   dsh --profile headless --patch do-standard-bundle.patch.yml "task"
+#
+# Home-level (applies to every profile automatically):
+#   cp do-standard-bundle.patch.yml ~/.dsh/cordis.patch.yml
+#
+# Prerequisites (see guides at the bottom):
+#   - DO_INFERENCE_API_KEY  environment variable (DO inference)
+#   - gopls                  on PATH (Go LSP)
+#   - rust-analyzer          on PATH (Rust LSP)
+#   - docker                 on PATH (SearXNG — shipped in dsh-base; no patch needed)
+# ==============================================================================
+
+# ── LSP: stdio language-server provider + model-facing tool ────────────────────
+# Add more `servers` entries for TypeScript, Python, etc.  See the setup guide
+# at the bottom of this file for installing each language server.
+- insert:
+    - id: lsp
+      name: '@deepseek-ai/dsh-lsp'
+
+    - id: lsp-stdio
+      name: '@deepseek-ai/dsh-lsp-stdio'
+      config:
+        servers:
+          go:
+            command: gopls
+            extensionToLanguage:
+              '.go': go
+          rust:
+            command: rust-analyzer
+            extensionToLanguage:
+              '.rs': rust
+
+    - id: tool-lsp
+      name: '@deepseek-ai/dsh-tool-lsp'
+
+# ── DO inference: use DigitalOcean as the LLM backend ─────────────────────────
+# Patches the dormant llm-pi-ai row that dsh-base already mounts.  The API key
+# lives in the environment (DO_INFERENCE_API_KEY), never in this file.
+#
+# DO serverless inference docs: https://docs.digitalocean.com/products/inference/
+#   Chat Completions at /v1/chat/completions
+#   Reasoning via reasoning_effort (none | low | medium | high | max)
+#   Streams: reasoning_content in delta, answer in content
+- id: llm-pi-ai
+  name: '@deepseek-ai/dsh-llm-pi-ai'
+  config:
+    providers:
+      digitalocean:
+        api: openai-completions
+        apiKeyEnv: DO_INFERENCE_API_KEY
+        baseURL: https://inference.do-ai.run/v1
+        compat:
+          supportsDeveloperRole: false
+          maxTokensField: max_completion_tokens
+          requiresReasoningContentOnAssistantMessages: true
+        models:
+          - id: glm-5.3-flash
+            contextWindow: 1048576
+            maxTokens: 8192
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              max: max
+          - id: glm-5.3
+            contextWindow: 1048576
+            maxTokens: 8192
+            reasoningEfforts:
+              low: low
+              medium: medium
+              high: high
+              max: max
+          - id: deepseek-v4.1-flash
+            contextWindow: 1048576
+            maxTokens: 8192
+            reasoningEfforts: false
+          - id: deepseek-v4-pro-0813
+            contextWindow: 1048576
+            maxTokens: 8192
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              max: max
+          - id: deepseek-v4-pro
+            contextWindow: 1048576
+            maxTokens: 8192
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              max: max
+
+# ── Disable the native DeepSeek adapter (no key) ──────────────────────────────
+- id: llm-deepseek
+  disabled: true
+
+# ── Default new sessions to DO ────────────────────────────────────────────────
+- id: agent-default-model
+  config:
+    provider: digitalocean
+    model: glm-5.3-flash
+
+# ==============================================================================
+# SETUP GUIDES
+# ==============================================================================
+# Copy and paste the relevant section for your OS.  Each guide installs ONE
+# language server; repeat for every language you want LSP support for.
+#
+# ── Go (gopls) ────────────────────────────────────────────────────────────────
+#
+#   macOS:
+#     brew install gopls
+#
+#   Linux:
+#     go install golang.org/x/tools/gopls@latest
+#     # Ensure $(go env GOPATH)/bin is on your PATH.
+#
+#   Verify:
+#     gopls version
+#
+# ── Rust (rust-analyzer) ──────────────────────────────────────────────────────
+#
+#   Any OS (rustup):
+#     rustup component add rust-analyzer
+#
+#   macOS (brew):
+#     brew install rust-analyzer
+#
+#   Verify:
+#     rust-analyzer --version
+#
+# ── TypeScript/JavaScript (add to `servers` above) ────────────────────────────
+#
+#   Any OS:
+#     npm install -g typescript-language-server typescript
+#
+#   Add to lsp-stdio config:
+#     typescript:
+#       command: typescript-language-server
+#       args: ['--stdio']
+#       extensionToLanguage:
+#         '.ts': typescript
+#         '.tsx': typescriptreact
+#         '.js': javascript
+#         '.jsx': javascriptreact
+#
+# ── Python (add to `servers` above) ───────────────────────────────────────────
+#
+#   Any OS:
+#     pip install pyright
+#
+#   Add to lsp-stdio config:
+#     python:
+#       command: pyright-langserver
+#       args: ['--stdio']
+#       extensionToLanguage:
+#         '.py': python
+#
+# ── DO Inference API Key ──────────────────────────────────────────────────────
+#
+#   Set the environment variable before starting dsh:
+#     export DO_INFERENCE_API_KEY="dop_v1_..."
+#
+#   Or add to ~/.dsh/.credentials.yaml (see dsh docs for credential format).
+#   The API key is available from the DigitalOcean cloud console under
+#   API &rarr; Tokens/Keys.
+#
+#   Select a model via settings or AgentOptions:
+#     Settings:  provider: digitalocean, model: deepseek-v4-pro
+#     Reasoning: reasoningEffort: medium  (for reasoning-capable models)
+#
+# ── SearXNG Web Search ────────────────────────────────────────────────────────
+#
+#   No patch needed — dsh-base already ships web-search-searxng.  The provider
+#   requires Docker on the host:
+#
+#   macOS:
+#     brew install --cask docker
+#     open -a Docker       # start the daemon
+#
+#   Linux:
+#     # Install Docker Engine: https://docs.docker.com/engine/install/
+#     sudo systemctl start docker
+#
+#   Verify:
+#     docker info
+#
+#   The first search pulls searxng/searxng:latest and starts a container
+#   (can take ~30-90s for the initial pull + startup).  Subsequent searches
+#   reuse the running container.  No API key or account is needed.
+#
+#   If you want to skip SearXNG and use a keyed search provider instead,
+#   patch the `web` row:
+#     - id: web
+#       config:
+#         searchProvider: exa         # needs EXA_API_KEY
+#         # searchProvider: deepseek  # needs DEEPSEEK_API_KEY
