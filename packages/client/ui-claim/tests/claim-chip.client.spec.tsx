@@ -19,8 +19,8 @@ function makeClaim(over: Partial<Claim> = {}): Claim {
     id: 'c1' as Claim['id'],
     turn: 3,
     revision: 1,
-    purpose: 'Land the export fix',
-    satisfy: 'The verifier exits 0',
+    title: 'Land the export fix',
+    description: 'The verifier exits 0',
     verifier: { source: 'exit 0', digest: 'a'.repeat(64) },
     results: [],
     settlement: { kind: 'pending' },
@@ -71,81 +71,91 @@ describe('claim chip', () => {
     expect(noClaim.container.firstChild).toBeNull()
   })
 
-  it('dock renders nothing while no claim is pending, and while the ledger is absent', () => {
+  it('renders nothing on a turn with no claims of its own, even when another turn is pending', () => {
+    const later = render(<ClaimAction {...actionProps([makeClaim({ turn: 3 })], 4)} />)
+    expect(later.container.firstChild).toBeNull()
+  })
+
+  it('dock renders nothing while the ledger is absent or empty', () => {
     const absent = render(<ClaimDock {...dockProps(undefined)} />)
     expect(absent.container.firstChild).toBeNull()
     cleanup()
 
-    const settled = render(<ClaimDock {...dockProps([makeClaim({ settlement: { kind: 'passed' } })])} />)
-    expect(settled.container.firstChild).toBeNull()
+    const empty = render(<ClaimDock {...dockProps([])} />)
+    expect(empty.container.firstChild).toBeNull()
   })
 
-  it('dock hides a pending claim once the session stops running, and shows it while running', () => {
-    const stopped = render(<ClaimDock {...dockProps([makeClaim()], false)} />)
-    expect(stopped.container.firstChild).toBeNull()
-    cleanup()
-
-    render(<ClaimDock {...dockProps([makeClaim()], true)} />)
-    expect(screen.getByText('核验声明中')).toBeTruthy()
+  it('dock shows a Claims label and one chip per latest-turn claim, colored by settlement', () => {
+    render(<ClaimDock {...dockProps([
+      makeClaim({ id: 'a' as Claim['id'], title: 'alpha' }),
+      makeClaim({ id: 'b' as Claim['id'], title: 'beta', settlement: { kind: 'passed' } }),
+      makeClaim({ id: 'c' as Claim['id'], title: 'gamma', settlement: { kind: 'blocked', code: 'abandoned', message: 'wrong' } }),
+    ])} />)
+    expect(screen.getByText('声明')).toBeTruthy()
+    expect(screen.getByText('alpha')).toBeTruthy()
+    expect(screen.getByText('beta')).toBeTruthy()
+    expect(screen.getByText('gamma')).toBeTruthy()
+    expect(screen.getByText('alpha').closest('[data-state]')?.getAttribute('data-state')).toBe('pending')
+    expect(screen.getByText('beta').closest('[data-state]')?.getAttribute('data-state')).toBe('passed')
+    expect(screen.getByText('gamma').closest('[data-state]')?.getAttribute('data-state')).toBe('blocked')
   })
 
-  it('pending claim: dock strip with the card already expanded, no click needed', () => {
-    render(<ClaimDock {...dockProps([makeClaim()])} />)
-    expect(screen.getByText('核验声明中')).toBeTruthy()
-    // The three accordions are visible immediately, without any click.
-    expect(screen.getByRole('button', { name: '目的' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '完成条件' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '核验脚本' })).toBeTruthy()
-    // The purpose appears in the strip header and its open accordion body.
-    expect(screen.getAllByText('Land the export fix').length).toBeGreaterThanOrEqual(1)
-    expect(document.querySelector('[data-claim-dock="pending"]')).toBeTruthy()
+  it('dock shows only the claims of the latest turn', () => {
+    render(<ClaimDock {...dockProps([
+      makeClaim({ id: 'a' as Claim['id'], turn: 3, title: 'alpha' }),
+      makeClaim({ id: 'b' as Claim['id'], turn: 4, title: 'beta' }),
+    ])} />)
+    expect(screen.queryByText('alpha')).toBeNull()
+    expect(screen.getByText('beta')).toBeTruthy()
   })
 
-  it('action-row chip starts closed and toggles a details card with all accordions open', () => {
+  it('action row lists every claim of the turn, pending and settled', () => {
+    const claims = [
+      makeClaim({ id: 'c0' as Claim['id'], title: 'alpha', settlement: { kind: 'passed' } }),
+      makeClaim({ id: 'c1' as Claim['id'], title: 'beta' }),
+    ]
+    render(<ClaimAction {...actionProps(claims, 3)} />)
+    expect(screen.getByText('alpha')).toBeTruthy()
+    expect(screen.getByText('beta')).toBeTruthy()
+  })
+
+  it('action row lists only the owning turn, ignoring other turns', () => {
+    const claims = [
+      makeClaim({ id: 'c0' as Claim['id'], turn: 3, title: 'alpha' }),
+      makeClaim({ id: 'c1' as Claim['id'], turn: 4, title: 'beta' }),
+    ]
+    render(<ClaimAction {...actionProps(claims, 3)} />)
+    expect(screen.getByText('alpha')).toBeTruthy()
+    expect(screen.queryByText('beta')).toBeNull()
+  })
+
+  it('chip starts collapsed and toggles a details card with all three accordions', () => {
     render(<ClaimChip claim={makeClaim()} t={t} />)
-    expect(screen.queryByText('目的')).toBeNull()
+    expect(screen.queryByText('标题')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '核验声明中' }))
-    // One click shows the card; every accordion is already expanded.
-    expect(screen.getByText('Land the export fix')).toBeTruthy()
+    expect(screen.getByText('标题')).toBeTruthy()
+    expect(screen.getByText('描述')).toBeTruthy()
     expect(screen.getByText('The verifier exits 0')).toBeTruthy()
     expect(screen.getByText('exit 0')).toBeTruthy()
+    // The title appears on both the chip label and the details prose.
+    expect(screen.getAllByText('Land the export fix').length).toBeGreaterThanOrEqual(2)
     // A section header collapses only that section.
-    fireEvent.click(screen.getByRole('button', { name: '目的' }))
-    expect(screen.queryByText('Land the export fix')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '描述' }))
+    expect(screen.queryByText('The verifier exits 0')).toBeNull()
   })
 
-  it('pending claim in the action row: status chip with the ongoing label', () => {
-    render(<ClaimAction {...actionProps([makeClaim()])} />)
-    expect(screen.getByText('核验声明中')).toBeTruthy()
-  })
-
-  it('passed claim: passed label in the direct chip', () => {
+  it('carries the settlement kind as the chip data-state and accessible label', () => {
     render(<ClaimChip claim={makeClaim({ settlement: { kind: 'passed' } })} t={t} />)
-    expect(screen.getByText('声明已通过')).toBeTruthy()
+    const button = screen.getByRole('button', { name: '声明已通过' })
+    expect(button.getAttribute('data-state')).toBe('passed')
   })
 
-  it('blocked claim: blocked label, and the details card shows the three accordions', () => {
+  it('blocked claim shows the failure reason in its details card', () => {
     render(<ClaimChip claim={makeClaim({
       settlement: { kind: 'blocked', code: 'abandoned', message: 'wrong condition' },
     })} t={t} />)
-    const chip = screen.getByText('声明未通过')
-    fireEvent.click(chip)
-    // The three accordions, all expanded by default.
-    expect(screen.getByRole('button', { name: '目的' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '完成条件' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: '核验脚本' })).toBeTruthy()
-    expect(screen.getByText('Land the export fix')).toBeTruthy()
-    // The failed-settlement reason is a status line, not hidden in an accordion.
+    fireEvent.click(screen.getByRole('button', { name: '声明未通过' }))
     expect(screen.getByText(/未通过原因: wrong condition/)).toBeTruthy()
-  })
-
-  it('script accordion is open by default and collapses on its header click', () => {
-    render(<ClaimChip claim={makeClaim()} t={t} />)
-    fireEvent.click(screen.getByText('核验声明中'))
-    // Open by default: the raw verifier source is visible without clicking.
-    expect(screen.getByText('exit 0')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: '核验脚本' }))
-    expect(screen.queryByText('exit 0')).toBeNull()
   })
 
   it('status lines report the last verifier run', () => {
@@ -153,25 +163,7 @@ describe('claim chip', () => {
       results: [{ outcome: 'fail', evidence: 'exit 1' }],
       settlement: { kind: 'blocked', code: 'repair-budget-exhausted', message: 'budget' },
     })} t={t} />)
-    fireEvent.click(screen.getByText('声明未通过'))
+    fireEvent.click(screen.getByRole('button', { name: '声明未通过' }))
     expect(screen.getByText(/最近核验: 失败/)).toBeTruthy()
-  })
-
-  it('shows the current pending claim regardless of which turn declared it', () => {
-    const claims = [
-      makeClaim({ id: 'c0' as Claim['id'], turn: 2, settlement: { kind: 'passed' } }),
-      makeClaim({ id: 'c1' as Claim['id'], turn: 7 }),
-    ]
-    render(<ClaimAction {...actionProps(claims, 3)} />)
-    expect(screen.getByText('核验声明中')).toBeTruthy()
-  })
-
-  it('renders nothing in the action row once no claim is pending', () => {
-    const settled = render(<ClaimAction {...actionProps([makeClaim({ settlement: { kind: 'passed' } })])} />)
-    expect(settled.container.firstChild).toBeNull()
-    cleanup()
-
-    const blocked = render(<ClaimAction {...actionProps([makeClaim({ settlement: { kind: 'blocked', code: 'abandoned', message: 'wrong' } })])} />)
-    expect(blocked.container.firstChild).toBeNull()
   })
 })

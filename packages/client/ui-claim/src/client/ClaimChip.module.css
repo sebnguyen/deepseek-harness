@@ -188,15 +188,37 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.purpose {
-  flex: 1;
-  min-width: 0;
+.dockChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 240px;
+  padding: 1px 10px;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-3);
+}
+
+.dockChipTitle {
   overflow: hidden;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary-dimmed);
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.dockChip[data-state='passed'] .dockChipTitle {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.dockChip[data-state='blocked'] .dockChipTitle,
+.dockChip[data-state='tampered'] .dockChipTitle {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.dockChip[data-state='pending'] .dockChipTitle {
+  color: var(--dsw-alias-label-tertiary);
+  opacity: 0.55;
 }
 
 /* The details card opens inside the dock strip, below its summary row. */

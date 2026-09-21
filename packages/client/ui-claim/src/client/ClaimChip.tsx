@@ -1,12 +1,12 @@
 /**
- * Claim status surfaces: the action-row chip and the composer dock strip.
- * Both are toggles — clicking opens a small card with three accordions
- * (purpose, satisfy condition, raw verifier script) instead of a text blob.
- * While the session's claim is pending, the dock strip above the composer
- * shows it and the action row carries its chip on every turn; once no claim
- * is pending, the action-row chip is gone. Durable state arrives through
- * the `claim` Session projection; this plugin only reads it and has no
- * actions.
+ * Claim status surfaces: the action-row chips and the composer dock strip.
+ * Each chip is a toggle — clicking opens a small card with three accordions
+ * (title, description, raw verifier script) instead of a text blob. The
+ * action row lists every claim the owning turn declared, pending or settled,
+ * so a passed or failed claim stays viewable after its turn finishes. The
+ * dock above the composer shows a compact line of the pending claims while
+ * the session runs. Durable state arrives through the `claim` Session
+ * projection; this plugin only reads it and has no actions.
  * @module @deepseek-ai/dsh-client-ui-claim/client/ClaimChip
  */
 
@@ -18,12 +18,12 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ClaimKey } from './locales.ts'
 import css from './ClaimChip.module.css'
 
-/** Chip label key and dot state per settlement kind. */
+/** Chip status label key and dot state per settlement kind. */
 const CHIP_PRESENTATION: Record<Claim['settlement']['kind'], {
   label: ClaimKey
   dot: StateDotState
 }> = {
-  pending: { label: 'chip.pending', dot: 'ongoing' },
+  pending: { label: 'chip.pending', dot: 'idle' },
   passed: { label: 'chip.passed', dot: 'done' },
   tampered: { label: 'chip.tampered', dot: 'error' },
   blocked: { label: 'chip.blocked', dot: 'error' },
@@ -60,7 +60,7 @@ function Accordion({ title, children }: {
   )
 }
 
-/** The expanded card: three accordions (purpose, satisfy, raw script) plus the run/block status lines. */
+/** The expanded card: three accordions (title, description, raw script) plus the run/block status lines. */
 function ClaimDetails({ claim, t }: {
   claim: Claim
   t: TranslateNS<'claim'>
@@ -68,11 +68,11 @@ function ClaimDetails({ claim, t }: {
   const last = claim.results.at(-1)
   return (
     <div className={css.panel}>
-      <Accordion title={t('detail.purpose')}>
-        <p className={css.prose}>{claim.purpose}</p>
+      <Accordion title={t('detail.title')}>
+        <p className={css.prose}>{claim.title}</p>
       </Accordion>
-      <Accordion title={t('detail.satisfy')}>
-        <p className={css.prose}>{claim.satisfy}</p>
+      <Accordion title={t('detail.description')}>
+        <p className={css.prose}>{claim.description}</p>
       </Accordion>
       <Accordion title={t('detail.script')}>
         <pre className={css.script}><code>{claim.verifier.source}</code></pre>
@@ -89,7 +89,7 @@ function ClaimDetails({ claim, t }: {
   )
 }
 
-/** Shared inner chip: a toggle button opening the claim details under it. */
+/** Shared inner chip: a toggle button, labeled with the claim title and a status dot, opening the details under it. */
 function Chip({ claim, t, className }: {
   claim: Claim
   t: TranslateNS<'claim'>
@@ -105,10 +105,12 @@ function Chip({ claim, t, className }: {
         className={className}
         data-state={claim.settlement.kind}
         aria-expanded={open}
+        aria-label={t(present.label)}
+        title={t(present.label)}
         onClick={() => { setOpen(!open) }}
       >
         <StateDot state={present.dot} />
-        <span className={css.label}>{t(present.label)}</span>
+        <span className={css.label}>{claim.title}</span>
       </button>
       {open && <ClaimDetails claim={claim} t={t} />}
     </span>
@@ -116,8 +118,8 @@ function Chip({ claim, t, className }: {
 }
 
 /**
- * The turn's claim status chip.
- * @param props - the turn's claim and the localized copy.
+ * One claim's status chip.
+ * @param props - the claim and the localized copy.
  * @returns the chip, or null for a turn without a claim.
  */
 export function ClaimChip({ claim, t }: {
@@ -134,15 +136,20 @@ export type ClaimActionProps =
   & import('@deepseek-ai/dsh-client-ui-slots').PropsLocale<'claim'>
 
 /**
- * Action-row adapter: picks the session's current pending claim out of the
- * projection ledger, regardless of which turn declared it.
+ * Action-row adapter: lists every claim the owning turn declared, in
+ * declaration order, pending or settled. A turn that declared no claim
+ * renders nothing.
  * @param props - the action-row owner share (message id and owning Turn) and the locale seat.
- * @returns the chip for the pending claim, or nothing.
+ * @returns the chips for this turn's claims, or nothing.
  */
-export function ClaimAction({ useProjection, t }: ClaimActionProps) {
-  const claim = useProjection('claim', claims => claims?.find(entry => entry.settlement.kind === 'pending'))
-  if (claim === undefined) return null
-  return <Chip claim={claim} t={t} className={css.chip} />
+export function ClaimAction({ turn, useProjection, t }: ClaimActionProps) {
+  const claims = useProjection('claim', all => all?.filter(entry => entry.turn === turn.turn))
+  if (claims === undefined || claims.length === 0) return null
+  return (
+    <>
+      {claims.map(claim => <Chip key={claim.id} claim={claim} t={t} className={css.chip} />)}
+    </>
+  )
 }
 
 /** Full props of the dock entry: InputZone owner share + the locale seat. */
@@ -151,31 +158,36 @@ export type ClaimDockProps =
   & import('@deepseek-ai/dsh-client-ui-slots').PropsLocale<'claim'>
 
 /**
- * Dock adapter: renders the session's open claim as a strip above the
- * composer while the Session is running. A claim left pending by a dead
- * session's interrupted turn stays hidden here — the strip is a
- * live-work affordance, and the action-row chip still reports the
- * un-settled state.
+ * Dock adapter: a "Claims" row above the composer listing the latest turn's
+ * claims, each as a status chip — green when passed, red when blocked or
+ * tampered, and a fading grey while its verifier has not run.
  * @param props - the dock runtime share and the locale seat.
- * @returns the dock strip for the open claim, or nothing.
+ * @returns the dock strip for the latest turn's claims, or nothing.
  */
-export function ClaimDock({ useSession, useProjection, t }: ClaimDockProps) {
-  const running = useSession(snapshot => snapshot.running)
+export function ClaimDock({ useProjection, t }: ClaimDockProps) {
   const claims = useProjection('claim')
-  const pending = running
-    ? claims?.filter(claim => claim.settlement.kind === 'pending').at(-1)
-    : undefined
-  if (pending === undefined) return null
+  const latest = claims?.at(-1)?.turn
+  const chips = latest === undefined ? [] : (claims ?? []).filter(claim => claim.turn === latest)
+  if (chips.length === 0) return null
   return (
-    <div className={css.dock} data-claim-dock="pending">
+    <div className={css.dock} data-claim-dock>
       <div className={css.bar}>
         <div className={css.barHead}>
-          <StateDot state="ongoing" />
-          <span className={css.dockLabel}>{t('chip.pending')}</span>
-          <span className={css.purpose}>{pending.purpose}</span>
+          <span className={css.dockLabel}>{t('dock.label')}</span>
+          {chips.map(claim => <DockChip key={claim.id} claim={claim} />)}
         </div>
-        <ClaimDetails claim={pending} t={t} />
       </div>
     </div>
+  )
+}
+
+/** One non-interactive status chip: the claim title plus a settlement-colored dot. */
+function DockChip({ claim }: { claim: Claim }) {
+  const present = CHIP_PRESENTATION[claim.settlement.kind]
+  return (
+    <span className={css.dockChip} data-state={claim.settlement.kind}>
+      <StateDot state={present.dot} />
+      <span className={css.dockChipTitle}>{claim.title}</span>
+    </span>
   )
 }

@@ -32,8 +32,8 @@ const TRACED = new Set(['turn/start', 'turn/end', 'claim/declared', 'claim/resul
 interface ClaimTrace {
   /** Turn opened by the latest `turn/start`, or null between turns. */
   openTurn: number | null
-  /** Claim id declared in the open turn and not yet settled. */
-  openClaim: string | null
+  /** Claim ids declared in the open turn and not yet settled. */
+  openClaims: Set<string>
 }
 
 /** Copy the independent fold before validating one candidate event. */
@@ -77,23 +77,22 @@ function track(fold: ClaimFoldState, trace: ClaimTrace, event: SessionEvent, fai
       trace.openTurn = event.data.turn
       return
     case 'turn/end':
-      if (trace.openClaim !== null) {
-        fail(`turn ${event.data.turn} ended with claim ${trace.openClaim} unsettled: the settling policy did not run`)
+      if (trace.openClaims.size > 0) {
+        fail(`turn ${event.data.turn} ended with claims [${[...trace.openClaims].join(', ')}] unsettled: the settling policy did not run`)
       }
       trace.openTurn = null
-      trace.openClaim = null
+      trace.openClaims.clear()
       return
     case 'claim/declared':
       requireOwnTurn(trace, event, fail)
-      if (trace.openClaim !== null) fail(`claim ${trace.openClaim} is still open when a new claim is declared`)
-      trace.openClaim = event.data.id
+      trace.openClaims.add(event.data.id)
       return
     case 'claim/result':
       requireOwnTurn(trace, event, fail)
       return
     case 'claim/settled':
       requireOwnTurn(trace, event, fail)
-      trace.openClaim = null
+      trace.openClaims.delete(event.data.id)
       return
     /* v8 ignore next 2 -- TRACED narrows the switch to the cases above */
     default:
@@ -109,7 +108,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
 
   const seed = (session: Session): ClaimTrace => {
     const state = emptyClaimFoldState()
-    const trace: ClaimTrace = { openTurn: null, openClaim: null }
+    const trace: ClaimTrace = { openTurn: null, openClaims: new Set() }
     for (const event of session.snapshotEvents()) track(state, trace, event, fail)
     states.set(session, state)
     traces.set(session, trace)

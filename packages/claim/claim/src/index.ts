@@ -1,6 +1,6 @@
 /**
- * The durable claim service (`ctx.claims`): one immutable verification claim
- * per turn, backed exclusively by the owning session log.
+ * The durable claim service (`ctx.claims`): immutable verification claims, any
+ * number per turn, backed exclusively by the owning session log.
  * @module @deepseek-ai/dsh-claim
  */
 
@@ -51,8 +51,8 @@ const claimSchema = zod.object({
   id: zod.string(),
   turn: zod.number(),
   revision: zod.number(),
-  purpose: zod.string(),
-  satisfy: zod.string(),
+  title: zod.string(),
+  description: zod.string(),
   verifier: verifierSchema,
   results: zod.array(resultSchema),
   settlement: settlementSchema,
@@ -113,15 +113,15 @@ export class ClaimService extends Service {
   }
 
   /**
-   * Read the open turn's claim for one exact live agent.
+   * Read every currently-pending claim of the open turn, in declaration order.
    * @param agent - owning live agent.
-   * @returns the currently open turn's claim, or `undefined` when that turn declared none.
+   * @returns the open turn's pending claims; empty when that turn declared none or settled every claim.
    * @throws {@link ClaimError} when no model turn is open or the agent is not live.
    */
-  openClaim(agent: Agent): Claim | undefined {
+  openClaims(agent: Agent): readonly Claim[] {
     this.assertLive(agent)
     const turn = this.openTurn(agent)
-    return this.ledger(agent).find(claim => claim.turn === turn)
+    return this.ledger(agent).filter(claim => claim.turn === turn && claim.settlement.kind === 'pending')
   }
 
   /**
@@ -134,58 +134,59 @@ export class ClaimService extends Service {
   }
 
   /**
-   * Count recorded failures for the exact live claim.
+   * Count recorded failures for one claim.
    * @param agent - owning live agent.
-   * @returns how many recorded results on the open claim carry outcome `fail`.
+   * @param id - the claim to count for.
+   * @returns how many recorded results on that claim carry outcome `fail`.
    */
-  failures(agent: Agent): number {
-    const claim = this.openClaim(agent)
+  failures(agent: Agent, id: ClaimId): number {
+    this.assertLive(agent)
+    const claim = this.ledger(agent).find(entry => entry.id === id)
     return claim === undefined ? 0 : claim.results.filter(result => result.outcome === 'fail').length
   }
 
   /**
-   * Open the claim for the currently open turn. Refused when that turn already
-   * declared one.
+   * Declare one claim in the currently open turn. A turn may declare any
+   * number of claims; each is immutable and settles independently.
    * @param agent - owning live agent.
-   * @param request - the declared purpose, done-condition, and its bound verifier script.
+   * @param request - the claim's title, description, and bound verifier script.
    * @returns the freshly declared claim.
-   * @throws {@link ClaimError} when no turn is open, the turn already claimed, or the request is invalid.
+   * @throws {@link ClaimError} when no turn is open or the request is invalid.
    */
   declare(agent: Agent, request: DeclareClaimRequest): Claim {
     this.assertLive(agent)
     const turn = this.openTurn(agent)
-    if (this.ledger(agent).some(claim => claim.turn === turn)) {
-      throw new ClaimError(`turn ${turn} already declared a claim`, 'CLAIM_ALREADY_OPEN')
+    const title = typeof request.title === 'string' ? request.title.trim() : ''
+    if (title.length === 0) {
+      throw new ClaimError('title must be a non-empty string', 'CLAIM_INVALID_TITLE')
     }
-    const purpose = typeof request.purpose === 'string' ? request.purpose.trim() : ''
-    if (purpose.length === 0) {
-      throw new ClaimError('purpose must be a non-empty string', 'CLAIM_INVALID_PURPOSE')
-    }
-    const satisfy = typeof request.satisfy === 'string' ? request.satisfy.trim() : ''
-    if (satisfy.length === 0) {
-      throw new ClaimError('satisfy must be a non-empty string', 'CLAIM_INVALID_SATISFY')
+    const description = typeof request.description === 'string' ? request.description.trim() : ''
+    if (description.length === 0) {
+      throw new ClaimError('description must be a non-empty string', 'CLAIM_INVALID_DESCRIPTION')
     }
     const verifier = bindVerifier(request.script)
+    const id = ClaimId(randomUUID())
     agent.session.append('claim/declared', {
-      id: ClaimId(randomUUID()),
+      id,
       turn,
       revision: 1,
-      purpose,
-      satisfy,
+      title,
+      description,
       verifier,
     })
-    return this.requireCurrent(agent)
+    return this.requireCurrent(agent, id)
   }
 
   /**
-   * Record one verifier execution against the open turn's claim.
+   * Record one verifier execution against a claim.
    * @param agent - owning live agent.
+   * @param id - the claim to record against.
    * @param result - the execution outcome and its bounded evidence.
    * @returns the advanced claim.
-   * @throws {@link ClaimError} when the open turn has no claim.
+   * @throws {@link ClaimError} when the claim is unknown, not in the open turn, or settled.
    */
-  record(agent: Agent, result: VerifierResult): Claim {
-    const current = this.requireOpen(agent)
+  record(agent: Agent, id: ClaimId, result: VerifierResult): Claim {
+    const current = this.requireOpen(agent, id)
     agent.session.append('claim/result', {
       id: current.id,
       turn: current.turn,
@@ -193,42 +194,44 @@ export class ClaimService extends Service {
       outcome: result.outcome,
       evidence: result.evidence,
     })
-    return this.requireCurrent(agent)
+    return this.requireCurrent(agent, id)
   }
 
   /**
-   * Close the open turn's claim with one terminal settlement.
+   * Close one claim with a terminal settlement.
    * @param agent - owning live agent.
+   * @param id - the claim to settle.
    * @param settlement - the terminal settlement to commit.
    * @returns the settled claim.
-   * @throws {@link ClaimError} when the open turn has no claim.
+   * @throws {@link ClaimError} when the claim is unknown, not in the open turn, or settled.
    */
-  settle(agent: Agent, settlement: ClaimSettlement): Claim {
-    const current = this.requireOpen(agent)
+  settle(agent: Agent, id: ClaimId, settlement: ClaimSettlement): Claim {
+    const current = this.requireOpen(agent, id)
     agent.session.append('claim/settled', {
       id: current.id,
       turn: current.turn,
       revision: current.revision + 1,
       settlement,
     })
-    return this.requireCurrent(agent)
+    return this.requireCurrent(agent, id)
   }
 
   /**
-   * Abandon the open claim as the model conceding it was the wrong condition.
+   * Abandon one claim as the model conceding it named the wrong condition.
    * Refused while the bound verifier has not yet run, so a claim cannot be
    * opened and closed without facing its check at least once.
    * @param agent - owning live agent.
+   * @param id - the claim to abandon.
    * @param message - non-empty explanation recorded with the abandonment.
    * @returns the settled claim.
-   * @throws {@link ClaimError} when the open turn has no claim or the check has not run.
+   * @throws {@link ClaimError} when the claim is unknown, not in the open turn, settled, or its check has not run.
    */
-  abandon(agent: Agent, message: string): Claim {
-    const current = this.requireOpen(agent)
+  abandon(agent: Agent, id: ClaimId, message: string): Claim {
+    const current = this.requireOpen(agent, id)
     if (current.results.length === 0) {
       throw new ClaimError('the bound verifier has not run yet', 'CLAIM_VERIFIER_NOT_RUN')
     }
-    return this.settle(agent, {
+    return this.settle(agent, id, {
       kind: 'blocked',
       code: 'abandoned',
       message: message.trim().length === 0 ? 'abandoned by the model' : message.trim(),
@@ -265,18 +268,20 @@ export class ClaimService extends Service {
     return state
   }
 
-  /** Require the open turn's unsettled claim. */
-  private requireOpen(agent: Agent): Claim {
-    const current = this.openClaim(agent)
-    if (current === undefined || current.settlement.kind !== 'pending') {
-      throw new ClaimError('no claim is open', 'CLAIM_NONE_OPEN')
-    }
+  /** Require one claim to exist, belong to the open turn, and still be pending. */
+  private requireOpen(agent: Agent, id: ClaimId): Claim {
+    this.assertLive(agent)
+    const turn = this.openTurn(agent)
+    const current = this.ledger(agent).find(claim => claim.id === id)
+    if (current === undefined) throw new ClaimError(`claim "${id}" does not exist`, 'CLAIM_UNKNOWN')
+    if (current.turn !== turn) throw new ClaimError(`claim "${id}" does not belong to the open turn`, 'CLAIM_NONE_OPEN')
+    if (current.settlement.kind !== 'pending') throw new ClaimError(`claim "${id}" is already settled`, 'CLAIM_NONE_OPEN')
     return current
   }
 
   /** Read the ledger entry a just-committed mutation produced. */
-  private requireCurrent(agent: Agent): Claim {
-    const current = this.openClaim(agent)
+  private requireCurrent(agent: Agent, id: ClaimId): Claim {
+    const current = this.ledger(agent).find(claim => claim.id === id)
     /* v8 ignore next -- a committed mutation always leaves a readable claim */
     if (current === undefined) throw new ClaimError('claim was not readable after a mutation', 'CLAIM_NONE_OPEN')
     return current

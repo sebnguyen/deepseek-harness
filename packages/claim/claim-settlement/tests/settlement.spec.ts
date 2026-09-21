@@ -91,18 +91,18 @@ describe('claim settlement', () => {
   it('settles passed when the verifier exits zero', async () => {
     const { ctx, agent, steers, settle, startTurn } = await harness([{ result: { exitCode: 0 } }])
     startTurn(1)
-    ctx.claims.declare(agent, { purpose: 'prove', satisfy: 'tests pass', script: 'exit 0' })
+    ctx.claims.declare(agent, { title: 'prove', description: 'tests pass', script: 'exit 0' })
     await settle()
-    expect(ctx.claims.openClaim(agent)?.settlement).toEqual({ kind: 'passed' })
+    expect(ctx.claims.ledger(agent)[0]?.settlement).toEqual({ kind: 'passed' })
     expect(steers).toEqual([])
   })
 
   it('steers the failure back while repair budget remains', async () => {
     const { ctx, agent, steers, settle, startTurn } = await harness([{ result: { exitCode: 1, stdout: { text: 'boom', truncated: false } } }])
     startTurn(1)
-    ctx.claims.declare(agent, { purpose: 'prove', satisfy: 'tests pass', script: 'exit 1' })
+    ctx.claims.declare(agent, { title: 'prove', description: 'tests pass', script: 'exit 1' })
     await settle()
-    const claim = ctx.claims.openClaim(agent)
+    const claim = ctx.claims.openClaims(agent)[0]
     expect(claim?.settlement).toEqual({ kind: 'pending' })
     expect(claim?.results).toHaveLength(1)
     expect(steers).toHaveLength(1)
@@ -116,12 +116,12 @@ describe('claim settlement', () => {
       { repairBudget: 1 },
     )
     startTurn(1)
-    ctx.claims.declare(agent, { purpose: 'prove', satisfy: 'x', script: 'exit 1' })
+    ctx.claims.declare(agent, { title: 'prove', description: 'x', script: 'exit 1' })
     await settle()
     expect(steers).toHaveLength(1)
     await settle()
     expect(steers).toHaveLength(1)
-    expect(ctx.claims.openClaim(agent)?.settlement).toMatchObject({
+    expect(ctx.claims.ledger(agent)[0]?.settlement).toMatchObject({
       kind: 'blocked',
       code: 'repair-budget-exhausted',
     })
@@ -133,13 +133,13 @@ describe('claim settlement', () => {
       { inconclusiveRetries: 1 },
     )
     startTurn(1)
-    ctx.claims.declare(agent, { purpose: 'prove', satisfy: 'x', script: 'exit 0' })
+    ctx.claims.declare(agent, { title: 'prove', description: 'x', script: 'exit 0' })
     await settle()
     expect(steers).toEqual([])
-    expect(ctx.claims.openClaim(agent)?.settlement).toEqual({ kind: 'pending' })
+    expect(ctx.claims.openClaims(agent)[0]?.settlement).toEqual({ kind: 'pending' })
     await settle()
     expect(steers).toEqual([])
-    expect(ctx.claims.openClaim(agent)?.settlement).toMatchObject({
+    expect(ctx.claims.ledger(agent)[0]?.settlement).toMatchObject({
       kind: 'blocked',
       code: 'verifier-unavailable',
     })
@@ -148,10 +148,10 @@ describe('claim settlement', () => {
   it('treats an infrastructure rejection as inconclusive rather than failure', async () => {
     const { ctx, agent, steers, settle, startTurn } = await harness([{ reject: new Error('no shell') }])
     startTurn(1)
-    ctx.claims.declare(agent, { purpose: 'prove', satisfy: 'x', script: 'exit 0' })
+    ctx.claims.declare(agent, { title: 'prove', description: 'x', script: 'exit 0' })
     await settle()
     expect(steers).toEqual([])
-    expect(ctx.claims.openClaim(agent)?.results[0]?.outcome).toBe('inconclusive')
+    expect(ctx.claims.openClaims(agent)[0]?.results[0]?.outcome).toBe('inconclusive')
   })
 
   it('blocks a durable binding whose script no longer hashes to its digest', async () => {
@@ -161,13 +161,30 @@ describe('claim settlement', () => {
       id: ClaimId(randomUUID()),
       turn: 1,
       revision: 1,
-      purpose: 'prove',
-      satisfy: 'x',
+      title: 'prove',
+      description: 'x',
       verifier: { source: 'exit 0', digest: 'deadbeef' },
     })
     await settle()
-    expect(ctx.claims.openClaim(agent)?.settlement).toEqual({ kind: 'tampered' })
+    expect(ctx.claims.ledger(agent)[0]?.settlement).toEqual({ kind: 'tampered' })
     expect(steers).toEqual([])
+  })
+
+  it('runs every open claim and aggregates the failures into one steer', async () => {
+    const { ctx, agent, steers, settle, startTurn } = await harness([
+      { result: { exitCode: 0 } },
+      { result: { exitCode: 1, stdout: { text: 'nope', truncated: false } } },
+    ])
+    startTurn(1)
+    const pass = ctx.claims.declare(agent, { title: 'alpha', description: 'passes', script: 'exit 0' })
+    const fail = ctx.claims.declare(agent, { title: 'beta', description: 'fails', script: 'exit 1' })
+    await settle()
+    expect(ctx.claims.ledger(agent).find(c => c.id === pass.id)?.settlement).toEqual({ kind: 'passed' })
+    expect(ctx.claims.ledger(agent).find(c => c.id === fail.id)?.settlement).toEqual({ kind: 'pending' })
+    expect(steers).toHaveLength(1)
+    expect(steers[0]).toContain('alpha')
+    expect(steers[0]).toContain('beta')
+    expect(steers[0]).toContain('nope')
   })
 
   it('does nothing when no claim is open', async () => {

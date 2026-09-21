@@ -7,6 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { ClaimId } from '@deepseek-ai/dsh-claim'
 import type { Claim } from '@deepseek-ai/dsh-claim'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
@@ -20,14 +21,14 @@ export const name = 'tool-claim'
 /** Services this plugin binds before registering its tools. */
 export const inject = ['agents', 'claims', 'tools', 'systemPrompt', 'sessionProjections']
 
-/** The standing requirement that opens every work turn with a claim. */
+/** The standing requirement that opens every work turn with one or more claims. */
 export const CLAIM_DEMAND =
-  'At the start of a work turn, declare a claim with declare_claim: say why the turn exists (purpose) '
-  + 'and what must be true when it is done (satisfy), and bind exactly one shell script that exits 0 only '
-  + 'when satisfy holds, and make the check verify the change: run the focused unit tests and lint covering it, '
-  + 'not an always-passing assertion. A claim is immutable once declared. Re-run or repair when the check fails; if '
-  + 'the condition itself is wrong, abandon_claim it after its check has run at least once and say why. '
-  + 'When the turn is about to end, the bound check runs again and any failure is returned to you.'
+  'At the start of a work turn, declare one or more claims with declare_claim: give each a short title and a '
+  + 'description of what must be true when it is settled, and bind exactly one shell script that exits 0 only '
+  + 'when that description holds, and make the check verify the change: run the focused unit tests and lint '
+  + 'covering it, not an always-passing assertion. A claim is immutable once declared. Re-run or repair when a '
+  + 'check fails; if a condition is wrong, abandon_claim it by id after its check has run at least once and say '
+  + 'why. When the turn is about to end, every bound check runs again and any failure is returned to you.'
 
 /** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
@@ -39,7 +40,7 @@ const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
  * are one-based, so step 1 is the turn's first step.
  */
 function renderTurnReminder(turn: number): string {
-  return `New work turn (turn ${turn}). Declare this turn's claim with declare_claim — purpose, satisfy, and the one bound shell check — before changing anything.`
+  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — title, description, and one bound shell check each — before changing anything.`
 }
 
 /** Compact status the model reads back after either tool call. */
@@ -48,8 +49,8 @@ interface ClaimToolValue {
     readonly id: string
     readonly turn: number
     readonly revision: number
-    readonly purpose: string
-    readonly satisfy: string
+    readonly title: string
+    readonly description: string
     readonly settlement: string
   } | null
 }
@@ -76,8 +77,8 @@ const CLAIM_VALUE_SCHEMA = {
             id: { type: 'string', required: true },
             turn: { type: 'integer', required: true },
             revision: { type: 'integer', required: true },
-            purpose: { type: 'string', required: true },
-            satisfy: { type: 'string', required: true },
+            title: { type: 'string', required: true },
+            description: { type: 'string', required: true },
             settlement: { type: 'string', required: true },
           },
         },
@@ -109,7 +110,7 @@ function liveAgent(ctx: Context, exec: ToolRunContext): Agent {
   return agent
 }
 
-/** Render one current claim as the compact tool status. */
+/** Render one claim as the compact tool status. */
 function claimValue(claim: Claim | undefined): ClaimToolValue {
   return claim === undefined
     ? { claim: null }
@@ -118,8 +119,8 @@ function claimValue(claim: Claim | undefined): ClaimToolValue {
         id: claim.id,
         turn: claim.turn,
         revision: claim.revision,
-        purpose: claim.purpose,
-        satisfy: claim.satisfy,
+        title: claim.title,
+        description: claim.description,
         settlement: claim.settlement.kind,
       },
     }
@@ -146,38 +147,45 @@ export function apply(ctx: Context): void {
 
   ctx.tools.register(defineTool({
     name: 'declare_claim',
-    description: 'Declare what this turn is for and what must be true when it is done, and bind the one shell check that proves it. '
-      + 'The check must exit 0 only when the condition genuinely holds. A claim is immutable once declared.',
+    description: 'Declare one claim for this turn: a short title, a description of what must be true when it is '
+      + 'settled, and the one bound shell check that proves it. The check must exit 0 only when the description '
+      + 'genuinely holds. A claim is immutable once declared; declare more than one to track independent conditions.',
     parameters: {
-      purpose: {
+      title: {
         type: 'string',
         required: true,
-        description: 'Why this turn exists and what it is meant to accomplish.',
+        description: 'Short label for this claim, e.g. what this claim verifies.',
       },
-      satisfy: {
+      description: {
         type: 'string',
         required: true,
-        description: 'What must be true when the turn is complete.',
+        description: 'What must be true when this claim is settled.',
       },
       script: {
         type: 'string',
         required: true,
-        description: 'Shell script that exits non-zero unless satisfy holds. Exactly one check is bound to the claim.',
+        description: 'Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim.',
       },
     },
     output: CLAIM_OUTPUT,
     execute(args, exec) {
       const agent = liveAgent(ctx, exec)
-      return Promise.resolve(claimValue(ctx.claims.declare(agent, { purpose: args.purpose, satisfy: args.satisfy, script: args.script })))
+      const request = { title: args.title, description: args.description, script: args.script }
+      return Promise.resolve(claimValue(ctx.claims.declare(agent, request)))
     },
     presentCall: () => present('Declare claim', 'other'),
   }))
 
   ctx.tools.register(defineTool({
     name: 'abandon_claim',
-    description: 'Give up on this turn\'s open claim because it named the wrong satisfy-condition. '
-      + 'Refused until its bound check has run at least once. Record why it was wrong.',
+    description: 'Give up on one claim because it named the wrong condition. Refused until its bound check has run '
+      + 'at least once. Record why it was wrong.',
     parameters: {
+      id: {
+        type: 'string',
+        required: true,
+        description: 'The claim id, as returned by declare_claim.',
+      },
       reason: {
         type: 'string',
         required: true,
@@ -187,7 +195,7 @@ export function apply(ctx: Context): void {
     output: CLAIM_OUTPUT,
     execute(args, exec) {
       const agent = liveAgent(ctx, exec)
-      return Promise.resolve(claimValue(ctx.claims.abandon(agent, args.reason)))
+      return Promise.resolve(claimValue(ctx.claims.abandon(agent, ClaimId(args.id), args.reason)))
     },
     presentCall: () => present('Abandon claim', 'other'),
   }))

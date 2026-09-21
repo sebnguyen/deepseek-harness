@@ -125,14 +125,13 @@ export function applyClaimEvent(state: ClaimFoldState, event: SessionEvent): voi
       if (typeof data.id !== 'string' || data.id.length === 0) invalid('claim/declared.id must be a non-empty string')
       const id = data.id as ClaimId
       if (state.claims.some(claim => claim.id === id)) invalid('claim id was already declared')
-      if (state.claims.some(claim => claim.turn === turn)) invalid(`turn ${turn} already declared a claim`)
       if (data.revision !== 1) invalid('claim/declared must open at revision 1')
       state.claims.push({
         id,
         turn,
         revision: 1,
-        purpose: stringField(data.purpose, 'claim/declared.purpose'),
-        satisfy: stringField(data.satisfy, 'claim/declared.satisfy'),
+        title: stringField(data.title, 'claim/declared.title'),
+        description: stringField(data.description, 'claim/declared.description'),
         verifier: verifierOf(data.verifier),
         results: [],
         settlement: { kind: 'pending' },

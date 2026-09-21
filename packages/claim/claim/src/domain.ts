@@ -13,16 +13,16 @@ import type {
   VerifierOutcome,
 } from './types.ts'
 
-/** Payload of `claim/declared`: the one immutable claim opened for a turn. */
+/** Payload of `claim/declared`: one immutable claim opened for a turn. */
 export interface ClaimDeclaredMeta {
   readonly id: ClaimId
   /** Turn that declared this claim; recorded so the invariant can compare it. */
   readonly turn: number
   readonly revision: number
-  /** Why this turn is being worked. */
-  readonly purpose: string
-  /** What must be true when the request is complete. */
-  readonly satisfy: string
+  /** Short label for the claim. */
+  readonly title: string
+  /** What must be true when the claim is settled. */
+  readonly description: string
   /** The one frozen predicate that decides this claim. */
   readonly verifier: Verifier
 }
@@ -48,13 +48,13 @@ export interface ClaimSettledMeta {
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * Opens one turn's claim. Log-only: the claim is durable evidence and
+     * Opens one claim in a turn. Log-only: the claim is durable evidence and
      * never part of the model transcript.
      */
     'claim/declared': ClaimDeclaredMeta
-    /** Records one verifier execution against the open claim. Log-only. */
+    /** Records one verifier execution against a claim. Log-only. */
     'claim/result': ClaimResultMeta
-    /** Closes the open claim. Log-only. */
+    /** Closes one claim. Log-only. */
     'claim/settled': ClaimSettledMeta
   }
 }

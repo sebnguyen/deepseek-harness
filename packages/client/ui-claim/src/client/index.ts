@@ -1,11 +1,10 @@
 /**
  * Claim chip plugin, browser half: the claim status in two placements.
  * While the session's claim is pending, a strip docked above the composer
- * shows it and every turn's icon action row carries its chip — the chip
- * follows the session's current pending claim, not the owning turn. Once no
- * claim is pending, the action-row chip is gone. Durable state arrives
- * through the `claim` Session projection; this plugin only reads it and
- * has no actions.
+ * shows it and the owning turn's icon action row carries its chip — the
+ * chip is scoped to the turn that declared it. Once the claim settles, the
+ * action-row chip is gone. Durable state arrives through the `claim`
+ * Session projection; this plugin only reads it and has no actions.
  * @module @deepseek-ai/dsh-client-ui-claim/client
  */
 

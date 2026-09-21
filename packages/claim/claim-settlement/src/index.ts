@@ -1,7 +1,7 @@
 /**
- * Turn-boundary settlement: runs each open claim's bound verifier at
- * `agent/turn-stopping`, records the outcome, and steers bounded failure
- * evidence back for repair.
+ * Turn-boundary settlement: runs every open claim's bound verifier at
+ * `agent/turn-stopping`, records each outcome, settles each claim, and steers
+ * one aggregated result back for repair.
  * @module @deepseek-ai/dsh-claim-settlement
  */
 
@@ -47,6 +47,12 @@ interface ResolvedConfig {
   readonly evidenceLines: number
 }
 
+/** One claim plus its just-recorded verdict, for the aggregate steer. */
+interface Verdict {
+  readonly claim: Claim
+  readonly result: VerifierResult
+}
+
 /** The steered failure is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'claim-settlement' }
 
@@ -66,48 +72,32 @@ function bounded(evidence: string, lines: number): string {
   return kept.length === 0 ? '(no output)' : kept
 }
 
-/** Render the repair instruction steered back into the open turn. */
-function renderFailure(claim: Claim, result: VerifierResult, lines: number): string {
-  return [
-    `The bound verifier for your claim failed (${result.outcome}).`,
-    `Claimed satisfy-condition: ${claim.satisfy}`,
-    '',
-    'Verifier output:',
-    bounded(result.evidence, lines),
-    '',
-    'Repair the work and let the verifier run again, or abandon_claim with a reason if this claim named the wrong condition.',
-  ].join('\n')
-}
-
 /** Count how many recorded results carry one outcome. */
 function countOutcome(claim: Claim, outcome: VerifierResult['outcome']): number {
   return claim.results.filter(result => result.outcome === outcome).length
 }
 
 /**
- * Read the open turn's claim, treating a turn that already closed or an agent
- * that left the registry as "nothing to settle" so this listener cannot throw
- * at the boundary and replace the turn's verdict with an error.
+ * Read the open turn's pending claims, treating a turn that already closed or
+ * an agent that left the registry as "nothing to settle" so this listener
+ * cannot throw at the boundary and replace the turn's verdict with an error.
  */
-function openClaimOrNone(ctx: Context, agent: Agent): Claim | undefined {
+function openClaimsOrNone(ctx: Context, agent: Agent): readonly Claim[] {
   try {
-    return ctx.claims.openClaim(agent)
+    return ctx.claims.openClaims(agent)
   } catch {
     // Only the claim service's open-turn and liveness rejections reach here, and both mean there is nothing to settle.
-    return undefined
+    return []
   }
 }
 
 /**
- * Settle or repair after one recorded verdict.
- *
- * A pass closes the claim; a tampered script blocks it without retry. A failure
- * steers its evidence back until `repairBudget` is spent, then blocks. An
- * inconclusive result retries the verifier rather than the model, and blocks
- * once `inconclusiveRetries` is spent, so a broken verifier cannot consume the
- * model's repair capacity.
+ * Settle one claim from a recorded verdict. A pass or a tamper closes it; an
+ * inconclusive or failing claim is blocked only once its retry budget is
+ * spent, and otherwise stays pending for the next boundary run. This never
+ * steers — the listener steers once after every claim is judged.
  */
-function settleOrRepair(
+function settleClaim(
   ctx: Context,
   agent: Agent,
   claim: Claim,
@@ -116,14 +106,14 @@ function settleOrRepair(
 ): void {
   switch (result.outcome) {
     case 'pass':
-      ctx.claims.settle(agent, { kind: 'passed' })
+      ctx.claims.settle(agent, claim.id, { kind: 'passed' })
       return
     case 'tampered':
-      ctx.claims.settle(agent, { kind: 'tampered' })
+      ctx.claims.settle(agent, claim.id, { kind: 'tampered' })
       return
     case 'inconclusive':
       if (countOutcome(claim, 'inconclusive') > resolved.inconclusiveRetries) {
-        ctx.claims.settle(agent, {
+        ctx.claims.settle(agent, claim.id, {
           kind: 'blocked',
           code: 'verifier-unavailable',
           message: 'the bound verifier could not complete; the claim is unproven',
@@ -132,22 +122,46 @@ function settleOrRepair(
       return
     case 'fail':
       if (countOutcome(claim, 'fail') > resolved.repairBudget) {
-        ctx.claims.settle(agent, {
+        ctx.claims.settle(agent, claim.id, {
           kind: 'blocked',
           code: 'repair-budget-exhausted',
           message: `the bound verifier still failed after ${resolved.repairBudget} repair attempts`,
         })
-        return
       }
-      agent.steer(createUserMessage({
-        content: [{ type: 'text', text: renderFailure(claim, result, resolved.evidenceLines) }],
-        source: CLAIM_SOURCE,
-      }))
       return
     /* v8 ignore next 2 -- VerifierOutcome is a closed union covered above */
     default:
       return
   }
+}
+
+/** Render the aggregate repair message once any claim is left pending to fix. */
+function renderRepair(verdicts: readonly Verdict[], resolved: ResolvedConfig): string {
+  const lines = verdicts.map(({ claim, result }) => {
+    switch (result.outcome) {
+      case 'pass':
+        return `- "${claim.title}" passed.`
+      case 'tampered':
+        return `- "${claim.title}" was tampered.`
+      case 'inconclusive':
+        return `- "${claim.title}" could not be verified (inconclusive).`
+      case 'fail':
+        return [
+          `- "${claim.title}" failed. Claimed condition: ${claim.description}`,
+          '  Verifier output:',
+          bounded(result.evidence, resolved.evidenceLines),
+        ].join('\n')
+      /* v8 ignore next 2 -- VerifierOutcome is a closed union covered above */
+      default:
+        return `- "${claim.title}" ${result.outcome}.`
+    }
+  })
+  return [
+    'The bound verifiers for this turn reported failures:',
+    ...lines,
+    '',
+    'Repair the work and let the verifiers run again, or abandon_claim a wrong claim by its id.',
+  ].join('\n')
 }
 
 /**
@@ -158,22 +172,30 @@ function settleOrRepair(
 export function apply(ctx: Context, config: Config = {}): void {
   const resolved = resolveConfig(config)
   ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
-    const claim = openClaimOrNone(ctx, agent)
-    if (claim === undefined || claim.settlement.kind !== 'pending') return
-    try {
-      const result = await runVerifier(ctx, claim.verifier, resolved.verifierTimeoutMs, signal)
-      const recorded = ctx.claims.record(agent, result)
-      settleOrRepair(ctx, agent, recorded, result, resolved)
-    } catch (error) {
-      // A listener throw would close the turn as an error, replacing the verdict.
-      const current = openClaimOrNone(ctx, agent)
-      if (current !== undefined && current.settlement.kind === 'pending') {
-        ctx.claims.settle(agent, {
-          kind: 'blocked',
-          code: 'verifier-unavailable',
-          message: `claim settlement failed: ${errorText(error)}`,
-        })
+    const claims = openClaimsOrNone(ctx, agent)
+    if (claims.length === 0) return
+    const verdicts: Verdict[] = []
+    let needsRepair = false
+    for (const claim of claims) {
+      let result: VerifierResult
+      try {
+        result = await runVerifier(ctx, claim.verifier, resolved.verifierTimeoutMs, signal)
+      } catch (error) {
+        // An infrastructure failure is recorded as inconclusive, never a model-facing throw.
+        result = { outcome: 'inconclusive', evidence: `claim settlement failed: ${errorText(error)}` }
       }
+      const recorded = ctx.claims.record(agent, claim.id, result)
+      settleClaim(ctx, agent, recorded, result, resolved)
+      const stillPending = ctx.claims.ledger(agent)
+        .find(entry => entry.id === claim.id)?.settlement.kind === 'pending'
+      if (result.outcome === 'fail' && stillPending) needsRepair = true
+      verdicts.push({ claim: recorded, result })
+    }
+    if (needsRepair) {
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: renderRepair(verdicts, resolved) }],
+        source: CLAIM_SOURCE,
+      }))
     }
   })
 }

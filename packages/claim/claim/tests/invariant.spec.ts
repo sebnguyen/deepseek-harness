@@ -11,8 +11,8 @@ const declared = {
   id: claimId,
   turn: 1,
   revision: 1,
-  purpose: 'hold the stream',
-  satisfy: 'the stream holds',
+  title: 'hold the stream',
+  description: 'the stream holds',
   verifier: { source: 'exit 0', digest: 'abc' },
 }
 
@@ -62,13 +62,16 @@ describe('claim stream invariants', () => {
     expect(session.seq).toBe(0)
   })
 
-  it('rejects a second declaration while one claim is still open', async () => {
+  it('accepts two declarations in the same turn and requires both to settle', async () => {
     const ctx = await setup()
     const session = ctx.sessions.create(SessionId('claim-invariant-double'))
+    const secondId = 'claim-invariant-2' as ClaimId
     session.append('turn/start', { turn: 1 })
     session.append('claim/declared', declared)
+    session.append('claim/declared', { ...declared, id: secondId })
+    // Ending the turn while either claim is still open fails.
     expect(() => {
-      session.append('claim/declared', { ...declared, id: 'claim-invariant-2' as ClaimId })
+      session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     }).toThrow(claimInvariantFailure)
   })
 

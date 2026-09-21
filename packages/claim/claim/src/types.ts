@@ -63,14 +63,14 @@ export interface VerifierResult {
 export interface Claim {
   /** Stable claim identity. */
   readonly id: ClaimId
-  /** Turn this claim belongs to; a turn declares at most one. */
+  /** Turn this claim belongs to; a turn declares any number of claims. */
   readonly turn: number
   /** Positive revision; every durable mutation increments it. */
   readonly revision: number
-  /** Why this turn is being worked, for human reading. */
-  readonly purpose: string
-  /** What must be true when the request is complete, for human reading. */
-  readonly satisfy: string
+  /** Short label for this claim, for human reading. */
+  readonly title: string
+  /** What must be true when this claim is settled, for human reading. */
+  readonly description: string
   /** The one frozen predicate that decides this claim. */
   readonly verifier: Verifier
   /** Every recorded execution, in order. */
@@ -81,10 +81,10 @@ export interface Claim {
 
 /** Request accepted by {@link ClaimService.declare}. */
 export interface DeclareClaimRequest {
-  /** Why this turn is being worked. */
-  readonly purpose: string
-  /** What must be true when the request is complete. */
-  readonly satisfy: string
+  /** Short label for the claim. */
+  readonly title: string
+  /** What must be true when the claim is settled. */
+  readonly description: string
   /** The shell script bound as the claim's one predicate, hashed at declaration. */
   readonly script: string
 }
