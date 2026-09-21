@@ -956,9 +956,24 @@ function RequestContextPanel({
       {selected !== undefined && (() => {
         const event = rawSurfaceEvents.get(selected.seq)
         const content = event === undefined ? undefined : describeEventContent(event)
-        return content === undefined || content === ''
-          ? <p className={css.noPayload}>{content === undefined ? t('context.notLoaded') : t('context.empty')}</p>
-          : <pre className={css.payload}>{content}</pre>
+        return (
+          <details className={css.contextAccordion} open>
+            <summary className={css.contextAccordionSummary}>
+              <IconChevronRightOutline14 className={css.contextAccordionChevron} size={12} />
+              <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[selected.role]}`}>
+                {t(`context.role.${selected.role}`)}
+              </span>
+              <span className={css.contextRowTokens}>{selected.heuristicTokens.toLocaleString()}</span>
+            </summary>
+            <div className={css.contextAccordionBody}>
+              {content === undefined
+                ? <p className={css.noPayload}>{t('context.notLoaded')}</p>
+                : content === ''
+                  ? <p className={css.noPayload}>{t('context.empty')}</p>
+                  : <pre className={css.payload}>{content}</pre>}
+            </div>
+          </details>
+        )
       })()}
     </div>
   )
@@ -2169,7 +2184,7 @@ export function TrajectoryTable({
   const compositionHistoryLoad = useRef(false)
   useEffect(() => {
     if (selectedRequestBoundarySeq === undefined) return
-    if (selectedRequestComposition !== undefined) return
+    if (selectedRequestComposition !== undefined && !sessionHasOlderHistory) return
     if (loadCompositionThrough === undefined) return
     if (compositionHistoryLoad.current) return
     if (!sessionHasOlderHistory && rawSurfaceEvents.size === 0) return

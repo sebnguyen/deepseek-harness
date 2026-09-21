@@ -435,7 +435,9 @@ describe('plugin registration', () => {
   it('fiber disposal removes the tab and leaves chat standing', async () => {
     const b = await bench()
     expect(b.events.entries().length).toBeGreaterThan(0)
-    expect(b.views.entries()).toHaveLength(1)
+    // Two view targets: the 'trajectory' ledger plus the 'trajectory-composition'
+    // raw-surface capture backing the Context tab.
+    expect(b.views.entries()).toHaveLength(2)
 
     await b.feature.dispose()
 

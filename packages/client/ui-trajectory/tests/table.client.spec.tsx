@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps } from 'react'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 import { TrajectoryTable as LocalizedTrajectoryTable } from '../src/client/TrajectoryTable.tsx'
 import { deriveTrajectoryLayout, type TrajectoryTurnModel } from '../src/client/layout.ts'
 import { trajectoryRecordId } from '../src/client/trajectory-record.ts'
@@ -897,6 +898,46 @@ describe('TrajectoryTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
     expect(screen.getByText('API key is invalid')).toBeTruthy()
+  })
+
+  it('shows the selected system prompt in a fixed-size accordion on the Context tab', () => {
+    const systemEvent = {
+      seq: 1,
+      time: 1,
+      type: 'system/message',
+      data: {
+        turn: 1,
+        step: 1,
+        message: {
+          role: 'system',
+          content: [{ type: 'text', text: 'You are a coding agent.' }],
+          source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' },
+          id: 'msg-1',
+        },
+      },
+      surfaceOp: 'append',
+    } as unknown as SessionEvent
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [{
+        title: 'Step 1',
+        cells: [{ index: 1, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+      }],
+    }]
+    render(
+      <TrajectoryTable
+        turns={turns}
+        requestNumbers={[{ turn: 1, step: 1, seq: 1, group: 'Step 1', number: 1 }]}
+        rawSurfaceEvents={new Map([[1, systemEvent]])}
+        {...FOLD_PROPS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
+    fireEvent.click(screen.getByText('System').closest('button')!)
+
+    expect(screen.getByText('You are a coding agent.').closest('details')).not.toBeNull()
   })
 
   it('shows the custom role tooltip only from the responsive icon', () => {

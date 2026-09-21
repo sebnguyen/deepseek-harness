@@ -96,7 +96,8 @@ describe('tsdown client artifact', () => {
     await fiber.await()
     expect(slots.entries('conversation.view').map(e => e.options.id)).toEqual(['trajectory'])
     expect(events.entries().length).toBeGreaterThan(0)
-    expect(views.entries()).toHaveLength(1)
+    // 'trajectory' ledger + 'trajectory-composition' raw-surface view.
+    expect(views.entries()).toHaveLength(2)
     await fiber.dispose()
     expect(slots.entries('conversation.view')).toHaveLength(0)
     expect(events.entries()).toEqual([])

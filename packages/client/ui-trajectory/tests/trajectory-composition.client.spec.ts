@@ -47,12 +47,22 @@ describe('trajectory-composition fold', () => {
     expect(nodes.map(node => node.seq)).toEqual([1, 4])
   })
 
-  it('infers the earliest seq a partial capture must backfill through', () => {
+  it('pages to the session start so the surface head is always covered', () => {
     const events = [
       surfaceEvent(1, 'system/message', 'append'),
       surfaceEvent(4, 'user/message', { op: 'replace', startSeq: SessionSeq(2), endSeq: SessionSeq(3) }),
     ]
-    expect(compositionBackfillThroughSeq(events, 4)).toBe(1)
+    expect(compositionBackfillThroughSeq(events, 4)).toBe(0)
+  })
+
+  it('backfills to the session start even when the leading system prompt is absent from the capture', () => {
+    // The surface head (system prompt) is not loaded; a replace source is the
+    // earliest captured seq. Backfill must still reach the session start so the
+    // fold rebuilds from node 0 rather than silently omitting the prompt.
+    const events = [
+      surfaceEvent(4, 'user/message', { op: 'replace', startSeq: SessionSeq(2), endSeq: SessionSeq(3) }),
+    ]
+    expect(compositionBackfillThroughSeq(events, 4)).toBe(0)
   })
 
   it('returns undefined instead of throwing when replace targets are missing', () => {

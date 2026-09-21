@@ -1259,6 +1259,53 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+.contextAccordion {
+  box-sizing: border-box;
+  margin: 10px 14px 0;
+  border: 1px solid var(--dsw-alias-bg-module-platform);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.contextAccordionSummary {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.contextAccordionSummary::-webkit-details-marker {
+  display: none;
+}
+
+.contextAccordionSummary::marker {
+  content: '';
+}
+
+.contextAccordionChevron {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+  transition: transform 120ms ease;
+}
+
+.contextAccordion[open] > .contextAccordionSummary .contextAccordionChevron {
+  transform: rotate(90deg);
+}
+
+.contextAccordionBody {
+  box-sizing: border-box;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--dsw-alias-bg-module-platform);
+  scrollbar-gutter: stable;
+}
+
 .overview dt {
   color: var(--dsw-alias-label-tertiary);
 }

@@ -78,25 +78,17 @@ export function tryFoldCompositionUpTo(
 
 /**
  * Lowest session seq the event window must cover before
- * {@link tryFoldCompositionUpTo} can succeed for `boundarySeq`, inferred from
- * replace ops already present in the partial capture.
+ * {@link tryFoldCompositionUpTo} can reconstruct `boundarySeq`'s exact
+ * composition. Always the session start (`0`): the fold rebuilds the surface
+ * from its head node (the leading `system/message`), whose seq an already
+ * partial capture cannot name, and every replace-source seq is at or after
+ * that head, so paging to the start covers both.
  */
 export function compositionBackfillThroughSeq(
-  events: readonly SessionEvent[],
-  boundarySeq: number,
+  _events: readonly SessionEvent[],
+  _boundarySeq: number,
 ): number {
-  if (events.length === 0) return 0
-  let through = boundarySeq
-  for (const event of events) {
-    if (event.seq > boundarySeq) continue
-    through = Math.min(through, event.seq)
-    if (!isSurfaceEvent(event)) continue
-    const op = event.surfaceOp
-    if (op !== 'append' && typeof op === 'object' && op.op === 'replace') {
-      through = Math.min(through, Number(op.startSeq), Number(op.endSeq))
-    }
-  }
-  return through
+  return 0
 }
 
 export function foldCompositionUpTo(
