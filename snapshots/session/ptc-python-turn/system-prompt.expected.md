@@ -17,7 +17,7 @@ Use the edit tool for targeted changes to existing UTF-8 text files. It replaces
 
 Use the glob tool — not shell find — to discover files by path pattern. A pattern with no "/" matches basenames at any depth, so "*" matches every file in the tree rather than its top level. Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, while a larger one keeps the modification-time-ordered head.
 
-Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.
+Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace. Use read on a matched file when you need surrounding context.
 
 Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job's work. Before giving a final answer, collect every still-relevant job with job_output (set wait: true only when you are genuinely blocked on it), and job_kill jobs that stopped mattering.
 
@@ -176,7 +176,7 @@ class GetGoalOutput2(TypedDict):
 class GlobArgs(TypedDict):
     # Glob pattern to match file paths against (e.g. "**/*.ts", "src/**/*.test.js"). A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth.
     pattern: str
-    # Directory to search in. Defaults to the session workspace; a relative path resolves against it.
+    # Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace.
     path: NotRequired[str]
     # Additional keys beyond those declared are allowed.
 
@@ -187,7 +187,7 @@ class GlobOutput(TypedDict):
 class GrepArgs(TypedDict):
     # Regular expression to search for (ripgrep syntax).
     pattern: str
-    # File or directory to search. Defaults to the session workspace; a relative path resolves against it.
+    # File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace.
     path: NotRequired[str]
     # One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.
     include: NotRequired[str]

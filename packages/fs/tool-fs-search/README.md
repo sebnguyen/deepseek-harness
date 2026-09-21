@@ -151,7 +151,7 @@ Use the glob tool — not shell find — to discover files by path pattern. A pa
 ##### Grep guidance
 
 ```markdown
-Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.
+Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace. Use read on a matched file when you need surrounding context.
 ```
 
 #### Token effect
@@ -180,7 +180,7 @@ Prefix-stable while tool visibility and definitions are unchanged. Registration 
 
 #### What the model sees
 
-`glob` returns one path per line; `grep` groups `Line <line>: <preview>` matches beneath each path. Empty searches return `No files found` or `No matches found`. A capped result ends with its omission count plus the spill locator and backend retrieval hint, or says the complete result could not be saved. With `sampleOverCapGlobResults: true`, an over-cap `glob` page takes paths round-robin across entries immediately beneath the actual search root, and the footer states the sampled basis and how many top-level entries it reached; with `false`, the page is the modification-time-ordered head and keeps the plain capped-result footer. The spill artifact always holds the complete list in modification-time order.
+`glob` returns one path per line; `grep` groups `Line <line>: <preview>` matches beneath each path. Empty searches return `No files found` or `No matches found`; a `grep` call with an explicit `path` names that path, so a workspace-scoped miss is distinguishable from a genuine absence. A capped result ends with its omission count plus the spill locator and backend retrieval hint, or says the complete result could not be saved. With `sampleOverCapGlobResults: true`, an over-cap `glob` page takes paths round-robin across entries immediately beneath the actual search root, and the footer states the sampled basis and how many top-level entries it reached; with `false`, the page is the modification-time-ordered head and keeps the plain capped-result footer. The spill artifact always holds the complete list in modification-time order.
 
 #### Token effect
 

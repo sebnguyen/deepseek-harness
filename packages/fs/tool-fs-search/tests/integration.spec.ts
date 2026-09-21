@@ -140,6 +140,12 @@ describe('search tools over the real subprocess service + the packaged rg', () =
       expect(existsSync(canary)).toBe(false)
     })
 
+    it('an explicitly rooted empty search names the searched path', async () => {
+      const result = await call('grep', { pattern: 'absent-needle', path: 'notes.md' }, agent())
+      expect(result.isError).toBe(false)
+      expect(text(result)).toBe('No matches found in notes.md')
+    })
+
     it('a leading-dash pattern is a pattern, not a flag', async () => {
       await writeFile(join(dir, 'dashes.txt'), 'value --flag value\n')
       const result = await call('grep', { pattern: '--flag', path: 'dashes.txt' }, agent())

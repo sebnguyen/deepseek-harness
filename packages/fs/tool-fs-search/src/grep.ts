@@ -217,16 +217,26 @@ export function formatGrepOutput(retained: RetainedItems<GrepMatch>, spillRef: S
     ? `Found ${retained.kept} of ${retained.seen} matches`
     : `Found ${retained.seen} ${matchNoun(retained.seen)}`
   const body = formatGrepMatches(retained.items)
-  if (!retained.truncated) return `${header}\n\n${body}`
-  const recovery = spillRef !== undefined
-    ? `Full grep result stored at: ${spillRef.locator}. ${spillRef.retrievalHint}`
-    : 'The complete result could not be saved; narrow pattern, path, or include to see more.'
-  return `${header}\n\n${body}\n\n(${recovery})`
+  const footer = retained.truncated
+    ? `(${spillRef !== undefined
+      ? `Full grep result stored at: ${spillRef.locator}. ${spillRef.retrievalHint}`
+      : 'The complete result could not be saved; narrow pattern, path, or include to see more.'})`
+    : ''
+  return [header, body, footer].filter(part => part.length > 0).join('\n\n')
+}
+
+/**
+ * The model-facing empty-search message: an explicit `path` is named so the
+ * model can tell a workspace-scoped miss from a genuine absence and re-root the
+ * search rather than falling back to shell commands.
+ */
+export function formatGrepEmpty(searchedPath?: string): string {
+  return searchedPath !== undefined ? `No matches found in ${searchedPath}` : 'No matches found'
 }
 
 /** Format one already-retained match list for the Native surface. */
-function formatRetainedGrep(retained: RetainedItems<GrepMatch>, spillRef?: SpillRef): string {
-  if (retained.seen === 0) return 'No matches found'
+function formatRetainedGrep(retained: RetainedItems<GrepMatch>, spillRef?: SpillRef, searchedPath?: string): string {
+  if (retained.seen === 0) return formatGrepEmpty(searchedPath)
   return formatGrepOutput(retained, spillRef)
 }
 
@@ -277,7 +287,7 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_GREP'),
     text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
       ? ''
-      : 'Use the grep tool — not shell grep or rg — to search file contents.'
+      : 'Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace.'
         + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
@@ -285,10 +295,11 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     name: 'grep',
     description: 'Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. '
       + `Returns the first ${caps.maxMatches} matches inline; a capped result reports where the complete match list was saved. `
+      + 'Pass an absolute path to search outside the session workspace. '
       + 'Use read on a matched file for surrounding context.',
     parameters: {
       pattern: { type: 'string', required: true, description: 'Regular expression to search for (ripgrep syntax).' },
-      path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it.' },
+      path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace.' },
       include: { type: 'string', description: 'One glob filter for which files to search (e.g. "*.ts", "*.{js,jsx}"). Not a list; negation is not supported.' },
     },
     timeoutMs: caps.timeoutMs,
@@ -312,9 +323,9 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
           },
         },
       },
-      render: (_args, value) => [{
+      render: (args, value) => [{
         type: 'text',
-        text: formatRetainedGrep(retainGrepMatches(value.matches, caps.maxMatches, caps.maxLineBytes)),
+        text: formatRetainedGrep(retainGrepMatches(value.matches, caps.maxMatches, caps.maxLineBytes), undefined, args.path),
       }],
       presentationMeta: (_args, value) =>
         grepSearchMeta(retainGrepMatches(value.matches, caps.maxMatches, caps.maxLineBytes), caps.maxMetaBytes),

@@ -206,7 +206,7 @@
           },
           "path": {
             "type": "string",
-            "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it."
+            "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
           }
         },
         "required": [
@@ -226,7 +226,7 @@
           },
           "path": {
             "type": "string",
-            "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it."
+            "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
           },
           "include": {
             "type": "string",

@@ -552,6 +552,8 @@ describe('exit semantics and failure classification', () => {
     const grep = await call(ctx, 'grep', { pattern: 'nope' })
     expect(grep.isError).toBe(false)
     expect(text(grep)).toBe('No matches found')
+    const rootedGrep = await call(ctx, 'grep', { pattern: 'nope', path: 'sub' })
+    expect(text(rootedGrep)).toBe('No matches found in sub')
   })
 
   it('a regex parse error classifies as SEARCH_INVALID_PATTERN', async () => {
@@ -1221,7 +1223,7 @@ async function guidanceScope(ctx: Context) {
 const originalSearchGuidance = {
   glob: 'Use the glob tool — not shell find — to discover files by path pattern. A pattern with no "/" matches basenames at any depth, so "*" matches every file in the tree rather than its top level. '
       + 'Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, while a larger one is sampled across top-level entries, so it spans the tree instead of one subtree.',
-  grep: 'Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.',
+  grep: 'Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace. Use read on a matched file when you need surrounding context.',
 }
 
 describe('scope-aware search guidance', () => {

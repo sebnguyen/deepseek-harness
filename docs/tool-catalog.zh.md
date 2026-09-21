@@ -845,7 +845,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
     },
     "path": {
       "type": "string",
-      "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it."
+      "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
     }
   },
   "required": [
@@ -870,7 +870,7 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
     },
     "path": {
       "type": "string",
-      "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it."
+      "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
     },
     "include": {
       "type": "string",

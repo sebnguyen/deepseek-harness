@@ -840,7 +840,7 @@ Find files whose paths match a glob pattern. Returns matching file paths — nev
     },
     "path": {
       "type": "string",
-      "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it."
+      "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
     }
   },
   "required": [
@@ -853,7 +853,7 @@ Source: [`packages/fs/tool-fs-search/src/index.ts`](../packages/fs/tool-fs-searc
 
 ### `grep`
 
-Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.
+Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Pass an absolute path to search outside the session workspace. Use read on a matched file for surrounding context.
 
 ```json
 {
@@ -865,7 +865,7 @@ Search file contents with a ripgrep regular expression. Returns matching lines w
     },
     "path": {
       "type": "string",
-      "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it."
+      "description": "File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
     },
     "include": {
       "type": "string",

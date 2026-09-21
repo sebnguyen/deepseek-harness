@@ -322,7 +322,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
         description: 'Glob pattern to match file paths against (e.g. "**/*.ts", "src/**/*.test.js"). '
           + 'A pattern with no "/" matches the basename at any depth, so "*" and "*.ts" both search the whole tree; include a separator to anchor the depth.',
       },
-      path: { type: 'string', description: 'Directory to search in. Defaults to the session workspace; a relative path resolves against it.' },
+      path: { type: 'string', description: 'Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace.' },
     },
     timeoutMs: caps.timeoutMs,
     output: {

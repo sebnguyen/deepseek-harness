@@ -151,7 +151,7 @@ Use the glob tool — not shell find — to discover files by path pattern. A pa
 ##### Grep 指导
 
 ```markdown
-Use the grep tool — not shell grep or rg — to search file contents. Use read on a matched file when you need surrounding context.
+Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace. Use read on a matched file when you need surrounding context.
 ```
 
 #### Token 影响
@@ -180,7 +180,7 @@ glob 描述声明了配置的超过上限排序方式。生成的 [`glob` 和 `g
 
 #### 模型看到的内容
 
-`glob` 每行返回一个路径；`grep` 在每个路径下分组展示 `Line <line>: <preview>` 匹配。空搜索返回 `No files found` 或 `No matches found`。达到上限的结果以省略计数结尾，并附 spill locator 与后端检索提示，或说明完整结果无法保存。启用 `sampleOverCapGlobResults: true` 时，超过上限的 `glob` 页面按实际搜索根正下方的条目轮转取路径，页脚说明采样依据及其覆盖的顶层条目数；`false` 时页面是按修改时间排序的前部，并保留普通的上限结果页脚。spill 产物始终持有按修改时间排序的完整列表。
+`glob` 每行返回一个路径；`grep` 在每个路径下分组展示 `Line <line>: <preview>` 匹配。空搜索返回 `No files found` 或 `No matches found`；显式传入 `path` 的 `grep` 调用会在消息中命名该路径，以区分“工作区范围内未命中”与“确实不存在”。达到上限的结果以省略计数结尾，并附 spill locator 与后端检索提示，或说明完整结果无法保存。启用 `sampleOverCapGlobResults: true` 时，超过上限的 `glob` 页面按实际搜索根正下方的条目轮转取路径，页脚说明采样依据及其覆盖的顶层条目数；`false` 时页面是按修改时间排序的前部，并保留普通的上限结果页脚。spill 产物始终持有按修改时间排序的完整列表。
 
 #### Token 影响
 
