@@ -1,6 +1,6 @@
 /** Turn-aware trajectory event ledger with a local record inspector. */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
@@ -910,7 +910,6 @@ function RequestContextPanel({
     return <p className={css.noPayload}>{t('context.notLoaded')}</p>
   }
   const total = totalHeuristicTokens(segments)
-  const selected = segments.find(segment => segment.seq === selectedSeq)
   const cacheUnknown = segments.every(segment => segment.cacheClass === 'unknown')
   return (
     <div className={css.contextPanel}>
@@ -937,44 +936,36 @@ function RequestContextPanel({
       </div>
       <div className={css.contextRows}>
         {segments.map((segment) => {
+          const open = selectedSeq === segment.seq
           const style: ContextSpanStyle = segment.cacheClass === 'partial' ? { '--context-hit-fraction': segment.hitFraction } : {}
+          const event = rawSurfaceEvents.get(segment.seq)
+          const content = event === undefined ? undefined : describeEventContent(event)
           return (
-            <button
-              key={segment.seq}
-              type="button"
-              className={`${css.contextRow} ${css[`contextRow_${segment.cacheClass}`]}`}
-              style={style}
-              aria-pressed={selectedSeq === segment.seq}
-              onClick={() => { setSelectedSeq(segment.seq) }}
-            >
-              <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[segment.role]}`}>{t(`context.role.${segment.role}`)}</span>
-              <span className={css.contextRowTokens}>{segment.heuristicTokens.toLocaleString()}</span>
-            </button>
+            <Fragment key={segment.seq}>
+              <button
+                type="button"
+                className={`${css.contextRow} ${css[`contextRow_${segment.cacheClass}`]}`}
+                style={style}
+                aria-pressed={open}
+                aria-expanded={open}
+                onClick={() => { setSelectedSeq(open ? null : segment.seq) }}
+              >
+                <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[segment.role]}`}>{t(`context.role.${segment.role}`)}</span>
+                <span className={css.contextRowTokens}>{segment.heuristicTokens.toLocaleString()}</span>
+              </button>
+              {open && (
+                <div className={css.contextAccordionBody}>
+                  {content === undefined
+                    ? <p className={css.noPayload}>{t('context.notLoaded')}</p>
+                    : content === ''
+                      ? <p className={css.noPayload}>{t('context.empty')}</p>
+                      : <pre className={css.payload}>{content}</pre>}
+                </div>
+              )}
+            </Fragment>
           )
         })}
       </div>
-      {selected !== undefined && (() => {
-        const event = rawSurfaceEvents.get(selected.seq)
-        const content = event === undefined ? undefined : describeEventContent(event)
-        return (
-          <details className={css.contextAccordion} open>
-            <summary className={css.contextAccordionSummary}>
-              <IconChevronRightOutline14 className={css.contextAccordionChevron} size={12} />
-              <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[selected.role]}`}>
-                {t(`context.role.${selected.role}`)}
-              </span>
-              <span className={css.contextRowTokens}>{selected.heuristicTokens.toLocaleString()}</span>
-            </summary>
-            <div className={css.contextAccordionBody}>
-              {content === undefined
-                ? <p className={css.noPayload}>{t('context.notLoaded')}</p>
-                : content === ''
-                  ? <p className={css.noPayload}>{t('context.empty')}</p>
-                  : <pre className={css.payload}>{content}</pre>}
-            </div>
-          </details>
-        )
-      })()}
     </div>
   )
 }

@@ -900,7 +900,7 @@ describe('TrajectoryTable', () => {
     expect(screen.getByText('API key is invalid')).toBeTruthy()
   })
 
-  it('shows the selected system prompt in a fixed-size accordion on the Context tab', () => {
+  it('expands the selected component inline under its row, toggling closed on re-click', () => {
     const systemEvent = {
       seq: 1,
       time: 1,
@@ -935,9 +935,17 @@ describe('TrajectoryTable', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
     fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
-    fireEvent.click(screen.getByText('System').closest('button')!)
 
-    expect(screen.getByText('You are a coding agent.').closest('details')).not.toBeNull()
+    // Closed until a component is chosen.
+    expect(screen.queryByText('You are a coding agent.')).toBeNull()
+
+    const row = screen.getByText('System').closest('button')!
+    fireEvent.click(row)
+    expect(screen.getByText('You are a coding agent.')).toBeTruthy()
+
+    // The dropdown sits inline under its own row and collapses on re-click.
+    fireEvent.click(row)
+    expect(screen.queryByText('You are a coding agent.')).toBeNull()
   })
 
   it('shows the custom role tooltip only from the responsive icon', () => {

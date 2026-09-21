@@ -1259,50 +1259,17 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.contextAccordion {
-  box-sizing: border-box;
-  margin: 10px 14px 0;
-  border: 1px solid var(--dsw-alias-bg-module-platform);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.contextAccordionSummary {
-  display: flex;
-  align-items: center;
-  box-sizing: border-box;
-  height: 32px;
-  padding: 0 10px;
-  gap: 6px;
-  cursor: pointer;
-  list-style: none;
-  user-select: none;
-}
-
-.contextAccordionSummary::-webkit-details-marker {
-  display: none;
-}
-
-.contextAccordionSummary::marker {
-  content: '';
-}
-
-.contextAccordionChevron {
-  flex: none;
-  color: var(--dsw-alias-label-caption);
-  transition: transform 120ms ease;
-}
-
-.contextAccordion[open] > .contextAccordionSummary .contextAccordionChevron {
-  transform: rotate(90deg);
-}
-
+/* Fixed-height, independently scrollable dropdown rendered inline directly
+   beneath the selected composition row, so expanding a component never pushes
+   the rest of the list or forces page scrolling. */
 .contextAccordionBody {
   box-sizing: border-box;
   max-height: 320px;
+  margin: 2px 0 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-top: 1px solid var(--dsw-alias-bg-module-platform);
+  border: 1px solid var(--dsw-alias-bg-module-platform);
+  border-radius: 6px;
   scrollbar-gutter: stable;
 }
 
