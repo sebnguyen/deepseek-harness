@@ -12,6 +12,7 @@ import type { Claim } from '@deepseek-ai/dsh-claim'
 import { boundedEvidence, runVerifier } from '@deepseek-ai/dsh-claim-settlement'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
+import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -259,7 +260,9 @@ export function apply(ctx: Context, config: Config = {}): void {
       if (open === undefined) {
         throw new HarnessError(`claim "${args.id}" is not an open claim of this turn`, 'CLAIM_UNKNOWN')
       }
-      const result = await runVerifier(ctx, open.verifier, resolved.verifierTimeoutMs, exec.signal)
+      const sandboxPolicyService: SandboxPolicyService | undefined = ctx.get('sandboxPolicy')
+      const sandboxPolicy = sandboxPolicyService?.resolve({ session: agent.session })
+      const result = await runVerifier(ctx, open.verifier, resolved.verifierTimeoutMs, exec.signal, sandboxPolicy)
       ctx.claims.record(agent, open.id, result)
       if (result.outcome === 'pass') ctx.claims.settle(agent, open.id, { kind: 'passed' })
       if (result.outcome === 'tampered') ctx.claims.settle(agent, open.id, { kind: 'tampered' })

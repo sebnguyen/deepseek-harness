@@ -7,6 +7,7 @@
 import { createHash } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Verifier, VerifierResult } from '@deepseek-ai/dsh-claim'
+import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
 import type {} from '@deepseek-ai/dsh-shell'
 
 /**
@@ -52,6 +53,7 @@ export function errorText(error: unknown): string {
  * @param binding - the frozen script and the digest taken at binding.
  * @param timeoutMs - per-run timeout handed to the executor's resolver.
  * @param signal - the owning turn's abort signal, so cancellation converges.
+ * @param sandboxPolicy - the agent's resolved sandbox policy; absent falls back to the deployment default.
  * @returns the classified outcome with the verifier's own output as evidence.
  */
 export async function runVerifier(
@@ -59,12 +61,13 @@ export async function runVerifier(
   binding: Verifier,
   timeoutMs: number,
   signal: AbortSignal,
+  sandboxPolicy?: SandboxExecutionPolicy | undefined,
 ): Promise<VerifierResult> {
   if (sha256(binding.source) !== binding.digest) {
     return { outcome: 'tampered', evidence: 'the verifier script changed after it was bound' }
   }
   try {
-    const spec = ctx.shell.resolve({ command: binding.source, timeoutMs, signal })
+    const spec = ctx.shell.resolve({ command: binding.source, timeoutMs, signal, sandboxPolicy })
     const result = await ctx.shell.run(spec)
     const output = result.stdout.text
     if (result.timedOut || result.signal !== null) {

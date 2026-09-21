@@ -40,6 +40,9 @@
     },
     {
       "path": "../claim-settlement"
+    },
+    {
+      "path": "../../sandbox/sandbox-policy"
     }
   ]
 }

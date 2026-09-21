@@ -74,6 +74,7 @@ async function harness(
     claims: host.claims,
     agents: host.agents,
     shell,
+    get: () => undefined,
   }
   apply(pluginCtx as unknown as Context, config)
   /* v8 ignore next -- apply always registers the turn-stopping listener */

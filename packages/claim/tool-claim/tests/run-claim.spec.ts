@@ -69,6 +69,7 @@ async function harness(scripts: readonly ShellScript[], config: { evidenceLines?
     sessionProjections: host.sessionProjections,
     shell,
     on: () => {},
+    get: () => undefined,
   }
   apply(pluginCtx as never, config)
   const runClaim = registered.find(tool => tool.name === 'run_claim')

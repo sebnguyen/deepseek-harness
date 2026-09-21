@@ -11,6 +11,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Claim, VerifierResult } from '@deepseek-ai/dsh-claim'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
+import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { boundedEvidence, errorText, runVerifier } from './verifier.ts'
 
 export { boundedEvidence, runVerifier } from './verifier.ts'
@@ -171,12 +172,14 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.on('agent/turn-stopping', async ({ agent, signal }) => {
     const claims = openClaimsOrNone(ctx, agent)
     if (claims.length === 0) return
+    const sandboxPolicyService: SandboxPolicyService | undefined = ctx.get('sandboxPolicy')
+    const sandboxPolicy = sandboxPolicyService?.resolve({ session: agent.session })
     const verdicts: Verdict[] = []
     let needsRepair = false
     for (const claim of claims) {
       let result: VerifierResult
       try {
-        result = await runVerifier(ctx, claim.verifier, resolved.verifierTimeoutMs, signal)
+        result = await runVerifier(ctx, claim.verifier, resolved.verifierTimeoutMs, signal, sandboxPolicy)
       } catch (error) {
         // An infrastructure failure is recorded as inconclusive, never a model-facing throw.
         result = { outcome: 'inconclusive', evidence: `claim settlement failed: ${errorText(error)}` }
