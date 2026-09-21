@@ -126,6 +126,10 @@ const SECTION_ORDERS = {
   PTC_ONLY: 800,
   FILE_REFERENCE: 900,
   TOOL_BATCHING: 950,
+  // The discovery funnel sits right after tool-batching (the general
+  // "how to call tools" meta) and ahead of the per-tool rules, so the model
+  // reads the find → structure → connect → drill procedure first.
+  TOOL_DISCOVERY: 960,
   // Filesystem guidance is grouped ahead of the shell guidance so the model
   // reads the structured-discovery prose before the bash escape hatch.
   TOOL_READ: 1000,

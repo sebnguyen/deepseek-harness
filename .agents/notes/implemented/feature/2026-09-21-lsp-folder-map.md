@@ -8,7 +8,7 @@ Position-scoped `lsp` navigation did not expose folder-scale structure: no batch
 
 ## Decision
 
-Extend the LSP capability with map operations (`documentSymbols`, `callers`, `callees`) through `lsp-stdio` translation, add `callers`/`callees` on `tool-lsp`, and ship `@deepseek-ai/dsh-tool-lsp-map` with a `symbols` tool that batches per-file outlines into ASCII, path-anchored lines with optional one-hop `in:`/`out:` counts and cascading caps. Register `TOOL_LSP_MAP` system-prompt guidance after the fixed LSP sections.
+Extend the LSP capability with map operations (`documentSymbols`, `callers`, `callees`) through `lsp-stdio` translation, add `callers`/`callees` on `tool-lsp`, and ship `@deepseek-ai/dsh-tool-lsp-map` with a `symbols` tool that batches per-file outlines into ASCII, path-anchored lines with optional one-hop `in:`/`out:` counts and cascading caps. Register `TOOL_LSP_MAP` system-prompt guidance after the fixed LSP sections. `tool-lsp-map` also registers `tool:discovery` at `TOOL_DISCOVERY` (after tool-batching) when `glob`, `lsp`, and `read` are mounted, describing glob → symbols → callers/callees → read.
 
 ## Consequences
 
