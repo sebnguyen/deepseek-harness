@@ -125,12 +125,12 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-以下 bash 指引会以第一方顺序值 1050 出现在该插件注册作用域内的每次请求中。策略归属方通过其缓存安全的运行时上下文贡献当前沙箱状态，而不修改本区段。按作用域实施的工具限制可以隐藏 schema，却不会移除这个独立注册的区段。
+以下 bash 指引会以第一方顺序值 1050 出现在该插件注册作用域内的每次请求中。策略归属方通过其缓存安全的运行时上下文贡献当前沙箱状态，而不修改本区段。按作用域实施的工具限制可以隐藏 schema，却不会移除这个独立注册的区段，因此搜索句子仅以"可用时"的方式提及搜索工具——当 glob、grep 或 lsp 被限制或未挂载时，该句仍然成立。
 
 ##### Bash 指引
 
 ```markdown
-Check the [exit code: N] marker on every bash result; investigate failures before moving on.
+Check the [exit code: N] marker on every bash result; investigate failures before moving on. Use the file and code search tools (glob, grep, lsp) when available — not bash — however long the session runs; bash is for commands no structured tool covers.
 ```
 
 #### Token 影响

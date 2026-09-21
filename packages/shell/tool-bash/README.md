@@ -125,12 +125,12 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Every request in this plugin's registration scope contains the bash guidance below at first-party order 1050. The policy owner contributes current sandbox state through its cache-safe runtime context rather than changing this section. Scoped tool restrictions can hide the schema without removing this independently registered section.
+Every request in this plugin's registration scope contains the bash guidance below at first-party order 1050. The policy owner contributes current sandbox state through its cache-safe runtime context rather than changing this section. Scoped tool restrictions can hide the schema without removing this independently registered section, so the search sentence names the search tools only as "when available" — it stays truthful when glob, grep, or lsp are restricted or unmounted.
 
 ##### Bash guidance
 
 ```markdown
-Check the [exit code: N] marker on every bash result; investigate failures before moving on.
+Check the [exit code: N] marker on every bash result; investigate failures before moving on. Use the file and code search tools (glob, grep, lsp) when available — not bash — however long the session runs; bash is for commands no structured tool covers.
 ```
 
 #### Token effect

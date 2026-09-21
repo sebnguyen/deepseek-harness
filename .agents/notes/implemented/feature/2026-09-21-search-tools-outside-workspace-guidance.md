@@ -12,6 +12,8 @@ The `grep` and `glob` tools in `packages/fs/tool-fs-search` state the outside-wo
 
 The empty-search naming applies to `grep` only. `glob`'s render path knows only the resolved display root, which is `.` for a workspace-default search, so naming it adds no information; its `path` schema description carries the same outside-workspace sentence.
 
+Because the search tools' prompt sections sit early in the assembled prompt and lose salience over long sessions — the observed drift is a mid-session relapse into shell `grep` even when the schemas are mounted — the `tool:bash` section in `packages/shell/tool-bash/src/index.ts` repeats the instruction at the point of reaching for a shell: "Use the file and code search tools (glob, grep, lsp) when available — not bash — however long the session runs; bash is for commands no structured tool covers." The sentence is unconditional rather than scope-aware because scoped restrictions can hide the schemas without removing the independently registered bash section; "when available" keeps it truthful when a search tool is unmounted.
+
 ## Alternatives considered
 
 **Post-hoc prompt injection on empty results.** A session-context plugin could watch for empty searches and inject a "try another root" hint. Rejected: the guidance belongs at the surfaces that define the tool's contract (schema, prompt, result), and an extra plugin adds a lifecycle for a one-sentence fact.
@@ -26,4 +28,4 @@ The grep/glob schema text and the grep system-prompt section cost a few dozen mo
 
 ## Testing
 
-`packages/fs/tool-fs-search/tests/tools.spec.ts` pins the updated grep guidance and asserts the empty-with-path message through the mocked subprocess seam; `tests/integration.spec.ts` asserts `No matches found in notes.md` through the real packaged ripgrep binary, and keeps the no-path case as bare `No matches found`.
+`packages/fs/tool-fs-search/tests/tools.spec.ts` pins the updated grep guidance and asserts the empty-with-path message through the mocked subprocess seam; `tests/integration.spec.ts` asserts `No matches found in notes.md` through the real packaged ripgrep binary, and keeps the no-path case as bare `No matches found`. `packages/shell/tool-bash/README.md`'s Model Experience section pins the extended bash guidance sentence, and the recorded-session snapshots carry it.

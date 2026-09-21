@@ -12,6 +12,8 @@ The `grep` and `glob` tools in `packages/fs/tool-fs-search` state the capability
 
 The empty-result naming applies to `grep` only. `glob`'s rendering path only knows the resolved display root, which is `.` for a workspace default search, so naming it adds no information; its `path` schema description carries the same out-of-workspace sentence.
 
+搜索工具的提示词区段位于组装提示词的靠前位置，在长会话中会失去显著度——观察到的漂移是在 schema 已挂载的情况下，会话中途又复发使用 shell `grep`——因此 `packages/shell/tool-bash/src/index.ts` 中的 `tool:bash` 区段在"即将使用 shell"的决策点重复该指令："Use the file and code search tools (glob, grep, lsp) when available — not bash — however long the session runs; bash is for commands no structured tool covers." 该句子是无条件的而非按作用域感知的，因为按作用域的限制可以隐藏 schema 却不移除独立注册的 bash 区段；"when available" 保证了搜索工具未挂载时该句仍然为真。
+
 ## Alternatives considered
 
 **Injecting a hint after the fact.** A session context plugin could inject a "try another root" hint after an empty search. Rejected: this guidance belongs at the surfaces that define the tool's contract (schema, prompt, result); an extra plugin only adds lifecycle overhead for a single-sentence fact.
@@ -26,4 +28,4 @@ Where these tools are mounted, the grep/glob schema text and the grep system pro
 
 ## Testing
 
-`packages/fs/tool-fs-search/tests/tools.spec.ts` pins the updated grep guidance and, through the mocked subprocess seam, asserts the empty-result message with a path; `tests/integration.spec.ts` asserts `No matches found in notes.md` through the real packaged ripgrep binary, and keeps the case without a path as the bare `No matches found`.
+`packages/fs/tool-fs-search/tests/tools.spec.ts` pins the updated grep guidance and, through the mocked subprocess seam, asserts the empty-result message with a path; `tests/integration.spec.ts` asserts `No matches found in notes.md` through the real packaged ripgrep binary, and keeps the case without a path as the bare `No matches found`. `packages/shell/tool-bash/README.md` 的 Model Experience 区段固定扩展后的 bash 指引句子，录制的会话快照同样携带该文本。

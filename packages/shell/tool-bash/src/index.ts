@@ -232,10 +232,17 @@ export function apply(ctx: Context, config: Config = {}): void {
   }
 
   // Cross-call guidance belongs in the prompt rather than one-call schema prose.
+  // The search sentence repeats the search tools' own guidance here — their
+  // sections sit earlier in the prompt and decay over long sessions, while this
+  // section is what the model re-reads at the point of reaching for a shell. It
+  // stays unconditional ("when available") because scoped restrictions can hide
+  // the schemas without removing this independently registered section.
   ctx.systemPrompt.section({
     name: 'tool:bash',
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
-    text: 'Check the [exit code: N] marker on every bash result; investigate failures before moving on.',
+    text: 'Check the [exit code: N] marker on every bash result; investigate failures before moving on. '
+      + 'Use the file and code search tools (glob, grep, lsp) when available — not bash — however long the session runs; '
+      + 'bash is for commands no structured tool covers.',
   })
 
   ctx.tools.register(defineTool({
