@@ -1,14 +1,11 @@
 /**
- * Claim status surfaces: the action-row accordion list and the composer Claims
- * menu. Each chip is a toggle — clicking opens a small card with three accordions
- * (title, description, raw verifier script) instead of a text blob. The
- * action row renders every claim the owning turn declared, pending or settled,
- * as one accordion list, so a passed or failed claim stays viewable after its
- * turn finishes. The
- * composer's accessory row carries a compact Claims trigger — an aggregate
- * status dot (red failed, blue pending, green passed) that opens a dropdown
- * menu of the latest turn's claims. Durable state arrives through the
- * `claim` Session projection; this plugin only reads it and has no actions.
+ * Claim status surface: the composer's Claims accessory. The composer's
+ * accessory row carries a compact Claims trigger — an aggregate status dot
+ * (red failed, blue pending, green passed) that opens a dropdown menu of the
+ * latest turn's claims. Each chip is a toggle — clicking opens a small card
+ * with three accordions (title, description, raw verifier script) instead of a
+ * text blob. Durable state arrives through the `claim` Session projection;
+ * this plugin only reads it and has no actions.
  * @module @deepseek-ai/dsh-client-ui-claim/client/ClaimChip
  */
 
@@ -88,69 +85,6 @@ function ClaimDetails({ claim, t }: {
           {t('detail.blocked')}: {claim.settlement.message}
         </div>
       )}
-    </div>
-  )
-}
-
-/** Shared inner chip: a toggle button, labeled with the claim title and a status dot, opening the details under it. */
-function Chip({ claim, t, className }: {
-  claim: Claim
-  t: TranslateNS<'claim'>
-  /** The CSS-module class may be absent from a pruned build output. */
-  className: string | undefined
-}) {
-  const [open, setOpen] = useState(false)
-  const present = CHIP_PRESENTATION[claim.settlement.kind]
-  return (
-    <span className={css.wrap}>
-      <button
-        type="button"
-        className={className}
-        data-state={claim.settlement.kind}
-        aria-expanded={open}
-        aria-label={t(present.label)}
-        title={t(present.label)}
-        onClick={() => { setOpen(!open) }}
-      >
-        <StateDot state={present.dot} />
-        <span className={css.label}>{claim.title}</span>
-      </button>
-      {open && <ClaimDetails claim={claim} t={t} />}
-    </span>
-  )
-}
-
-/**
- * One claim's status chip.
- * @param props - the claim and the localized copy.
- * @returns the chip, or null for a turn without a claim.
- */
-export function ClaimChip({ claim, t }: {
-  claim: Claim | undefined
-  t: TranslateNS<'claim'>
-}) {
-  if (claim === undefined) return null
-  return <Chip claim={claim} t={t} className={css.chip} />
-}
-
-/** Full props of the action-row entry: AssistantAction owner share + the locale seat. */
-export type ClaimActionProps =
-  import('@deepseek-ai/dsh-client-ui-slots').PropsRuntime<'conversation.chat.assistant-actions'>
-  & import('@deepseek-ai/dsh-client-ui-slots').PropsLocale<'claim'>
-
-/**
- * Action-row adapter: one accordion list of every claim the owning turn
- * declared, in declaration order, pending or settled — each row expanding
- * the shared details card. A turn that declared no claim renders nothing.
- * @param props - the action-row owner share (message id and owning Turn) and the locale seat.
- * @returns the accordion list for this turn's claims, or nothing.
- */
-export function ClaimAction({ turn, useProjection, t }: ClaimActionProps) {
-  const claims = useProjection('claim', all => all?.filter(entry => entry.turn === turn.turn))
-  if (claims === undefined || claims.length === 0) return null
-  return (
-    <div className={css.actionList}>
-      {claims.map(claim => <ClaimRow key={claim.id} claim={claim} t={t} />)}
     </div>
   )
 }

@@ -1,37 +1,5 @@
-/* Claim status chip inside the assistant icon action row (next to the usage
-   and time pills) and the composer's Claims dropdown trigger. The action row
-   shows one accordion list; the dock opens one details card with three accordions. */
-
-.wrap {
-  position: relative;
-  display: inline-flex;
-}
-
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 280px;
-  padding: 0 6px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  font: inherit;
-}
-
-.label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.chip[data-state='blocked'] .label,
-.chip[data-state='tampered'] .label {
-  color: var(--dsw-alias-state-error-primary);
-}
+/* The composer's Claims dropdown trigger. The dock opens one details card
+   with three accordions per claim. */
 
 /* The expanded details card, anchored under its toggle. */
 .wrap {
@@ -240,21 +208,11 @@
 }
 
 /* The details card opens inside the menu, below its row. */
-.menu .panel,
-.actionList .panel {
+.menu .panel {
   position: static;
   width: auto;
   padding: 0 8px 6px 26px;
   border: 0;
   box-shadow: none;
   background: none;
-}
-
-/* End-of-turn action row: the same accordion rows as the dock menu, inline. */
-.actionList {
-  display: inline-flex;
-  flex-direction: column;
-  min-width: 240px;
-  max-width: 420px;
-  padding: 2px 0;
 }
