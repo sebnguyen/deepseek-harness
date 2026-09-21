@@ -402,6 +402,7 @@ describe('bash tool', () => {
       'harness:identity',
       'deployment:persona-prefix',
       'harness:tool-batching',
+      'harness:tool-discovery',
       'test:before-bash',
       'tool:bash',
       'test:after-bash',
@@ -419,11 +420,11 @@ describe('bash tool', () => {
     await ctx.plugin(BashEnvPlugin)
     const fiber = await ctx.plugin(ToolBash)
     expect(ctx.tools.schemas()).toHaveLength(1)
-    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'tool:bash', 'deployment:persona-suffix'])
+    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'tool:bash', 'deployment:persona-suffix'])
     await fiber.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)
     // Only the system-prompt plugin's own built-in sections remain.
-    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'deployment:persona-suffix'])
+    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix'])
   })
 
   it('tools depend on the executor: no registration without ctx.shell', async () => {

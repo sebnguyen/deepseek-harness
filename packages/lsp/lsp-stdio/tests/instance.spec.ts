@@ -10,7 +10,7 @@ import { LspInstance, readHostSource } from '@deepseek-ai/dsh-lsp-stdio'
 import { encodeMessage } from '@deepseek-ai/dsh-lsp-stdio'
 import type { ConnectionSpawner, ConnectionWriter } from '@deepseek-ai/dsh-lsp-stdio/src/connection.ts'
 import type { InstanceSpec } from '@deepseek-ai/dsh-lsp-stdio/src/instance.ts'
-import type { LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
+import type { LspMapProviderQuery, LspMapResult, LspProviderQuery, LspQueryResult } from '@deepseek-ai/dsh-lsp'
 import { scrubbedParentEnv } from '@deepseek-ai/dsh-subprocess'
 import { spawnSubprocess } from '@deepseek-ai/dsh-subprocess-local/src/spawn.ts'
 
@@ -80,6 +80,24 @@ async function run(instance: LspInstance, operation: LspProviderQuery['operation
   return instance.query(query(operation), source, signal)
 }
 
+/** Run a structural/relationship map query against an instance, reading the source as the provider does. */
+async function runMap(
+  instance: LspInstance,
+  operation: LspMapProviderQuery['operation'],
+  signal?: AbortSignal,
+): Promise<LspMapResult> {
+  const workspace = {
+    target: await fs.resolve(ws),
+    canonicalPath: ws,
+    fileUrl: pathToFileURL(ws).href,
+  }
+  const source = await readHostSource(fs, 'a.ts', workspace, 4_000_000)
+  const request: LspMapProviderQuery = operation === 'documentSymbols'
+    ? { operation, filePath: 'a.ts', workspaceRoot: ws, languageId: 'typescript' }
+    : { operation, filePath: 'a.ts', position: { line: 0, character: 0 }, workspaceRoot: ws, languageId: 'typescript' }
+  return instance.mapQuery(request, source, signal)
+}
+
 /** Build an instance whose "server" is an inline node script (for teardown-escalation control). */
 function scriptInstance(script: string, overrides: Partial<InstanceSpec> = {}): LspInstance {
   const instance = new LspInstance({
@@ -110,6 +128,12 @@ const RESPONDING_SERVER =
   + '}});'
 
 const locJson = () => JSON.stringify({ uri: pathToFileURL(join(ws, 'a.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } } })
+const RANGE = { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }
+const itemJson = () => JSON.stringify({ name: 'f', kind: 12, uri: pathToFileURL(join(ws, 'a.ts')).href, range: RANGE, selectionRange: RANGE })
+/** Capabilities that admit the map operations; the fixture enables them through LSP_FAKE_CAPS. */
+const MAP_CAPS = JSON.stringify({ documentSymbolProvider: true, callHierarchyProvider: true })
+/** The seam's normalized "prepare found no callable symbol here" result. */
+const nullRoot = () => ({ kind: 'callEdges' as const, root: null, edges: [], resolvedWorkspaceUri: pathToFileURL(ws).href })
 
 describe('LspInstance server-request handling', () => {
   it('answers workspace/configuration with the static config per item', async () => {
@@ -293,6 +317,64 @@ describe('LspInstance query and abort', () => {
     expect(instance.dead).toBe(true)
   })
 
+})
+
+describe('LspInstance map queries', () => {
+  it('normalizes documentSymbols into a symbol tree', async () => {
+    const instance = makeInstance({
+      LSP_FAKE_CAPS: MAP_CAPS,
+      LSP_FAKE_DOC_SYMBOLS: JSON.stringify([{ name: 'f', kind: 12, range: RANGE, selectionRange: RANGE, children: [] }]),
+    })
+    await expect(runMap(instance, 'documentSymbols')).resolves.toMatchObject({ kind: 'symbolTree' })
+  })
+
+  it('returns a null root when prepareCallHierarchy answers null', async () => {
+    const instance = makeInstance({ LSP_FAKE_CAPS: MAP_CAPS })
+    await expect(runMap(instance, 'callers')).resolves.toEqual(nullRoot())
+  })
+
+  it('returns a null root when prepareCallHierarchy reports the symbol is not callable', async () => {
+    // A server reports "no callable symbol here" as an error response rather than the protocol's
+    // null result; that is the seam's null root, so the caller still gets a result for the position.
+    const instance = makeInstance({ LSP_FAKE_CAPS: MAP_CAPS, LSP_FAKE_PREPARE_ERROR: '1' })
+    await expect(runMap(instance, 'callers')).resolves.toEqual(nullRoot())
+    await expect(runMap(instance, 'callees')).resolves.toEqual(nullRoot())
+  })
+
+  it('still rejects an error response from documentSymbols', async () => {
+    const instance = makeInstance({ LSP_FAKE_CAPS: MAP_CAPS, LSP_FAKE_ERROR: '1' })
+    await expect(runMap(instance, 'documentSymbols')).rejects.toThrow(/server refused/)
+  })
+
+  it('still rejects a transport failure during prepareCallHierarchy', async () => {
+    const instance = makeInstance({ LSP_FAKE_CAPS: MAP_CAPS }, { shutdownTimeoutMs: 100, killGraceMs: 100 }, failingWriter('textDocument/prepareCallHierarchy'))
+    await expect(runMap(instance, 'callers')).rejects.toThrow(/fixture textDocument\/prepareCallHierarchy failure/)
+    expect(instance.dead).toBe(true)
+  })
+
+  it('still rejects an abort while prepareCallHierarchy is pending', async () => {
+    // Cancellation is fused with the error-response arm above by a shared catch; an aborted map query
+    // must reject rather than read as "no callers".
+    const instance = makeInstance({ LSP_FAKE_CAPS: MAP_CAPS, LSP_FAKE_HANG: '1' })
+    const controller = new AbortController()
+    const pending = runMap(instance, 'callers', controller.signal)
+    await new Promise<void>(resolve => setTimeout(resolve, 300))
+    controller.abort(new Error('map-mid-flight'))
+    await expect(pending).rejects.toThrow(/map-mid-flight/)
+  })
+
+  it('reports one hop of callers for a callable symbol', async () => {
+    const instance = makeInstance({
+      LSP_FAKE_CAPS: MAP_CAPS,
+      LSP_FAKE_PREPARE_HIERARCHY: JSON.stringify([JSON.parse(itemJson())]),
+      LSP_FAKE_INCOMING: JSON.stringify([{
+        from: { name: 'g', kind: 12, uri: pathToFileURL(join(ws, 'a.ts')).href, range: RANGE, selectionRange: RANGE },
+        fromRanges: [RANGE],
+      }]),
+    })
+    const result = await runMap(instance, 'callers')
+    expect(result).toMatchObject({ kind: 'callEdges', root: { name: 'f' }, edges: [{ from: { name: 'g' } }] })
+  })
 })
 
 describe('LspInstance disposal', () => {

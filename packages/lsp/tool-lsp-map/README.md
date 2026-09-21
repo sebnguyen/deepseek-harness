@@ -33,7 +33,7 @@ An agent maps a folder before entering read cycles: `glob` a subtree, then pass 
 path: [ :line (abbrev) name in:n out:m ; … ]
 ```
 
-`in:` is the one-hop incoming-callers count; `out:` is the outgoing-callees count. Both appear only when `hotspots` is enabled (two extra map queries per kept symbol). `line` is one-based.
+`in:` is the one-hop incoming-callers count; `out:` is the outgoing-callees count. Both appear only when `hotspots` is enabled (two extra map queries per kept symbol). A symbol the server reports as having no call hierarchy (a type, constant, interface, or struct) counts as `in:0 out:0` instead of failing the map. `line` is one-based.
 
 ### What the model gets back
 
@@ -56,7 +56,7 @@ One line per file, packed symbol entries, and three omission markers: `… +N mo
 - **Seam-first.** `ctx.lsp.mapQuery` (`dsh-lsp`) is the single data source; this package reads sources only through the provider (`dsh-lsp-stdio` reads them via `ctx.fs`). No `fs` injection.
 - **Flatten + tier.** `flattenSymbols` walks the recursive `documentSymbol` tree depth-first and keeps only kinds present in `KIND_ABBREV` (`kind.ts`); everything else collapses.
 - **Hotspots are counted, not listed.** `countCalls` runs one-hop `callers`/`callees` per kept symbol and keeps only the edge length — the actual call sites stay in `dsh-tool-lsp`'s `callers`/`callees`.
-- **System prompt.** A section (`tool:lsp-map`, order `TOOL_LSP_MAP`) carries the pinned `in:`/`out:` legend so the model never infers an abbreviation.
+- **System prompt.** A section (`tool:lsp-map`, order `TOOL_LSP_MAP`) carries the pinned `in:`/`out:` legend so the model never infers an abbreviation. The ordered discovery flow is core-owned (`harness:tool-discovery` in `dsh-system-prompt`), so this package contributes the legend only.
 
 <a id="model-experience"></a>
 ## Model Experience

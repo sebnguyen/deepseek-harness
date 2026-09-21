@@ -30,7 +30,7 @@ kind: "package-reference"
 <a id="configure-the-prompt"></a>
 ### 配置提示词
 
-配置拥有固定开场白、runtime 上下文、部署 persona 前缀与后缀与工具顺序；其余一切来自已注册的贡献。
+配置拥有固定开场白、内置工具使用指导、runtime 上下文、部署 persona 前缀与后缀与工具顺序；其余一切来自已注册的贡献。
 
 ```yaml
 - name: '@deepseek-ai/dsh-system-prompt'
@@ -44,6 +44,8 @@ kind: "package-reference"
 | 字段 | 默认值 | 含义 |
 |---|---|---|
 | `includeHarnessIdentity` | `true` | 是否包含顺序为 −1000 的第一方固定开场白 `You are an AI agent powered by DeepSeek Harness.`。仅当兼容性部署拥有完整系统提示词时设为 false。 |
+| `includeToolBatchingGuidance` | `true` | 是否包含内置的 `harness:tool-batching` 指导——批量发起独立调用，并把文件与代码工作路由到结构化工具——顺序为 `950` |
+| `includeToolDiscoveryGuidance` | `true` | 是否包含内置的 `harness:tool-discovery` 流程，顺序为 `960`：用 glob 找到候选文件，在存在符号工具时用 symbols 勾勒其结构，用 grep 定位定义与用法，然后只读取真正需要的文件。这是标准建议而非能力声明——符号步骤是可选的，因此在没有符号工具的部署中同样成立 |
 | `includeRuntimeContext` | `true` | 是否在组装中包含有序动态 runtime 上下文 |
 | `personaPrefix` | `''` | 全局 persona 前缀模板，顺序为 `0`，位于第一方指导之前 |
 | `personaSuffix` | `''` | 全局 `deployment:persona-suffix` 模板，顺序为 `10200`，位于第一方指导之后 |

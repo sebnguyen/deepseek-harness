@@ -257,7 +257,20 @@ export class LspInstance {
     const firstParams = request.operation === 'documentSymbols'
       ? { textDocument: { uri } }
       : { textDocument: { uri }, position: { line: request.position.line, character: request.position.character } }
-    const raw = await this.sendMapRequest(mapRequestMethod(request.operation), firstParams, signal)
+    let raw: unknown
+    try {
+      raw = await this.sendMapRequest(mapRequestMethod(request.operation), firstParams, signal)
+    } catch (error: unknown) {
+      // A server that has no callable symbol at this position may answer
+      // `prepareCallHierarchy` with an error response instead of the protocol's
+      // `null` (gopls: `<name> is not a function`, for a type, constant, interface,
+      // or struct). That states the same fact the seam already models as a null
+      // root, so the caller still gets this position's result and one non-callable
+      // symbol cannot fail a whole map. Transport failures and cancellation stay
+      // loud: a dead server or an aborted query must not read as "no callers".
+      if (request.operation === 'documentSymbols' || signal?.aborted || this.isTransportFailure(error)) throw error
+      return { kind: 'callEdges', root: null, edges: [], resolvedWorkspaceUri: this.spec.workspaceUri }
+    }
     if (request.operation === 'documentSymbols') {
       return { kind: 'symbolTree', symbols: normalizeDocumentSymbols(raw) }
     }

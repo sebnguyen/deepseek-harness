@@ -30,7 +30,7 @@ Mount `dsh-system-prompt` wherever agents run: it provides `ctx.systemPrompt`, t
 <a id="configure-the-prompt"></a>
 ### Configure the prompt
 
-The config owns the fixed opener, runtime context, deployment persona prefix and suffix, and tool order; everything else comes from registered contributions.
+The config owns the fixed opener, the built-in tool-usage guidance, runtime context, deployment persona prefix and suffix, and tool order; everything else comes from registered contributions.
 
 ```yaml
 - name: '@deepseek-ai/dsh-system-prompt'
@@ -44,6 +44,8 @@ The config owns the fixed opener, runtime context, deployment persona prefix and
 | Field | Default | Meaning |
 |---|---|---|
 | `includeHarnessIdentity` | `true` | Include the fixed `You are an AI agent powered by DeepSeek Harness.` first-party opener at order −1000. Set false only when a compatibility deployment owns the complete system prompt. |
+| `includeToolBatchingGuidance` | `true` | Include the built-in `harness:tool-batching` guidance — batch independent calls and route file and code work through the structured tools — at order `950` |
+| `includeToolDiscoveryGuidance` | `true` | Include the built-in `harness:tool-discovery` flow at order `960`: glob to find candidate files, symbols to outline them where a symbol tool is available, grep to locate definitions and usages, then read only the files that matter. Standard advice, not a capability advertisement — the symbol step is permitted, so it holds in a deployment with no symbol tool |
 | `includeRuntimeContext` | `true` | Include ordered dynamic runtime context in assembly |
 | `personaPrefix` | `''` | Global persona prefix template at order `0`, before first-party guidance |
 | `personaSuffix` | `''` | Global `deployment:persona-suffix` template at order `10200`, after first-party guidance |

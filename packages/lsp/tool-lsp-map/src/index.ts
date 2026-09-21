@@ -59,10 +59,6 @@ type ResolvedConfig = Required<Config>
 export const SYMBOLS_PROMPT_TEXT =
   'Pipe a `glob` result into `symbols` to map a folder\'s symbol layout before entering read cycles. Each file renders as `path: [ :line (abbrev) name in:n out:m ; … ]`; `in:` = incoming callers, `out:` = outgoing callees (present only with hotspots). Use `lsp` callers/callees on a chosen symbol for one hop of precise call sites; `glob`/`grep` stay the wide orientation layer.'
 
-/** The discovery funnel: the ordered find → structure → connect → drill procedure. */
-export const TOOL_DISCOVERY_TEXT =
-  'Map unfamiliar code before reading it: glob the subtree to find files → symbols on those paths for the outline → lsp callers/callees on the symbols that matter → read only those files. grep finds, symbols structures, callers/callees connects, read drills in.'
-
 /**
  * Register the `symbols` tool and its system-prompt guidance.
  * @param ctx - the plugin context (must inject `tools`, `lsp`, `systemPrompt`).
@@ -74,20 +70,6 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('symbolsPerFile', resolved.symbolsPerFile)
   assertPositiveInteger('maxResultChars', resolved.maxResultChars)
   assertTimer('timeoutMs', resolved.timeoutMs)
-
-  ctx.systemPrompt.section({
-    name: 'tool:discovery',
-    order: ctx.systemPrompt.getSectionOrder('TOOL_DISCOVERY'),
-    text: ({ scope }) => {
-      // The funnel orchestrates four tools across three plugins; it only makes
-      // sense when the whole surface is present, so an LSP-less deployment never
-      // advertises a `symbols` workflow it cannot run.
-      if (ctx.tools.get('glob', scope) === undefined) return ''
-      if (ctx.tools.get('lsp', scope) === undefined) return ''
-      if (ctx.tools.get('read', scope) === undefined) return ''
-      return TOOL_DISCOVERY_TEXT
-    },
-  })
 
   ctx.systemPrompt.section({
     name: 'tool:lsp-map',

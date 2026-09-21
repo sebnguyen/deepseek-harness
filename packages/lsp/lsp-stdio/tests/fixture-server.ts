@@ -8,7 +8,12 @@
  * - LSP_FAKE_SYNC: textDocumentSync value as JSON (default 1/Full).
  * - LSP_FAKE_CAPS: JSON of extra capability flags merged into the defaults.
  * - LSP_FAKE_DEF / LSP_FAKE_REFS / LSP_FAKE_IMPL / LSP_FAKE_HOVER: JSON result per request.
- * - LSP_FAKE_HANG: "1" makes textDocument/* requests never respond (for abort/timeout tests).
+ * - LSP_FAKE_DOC_SYMBOLS / LSP_FAKE_PREPARE_HIERARCHY / LSP_FAKE_INCOMING / LSP_FAKE_OUTGOING:
+ *   JSON result for the map operations (add documentSymbolProvider/callHierarchyProvider via
+ *   LSP_FAKE_CAPS to pass the capability gate).
+ * - LSP_FAKE_PREPARE_ERROR: "1" answers textDocument/prepareCallHierarchy with a JSON-RPC error
+ *   response (a server reporting "no callable symbol here" instead of a null result).
+ * - LSP_FAKE_HANG: "1" makes textDocument/* and callHierarchy/* requests never respond (for abort/timeout tests).
  * - LSP_FAKE_CRASH_ON_OPEN: "1" exits the process when a didOpen arrives (crash test).
  * - LSP_FAKE_EXIT_AFTER_REPLY: "1" exits the process right after answering a textDocument/* request,
  *   simulating a server that dies while idle so the pool holds a dead instance (eviction test).
@@ -19,7 +24,7 @@
  * - LSP_FAKE_NO_SHUTDOWN: "1" ignores the shutdown request (forces kill escalation).
  * - LSP_FAKE_ON_OPEN: server→client request to emit when a didOpen arrives, one of
  *   "configuration" | "applyEdit" | "notification" | "unknown"; the reply is logged to stderr.
- * - LSP_FAKE_ERROR: "1" answers textDocument/* requests with a JSON-RPC error response.
+ * - LSP_FAKE_ERROR: "1" answers textDocument/* and callHierarchy/* requests with a JSON-RPC error response.
  * - LSP_FAKE_GARBAGE: "1" emits an unframed garbage byte before the initialize reply.
  *
  * Run: node fixture-server.ts (Node's erasable TypeScript syntax support).
@@ -41,6 +46,7 @@ const exitMarker = process.env.LSP_FAKE_EXIT_MARKER
 const noShutdown = process.env.LSP_FAKE_NO_SHUTDOWN === '1'
 const onOpen = process.env.LSP_FAKE_ON_OPEN
 const errorReply = process.env.LSP_FAKE_ERROR === '1'
+const prepareError = process.env.LSP_FAKE_PREPARE_ERROR === '1'
 const garbage = process.env.LSP_FAKE_GARBAGE === '1'
 
 let serverRequestId = 10_000
@@ -56,6 +62,10 @@ function resultFor(method: string): unknown {
     case 'textDocument/definition': return envJson('LSP_FAKE_DEF', null)
     case 'textDocument/references': return envJson('LSP_FAKE_REFS', null)
     case 'textDocument/implementation': return envJson('LSP_FAKE_IMPL', null)
+    case 'textDocument/documentSymbol': return envJson('LSP_FAKE_DOC_SYMBOLS', null)
+    case 'textDocument/prepareCallHierarchy': return envJson('LSP_FAKE_PREPARE_HIERARCHY', null)
+    case 'callHierarchy/incomingCalls': return envJson('LSP_FAKE_INCOMING', null)
+    case 'callHierarchy/outgoingCalls': return envJson('LSP_FAKE_OUTGOING', null)
     case 'textDocument/hover': {
       // LSP_FAKE_ECHO_ENV names a variable whose VALUE becomes the hover
       // contents — a test can assert exactly what env reached this process.
@@ -149,10 +159,12 @@ function handle(message: { id?: number; method?: string; params?: unknown; resul
     return
   }
   if (method === 'textDocument/didClose') return
-  if (method?.startsWith('textDocument/')) {
+  if (method?.startsWith('textDocument/') || method?.startsWith('callHierarchy/')) {
     if (hang) return
     if (errorReply) {
       send({ id, error: { code: -32000, message: 'server refused the request' } })
+    } else if (method === 'textDocument/prepareCallHierarchy' && prepareError) {
+      send({ id, error: { code: 0, message: 'a.ts is not a function' } })
     } else {
       send({ id, result: resultFor(method) })
     }

@@ -207,6 +207,23 @@ export const TOOL_BATCHING_SECTION = 'harness:tool-batching'
 export const TOOL_BATCHING_TEXT =
   'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Using the structured tools for file and code work is mandatory: glob to find files, grep to search contents, read to inspect them, edit and write to change them, lsp for code structure — definitions, implementations, callers, callees, and references. Reach for bash only when no structured tool exists for the task (builds, git, processes), and never to find, read, search, or edit files. Prefer lsp over textual matches when a symbol name is ambiguous or a change needs precise call sites. These tools return structured results, and you can fire several in parallel in one turn, faster than a shell pipeline. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
 
+/**
+ * Harness code-discovery guidance section name. Reserved by the plugin like the
+ * other built-ins: one owner per section, so a composition that owns its own
+ * exploration instructions suppresses the built-in rather than re-registering
+ * the name. Standard advice, not a capability advertisement: the funnel names
+ * the symbol step as permitted, so it is correct in a deployment with no LSP.
+ */
+export const TOOL_DISCOVERY_SECTION = 'harness:tool-discovery'
+
+/**
+ * The ordered find → structure → locate → read procedure for unfamiliar code.
+ * Model-visible verbatim; the symbol step is advisory so the advice holds
+ * whether or not the deployment mounts a symbol tool.
+ */
+export const TOOL_DISCOVERY_TEXT =
+  'Explore unfamiliar code in this order before reading it: glob to find the candidate files, symbols to outline their structure where a symbol tool is available, grep to locate the definitions and usages you need, then read only the files that matter. grep finds, symbols structures, callers/callees connects, read drills in.'
+
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
 
@@ -275,6 +292,8 @@ export interface Config {
   includeHarnessIdentity?: boolean
   /** Include harness tool-batching guidance before tool sections (default true). */
   includeToolBatchingGuidance?: boolean
+  /** Include the standard code-discovery flow before tool sections (default true). */
+  includeToolDiscoveryGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -433,6 +452,7 @@ export class SystemPrompt extends Service {
   static Config: z<Config> = z.object({
     includeHarnessIdentity: z.boolean().default(true),
     includeToolBatchingGuidance: z.boolean().default(true),
+    includeToolDiscoveryGuidance: z.boolean().default(true),
     includeRuntimeContext: z.boolean().default(true),
     personaPrefix: z.string().default(''),
     personaSuffix: z.string().default(''),
@@ -462,6 +482,13 @@ export class SystemPrompt extends Service {
         name: TOOL_BATCHING_SECTION,
         order: this.getSectionOrder('TOOL_BATCHING'),
         text: TOOL_BATCHING_TEXT,
+      })
+    }
+    if (config.includeToolDiscoveryGuidance ?? true) {
+      this.section({
+        name: TOOL_DISCOVERY_SECTION,
+        order: this.getSectionOrder('TOOL_DISCOVERY'),
+        text: TOOL_DISCOVERY_TEXT,
       })
     }
     this.section({

@@ -68,7 +68,7 @@ On the first query for a workspace, the provider launches one server process for
 
 ### Observable success and failures
 
-A successful navigation returns normalized locations, and hover returns normalized text or a no-hover notice; empty results are successful no-result responses. The query fails when the server does not support the operation or the transient open/close synchronization (`LSP_UNSUPPORTED_OPERATION`), when the source is missing, non-regular, non-UTF-8, oversized, or outside the canonical workspace (rejected before the server starts), or when the server returns a malformed payload (`LSP_MALFORMED_RESPONSE`). A hard-killed harness leaves servers running until they exit on their own — graceful shutdown happens only through service disposal.
+A successful navigation returns normalized locations, and hover returns normalized text or a no-hover notice; empty results are successful no-result responses. The query fails when the server does not support the operation or the transient open/close synchronization (`LSP_UNSUPPORTED_OPERATION`), when the source is missing, non-regular, non-UTF-8, oversized, or outside the canonical workspace (rejected before the server starts), or when the server returns a malformed payload (`LSP_MALFORMED_RESPONSE`). For a `callers`/`callees` map query, a server that reports no callable symbol at the cursor through an error response instead of the protocol's `null` result yields that same no-root result, so one non-callable symbol does not fail the query; transport failures and cancellation still fail it. A hard-killed harness leaves servers running until they exit on their own — graceful shutdown happens only through service disposal.
 
 ### Security boundary
 

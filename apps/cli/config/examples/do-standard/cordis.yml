@@ -40,6 +40,9 @@
     - id: tool-lsp
       name: '@deepseek-ai/dsh-tool-lsp'
 
+    - id: tool-lsp-map
+      name: '@deepseek-ai/dsh-tool-lsp-map'
+
 # ── DO inference: use DigitalOcean as the LLM backend ─────────────────────────
 # Patches the dormant llm-pi-ai row that dsh-base already mounts.  The API key
 # lives in the environment (DO_INFERENCE_API_KEY), never in this file.
@@ -63,41 +66,51 @@
         models:
           - id: glm-5.3-flash
             contextWindow: 1048576
-            maxTokens: 8192
+            maxTokens: 32768
             reasoningEfforts:
+              off: none
               low: low
               medium: medium
               high: high
+              xhigh: xhigh
               max: max
           - id: glm-5.3
             contextWindow: 1048576
-            maxTokens: 8192
+            maxTokens: 32768
             reasoningEfforts:
+              off: none
               low: low
               medium: medium
               high: high
+              xhigh: xhigh
               max: max
           - id: deepseek-v4.1-flash
             contextWindow: 1048576
-            maxTokens: 8192
-            reasoningEfforts: false
+            maxTokens: 32768
+            reasoningEfforts:
+              low: low
+              high: high
+              xhigh: xhigh
+              max: max
           - id: deepseek-v4-pro-0813
             contextWindow: 1048576
-            maxTokens: 8192
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
               medium: medium
               high: high
+              xhigh: xhigh
               max: max
           - id: deepseek-v4-pro
             contextWindow: 1048576
-            maxTokens: 8192
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
               medium: medium
               high: high
+              xhigh: xhigh
               max: max
 
 # ── Disable the native DeepSeek adapter (no key) ──────────────────────────────

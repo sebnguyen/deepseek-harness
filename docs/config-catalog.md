@@ -359,7 +359,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/claim/claim-settlement/src/index.ts:25`](../packages/claim/claim-settlement/src/index.ts)
+Source: [`packages/claim/claim-settlement/src/index.ts:26`](../packages/claim/claim-settlement/src/index.ts)
 
 <a id="deepseek-aidsh-client-connection"></a>
 
@@ -2632,6 +2632,8 @@ export interface Config {
   includeHarnessIdentity?: boolean
   /** Include harness tool-batching guidance before tool sections (default true). */
   includeToolBatchingGuidance?: boolean
+  /** Include the standard code-discovery flow before tool sections (default true). */
+  includeToolDiscoveryGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -2653,7 +2655,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:271`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:290`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2806,7 +2808,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/claim/tool-claim/src/index.ts:27`](../packages/claim/tool-claim/src/index.ts)
+Source: [`packages/claim/tool-claim/src/index.ts:28`](../packages/claim/tool-claim/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 

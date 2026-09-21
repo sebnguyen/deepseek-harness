@@ -33,7 +33,7 @@ kind: "package-reference"
 path: [ :line (abbrev) name in:n out:m ; … ]
 ```
 
-`in:` 是一跳的调用者计数；`out:` 是被调用者计数。两者仅在启用 `hotspots` 时出现（每个保留符号多两次映射查询）。`line` 为基于 1 的行号。
+`in:` 是一跳的调用者计数；`out:` 是被调用者计数。两者仅在启用 `hotspots` 时出现（每个保留符号多两次映射查询）。服务器报告没有调用层次的符号（类型、常量、接口或结构体）计为 `in:0 out:0`，而不会令映射失败。`line` 为基于 1 的行号。
 
 ### 模型得到什么
 
@@ -56,7 +56,7 @@ path: [ :line (abbrev) name in:n out:m ; … ]
 - **以 Seam 为先。** `ctx.lsp.mapQuery`（`dsh-lsp`）是唯一数据源；本包仅通过 Provider 读取源码。不注入 `fs`。
 - **展平 + 分级。** `flattenSymbols` 深度优先遍历递归 `documentSymbol` 树，只保留 `KIND_ABBREV`（`kind.ts`）中的类型，其余折叠。
 - **热区只计数，不列明细。** `countCalls` 对每个保留符号执行一跳 `callers`/`callees`，只保留边数量——精确调用点留在 `dsh-tool-lsp` 的 `callers`/`callees` 中。
-- **系统提示。** 一个节（`tool:lsp-map`，位置 `TOOL_LSP_MAP`）承载固定的 `in:`/`out:` 图例，使模型无需推断缩写。
+- **系统提示。** 一个节（`tool:lsp-map`，位置 `TOOL_LSP_MAP`）承载固定的 `in:`/`out:` 图例，使模型无需推断缩写。有序的探查流程由核心拥有（`dsh-system-prompt` 的 `harness:tool-discovery`），因此本包只贡献该图例。
 
 <a id="model-experience"></a>
 ## 模型体验

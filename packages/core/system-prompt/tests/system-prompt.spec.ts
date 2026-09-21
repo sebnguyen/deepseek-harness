@@ -2,18 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt, {
   AssembleContext, PromptAssembly, TOOL_BATCHING_SECTION, TOOL_BATCHING_TEXT,
+  TOOL_DISCOVERY_SECTION, TOOL_DISCOVERY_TEXT,
   renderContextSnapshot, renderPrompt,
 } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-ai/dsh-system-prompt'
 
 /**
  * Every assembly carries the plugin's own built-ins — `harness:identity`,
- * `harness:tool-batching`, and `deployment:persona-prefix` /
- * `deployment:persona-suffix` (from config). Tests about
- * registry MECHANICS strip them with {@link contributed} to stay focused on
- * their own sections; the built-ins' behavior is pinned by its own describe.
+ * `harness:tool-batching`, `harness:tool-discovery`, and
+ * `deployment:persona-prefix` / `deployment:persona-suffix` (from config).
+ * Tests about registry MECHANICS strip them with {@link contributed} to stay
+ * focused on their own sections; the built-ins' behavior is pinned by its own
+ * describe.
  */
-const BUILT_IN = ['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'deployment:persona-suffix']
+const BUILT_IN = ['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix']
 const IDENTITY = 'You are an AI agent powered by DeepSeek Harness.'
 const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
@@ -65,8 +67,8 @@ describe('SystemPrompt', () => {
         ctx.systemPrompt.variable(key, () => environment[key])
       }
       const reusable = SECTION_ORDER_NAMES.filter(name =>
-        // TOOL_BATCHING is a built-in (like HARNESS_IDENTITY), not a contributed slot.
-        !['HARNESS_IDENTITY', 'TOOL_BATCHING', 'DEPLOYMENT_PERSONA_PREFIX', 'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX'].includes(name))
+        // TOOL_BATCHING and TOOL_DISCOVERY are built-ins (like HARNESS_IDENTITY), not contributed slots.
+        !['HARNESS_IDENTITY', 'TOOL_BATCHING', 'TOOL_DISCOVERY', 'DEPLOYMENT_PERSONA_PREFIX', 'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX'].includes(name))
       for (const name of [...reusable].reverse()) {
         ctx.systemPrompt.section({ name, order: ctx.systemPrompt.getSectionOrder(name), text: name })
       }
@@ -79,13 +81,13 @@ describe('SystemPrompt', () => {
       const first = renderPrompt(await ctx.systemPrompt.assemble())
       environment = { model: 'model-a', cwd: 'C:/bob/project', platform: 'win32', source: 'C:/bob/dsh', url: 'http://127.0.0.1:4080' }
       const second = renderPrompt(await ctx.systemPrompt.assemble())
-      // The tool-batching built-in (order 950) renders between the contributed
-      // sections below and above its position.
+      // The tool-batching (950) and tool-discovery (960) built-ins render
+      // between the contributed sections below and above their positions.
       const [belowBatching, aboveBatching] = [
         reusable.filter(name => ctx.systemPrompt.getSectionOrder(name as PromptSectionOrderName) < 950),
-        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name as PromptSectionOrderName) > 950),
+        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name as PromptSectionOrderName) > 960),
       ] as [string[], string[]]
-      const prefix = [IDENTITY, 'Model model-a.', ...belowBatching, TOOL_BATCHING_TEXT, ...aboveBatching].join('\n\n') + '\n\n'
+      const prefix = [IDENTITY, 'Model model-a.', ...belowBatching, TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT, ...aboveBatching].join('\n\n') + '\n\n'
       expect(first).toBe(prefix + '/alice/dsh\n\nhttp://127.0.0.1:3080\n\nIn /alice/project on darwin.')
       expect(second).toBe(prefix + 'C:/bob/dsh\n\nhttp://127.0.0.1:4080\n\nIn C:/bob/project on win32.')
       environment.model = 'model-b'
@@ -116,7 +118,7 @@ describe('SystemPrompt', () => {
           .toThrow('unknown prompt variable "{{cwd}}" in section "deployment:persona-suffix"')
         ctx.systemPrompt.variable('cwd', () => '/work')
         expect(renderPrompt(await ctx.systemPrompt.assemble()))
-          .toBe(`${IDENTITY}\n\nModel m.\n\nUse tools.\n\n${TOOL_BATCHING_TEXT}\n\nWorkspace /work.`)
+          .toBe(`${IDENTITY}\n\nModel m.\n\nUse tools.\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}\n\nWorkspace /work.`)
       } finally {
         await ctx.fiber.dispose()
       }
@@ -131,9 +133,10 @@ describe('SystemPrompt', () => {
         'harness:identity',
         'deployment:persona-prefix',
         'harness:tool-batching',
+        'harness:tool-discovery',
         'deployment:persona-suffix',
       ])
-      expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
       // The names are reserved by the plugin — one owner per section.
       expect(() => ctx.systemPrompt.section({ name: 'deployment:persona-prefix', order: 0, text: 'imposter' }))
         .toThrow('prompt section "deployment:persona-prefix" is already registered')
@@ -142,7 +145,7 @@ describe('SystemPrompt', () => {
     it('renders no persona section for a persona-less deployment (empty default)', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
 
     it('can omit the harness identity for a deployment that owns the complete persona', async () => {
@@ -153,19 +156,40 @@ describe('SystemPrompt', () => {
       })
 
       const assembly = await ctx.systemPrompt.assemble()
-      expect(assembly.sections.map(section => section.name)).toEqual(['deployment:persona-prefix', 'harness:tool-batching', 'deployment:persona-suffix'])
-      expect(renderPrompt(assembly)).toBe(`You are a helpful software engineer assistant.\n\n${TOOL_BATCHING_TEXT}`)
+      expect(assembly.sections.map(section => section.name)).toEqual(['deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix'])
+      expect(renderPrompt(assembly)).toBe(`You are a helpful software engineer assistant.\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
 
     it('can omit the tool-batching guidance for a deployment that owns its tool-use instructions', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt, { includeToolBatchingGuidance: false })
       expect((await ctx.systemPrompt.assemble()).sections.map(section => section.name))
-        .toEqual(['harness:identity', 'deployment:persona-prefix', 'deployment:persona-suffix'])
+        .toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-discovery', 'deployment:persona-suffix'])
       // The name is free when the built-in is omitted, so a composition may
       // register its own guidance under it.
       ctx.systemPrompt.section({ name: TOOL_BATCHING_SECTION, order: 950, text: 'own guidance' })
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain('own guidance')
+    })
+
+    it('states the standard code-discovery flow, and can omit it for a deployment that owns its own', async () => {
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      expect((await ctx.systemPrompt.assemble()).sections.find(section => section.name === TOOL_DISCOVERY_SECTION)?.text)
+        .toBe(TOOL_DISCOVERY_TEXT)
+      // The flow is advisory and ordered glob → symbols → grep → read; the symbol
+      // step is permitted, so the advice holds without a symbol tool mounted.
+      const order = ['glob', 'symbols', 'grep', 'read'].map(tool => TOOL_DISCOVERY_TEXT.search(new RegExp(`\\b${tool}\\b`)))
+      expect(order).toEqual([...order].sort((a, b) => a - b))
+      expect(TOOL_DISCOVERY_TEXT).toContain('where a symbol tool is available')
+
+      const own = new Context()
+      await own.plugin(SystemPrompt, { includeToolDiscoveryGuidance: false })
+      expect((await own.systemPrompt.assemble()).sections.map(section => section.name))
+        .not.toContain(TOOL_DISCOVERY_SECTION)
+      // The name is free when the built-in is omitted, so a composition may
+      // register its own flow under it.
+      own.systemPrompt.section({ name: TOOL_DISCOVERY_SECTION, order: 960, text: 'own flow' })
+      expect(renderPrompt(await own.systemPrompt.assemble())).toContain('own flow')
     })
 
     it('can suppress runtime context without evaluating providers or accepting waterfall additions', async () => {
@@ -192,7 +216,7 @@ describe('SystemPrompt', () => {
       // skips the schema, so the ctor's `?? ''` narrowing is what fires.
       const ctx = new Context()
       const service = new SystemPrompt(ctx, {})
-      expect(renderPrompt(await service.assemble())).toBe(`${IDENTITY}\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(await service.assemble())).toBe(`${IDENTITY}\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
   })
 
@@ -207,15 +231,15 @@ describe('SystemPrompt', () => {
     ctx.systemPrompt.tools(() => ({ schemas: [{ name: 'echo', description: 'echo back', parameters: {} }] }))
 
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'rules', 'cwd', 'harness:tool-batching', 'deployment:persona-suffix'])
-    expect(assembly.sections.map(s => s.text)).toEqual([IDENTITY, 'You are DeepSeek Harness.', 'Be precise.', 'cwd: /tmp', TOOL_BATCHING_TEXT, ''])
+    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'rules', 'cwd', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix'])
+    expect(assembly.sections.map(s => s.text)).toEqual([IDENTITY, 'You are DeepSeek Harness.', 'Be precise.', 'cwd: /tmp', TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT, ''])
     expect(assembly.contexts).toEqual([
       { name: 'earlier', text: 'context 1' },
       { name: 'later', text: 'context 2' },
     ])
     expect(assembly.tools).toEqual([{ name: 'echo', description: 'echo back', parameters: {} }])
     expect(assembly.variables).toEqual({})
-    expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\nBe precise.\n\ncwd: /tmp\n\n${TOOL_BATCHING_TEXT}`)
+    expect(renderPrompt(assembly)).toBe(`${IDENTITY}\n\nYou are DeepSeek Harness.\n\nBe precise.\n\ncwd: /tmp\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     expect(renderContextSnapshot(assembly)).toBe('Current runtime context. This snapshot supersedes earlier runtime-context snapshots.\n\ncontext 1\n\ncontext 2')
   })
 
@@ -393,8 +417,8 @@ describe('SystemPrompt', () => {
 
     const passed: AssembleContext = {}
     const assembly = await ctx.systemPrompt.assemble(passed)
-    expect(seen).toEqual([['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'deployment:persona-suffix', 'from-a']])
-    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'deployment:persona-suffix', 'from-a'])
+    expect(seen).toEqual([['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix', 'from-a']])
+    expect(assembly.sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix', 'from-a'])
     expect(contexts[0]).toBe(passed) // the caller's context reaches listeners
   })
 
@@ -454,7 +478,7 @@ describe('SystemPrompt', () => {
     firstParameters.properties['leak'] = { type: 'string' }
 
     const second = await ctx.systemPrompt.assemble()
-    expect(second.sections.map(section => section.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'deployment:persona-suffix'])
+    expect(second.sections.map(section => section.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'base', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix'])
     expect(second.sections[0]!.text).toBe(IDENTITY)
     expect(second.contexts).toEqual([])
     expect(second.tools).toEqual([{ name: 't', description: 'tool', parameters: { type: 'object', properties: {} } }])
@@ -610,7 +634,7 @@ describe('SystemPrompt', () => {
       ctx.systemPrompt.variable('model', () => 'deepseek-v4')
       ctx.systemPrompt.variable('cwd', () => '/work')
 
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nYou run on deepseek-v4 in /work.\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nYou run on deepseek-v4 in /work.\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
 
     it('lets a waterfall listener add or override variables before render', async () => {
@@ -621,7 +645,7 @@ describe('SystemPrompt', () => {
         assembly.variables['extra'] = 'from-waterfall'
         return next()
       })
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nfrom-waterfall\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nfrom-waterfall\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
 
     it('throws on a reference to an unregistered variable, listing what exists', async () => {
@@ -694,7 +718,7 @@ describe('SystemPrompt', () => {
       await ctx.plugin(SystemPrompt)
       ctx.systemPrompt.section({ name: 's', order: 0, text: '{{constructor}}' })
       ctx.systemPrompt.variable('constructor', () => 'own-value')
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nown-value\n\n${TOOL_BATCHING_TEXT}`)
+      expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(`${IDENTITY}\n\nown-value\n\n${TOOL_BATCHING_TEXT}\n\n${TOOL_DISCOVERY_TEXT}`)
     })
 
     it('never re-scans substituted values (a value containing {{sneaky}} stays literal)', () => {
