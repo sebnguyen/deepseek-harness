@@ -11,7 +11,9 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Claim, VerifierResult } from '@deepseek-ai/dsh-claim'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
-import { errorText, runVerifier } from './verifier.ts'
+import { boundedEvidence, errorText, runVerifier } from './verifier.ts'
+
+export { boundedEvidence, runVerifier } from './verifier.ts'
 
 /** Package name in the Cordis loader. */
 export const name = 'claim-settlement'
@@ -21,7 +23,7 @@ export const inject = ['agents', 'claims', 'shell']
 
 /** Plugin configuration: the deployment's settlement policy. */
 export interface Config {
-  /** Repair steers allowed for one claim before it is blocked (default: `3`). */
+  /** Repair steers allowed for one claim before it is blocked (default: `1`). */
   repairBudget?: number
   /** Verifier re-runs allowed after an inconclusive result (default: `2`). */
   inconclusiveRetries?: number
@@ -33,7 +35,7 @@ export interface Config {
 
 /** Schemastery config for the settlement policy. */
 export const Config: z<Config> = z.object({
-  repairBudget: z.number().step(1).min(0).default(3),
+  repairBudget: z.number().step(1).min(0).default(1),
   inconclusiveRetries: z.number().step(1).min(0).default(2),
   verifierTimeoutMs: z.number().step(1).min(1).default(600_000),
   evidenceLines: z.number().step(1).min(1).default(40),
@@ -59,17 +61,11 @@ const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'claim-settlement'
 /** Materialize deployment defaults for one settlement policy. */
 function resolveConfig(config: Config): ResolvedConfig {
   return {
-    repairBudget: config.repairBudget ?? 3,
+    repairBudget: config.repairBudget ?? 1,
     inconclusiveRetries: config.inconclusiveRetries ?? 2,
     verifierTimeoutMs: config.verifierTimeoutMs ?? 600_000,
     evidenceLines: config.evidenceLines ?? 40,
   }
-}
-
-/** Keep the tail of verifier output, bounded so a steer stays affordable. */
-function bounded(evidence: string, lines: number): string {
-  const kept = evidence.split('\n').slice(-lines).join('\n').trim()
-  return kept.length === 0 ? '(no output)' : kept
 }
 
 /** Count how many recorded results carry one outcome. */
@@ -149,7 +145,7 @@ function renderRepair(verdicts: readonly Verdict[], resolved: ResolvedConfig): s
         return [
           `- "${claim.title}" failed. Claimed condition: ${claim.description}`,
           '  Verifier output:',
-          bounded(result.evidence, resolved.evidenceLines),
+          boundedEvidence(result.evidence, resolved.evidenceLines),
         ].join('\n')
       /* v8 ignore next 2 -- VerifierOutcome is a closed union covered above */
       default:
@@ -160,7 +156,8 @@ function renderRepair(verdicts: readonly Verdict[], resolved: ResolvedConfig): s
     'The bound verifiers for this turn reported failures:',
     ...lines,
     '',
-    'Repair the work and let the verifiers run again, or abandon_claim a wrong claim by its id.',
+    'Repair the work, then run the claim again with run_claim, or abandon_claim it by its id when the declared condition itself was wrong.',
+    'This boundary steers one failure back per claim; a claim that still fails at the next boundary is blocked.',
   ].join('\n')
 }
 

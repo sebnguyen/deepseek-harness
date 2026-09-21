@@ -199,11 +199,13 @@ export const PERSONA_SUFFIX_SECTION = 'deployment:persona-suffix'
 export const TOOL_BATCHING_SECTION = 'harness:tool-batching'
 
 /**
- * Batch-independent-tool-calls and internal-tool-preference guidance.
- * Model-visible verbatim; snapshot sidecars under snapshots/ pin this text.
+ * Batch-independent-tool-calls guidance and mandatory structured-tool routing.
+ * Using the structured tools is a hard requirement; bash is reserved for work
+ * no structured tool covers. Model-visible verbatim; snapshot sidecars under
+ * snapshots/ pin this text.
  */
 export const TOOL_BATCHING_TEXT =
-  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Use the structured tools — glob to find files, grep to search contents, read to inspect them, edit and write to change them, lsp for code structure: definitions, implementations, callers, callees, and references — not bash, as the default for file and code work. Prefer lsp over textual matches when a symbol name is ambiguous or a change needs precise call sites. They return structured results, and you can fire several in parallel in one turn, faster than a shell pipeline. Never use bash for finding, reading, or searching files: reach for bash only to run commands no structured tool covers (builds, git, processes). Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
+  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Using the structured tools for file and code work is mandatory: glob to find files, grep to search contents, read to inspect them, edit and write to change them, lsp for code structure — definitions, implementations, callers, callees, and references. Reach for bash only when no structured tool exists for the task (builds, git, processes), and never to find, read, search, or edit files. Prefer lsp over textual matches when a symbol name is ambiguous or a change needs precise call sites. These tools return structured results, and you can fire several in parallel in one turn, faster than a shell pipeline. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
 
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/

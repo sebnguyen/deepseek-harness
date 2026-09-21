@@ -28,13 +28,13 @@ Mount it beside `dsh-claim` and a shell executor. It requires `ctx.agents`, `ctx
 ```yaml
 - name: '@deepseek-ai/dsh-claim-settlement'
   config:
-    repairBudget: 3
+    repairBudget: 1
     inconclusiveRetries: 2
 ```
 
 | Field | Default | Meaning |
 |---|---|---|
-| `repairBudget` | `3` | Repair steers allowed for one claim before it is blocked |
+| `repairBudget` | `1` | Repair steers allowed for one claim before it is blocked |
 | `inconclusiveRetries` | `2` | Verifier re-runs allowed after an inconclusive result |
 | `verifierTimeoutMs` | `600000` | Per-run verifier timeout |
 | `evidenceLines` | `40` | Evidence lines kept when steering a failure back |
@@ -50,7 +50,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 | `inconclusive` | Retries the verifier without steering; blocks as `verifier-unavailable` once the retries are spent |
 | `tampered` | Blocks immediately; never retried |
 
-`repairBudget` counts **steers**, so `repairBudget: 3` runs the verifier at most four times: once when the turn first tries to close, then once after each repair.
+`repairBudget` counts **steers**, so the default `repairBudget: 1` runs the verifier at most twice: once when the turn first tries to close, then once after the single repair round the model is granted. A claim the model settles itself with `run_claim` never reaches that path; the boundary only verifies what the model left open.
 
 -----
 
@@ -95,7 +95,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 #### What the model sees
 
-When a bound verifier fails and budget remains, one plugin-sourced user message carrying the failed outcome, the declared satisfy-condition, the tail of the verifier's output, and the instruction to repair the work or abandon the claim. Nothing is steered for a pass, for a tampered verifier, or once a budget is spent. This package contributes no prompt section and registers no tool, so the steered message is its entire model-visible surface.
+When a bound verifier fails and budget remains, one plugin-sourced user message carrying the failed outcome, the declared condition, the tail of the verifier's output, and the instruction to repair the work and re-run the claim with `run_claim` or abandon it. Nothing is steered for a pass, for a tampered verifier, or once a budget is spent. This package contributes no prompt section and registers no tool, so the steered message is its entire model-visible surface.
 
 #### Token effect
 

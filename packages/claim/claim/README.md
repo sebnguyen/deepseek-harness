@@ -1,5 +1,5 @@
 ---
-description: "The durable verification-claim service for users and maintainers choosing, configuring, or debugging declared satisfy-conditions and their recorded verifier runs."
+description: "The durable verification-claim service for users and maintainers choosing, configuring, or debugging declared conditions and their recorded verifier runs."
 kind: "package-reference"
 ---
 
@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`dsh-claim` stores one immutable verification claim per turn: why the turn exists, what must be true when it completes, the one bound shell verifier, every verifier run recorded against it, and how it finally settled. The service is pure state — it registers no tool and contributes no prompt text — so mounting it alone records claims without prompting the model or running anything. The model tools live in `dsh-tool-claim` and the turn-boundary policy lives in `dsh-claim-settlement`.
+`dsh-claim` stores immutable verification claims — any number per turn, one per independent condition — each carrying what must be true when it is settled, the one bound shell verifier, every verifier run recorded against it, and how it finally settled. The service is pure state — it registers no tool and contributes no prompt text — so mounting it alone records claims without prompting the model or running anything. The model tools live in `dsh-tool-claim` and the turn-boundary policy lives in `dsh-claim-settlement`.
 
 ## Table of Contents
 
@@ -35,16 +35,16 @@ A claim moves through durable moments — declared, zero or more recorded verifi
 
 | Operation | What it does |
 |---|---|
-| `openClaim(agent)` | Read the open claim, or `undefined` when no turn is open or the turn declared none |
+| `openClaims(agent)` | Read the open turn's pending claims in declaration order |
 | `ledger(agent)` | Read every claim of the current session in turn order |
-| `declare(agent, { purpose, satisfy, script })` | Open the turn's claim and hash the script into a frozen verifier |
-| `record(agent, result)` | Append one verifier execution to the open claim |
-| `settle(agent, settlement)` | Close the claim terminally |
-| `abandon(agent, message)` | Close it as blocked because the condition itself was wrong |
-| `failures(agent)` | Count recorded `fail` results for the open claim |
+| `declare(agent, { title, description, script })` | Open one claim of the turn and hash the script into a frozen verifier |
+| `record(agent, id, result)` | Append one verifier execution to that claim |
+| `settle(agent, id, settlement)` | Close that claim terminally |
+| `abandon(agent, id, message)` | Close it as blocked because the condition itself was wrong |
+| `failures(agent, id)` | Count recorded `fail` results for that claim |
 | `bindVerifier(source)` | Hash one script text into a frozen `Verifier` binding |
 
-A claim's `settlement` starts as `{ kind: 'pending' }` and ends as `passed`, `tampered`, or `blocked` with a code of `abandoned`, `repair-budget-exhausted`, or `verifier-unavailable`. `declare` is refused while the open turn already has a claim and while no turn is open, so a turn holds at most one claim, identified by its own `turn` field.
+A claim's `settlement` starts as `{ kind: 'pending' }` and ends as `passed`, `tampered`, or `blocked` with a code of `abandoned`, `repair-budget-exhausted`, or `verifier-unavailable`. `declare` is refused while no turn is open or the request is invalid; a turn may declare any number of claims, each identified by its own `turn` field.
 
 `abandon` is refused until the bound verifier has run at least once, so a claim cannot be opened and closed to dodge verification. The refusal reads the count of recorded results, which means the guard is a fold over the log rather than separate bookkeeping.
 
@@ -65,10 +65,10 @@ This section explains how the package realizes the behavior above; the observabl
 ### Design
 
 - **Event-sourced state.** `claim/declared`, `claim/result`, and `claim/settled` are log-only events carrying no `surfaceOp`, following the `hook/*` and `compaction/*` precedent. The session log is the only store.
-- **Strict replay.** The fold validates every durable field — non-empty `purpose` and `satisfy`, one frozen verifier, a closed outcome set, a closed block-code set, monotonic revisions — and rejects a declaration while the open turn already holds one or a result against a settled claim.
+- **Strict replay.** The fold validates every durable field — non-empty `title` and `description` (reading the released `purpose` and `satisfy` payload fields when present), one frozen verifier, a closed outcome set, a closed block-code set, monotonic revisions — and rejects an event that is not a claim's exact next revision or a result against a settled claim.
 - **Provenance by hashing at the boundary.** `bindVerifier` computes the SHA-256 of the script text at declaration. Nothing else in the group trusts a verifier without rechecking that digest.
 - **Projection unit.** The package requires the projection registry and registers a strict `claim` unit whose client value is `readonly Claim[]` across the session's turns. A decode failure latches in the projection state instead of throwing through the registry.
-- **No compare-and-set surface.** Mutations operate on the open claim rather than carrying an `{ id, revision }` reference. The goal service needs that reference because a tool, a command, and a driver all mutate one goal concurrently; a turn has one claim and one writer at a time, so the guard would defend against a race that cannot occur.
+- **No compare-and-set surface.** Mutations operate on the claim the caller names rather than carrying an expected revision. The goal service needs that reference because a tool, a command, and a driver all mutate one goal concurrently; a turn's claims are written by one agent at a time, so the guard would defend against a race that cannot occur.
 
 ### Source map
 
@@ -124,9 +124,8 @@ None. Because the package writes no model-visible input, mounting it cannot inva
 
 These limits define when the package needs special care. They are current constraints, not a task backlog.
 
-- **A claim is immutable for its turn.** There is no edit or amend operation. A claim that named the wrong condition is abandoned, never corrected, because allowing a rewrite would reopen the "fail, then redefine success downward" path that immutability closes.
-- **One claim per turn at a time.** A second `declare` is refused while the open turn already has one, even after the first settles; the next claim must wait for the next turn.
-- **A declaration can be retrofitted.** Nothing forces `declare_claim` before work starts; a claim declared mid-turn is still recorded and verified, but its purpose was not a genuine pre-commitment.
+- **A claim's content is immutable for its turn.** There is no edit or amend operation. A claim that named the wrong condition is abandoned, never corrected, because allowing a rewrite would reopen the "fail, then redefine success downward" path that immutability closes.
+- **A declaration can be retrofitted.** Nothing forces `declare_claim` before work starts; a claim declared mid-turn is still recorded and verified, but its condition was not a genuine pre-commitment.
 - **The fold never closes an open claim at `turn/end`.** A claim left open at the turn boundary stays `pending` in the log; only `dsh-claim-settlement` or an explicit `abandon` closes one, so mounting `claim` alone leaves the last claim open.
 
 <a id="dev-note"></a>

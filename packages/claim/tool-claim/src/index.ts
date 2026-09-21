@@ -1,7 +1,7 @@
 /**
- * Model-facing `declare_claim` and `abandon_claim` tools over the persisted
- * claim domain, plus the standing declaration requirement contributed as a
- * prompt section.
+ * Model-facing `declare_claim`, `run_claim`, and `abandon_claim` tools over the
+ * persisted claim domain, plus the standing declaration requirement contributed
+ * as a prompt section.
  * @module @deepseek-ai/dsh-tool-claim
  */
 
@@ -9,30 +9,63 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ClaimId } from '@deepseek-ai/dsh-claim'
 import type { Claim } from '@deepseek-ai/dsh-claim'
+import { boundedEvidence, runVerifier } from '@deepseek-ai/dsh-claim-settlement'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-session-projection'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
+import z from '@deepseek-ai/schemastery'
 
 /** Package name in the Cordis loader. */
 export const name = 'tool-claim'
 
 /** Services this plugin binds before registering its tools. */
-export const inject = ['agents', 'claims', 'tools', 'systemPrompt', 'sessionProjections']
+export const inject = ['agents', 'claims', 'tools', 'systemPrompt', 'sessionProjections', 'shell']
+
+/** Plugin configuration: the deployment's in-turn verifier run policy. */
+export interface Config {
+  /** Per-run verifier timeout in milliseconds (default: `600000`). */
+  verifierTimeoutMs?: number
+  /** Evidence lines kept in a `run_claim` result (default: `40`). */
+  evidenceLines?: number
+}
+
+/** Schemastery config for the in-turn verifier run policy. */
+export const Config: z<Config> = z.object({
+  verifierTimeoutMs: z.number().step(1).min(1).default(600_000),
+  evidenceLines: z.number().step(1).min(1).default(40),
+})
+
+/** Fully materialized in-turn verifier run policy. */
+interface ResolvedConfig {
+  readonly verifierTimeoutMs: number
+  readonly evidenceLines: number
+}
+
+/** Materialize deployment defaults for the in-turn verifier run policy. */
+function resolveConfig(config: Config): ResolvedConfig {
+  return {
+    verifierTimeoutMs: config.verifierTimeoutMs ?? 600_000,
+    evidenceLines: config.evidenceLines ?? 40,
+  }
+}
 
 /** The standing requirement that opens every work turn with one or more claims. */
 export const CLAIM_DEMAND =
-  'At the start of a work turn, declare one or more claims with declare_claim: give each a brief title of a few '
-  + 'words, and put the full detail of what must be true when it is settled in the description. Bind exactly one '
-  + 'shell script that exits 0 only when that description holds, and make the check verify the change: run the '
-  + 'focused unit tests and lint covering it, not an always-passing assertion. A claim is immutable once declared. '
-  + 'The turn must be complete before the verifier runs: the settlement verifier re-runs every open claim\'s bound '
-  + 'check after your final message, so finish all edits, test runs, and repairs inside the turn — run each bound '
-  + 'check yourself before ending the turn — and never end a turn with work still in flight. Re-run or repair when a '
-  + 'check fails; if a condition is wrong, abandon_claim it by id after its check has run at least once and say '
-  + 'why. Do not cycle: after one repair attempt, abandon_claim the wrong claim and stop the conversation '
-  + 'entirely, reporting the concrete blocker, instead of declaring replacement claims round after round.'
+  'At the start of a work turn, declare one or more claims with declare_claim — declare more than one claim when '
+  + 'the turn promises several independent conditions, one claim per independent condition. Give each claim a brief '
+  + 'title of a few words, and put the full detail of what must be true when it is settled in the description. Bind '
+  + 'exactly one shell script that exits 0 only when that description holds, and make the check verify the change: '
+  + 'run the focused unit tests and lint covering it, not an always-passing assertion. A claim is immutable in '
+  + 'content once declared: its title, description, and script never change. Settle your claims yourself with '
+  + 'run_claim inside the turn: a pass closes the claim, and a fail is recorded with its evidence so you can repair '
+  + 'the work and run_claim again, or abandon_claim it by id once its check has run and the condition itself was '
+  + 'wrong. A claim you never run is still verified at the turn boundary, which steers its failure back once; after '
+  + 'that single repair round a still-failing claim is blocked. The turn must be complete before the boundary '
+  + 'verifier runs, so finish all edits, test runs, and repairs inside the turn and never end a turn with work still '
+  + 'in flight. Do not cycle: use the one boundary repair round to fix the work, not to declare replacement claims '
+  + 'round after round.'
 
 /** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
@@ -44,7 +77,9 @@ const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
  * are one-based, so step 1 is the turn's first step.
  */
 function renderTurnReminder(turn: number): string {
-  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — a short title, a full description, and one bound shell check each — before changing anything.`
+  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — one claim per independent `
+    + 'condition, each with a short title, a full description, and one bound shell check — before changing anything, '
+    + 'and settle them with run_claim before you end the turn.'
 }
 
 /** Compact status the model reads back after either tool call. */
@@ -56,6 +91,10 @@ interface ClaimToolValue {
     readonly title: string
     readonly description: string
     readonly settlement: string
+    /** Only a `run_claim` result carries the outcome it just observed. */
+    readonly outcome?: string
+    /** Only a `run_claim` result carries evidence, bounded to the configured tail. */
+    readonly evidence?: string
   } | null
 }
 
@@ -84,6 +123,8 @@ const CLAIM_VALUE_SCHEMA = {
             title: { type: 'string', required: true },
             description: { type: 'string', required: true },
             settlement: { type: 'string', required: true },
+            outcome: { type: 'string' },
+            evidence: { type: 'string' },
           },
         },
       },
@@ -130,8 +171,26 @@ function claimValue(claim: Claim | undefined): ClaimToolValue {
     }
 }
 
-/** Register the two claim tools and their shared demand section. */
-export function apply(ctx: Context): void {
+/** Render one settled or re-run claim as the compact `run_claim` status. */
+function runValue(claim: Claim, outcome: string, evidence: string, evidenceLines: number): ClaimToolValue {
+  return {
+    claim: {
+      id: claim.id,
+      turn: claim.turn,
+      revision: claim.revision,
+      title: claim.title,
+      description: claim.description,
+      settlement: claim.settlement.kind,
+      outcome,
+      evidence: boundedEvidence(evidence, evidenceLines),
+    },
+  }
+}
+
+/** Register the three claim tools and their shared demand section. */
+export function apply(ctx: Context, config: Config = {}): void {
+  const resolved = resolveConfig(config)
+
   ctx.systemPrompt.section({
     name: 'tool:claim',
     order: ctx.systemPrompt.getSectionOrder('TOOL_CLAIM'),
@@ -153,7 +212,8 @@ export function apply(ctx: Context): void {
     name: 'declare_claim',
     description: 'Declare one claim for this turn: a short title, a description of what must be true when it is '
       + 'settled, and the one bound shell check that proves it. The check must exit 0 only when the description '
-      + 'genuinely holds. A claim is immutable once declared; declare more than one to track independent conditions.',
+      + 'genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per '
+      + 'independent condition.',
     parameters: {
       title: {
         type: 'string',
@@ -181,9 +241,40 @@ export function apply(ctx: Context): void {
   }))
 
   ctx.tools.register(defineTool({
+    name: 'run_claim',
+    description: 'Run one open claim\'s bound check now, inside the turn. A pass settles the claim as passed; a fail '
+      + 'is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or '
+      + 'abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.',
+    parameters: {
+      id: {
+        type: 'string',
+        required: true,
+        description: 'The claim id, as returned by declare_claim.',
+      },
+    },
+    output: CLAIM_OUTPUT,
+    async execute(args, exec) {
+      const agent = liveAgent(ctx, exec)
+      const open = ctx.claims.openClaims(agent).find(claim => claim.id === args.id)
+      if (open === undefined) {
+        throw new HarnessError(`claim "${args.id}" is not an open claim of this turn`, 'CLAIM_UNKNOWN')
+      }
+      const result = await runVerifier(ctx, open.verifier, resolved.verifierTimeoutMs, exec.signal)
+      ctx.claims.record(agent, open.id, result)
+      if (result.outcome === 'pass') ctx.claims.settle(agent, open.id, { kind: 'passed' })
+      if (result.outcome === 'tampered') ctx.claims.settle(agent, open.id, { kind: 'tampered' })
+      const current = ctx.claims.ledger(agent).find(claim => claim.id === open.id)
+      /* v8 ignore next -- a recorded claim always stays readable in the ledger */
+      if (current === undefined) throw new HarnessError('claim was not readable after recording', 'CLAIM_UNKNOWN')
+      return runValue(current, result.outcome, result.evidence, resolved.evidenceLines)
+    },
+    presentCall: () => present('Run claim', 'other'),
+  }))
+
+  ctx.tools.register(defineTool({
     name: 'abandon_claim',
     description: 'Give up on one claim because it named the wrong condition. Refused until its bound check has run '
-      + 'at least once. Record why it was wrong.',
+      + 'at least once — call run_claim first if it has not. Record why it was wrong.',
     parameters: {
       id: {
         type: 'string',

@@ -348,7 +348,7 @@ Requires: `agents` · `claims` · `shell`
 ```ts config-catalog
 /** Plugin configuration: the deployment's settlement policy. */
 export interface Config {
-  /** Repair steers allowed for one claim before it is blocked (default: `3`). */
+  /** Repair steers allowed for one claim before it is blocked (default: `1`). */
   repairBudget?: number
   /** Verifier re-runs allowed after an inconclusive result (default: `2`). */
   inconclusiveRetries?: number
@@ -359,7 +359,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/claim/claim-settlement/src/index.ts:23`](../packages/claim/claim-settlement/src/index.ts)
+Source: [`packages/claim/claim-settlement/src/index.ts:25`](../packages/claim/claim-settlement/src/index.ts)
 
 <a id="deepseek-aidsh-client-connection"></a>
 
@@ -1031,6 +1031,22 @@ export interface Config {
 
 Source: [`packages/jobs/jobs-local/src/index.ts:31`](../packages/jobs/jobs-local/src/index.ts)
 
+<a id="deepseek-aidsh-knowledge-notes"></a>
+
+## `@deepseek-ai/dsh-knowledge-notes`
+
+Requires: `fs` · `tools` · `systemPrompt` · `sessionProjections`
+
+```ts config-catalog
+/** Plugin configuration. */
+export interface Config {
+  /** Harness-home override; the store lives under `<home>/knowledge/notes`. */
+  dshHome?: string
+}
+```
+
+Source: [`packages/knowledge/knowledge-notes/src/index.ts:43`](../packages/knowledge/knowledge-notes/src/index.ts)
+
 <a id="deepseek-aidsh-llm-deepseek"></a>
 
 ## `@deepseek-ai/dsh-llm-deepseek`
@@ -1059,7 +1075,7 @@ export interface Config {
   maxTokens?: number
   /** Positive context capacity used when the selected model has no exact value (default 1,000,000). */
   defaultContextWindow?: number
-  /** Advisory models shown by discovery consumers; defaults to V41 Flash, V4 Flash, V4 Pro, and V4 Flash Vision Exp. */
+  /** Advisory models shown by discovery consumers; defaults to V41 Flash, V4 Flash, V4 Pro, V4 Pro 0813, and V4 Flash Vision Exp. */
   models?: DeepSeekCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
@@ -1116,7 +1132,7 @@ export interface DeepSeekCatalogModel {
 
 Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · [`SystemPromptUpdate`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/llm/llm-deepseek/src/index.ts:134`](../packages/llm/llm-deepseek/src/index.ts)
+Source: [`packages/llm/llm-deepseek/src/index.ts:141`](../packages/llm/llm-deepseek/src/index.ts)
 
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
@@ -1178,6 +1194,12 @@ export interface PiAiProviderProfile {
    * a deployment whose gateway serves smaller models corrects it here.
    */
   defaultContextWindow?: number
+  /**
+   * Upper bound on context capacity for every model on this route after catalog
+   * merge. Compaction and token metering use the resolved value, which may be
+   * below the installed catalog when a gateway bills or serves a smaller window.
+   */
+  maxContextWindow?: number
   /**
    * Output capability for a model this route lists that neither the entry nor
    * the installed catalog sizes (default 32,768). This sizes the model; it
@@ -1391,7 +1413,7 @@ export type PiAiThinkingTokenBudgetField = NonNullable<OpenAICompletionsCompat['
 
 Depends on: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`)
 
-Source: [`packages/llm/llm-pi-ai/src/config.ts:221`](../packages/llm/llm-pi-ai/src/config.ts)
+Source: [`packages/llm/llm-pi-ai/src/config.ts:227`](../packages/llm/llm-pi-ai/src/config.ts)
 
 <a id="deepseek-aidsh-llm-replay"></a>
 
@@ -1525,7 +1547,7 @@ export interface LspLocalServerConfig {
 }
 ```
 
-Source: [`packages/lsp/lsp-stdio/src/index.ts:82`](../packages/lsp/lsp-stdio/src/index.ts)
+Source: [`packages/lsp/lsp-stdio/src/index.ts:90`](../packages/lsp/lsp-stdio/src/index.ts)
 
 <a id="deepseek-aidsh-mcp-client"></a>
 
@@ -2608,6 +2630,8 @@ Source: [`packages/e2b/subprocess-e2b/src/index.ts:26`](../packages/e2b/subproce
 export interface Config {
   /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
   includeHarnessIdentity?: boolean
+  /** Include harness tool-batching guidance before tool sections (default true). */
+  includeToolBatchingGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -2629,7 +2653,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:247`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:271`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2766,6 +2790,24 @@ export interface Config {
 
 Source: [`packages/shell/tool-bash-persistent/src/index.ts:435`](../packages/shell/tool-bash-persistent/src/index.ts)
 
+<a id="deepseek-aidsh-tool-claim"></a>
+
+## `@deepseek-ai/dsh-tool-claim`
+
+Requires: `agents` · `claims` · `tools` · `systemPrompt` · `sessionProjections` · `shell`
+
+```ts config-catalog
+/** Plugin configuration: the deployment's in-turn verifier run policy. */
+export interface Config {
+  /** Per-run verifier timeout in milliseconds (default: `600000`). */
+  verifierTimeoutMs?: number
+  /** Evidence lines kept in a `run_claim` result (default: `40`). */
+  evidenceLines?: number
+}
+```
+
+Source: [`packages/claim/tool-claim/src/index.ts:27`](../packages/claim/tool-claim/src/index.ts)
+
 <a id="deepseek-aidsh-tool-fs"></a>
 
 ## `@deepseek-ai/dsh-tool-fs`
@@ -2891,7 +2933,31 @@ export interface Config {
 }
 ```
 
-Source: [`packages/lsp/tool-lsp/src/index.ts:59`](../packages/lsp/tool-lsp/src/index.ts)
+Source: [`packages/lsp/tool-lsp/src/index.ts:62`](../packages/lsp/tool-lsp/src/index.ts)
+
+<a id="deepseek-aidsh-tool-lsp-map"></a>
+
+## `@deepseek-ai/dsh-tool-lsp-map`
+
+Requires: `tools` · `lsp` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin configuration. */
+export interface Config {
+  /** Max files one `symbols` call outlines inline; later files are omitted. */
+  filesPerBatch?: number
+  /** Max kept symbols one file contributes; later symbols are omitted. */
+  symbolsPerFile?: number
+  /** Max complete rendered text in characters, including the truncation marker. */
+  maxResultChars?: number
+  /** Also run call hierarchy per symbol to append in:/out: counts. */
+  hotspots?: boolean
+  /** Tool-call timeout budget in ms. */
+  timeoutMs?: number
+}
+```
+
+Source: [`packages/lsp/tool-lsp-map/src/index.ts:35`](../packages/lsp/tool-lsp-map/src/index.ts)
 
 <a id="deepseek-aidsh-tool-present"></a>
 
@@ -3497,6 +3563,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-attachment` ([`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-brand-official` ([`packages/client/ui-brand-official/src/index.ts`](../packages/client/ui-brand-official/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-chat` ([`packages/client/ui-chat/src/index.ts`](../packages/client/ui-chat/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-claim` ([`packages/client/ui-claim/src/index.ts`](../packages/client/ui-claim/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-commands` ([`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-conversation` ([`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-cordis` ([`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts))
@@ -3561,7 +3628,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-terminal` ([`packages/terminal/terminal/src/index.ts`](../packages/terminal/terminal/src/index.ts))
 - `@deepseek-ai/dsh-tool-ask-user` — requires `tools` · `userQuestions` ([`packages/interaction/tool-ask-user/src/index.ts`](../packages/interaction/tool-ask-user/src/index.ts))
 - `@deepseek-ai/dsh-tool-call-timeout-policy` — requires `tools` ([`packages/guard/timeout-policy/src/index.ts`](../packages/guard/timeout-policy/src/index.ts))
-- `@deepseek-ai/dsh-tool-claim` — requires `agents` · `claims` · `tools` · `systemPrompt` · `sessionProjections` ([`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts))
 - `@deepseek-ai/dsh-tool-cordis` — requires `tools` · `systemPrompt` · `dynamicCordisRunner` · `cordisInspect` ([`packages/extensions/tool-cordis/src/index.ts`](../packages/extensions/tool-cordis/src/index.ts))
 - `@deepseek-ai/dsh-tool-subagent-control` — requires `tools` · `subagents` ([`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts))
 - `@deepseek-ai/dsh-user-questions` ([`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts))

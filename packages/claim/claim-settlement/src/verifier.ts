@@ -19,6 +19,18 @@ export function sha256(source: string): string {
 }
 
 /**
+ * Keep the tail of one verifier output, bounded so a model-facing result stays
+ * affordable.
+ * @param evidence - the verifier's own output.
+ * @param lines - evidence lines kept from the tail.
+ * @returns the bounded tail, or a placeholder when the output is empty.
+ */
+export function boundedEvidence(evidence: string, lines: number): string {
+  const kept = evidence.split('\n').slice(-lines).join('\n').trim()
+  return kept.length === 0 ? '(no output)' : kept
+}
+
+/**
  * Render one thrown value as evidence text.
  * @param error - the thrown value.
  * @returns the error message, or the string form of a non-Error throw.

@@ -392,15 +392,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     pkg: '@deepseek-ai/dsh-tool-claim',
     dir: 'tool-claim',
     source: 'packages/claim/tool-claim/src/index.ts',
-    requires: ['ctx.tools', 'ctx.agents', 'ctx.claims', 'ctx.systemPrompt', 'a calling Agent in the live registry'],
-    writes: ['tool/call', 'claim/declared or claim/settled for mutations', 'tool/result'],
+    requires: ['ctx.tools', 'ctx.agents', 'ctx.claims', 'ctx.systemPrompt', 'ctx.shell', 'a calling Agent in the live registry'],
+    writes: ['tool/call', 'claim/declared, claim/result, or claim/settled for mutations', 'tool/result'],
     async mount(ctx) {
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(BashEnvPlugin)
+      await ctx.plugin(LocalBashExecutor)
       await ctx.plugin(AgentRegistry)
       await ctx.plugin(ClaimService)
       await ctx.plugin(ToolClaim)
     },
     note:
-      'A claim is immutable once declared, and abandon_claim is refused until the bound check has run at least once. A declaration that binds no script settles as unverified unless the service sets requireVerifier.',
+      'A claim\'s content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim\'s bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary.',
   },
   {
     pkg: '@deepseek-ai/dsh-schedule',

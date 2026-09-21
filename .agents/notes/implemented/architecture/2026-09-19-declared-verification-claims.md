@@ -12,21 +12,23 @@ Before this change, `agent/turn-stopping` was published and had no listener anyw
 
 ## Decision
 
-The claim group marks each turn's first step with a plugin-sourced reminder and prompts the agent to declare why the turn exists and what must be true when it completes, binds one shell verifier to that declaration, and runs the verifier when the turn is about to close. One claim per turn, immutable once declared, one verifier per claim, multiple recorded verifier results per claim as the agent repairs in turn, and a bounded number of model round-trips before the claim settles as blocked. The agent-loop is not modified: every piece composes on an extension point that already exists.
+The claim group marks each turn's first step with a plugin-sourced reminder and prompts the agent to declare what must be true when the turn completes, binds one shell verifier to each declaration, and runs every verifier the model leaves open when the turn is about to close. Any number of claims per turn, each immutable once declared, one verifier per claim, in-turn execution through `run_claim` as well as boundary execution, multiple recorded verifier results per claim as the agent repairs in turn, and a bounded number of model round-trips before a still-failing claim settles as blocked. The agent-loop is not modified: every piece composes on an extension point that already exists.
 
 The group is **advisory about ordering**. It prompts a declaration and records it; it does not escalate privileges, block tools, observe when the declaration was made, or change the sandbox mode. The reasons are in [Ordering is not enforced](#ordering-is-not-enforced), and the property that costs is stated under Risks.
 
-The vocabulary: a **claim** is the turn's declared purpose and satisfy-condition; a **verifier** is the one shell script bound to it; a **result** is one recorded verifier execution; **settlement** is the terminal state, one of `pending`, `passed`, `tampered`, or `blocked`.
+The vocabulary: a **claim** is one declared condition of the turn, carried as a `title` and a `description`; a **verifier** is the one shell script bound to it; a **result** is one recorded verifier execution; **settlement** is the terminal state, one of `pending`, `passed`, `tampered`, or `blocked`.
 
 ### The claim
 
-A claim is one immutable record per turn. It carries a branded `id`, its `turn` and `revision`, the two prose fields `purpose` and `satisfy`, one `verifier` (`{ source, digest }`, required), the `results` array (`{ outcome, evidence }` per run), and a `settlement` that starts `{ kind: 'pending' }`. The full type is on the [claim subsystem page](../../../../docs/subsystems/claim.md).
+A claim is one immutable record, scoped to the turn that declared it. It carries a branded `id`, its `turn` and `revision`, the two prose fields `title` and `description`, one `verifier` (`{ source, digest }`, required), the `results` array (`{ outcome, evidence }` per run), and a `settlement` that starts `{ kind: 'pending' }`. The full type is on the [claim subsystem page](../../../../docs/subsystems/claim.md).
 
-`purpose` states why the turn exists; `satisfy` states what must be true when it completes. Both are required prose fields. `revision` starts at 1 and advances with each recorded result, so the revision counts verifier runs. The `settlement` is always present: the open state is the `{ kind: 'pending' }` variant, so a consumer never checks for absence.
+`title` is a short label; `description` states what must be true when the claim is settled. Both are required prose fields. `revision` starts at 1 and advances with each recorded result, so the revision counts verifier runs. The `settlement` is always present: the open state is the `{ kind: 'pending' }` variant, so a consumer never checks for absence.
 
-The claim is immutable for its turn and there is exactly one. Immutability is a stronger guarantee than a rule against weakening: if the claim cannot change, the renegotiation failure "fail, then redefine success downward" has no surface to occur on, and no comparison logic is needed to police it. A second declaration in the same turn is refused even after the first settles; the next claim must wait for the next turn, and each claim carries its own `turn` field instead of the state tracking a separate open index.
+The claim's content is immutable once declared and a turn declares any number of them, one per independent condition. Content immutability is a stronger guarantee than a rule against weakening: if the condition cannot change, the renegotiation failure "fail, then redefine success downward" has no surface to occur on, and no comparison logic is needed to police it. Declaring several claims for one turn is not amendment: each claim is a separate commitment that settles independently, and no claim's recorded condition can be revised after the fact. Each claim carries its own `turn` field instead of the state tracking a separate open index.
 
-`abandon_claim(reason)` is the honest exit for a claim the model declared wrongly; it settles the claim as `blocked` with code `abandoned`, is logged, and ends claim handling for the turn. It is refused while the bound verifier has not yet run, so a declaration cannot be walked away from without facing its check at least once, and no claim can be opened and closed to dodge verification entirely. The refusal reads the count of recorded results for the claim, so the guard is a fold over the log rather than separate bookkeeping. Abandon followed by a fresh claim in the same turn is refused at any stage, because it would reintroduce amendment together with a budget reset.
+`run_claim(id)` is the in-turn path: it runs the claim's bound verifier through the shell seam, records the result, and settles the claim as `passed` on a pass (or as `tampered` on a digest mismatch), leaving a fail or inconclusive run recorded and the claim open for repair. It exists so the model can face its own check and repair inside the turn instead of waiting for the boundary, and so a recorded run — not a claim of one — is what unblocks `abandon_claim`.
+
+`abandon_claim(id, reason)` is the honest exit for a claim the model declared wrongly; it settles the claim as `blocked` with code `abandoned`, is logged, and ends claim handling for that claim. It is refused while the bound verifier has not yet run, so a declaration cannot be walked away from without facing its check at least once, and no claim can be opened and closed to dodge verification entirely. The refusal reads the count of recorded results for the claim, so the guard is a fold over the log rather than separate bookkeeping. Because a turn declares any number of claims, a replacement declaration after an abandonment is possible; the abandoned claim stays in the ledger as recorded evidence, and the standing demand tells the model to repair the work rather than declare replacement claims round after round.
 
 ### Ordering is not enforced
 
@@ -59,7 +61,7 @@ A verifier run produces exactly one outcome, recorded as a `claim/result` event:
 
 ### Settlement and budget
 
-Settlement happens at `agent/turn-stopping`, the loop's serial pre-boundary point; `agent.steer()` is the only objection it supports, and a steer queues to `inbox.nextStep`, so the same turn runs another step and the verifier runs again against the repaired work. The policy is:
+Settlement happens at `agent/turn-stopping`, the loop's serial pre-boundary point; `agent.steer()` is the only objection it supports, and a steer queues to `inbox.nextStep`, so the same turn runs another step and the verifier runs again against the repaired work. The listener settles every claim the model left open, including one it already ran itself while the repair budget allows. The policy is:
 
 | Verifier outcome | Settlement behavior |
 |---|---|
@@ -68,20 +70,20 @@ Settlement happens at `agent/turn-stopping`, the loop's serial pre-boundary poin
 | `inconclusive` | Retries the verifier without steering; blocks as `verifier-unavailable` once the retries are spent |
 | `tampered` | Blocks immediately; never retried |
 
-`repairBudget` counts **steers** (default `3`), so it bounds the number of model round-trips one claim can cost: `repairBudget: 3` runs the verifier at most four times. `inconclusiveRetries` counts verifier re-runs (default `2`), so a broken verifier is retired on its own budget instead of consuming the repair budget. Both counts are folds over the recorded `claim/result` events, not plugin-held counters, so the package keeps no state that could drift from the log.
+`repairBudget` counts **steers** (default `1`), so it bounds the number of model round-trips one claim can cost: the default grants the model exactly one steered repair round, after which a still-failing claim is blocked. `inconclusiveRetries` counts verifier re-runs (default `2`), so a broken verifier is retired on its own budget instead of consuming the repair budget. Both counts are folds over the recorded `claim/result` events, not plugin-held counters, so the package keeps no state that could drift from the log.
 
 A claim left open at the turn boundary is never silently closed by the fold. Only the settlement listener or an explicit `abandon` closes a claim, so a deployment that mounts `claim` without `claim-settlement` records the last claim as `pending`.
 
 ### Durable records
 
-The session log is the only store. Three log-only events — `claim/declared`, `claim/result`, `claim/settled` — carry no `surfaceOp`, so nothing claim-shaped reaches a request, and a resumed session folds the same `Claim[]` from the log alone. The strict fold validates non-empty `purpose` and `satisfy`, one frozen verifier, the closed outcome and block-code sets, and monotonic revisions; it rejects a second declaration in one turn and a result against a settled claim, and a malformed event is rejected before commit so the log stream stays usable.
+The session log is the only store. Three log-only events — `claim/declared`, `claim/result`, `claim/settled` — carry no `surfaceOp`, so nothing claim-shaped reaches a request, and a resumed session folds the same `Claim[]` from the log alone. The strict fold validates non-empty `title` and `description` (reading the released `purpose` and `satisfy` payload fields when present), one frozen verifier, the closed outcome and block-code sets, and monotonic revisions; it rejects an event that is not a claim's exact next revision and a result against a settled claim, and a malformed event is rejected before commit so the log stream stays usable.
 
 ### Package topology
 
 | Package | Role |
 |---|---|
 | [`packages/claim/claim`](../../../../packages/claim/claim/README.md) | `ClaimService` on `ctx.claims`: declare, record, settle, abandon; the `claim/*` events, their fold, the `claim` projection unit, and `bindVerifier` |
-| [`packages/claim/tool-claim`](../../../../packages/claim/tool-claim/README.md) | `declare_claim` and `abandon_claim` tools plus the standing declaration demand as a prompt section |
+| [`packages/claim/tool-claim`](../../../../packages/claim/tool-claim/README.md) | `declare_claim`, `run_claim`, and `abandon_claim` tools plus the standing declaration demand as a prompt section |
 | [`packages/claim/claim-settlement`](../../../../packages/claim/claim-settlement/README.md) | The `agent/turn-stopping` listener: run the verifier, steer failures, own the budget policy |
 
 Mount all three for the complete loop. Mounting `claim` alone stores and serves claims without running or prompting anything.
@@ -104,15 +106,16 @@ Mount all three for the complete loop. Mounting `claim` alone stores and serves 
 
 - **The verifier is self-written.** The agent authors its own check, so a claim verified by a vacuous script is hacking with paperwork. The freeze digest stops post-hoc swaps, not author-time games; only a user-supplied verifier would be stronger evidence, and no consumer has asked for that seam yet.
 - **Ordering is advisory.** A declaration can be retrofitted mid-turn; nothing observes when it was made relative to the work.
-- **Semantic claims cannot be verified.** A `satisfy` like "the design is coherent" has no script; the agent still declares one, but the check will be a proxy at best.
+- **Semantic claims cannot be verified.** A `description` like "the design is coherent" has no script; the agent still declares one, but the check will be a proxy at best.
 - **A claim does not make remote effects stashable.** An agent that pushed a branch or sent a message before a failed verifier cannot undo it; repair steers it to fix forward, and `abandon` records that it gave up.
-- **Nothing mounts the group.** No bundle or preset ships `claim`, `tool-claim`, or `claim-settlement` yet; adoption needs a real-composition test through the Loader, which is also outstanding for `claim-settlement`.
+- **The base bundle mounts the group.** No real-composition Loader test covers the assembled graph yet; the current tests exercise each package against a real `ClaimService` with a scripted shell seam.
 
 ## Testing
 
 - [`packages/claim/claim/tests/claim.spec.ts`](../../../../packages/claim/claim/tests/claim.spec.ts) covers the service: open-turn refusal, one claim per turn, per-turn keys, revision and failure counting, `abandon` refusal before the verifier runs, settlement shapes, live-agent authority, and log-folded replay.
 - [`packages/claim/claim/tests/invariant.spec.ts`](../../../../packages/claim/claim/tests/invariant.spec.ts) exercises the invariant companion against committed event streams: unsettled turn ends, out-of-turn records, double declarations, and malformed outcomes rejected before commit.
-- [`packages/claim/claim-settlement/tests/settlement.spec.ts`](../../../../packages/claim/claim-settlement/tests/settlement.spec.ts) drives the `turn-stopping` listener against a real `ClaimService` with a scripted shell seam: pass, steered failure, budget exhaustion, inconclusive retries, infrastructure rejection, and the tampered digest.
+- [`packages/claim/claim-settlement/tests/settlement.spec.ts`](../../../../packages/claim/claim-settlement/tests/settlement.spec.ts) drives the `turn-stopping` listener against a real `ClaimService` with a scripted shell seam: pass, steered failure, the default single repair re-insert with budget exhaustion, inconclusive retries, infrastructure rejection, and the tampered digest.
+- [`packages/claim/tool-claim/tests/run-claim.spec.ts`](../../../../packages/claim/tool-claim/tests/run-claim.spec.ts) drives `run_claim` against a real `ClaimService` and scripted shell: pass settles, a fail is recorded with bounded evidence and leaves the claim open and abandonable, an inconclusive run stays pending, a tampered binding settles, and an id outside the open turn is rejected.
 - [`packages/claim/tool-claim/tests/reminder.spec.ts`](../../../../packages/claim/tool-claim/tests/reminder.spec.ts) covers the turn-boundary reminder: appended once at each turn's first step, skipped on repair steps and agents that left the registry, and a rejection passed through untouched.
 
-Deferred: `tool-claim` has no tests; `claim-settlement` lacks a real-composition Loader test; no bundle mounts the group.
+Deferred: `claim-settlement` and `tool-claim` lack a real-composition Loader test.

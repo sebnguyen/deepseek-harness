@@ -29,7 +29,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
-| `@deepseek-ai/dsh-tool-claim` | `abandon_claim`, `declare_claim` | `ctx.tools`, `ctx.agents`, `ctx.claims`, `ctx.systemPrompt`, `a calling Agent in the live registry` | `tool/call`, `claim/declared or claim/settled for mutations`, `tool/result` | - | A claim is immutable once declared, and abandon_claim is refused until the bound check has run at least once. A declaration that binds no script settles as unverified unless the service sets requireVerifier. |
+| `@deepseek-ai/dsh-tool-claim` | `abandon_claim`, `declare_claim`, `run_claim` | `ctx.tools`, `ctx.agents`, `ctx.claims`, `ctx.systemPrompt`, `ctx.shell`, `a calling Agent in the live registry` | `tool/call`, `claim/declared, claim/result, or claim/settled for mutations`, `tool/result` | - | A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
@@ -1147,18 +1147,23 @@ create, edit, pause, and resume require direct-human root authority; complete an
 
 ### `abandon_claim`
 
-Give up on this turn's open claim because it named the wrong satisfy-condition. Refused until its bound check has run at least once. Record why it was wrong.
+Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.
 
 ```json
 {
   "type": "object",
   "properties": {
+    "id": {
+      "type": "string",
+      "description": "The claim id, as returned by declare_claim."
+    },
     "reason": {
       "type": "string",
       "description": "Why the declared condition was the wrong one."
     }
   },
   "required": [
+    "id",
     "reason"
   ]
 }
@@ -1168,28 +1173,28 @@ Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/
 
 ### `declare_claim`
 
-Declare what this turn is for and what must be true when it is done, and bind the one shell check that proves it. The check must exit 0 only when the condition genuinely holds. A claim is immutable once declared.
+Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "purpose": {
+    "title": {
       "type": "string",
-      "description": "Why this turn exists and what it is meant to accomplish."
+      "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
     },
-    "satisfy": {
+    "description": {
       "type": "string",
-      "description": "What must be true when the turn is complete."
+      "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
     },
     "script": {
       "type": "string",
-      "description": "Shell script that exits non-zero unless satisfy holds. Exactly one check is bound to the claim."
+      "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
     }
   },
   "required": [
-    "purpose",
-    "satisfy",
+    "title",
+    "description",
     "script"
   ]
 }
@@ -1197,7 +1202,28 @@ Declare what this turn is for and what must be true when it is done, and bind th
 
 Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts)
 
-A claim is immutable once declared, and abandon_claim is refused until the bound check has run at least once. A declaration that binds no script settles as unverified unless the service sets requireVerifier.
+### `run_claim`
+
+Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "The claim id, as returned by declare_claim."
+    }
+  },
+  "required": [
+    "id"
+  ]
+}
+```
+
+Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts)
+
+A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary.
 
 <a id="deepseek-aidsh-schedule"></a>
 
@@ -1302,7 +1328,7 @@ Registered only inside live root Agent scopes created after the opt-in Schedule 
 
 ### `lsp`
 
-Query a language server for precise code navigation. operation is one of goToDefinition, findReferences, goToImplementation, hover. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration.
+Query a language server for precise code navigation. operation is one of goToDefinition, findReferences, goToImplementation, hover, callers, callees. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration; callers/callees return one hop of precise call sites.
 
 ```json
 {
@@ -1310,12 +1336,14 @@ Query a language server for precise code navigation. operation is one of goToDef
   "properties": {
     "operation": {
       "type": "string",
-      "description": "goToDefinition, findReferences, goToImplementation, or hover.",
+      "description": "goToDefinition, findReferences, goToImplementation, hover, callers, or callees.",
       "enum": [
         "goToDefinition",
         "findReferences",
         "goToImplementation",
-        "hover"
+        "hover",
+        "callers",
+        "callees"
       ]
     },
     "file_path": {

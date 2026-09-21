@@ -110,15 +110,14 @@ describe('claim settlement', () => {
     expect(steers[0]).toContain('tests pass')
   })
 
-  it('blocks once the repair budget is exhausted and stops steering', async () => {
-    const { ctx, agent, steers, settle, startTurn } = await harness(
-      [{ result: { exitCode: 1 } }],
-      { repairBudget: 1 },
-    )
+  it('blocks after the default single repair re-insert and stops steering', async () => {
+    const { ctx, agent, steers, settle, startTurn } = await harness([{ result: { exitCode: 1 } }])
     startTurn(1)
     ctx.claims.declare(agent, { title: 'prove', description: 'x', script: 'exit 1' })
     await settle()
     expect(steers).toHaveLength(1)
+    expect(steers[0]).toContain('run_claim')
+    expect(ctx.claims.openClaims(agent)[0]?.settlement).toEqual({ kind: 'pending' })
     await settle()
     expect(steers).toHaveLength(1)
     expect(ctx.claims.ledger(agent)[0]?.settlement).toMatchObject({
