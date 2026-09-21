@@ -136,14 +136,21 @@ describe('claim chip', () => {
     expect(screen.getByText('exit 0')).toBeTruthy()
   })
 
-  it('action row lists every claim of the turn, pending and settled', () => {
+  it('action row renders one accordion list, collapsed until a row is clicked', () => {
     const claims = [
       makeClaim({ id: 'c0' as Claim['id'], title: 'alpha', settlement: { kind: 'passed' } }),
       makeClaim({ id: 'c1' as Claim['id'], title: 'beta' }),
     ]
     render(<ClaimAction {...actionProps(claims, 3)} />)
+    // Both claims are listed collapsed; no details prose is visible yet.
     expect(screen.getByText('alpha')).toBeTruthy()
     expect(screen.getByText('beta')).toBeTruthy()
+    expect(screen.queryByText('The verifier exits 0')).toBeNull()
+    // Expanding one row reveals the shared details card.
+    fireEvent.click(screen.getByText('alpha'))
+    expect(screen.getByText('The verifier exits 0')).toBeTruthy()
+    // The settled claim keeps its status label on the row.
+    expect(screen.getByText('声明已通过')).toBeTruthy()
   })
 
   it('action row lists only the owning turn, ignoring other turns', () => {

@@ -27,9 +27,12 @@ export const CLAIM_DEMAND =
   + 'words, and put the full detail of what must be true when it is settled in the description. Bind exactly one '
   + 'shell script that exits 0 only when that description holds, and make the check verify the change: run the '
   + 'focused unit tests and lint covering it, not an always-passing assertion. A claim is immutable once declared. '
-  + 'Re-run or repair when a check fails; if a condition is wrong, abandon_claim it by id after its check has run '
-  + 'at least once and say why. When the turn is about to end, every bound check runs again and any failure is '
-  + 'returned to you.'
+  + 'The turn must be complete before the verifier runs: the settlement verifier re-runs every open claim\'s bound '
+  + 'check after your final message, so finish all edits, test runs, and repairs inside the turn — run each bound '
+  + 'check yourself before ending the turn — and never end a turn with work still in flight. Re-run or repair when a '
+  + 'check fails; if a condition is wrong, abandon_claim it by id after its check has run at least once and say '
+  + 'why. Do not cycle: after one repair attempt, abandon_claim the wrong claim and stop the conversation '
+  + 'entirely, reporting the concrete blocker, instead of declaring replacement claims round after round.'
 
 /** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }

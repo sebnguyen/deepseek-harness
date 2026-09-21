@@ -1,9 +1,10 @@
 /**
- * Claim status surfaces: the action-row chips and the composer Claims menu.
- * Each chip is a toggle — clicking opens a small card with three accordions
+ * Claim status surfaces: the action-row accordion list and the composer Claims
+ * menu. Each chip is a toggle — clicking opens a small card with three accordions
  * (title, description, raw verifier script) instead of a text blob. The
- * action row lists every claim the owning turn declared, pending or settled,
- * so a passed or failed claim stays viewable after its turn finishes. The
+ * action row renders every claim the owning turn declared, pending or settled,
+ * as one accordion list, so a passed or failed claim stays viewable after its
+ * turn finishes. The
  * composer's accessory row carries a compact Claims trigger — an aggregate
  * status dot (red failed, blue pending, green passed) that opens a dropdown
  * menu of the latest turn's claims. Durable state arrives through the
@@ -138,19 +139,19 @@ export type ClaimActionProps =
   & import('@deepseek-ai/dsh-client-ui-slots').PropsLocale<'claim'>
 
 /**
- * Action-row adapter: lists every claim the owning turn declared, in
- * declaration order, pending or settled. A turn that declared no claim
- * renders nothing.
+ * Action-row adapter: one accordion list of every claim the owning turn
+ * declared, in declaration order, pending or settled — each row expanding
+ * the shared details card. A turn that declared no claim renders nothing.
  * @param props - the action-row owner share (message id and owning Turn) and the locale seat.
- * @returns the chips for this turn's claims, or nothing.
+ * @returns the accordion list for this turn's claims, or nothing.
  */
 export function ClaimAction({ turn, useProjection, t }: ClaimActionProps) {
   const claims = useProjection('claim', all => all?.filter(entry => entry.turn === turn.turn))
   if (claims === undefined || claims.length === 0) return null
   return (
-    <>
-      {claims.map(claim => <Chip key={claim.id} claim={claim} t={t} className={css.chip} />)}
-    </>
+    <div className={css.actionList}>
+      {claims.map(claim => <ClaimRow key={claim.id} claim={claim} t={t} />)}
+    </div>
   )
 }
 
@@ -257,7 +258,7 @@ export function ClaimDock({ useProjection, t }: ClaimDockProps) {
       </button>
       {open && createPortal(
         <div ref={menuRef} className={css.menu} style={menuPos ?? MEASURE_STYLE} role="menu" aria-label={t('dock.label')}>
-          {chips.map(claim => <ClaimMenuRow key={claim.id} claim={claim} t={t} />)}
+          {chips.map(claim => <ClaimRow key={claim.id} claim={claim} t={t} />)}
         </div>,
         document.body,
       )}
@@ -265,8 +266,8 @@ export function ClaimDock({ useProjection, t }: ClaimDockProps) {
   )
 }
 
-/** One menu row: dot + title + status, expanding the claim details on click. */
-function ClaimMenuRow({ claim, t }: {
+/** One accordion row: dot + title + status, expanding the claim details on click. */
+function ClaimRow({ claim, t }: {
   claim: Claim
   t: TranslateNS<'claim'>
 }) {

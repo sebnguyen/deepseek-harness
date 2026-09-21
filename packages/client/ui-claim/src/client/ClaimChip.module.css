@@ -1,6 +1,6 @@
 /* Claim status chip inside the assistant icon action row (next to the usage
-   and time pills) and the composer's Claims dropdown trigger. Both open one
-   details card with three accordions. */
+   and time pills) and the composer's Claims dropdown trigger. The action row
+   shows one accordion list; the dock opens one details card with three accordions. */
 
 .wrap {
   position: relative;
@@ -172,13 +172,13 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Portaled dropdown menu above the trigger, matching the composer menu family. */
+/* Portaled dropdown menu above the trigger, matching the composer menu family.
+   Fixed width so expanding a row's details never resizes the card. */
 .menu {
   position: fixed;
   z-index: 40;
   box-sizing: border-box;
-  min-width: 280px;
-  max-width: 440px;
+  width: 420px;
   max-height: 340px;
   overflow: auto;
   padding: 4px;
@@ -240,11 +240,21 @@
 }
 
 /* The details card opens inside the menu, below its row. */
-.menu .panel {
+.menu .panel,
+.actionList .panel {
   position: static;
   width: auto;
   padding: 0 8px 6px 26px;
   border: 0;
   box-shadow: none;
   background: none;
+}
+
+/* End-of-turn action row: the same accordion rows as the dock menu, inline. */
+.actionList {
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 240px;
+  max-width: 420px;
+  padding: 2px 0;
 }
