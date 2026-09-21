@@ -131,6 +131,12 @@ export interface PiAiProviderProfile {
    */
   defaultContextWindow?: number
   /**
+   * Upper bound on context capacity for every model on this route after catalog
+   * merge. Compaction and token metering use the resolved value, which may be
+   * below the installed catalog when a gateway bills or serves a smaller window.
+   */
+  maxContextWindow?: number
+  /**
    * Output capability for a model this route lists that neither the entry nor
    * the installed catalog sizes (default 32,768). This sizes the model; it
    * never becomes a per-request cap on its own.
@@ -328,6 +334,7 @@ const profile = z.object({
   modelOverrides: z.dict(modelOverride),
   compat: compatProfile,
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
+  maxContextWindow: z.number().step(1).min(1),
   defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
   defaultInput: z.array(z.union(MODALITIES)).default([...DEFAULT_INPUT]),
   headers: z.dict(z.string()),
@@ -468,6 +475,7 @@ export function resolveProfiles(
         ...source.compat === undefined ? {} : { compat: source.compat },
         defaultInput,
         defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
+        ...source.maxContextWindow === undefined ? {} : { maxContextWindow: source.maxContextWindow },
         defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
       }, validation)
       catalogError = catalog.modelErrors.values().next().value

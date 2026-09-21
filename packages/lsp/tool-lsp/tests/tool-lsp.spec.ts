@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
-import Lsp, { LspProviderId, type LspProvider, type LspProviderQuery, type LspQueryResult } from '@deepseek-ai/dsh-lsp'
+import Lsp, { LspProviderId, type LspMapResult, type LspProvider, type LspProviderQuery, type LspQueryResult } from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
 import { DEFAULT_LSP_TOOL_TIMEOUT_MS, LSP_PROMPT_TEXT } from '@deepseek-ai/dsh-tool-lsp'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -22,6 +22,9 @@ function stubProvider(
     query(request) {
       seen.push(request)
       return Promise.resolve(respond(request))
+    },
+    mapQuery(): Promise<LspMapResult> {
+      return Promise.resolve({ kind: 'symbolTree', symbols: [] })
     },
   }
 }
@@ -82,10 +85,10 @@ describe('tool-lsp registration', () => {
     expect(ctx.tools.get('lsp')?.timeoutMs).toBe(5000)
   })
 
-  it('exposes exactly the four operations in the schema enum', async () => {
+  it('exposes exactly the six operations in the schema enum', async () => {
     const { ctx } = await mount(stubProvider(() => okLocations))
     const schema = ctx.tools.get('lsp')?.parameters as { properties: { operation: { enum: string[] } } }
-    expect(schema.properties.operation.enum).toEqual(['goToDefinition', 'findReferences', 'goToImplementation', 'hover'])
+    expect(schema.properties.operation.enum).toEqual(['goToDefinition', 'findReferences', 'goToImplementation', 'hover', 'callers', 'callees'])
   })
 
   it('has no default export (namespace plugin shape)', () => {
@@ -208,6 +211,32 @@ describe('tool-lsp execution', () => {
     expect(result.error?.info?.code).toBe('INVALID_ARGS')
   })
 
+  it('callers operation routes through mapQuery and renders full-word call sites', async () => {
+    const callers: LspMapResult = {
+      kind: 'callEdges',
+      root: { name: 'query', kind: 'method', uri: pathToFileURL(join(workspaceRoot, 'a.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } } },
+      edges: [{
+        from: { name: 'execute', kind: 'function', uri: pathToFileURL(join(workspaceRoot, 'b.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, selectionRange: { start: { line: 9, character: 0 }, end: { line: 9, character: 5 } } },
+        to: { name: 'query', kind: 'method', uri: pathToFileURL(join(workspaceRoot, 'a.ts')).href, range: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }, selectionRange: { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } } },
+        sites: [{ start: { line: 11, character: 0 }, end: { line: 11, character: 5 } }],
+      }],
+      resolvedWorkspaceUri: pathToFileURL(workspaceRoot).href,
+    }
+    const provider: LspProvider = {
+      id: LspProviderId('callers'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query(): Promise<LspQueryResult> { return Promise.resolve(okLocations) },
+      mapQuery(): Promise<LspMapResult> { return Promise.resolve(callers) },
+    }
+    const { ctx } = await mount(provider)
+    const result = await call(ctx, { operation: 'callers', file_path: 'a.ts', line: 1, character: 1 }, workspaceRoot)
+    expect(result.isError).toBe(false)
+    expect(result.content[0]).toEqual({
+      type: 'text',
+      text: 'callers of query (method) — a.ts:1\n  execute (function) — b.ts:10 (call site b.ts:12)',
+    })
+  })
+
   it('forwards exec.signal to the seam query', async () => {
     const seen: (AbortSignal | undefined)[] = []
     const provider: LspProvider = {
@@ -216,6 +245,9 @@ describe('tool-lsp execution', () => {
       query(_request, signal) {
         seen.push(signal)
         return Promise.resolve(okLocations)
+      },
+      mapQuery(): Promise<LspMapResult> {
+        return Promise.resolve({ kind: 'symbolTree', symbols: [] })
       },
     }
     const { ctx } = await mount(provider)

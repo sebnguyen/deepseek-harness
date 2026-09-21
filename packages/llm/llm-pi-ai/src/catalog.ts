@@ -634,6 +634,8 @@ export interface RouteCatalogRequest {
   compat?: PiAiCompatProfile
   /** Context capacity for a model neither the entry nor the catalog sizes. */
   defaultContextWindow: number
+  /** Upper bound on context capacity for every model on this route after merge. */
+  maxContextWindow?: number
   /** Output capability for a model neither the entry nor the catalog sizes. */
   defaultMaxTokens: number
   /** Modalities for a model neither the entry nor the catalog declares. */
@@ -898,7 +900,10 @@ export function resolveRouteModels(
     // discloses nothing but ids still yields a serviceable route. The fallback
     // is a guess by construction, which is why it is a configurable route field
     // rather than a constant buried here.
-    const contextWindow = entry.contextWindow ?? base?.contextWindow ?? request.defaultContextWindow
+    let contextWindow = entry.contextWindow ?? base?.contextWindow ?? request.defaultContextWindow
+    if (request.maxContextWindow !== undefined) {
+      contextWindow = Math.min(contextWindow, request.maxContextWindow)
+    }
     if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
       invalid(provider, `model "${entry.id}" contextWindow must be a positive integer`)
     }

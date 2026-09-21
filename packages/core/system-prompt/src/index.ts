@@ -126,13 +126,15 @@ const SECTION_ORDERS = {
   PTC_ONLY: 800,
   FILE_REFERENCE: 900,
   TOOL_BATCHING: 950,
-  TOOL_BASH: 1000,
-  TOOL_PWSH: 1010,
-  TOOL_READ: 1100,
-  TOOL_WRITE: 1200,
-  TOOL_EDIT: 1300,
-  TOOL_GLOB: 1400,
-  TOOL_GREP: 1500,
+  // Filesystem guidance is grouped ahead of the shell guidance so the model
+  // reads the structured-discovery prose before the bash escape hatch.
+  TOOL_READ: 1000,
+  TOOL_WRITE: 1010,
+  TOOL_EDIT: 1020,
+  TOOL_GLOB: 1030,
+  TOOL_GREP: 1040,
+  TOOL_BASH: 1050,
+  TOOL_PWSH: 1060,
   TOOL_JOBS: 1600,
   TOOL_PTY: 1700,
   TOOL_WEB_SEARCH: 2000,
@@ -142,6 +144,9 @@ const SECTION_ORDERS = {
   // depends on which providers are actually registered, so it is dynamic
   // where TOOL_LSP's guidance text is not.
   TOOL_LSP_COVERAGE: 2210,
+  // Appended after the fixed lsp guidance: `symbols` composes the coverage
+  // tools into a folder map, so its guidance follows the lsp sections.
+  TOOL_LSP_MAP: 2220,
   TOOL_SESSION_QUERY: 2300,
   TOOL_GOAL: 2400,
   TOOL_CLAIM: 2450,
@@ -190,11 +195,11 @@ export const PERSONA_SUFFIX_SECTION = 'deployment:persona-suffix'
 export const TOOL_BATCHING_SECTION = 'harness:tool-batching'
 
 /**
- * Batch-independent-tool-calls guidance. Model-visible verbatim; snapshot
- * sidecars under snapshots/ pin this text.
+ * Batch-independent-tool-calls and internal-tool-preference guidance.
+ * Model-visible verbatim; snapshot sidecars under snapshots/ pin this text.
  */
 export const TOOL_BATCHING_TEXT =
-  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
+  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Prefer the structured filesystem tools — read, glob, grep, edit, write — over bash for finding, reading, and editing files: they return structured results, and you can fire several in parallel in one turn, faster than a shell pipeline. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
 
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/

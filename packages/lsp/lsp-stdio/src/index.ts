@@ -15,6 +15,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { LspError, LspProviderId } from '@deepseek-ai/dsh-lsp'
 import type {
+  LspMapProviderQuery,
+  LspMapResult,
   LspProvider,
   LspProviderQuery,
   LspQueryResult,
@@ -30,10 +32,16 @@ import type { InstanceSpec } from './instance.ts'
 export { canonicalizeWorkspace, readHostSource } from './host.ts'
 export { encodeMessage, MessageDecoder } from './framing.ts'
 export {
+  mapRequestMethod,
   negotiatePositionEncoding,
+  normalizeCallHierarchyItems,
+  normalizeDocumentSymbols,
   normalizeHover,
+  normalizeIncomingCalls,
   normalizeLocations,
+  normalizeOutgoingCalls,
   requestMethod,
+  supportsMapOperation,
   supportsOperation,
   supportsTransientOpen,
 } from './translate.ts'
@@ -304,6 +312,55 @@ class LocalLspProvider implements LspProvider {
         if (queryOutcome.status === 'fulfilled') return queryOutcome.value
         // A selected child can have died while idle or fail during the next write. Queries are
         // read-only, so replace that transport once and retry transparently after clean disposal.
+        if (!canRetryTransport || !instance.isTransportFailure(queryOutcome.reason)) {
+          throw queryOutcome.reason
+        }
+        canRetryTransport = false
+        this.assertActive(querySignal)
+        instance = this.instanceFor(workspaceKey, workspace)
+      }
+    })
+  }
+
+  async mapQuery(request: LspMapProviderQuery, signal?: AbortSignal): Promise<LspMapResult> {
+    this.assertActive(signal)
+    const querySignal = this.querySignal(signal)
+    const workspaceResult = canonicalizeWorkspace(this.fs, request.workspaceRoot, querySignal)
+    const workspaceLookup = workspaceResult.then(() => undefined, () => undefined)
+    this.workspaceLookups.add(workspaceLookup)
+    let workspace: HostWorkspace
+    try {
+      workspace = await workspaceResult
+    } finally {
+      this.workspaceLookups.delete(workspaceLookup)
+    }
+    this.assertActive(querySignal)
+    const workspaceKey = workspace.target.targetKey
+    return this.enqueue(workspaceKey, querySignal, async () => {
+      this.assertActive(querySignal)
+      const source = await readHostSource(this.fs, request.filePath, workspace, this.config.maxDocumentBytes, querySignal)
+      this.assertActive(querySignal)
+      let instance = this.instanceFor(workspaceKey, workspace)
+      let canRetryTransport = true
+      for (;;) {
+        const [queryOutcome] = await Promise.allSettled([
+          instance.mapQuery(request, source, querySignal),
+        ])
+        let teardownOutcome: PromiseSettledResult<void> | undefined
+        if (instance.dead) {
+          ;[teardownOutcome] = await Promise.allSettled([instance.dispose()])
+          this.evictIfCurrent(workspaceKey, instance)
+        }
+        if (teardownOutcome?.status === 'rejected') {
+          if (queryOutcome.status === 'rejected') {
+            throw new AggregateError(
+              [queryOutcome.reason, teardownOutcome.reason],
+              'LSP operation and teardown failed',
+            )
+          }
+          throw teardownOutcome.reason
+        }
+        if (queryOutcome.status === 'fulfilled') return queryOutcome.value
         if (!canRetryTransport || !instance.isTransportFailure(queryOutcome.reason)) {
           throw queryOutcome.reason
         }

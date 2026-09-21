@@ -5,6 +5,8 @@ import Lsp, {
   LspError,
   LspProviderId,
   type LspProvider,
+  type LspMapProviderQuery,
+  type LspMapResult,
   type LspProviderQuery,
   type LspQueryResult,
 } from '@deepseek-ai/dsh-lsp'
@@ -26,6 +28,9 @@ function makeProvider(
       seen.push(request)
       seenSignals.push(signal)
       return Promise.resolve(result)
+    },
+    mapQuery(): Promise<LspMapResult> {
+      return Promise.resolve({ kind: 'symbolTree', symbols: [] })
     },
   }
 }
@@ -183,5 +188,35 @@ describe('Lsp registration', () => {
 
   it('brands a provider id without altering the string', () => {
     expect(LspProviderId('ts')).toBe('ts')
+  })
+})
+
+describe('Lsp mapQuery', () => {
+  it('routes a map query to the provider with its language id and forwards the signal', async () => {
+    const { lsp } = await mountLsp()
+    const mapSeen: LspMapProviderQuery[] = []
+    const mapSignals: (AbortSignal | undefined)[] = []
+    const provider: LspProvider = {
+      id: LspProviderId('ts'),
+      extensionToLanguage: { '.ts': 'typescript' },
+      query: () => Promise.resolve({ kind: 'locations', locations: [], resolvedWorkspaceUri: 'file:///ws' }),
+      mapQuery(request, signal) {
+        mapSeen.push(request)
+        mapSignals.push(signal)
+        return Promise.resolve({ kind: 'symbolTree', symbols: [] })
+      },
+    }
+    lsp.registerProvider(provider)
+    const controller = new AbortController()
+    await lsp.mapQuery({ operation: 'documentSymbols', filePath: 'a.ts', workspaceRoot: '/ws' }, controller.signal)
+    expect(mapSeen[0]).toMatchObject({ operation: 'documentSymbols', filePath: 'a.ts', languageId: 'typescript' })
+    expect(mapSignals[0]).toBe(controller.signal)
+  })
+
+  it('fails LSP_UNAVAILABLE when no provider handles the map query extension', async () => {
+    const { lsp } = await mountLsp()
+    lsp.registerProvider(makeProvider('ts', { '.ts': 'typescript' }))
+    await expect(lsp.mapQuery({ operation: 'documentSymbols', filePath: 'a.py', workspaceRoot: '/ws' }))
+      .rejects.toThrow(expect.objectContaining({ code: 'LSP_UNAVAILABLE' }))
   })
 })

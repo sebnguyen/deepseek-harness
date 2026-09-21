@@ -64,6 +64,42 @@ export interface WireTextDocumentSyncOptions {
 /** A `ServerCapabilities.provider` slot: a boolean or an options object (both mean "supported"). */
 export type WireProviderCapability = boolean | Record<string, unknown> | undefined
 
+/** A `DocumentSymbol` (hierarchical form; nested `children` make the outline a tree). */
+export interface WireDocumentSymbol {
+  readonly name: string
+  readonly detail?: string
+  readonly kind: number
+  readonly tags?: readonly number[]
+  readonly deprecated?: boolean
+  readonly range: WireRange
+  readonly selectionRange: WireRange
+  readonly children?: readonly WireDocumentSymbol[]
+}
+
+/** A `CallHierarchyItem`. */
+export interface WireCallHierarchyItem {
+  readonly name: string
+  readonly kind: number
+  readonly tags?: readonly number[]
+  readonly detail?: string
+  readonly uri: string
+  readonly range: WireRange
+  readonly selectionRange: WireRange
+  readonly data?: unknown
+}
+
+/** A `CallHierarchyIncomingCall`: the `from` item calls the prepared item at `fromRanges`. */
+export interface WireIncomingCall {
+  readonly from: WireCallHierarchyItem
+  readonly fromRanges: readonly WireRange[]
+}
+
+/** A `CallHierarchyOutgoingCall`: the prepared item calls the `to` item at `fromRanges`. */
+export interface WireOutgoingCall {
+  readonly to: WireCallHierarchyItem
+  readonly fromRanges: readonly WireRange[]
+}
+
 /** The `ServerCapabilities` fields this host inspects. */
 export interface WireServerCapabilities {
   readonly positionEncoding?: string
@@ -72,6 +108,9 @@ export interface WireServerCapabilities {
   readonly referencesProvider?: WireProviderCapability
   readonly implementationProvider?: WireProviderCapability
   readonly hoverProvider?: WireProviderCapability
+  readonly documentSymbolProvider?: WireProviderCapability
+  readonly callHierarchyProvider?: WireProviderCapability
+  readonly workspaceSymbolProvider?: WireProviderCapability
 }
 
 /** The `initialize` result envelope. */

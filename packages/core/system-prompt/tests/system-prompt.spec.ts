@@ -17,9 +17,9 @@ const BUILT_IN = ['harness:identity', 'deployment:persona-prefix', 'harness:tool
 const IDENTITY = 'You are an AI agent powered by DeepSeek Harness.'
 const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
-  'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_BATCHING', 'TOOL_BASH',
-  'TOOL_PWSH', 'TOOL_READ', 'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB',
-  'TOOL_GREP', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
+  'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_BATCHING', 'TOOL_READ',
+  'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
+  'TOOL_PWSH', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
   'TOOL_LSP', 'TOOL_SESSION_QUERY', 'TOOL_GOAL', 'TOOL_CORDIS', 'TOOL_WORKFLOW',
   'TOOL_RALPH', 'TOOL_SUBAGENT', 'TOOL_REPORT', 'TOOLS_SDK',
   'DELIVERABLE_FILE_REFERENCES', 'STRUCTURED_OUTPUT',
@@ -41,6 +41,19 @@ describe('SystemPrompt', () => {
     expect(new Set(orders).size).toBe(orders.length)
     const sorted = [...orders].sort((a, b) => a - b)
     expect(sorted.slice(1).every((order, index) => order - sorted[index]! >= 10)).toBe(true)
+  })
+
+  it('groups filesystem guidance together and ahead of the shell guidance', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt, {})
+    const fsOrders = (['TOOL_READ', 'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB', 'TOOL_GREP'] as const)
+      .map(name => ctx.systemPrompt.getSectionOrder(name))
+    const shellOrders = (['TOOL_BASH', 'TOOL_PWSH'] as const)
+      .map(name => ctx.systemPrompt.getSectionOrder(name))
+    // Grouped: contiguous ten-apart slots, so the five paragraphs read together.
+    expect(fsOrders).toEqual(fsOrders.map((_, i) => fsOrders[0]! + i * 10))
+    // Before shell: every filesystem paragraph precedes every shell paragraph.
+    expect(Math.max(...fsOrders)).toBeLessThan(Math.min(...shellOrders))
   })
 
   it('keeps reusable instructions identical across local environments', async () => {

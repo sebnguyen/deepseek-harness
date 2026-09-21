@@ -89,7 +89,7 @@ kind: "package-reference"
 
 ### 渲染与退出标记
 
-渲染器共享 bash 工具的结构与来自 `dsh-shell` 的 `parseExitStatus` 标记约定：干净退出（0、无信号）不产生标记；UI 卡片把退出标记消费为退出状态 pill。Windows 强制终止以 exit 1 结算且没有信号，因此 `[killed by signal: …]` 仅适用于 POSIX。`tool:pwsh` 提示词区段（first-party 顺序 1010）教授退出标记约定与「中断后 exit 1」的 Windows 解读。
+渲染器共享 bash 工具的结构与来自 `dsh-shell` 的 `parseExitStatus` 标记约定：干净退出（0、无信号）不产生标记；UI 卡片把退出标记消费为退出状态 pill。Windows 强制终止以 exit 1 结算且没有信号，因此 `[killed by signal: …]` 仅适用于 POSIX。`tool:pwsh` 提示词区段（first-party 顺序 1060）教授退出标记约定与「中断后 exit 1」的 Windows 解读。
 
 </details>
 
@@ -118,7 +118,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-该插件注册作用域内的每次请求都在 first-party 顺序 1010 处包含以下 pwsh 指引。按作用域实施的工具限制可以隐藏 schema，却不会移除这个独立注册的区段。
+该插件注册作用域内的每次请求都在 first-party 顺序 1060 处包含以下 pwsh 指引。按作用域实施的工具限制可以隐藏 schema，却不会移除这个独立注册的区段。
 
 ##### Pwsh 指引
 

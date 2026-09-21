@@ -99,6 +99,13 @@ describe('claim service', () => {
       .toThrowError(/description/)
   })
 
+  it('refuses a title longer than the short-label bound', async () => {
+    const { ctx, agent, startTurn } = await harness()
+    startTurn(1)
+    expect(() => ctx.claims.declare(agent, { title: 'x'.repeat(81), description: 'y', script: 'exit 0' }))
+      .toThrowError(/at most 80 characters/)
+  })
+
   it('refuses an empty verifier script', async () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
@@ -191,5 +198,22 @@ describe('claim service', () => {
     expect(folded[0]?.description).toBe('resume me')
     expect(folded[0]?.turn).toBe(1)
     expect(folded[0]?.results).toHaveLength(1)
+  })
+
+  it('folds a legacy purpose/satisfy claim and still declares new title/description claims', async () => {
+    const { ctx, agent, startTurn } = await harness()
+    startTurn(1)
+    // A pre-rename event written before the title/description vocabulary existed.
+    agent.session.append('claim/declared', {
+      id: ClaimId('legacy'), turn: 1, revision: 1, purpose: 'old purpose', satisfy: 'old satisfy',
+      verifier: { source: 'exit 0', digest: 'a'.repeat(64) },
+    } as never)
+    // A new claim still declares fine after the legacy event folded.
+    const fresh = ctx.claims.declare(agent, { title: 'new', description: 'new desc', script: 'exit 0' })
+    expect(fresh.title).toBe('new')
+    const ledger = ctx.claims.ledger(agent)
+    expect(ledger).toHaveLength(2)
+    expect(ledger[0]?.title).toBe('old purpose')
+    expect(ledger[0]?.description).toBe('old satisfy')
   })
 })

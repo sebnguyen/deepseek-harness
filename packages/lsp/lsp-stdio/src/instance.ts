@@ -9,6 +9,8 @@
 
 import { LspError } from '@deepseek-ai/dsh-lsp'
 import type {
+  LspMapProviderQuery,
+  LspMapResult,
   LspOperation,
   LspProviderQuery,
   LspQueryResult,
@@ -20,10 +22,16 @@ import type { ConnectionSpawner, ConnectionSpec, ConnectionWriter } from './conn
 import type { HostSource } from './host.ts'
 import type { WireInitializeResult, WireServerCapabilities } from './protocol.ts'
 import {
+  mapRequestMethod,
   negotiatePositionEncoding,
+  normalizeCallHierarchyItems,
+  normalizeDocumentSymbols,
   normalizeHover,
+  normalizeIncomingCalls,
   normalizeLocations,
+  normalizeOutgoingCalls,
   requestMethod,
+  supportsMapOperation,
   supportsOperation,
   supportsTransientOpen,
 } from './translate.ts'
@@ -107,6 +115,24 @@ export class LspInstance {
     return run
   }
 
+  /**
+   * Run one structural/relationship map query through the serialized queue.
+   * @param request - the resolved provider map query.
+   * @param source - the pre-validated, already-read host source.
+   * @param signal - optional cancellation for this query's full lifecycle.
+   * @returns the normalized map result.
+   */
+  mapQuery(request: LspMapProviderQuery, source: HostSource, signal?: AbortSignal): Promise<LspMapResult> {
+    const run = abortable(this.queue, signal)
+      .then(() => this.runMapQuery(request, source, signal))
+      .catch(async (error: unknown) => {
+        if (this.isTransportFailure(error)) await this.awaitTeardownAttempt()
+        throw error
+      })
+    this.queue = this.queue.then(() => run).then(() => undefined, () => undefined)
+    return run
+  }
+
   private async initialize(): Promise<void> {
     const initializeResult = await this.connection.request('initialize', {
       // A subprocess provider may run in another PID namespace or machine;
@@ -182,6 +208,80 @@ export class LspInstance {
         }
       }
     }
+  }
+
+  private async runMapQuery(request: LspMapProviderQuery, source: HostSource, signal?: AbortSignal): Promise<LspMapResult> {
+    if (this.disposed) throw new LspError('LSP instance was disposed', 'LSP_DISPOSED')
+    if (signal?.aborted) throw abortError(signal)
+    try {
+      await abortable(this.ready, signal)
+    } catch (error) {
+      if (!this.dead) await this.awaitTeardownAttempt()
+      throw error
+    }
+    const capabilities = this.capabilities
+    if (capabilities === undefined) throw new Error('LSP instance is not initialized')
+    if (!supportsMapOperation(capabilities, request.operation)) {
+      throw new LspError(`server does not support ${request.operation}`, 'LSP_UNSUPPORTED_OPERATION')
+    }
+    if (!supportsTransientOpen(capabilities.textDocumentSync)) {
+      throw new LspError('server does not support the transient textDocument/didOpen this host requires', 'LSP_UNSUPPORTED_OPERATION')
+    }
+    const uri = source.fileUrl
+    let opened = false
+    try {
+      if (signal?.aborted) throw abortError(signal)
+      try {
+        await abortable(this.connection.notify('textDocument/didOpen', {
+          textDocument: { uri, languageId: request.languageId, version: 1, text: source.text },
+        }), signal)
+      } catch (error) {
+        await this.awaitTeardownAttempt()
+        throw error
+      }
+      opened = true
+      return await this.runMapRequest(request, uri, signal)
+    } finally {
+      if (opened && !this.dead) {
+        try {
+          await this.connection.notify('textDocument/didClose', { textDocument: { uri } })
+        } catch (_closeFailure: unknown) {
+          await this.awaitTeardownAttempt()
+        }
+      }
+    }
+  }
+
+  /** Issue the map request(s) and normalize. `callers`/`callees` are two round-trips: prepare then one hop. */
+  private async runMapRequest(request: LspMapProviderQuery, uri: string, signal?: AbortSignal): Promise<LspMapResult> {
+    const firstParams = request.operation === 'documentSymbols'
+      ? { textDocument: { uri } }
+      : { textDocument: { uri }, position: { line: request.position.line, character: request.position.character } }
+    const raw = await this.sendMapRequest(mapRequestMethod(request.operation), firstParams, signal)
+    if (request.operation === 'documentSymbols') {
+      return { kind: 'symbolTree', symbols: normalizeDocumentSymbols(raw) }
+    }
+    const items = normalizeCallHierarchyItems(raw)
+    const root = items[0] ?? null
+    if (root === null) {
+      return { kind: 'callEdges', root: null, edges: [], resolvedWorkspaceUri: this.spec.workspaceUri }
+    }
+    // `incomingCalls`/`outgoingCalls` echo the verbatim prepared item, not the normalized symbol.
+    const rawItem = Array.isArray(raw) ? raw[0] : raw
+    const edgeMethod = request.operation === 'callers' ? 'callHierarchy/incomingCalls' : 'callHierarchy/outgoingCalls'
+    const edgePayload = await this.sendMapRequest(edgeMethod, { item: rawItem }, signal)
+    const edges = request.operation === 'callers'
+      ? normalizeIncomingCalls(root, edgePayload)
+      : normalizeOutgoingCalls(root, edgePayload)
+    return { kind: 'callEdges', root, edges, resolvedWorkspaceUri: this.spec.workspaceUri }
+  }
+
+  /** Send an arbitrary map request with abort racing, mirroring {@link sendRequest}. */
+  private async sendMapRequest(method: string, params: unknown, signal?: AbortSignal): Promise<unknown> {
+    const requestId = this.connection.peekNextId()
+    const send = this.connection.request(method, params)
+    if (signal === undefined) return send
+    return this.raceAbort(send, requestId, signal)
   }
 
   private async sendRequest(
@@ -346,5 +446,7 @@ const CLIENT_CAPABILITIES = {
     definition: { linkSupport: true },
     implementation: { linkSupport: true },
     references: {},
+    documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+    callHierarchy: {},
   },
 } as const

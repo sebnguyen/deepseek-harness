@@ -26,6 +26,9 @@ import type {
   VerifierResult,
 } from './types.ts'
 
+/** Upper bound on a claim title: it is a short label, so the detail belongs in `description`. */
+const MAX_TITLE_LENGTH = 80
+
 /** Wire schema for the one bound verifier. */
 const verifierSchema = zod.object({
   source: zod.string(),
@@ -94,7 +97,7 @@ export const claimProjectionDefinition = {
     viewSchema: zod.array(claimSchema) as unknown as ZodType<readonly Claim[]>,
     view: (state: ClaimProjectionState) => state.claims,
   },
-  stateVersion: 3,
+  stateVersion: 4,
 } satisfies ProjectionDefinition<'claim', ClaimProjectionState>
 
 /** Claim service (`ctx.claims`) backed exclusively by the owning session log. */
@@ -159,6 +162,9 @@ export class ClaimService extends Service {
     const title = typeof request.title === 'string' ? request.title.trim() : ''
     if (title.length === 0) {
       throw new ClaimError('title must be a non-empty string', 'CLAIM_INVALID_TITLE')
+    }
+    if (title.length > MAX_TITLE_LENGTH) {
+      throw new ClaimError(`title must be at most ${MAX_TITLE_LENGTH} characters`, 'CLAIM_INVALID_TITLE')
     }
     const description = typeof request.description === 'string' ? request.description.trim() : ''
     if (description.length === 0) {

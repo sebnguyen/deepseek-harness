@@ -1,6 +1,6 @@
 /* Claim status chip inside the assistant icon action row (next to the usage
-   and time pills) and the dock strip for the session's open claim. Both are
-   toggles opening one details card with three accordions. */
+   and time pills) and the composer's Claims dropdown trigger. Both open one
+   details card with three accordions. */
 
 .wrap {
   position: relative;
@@ -140,92 +140,110 @@
   overflow-wrap: anywhere;
 }
 
-/* Dock strip above the composer, sized to the composer-context card family. */
-.dock {
-  box-sizing: border-box;
-  width: calc(
-    100% -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-side-clearance) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset) -
-    var(--dsh-composer-dock-inset)
-  );
-  margin: 0 auto;
+/* Composer seat: a compact trigger among the composer's accessory controls. */
+.dockRoot {
+  position: relative;
+  display: inline-flex;
 }
 
-.bar {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: calc(var(--dsh-composer-card-max-width) - 4 * var(--dsh-composer-dock-inset));
-  margin: 0 auto;
-  border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
-  background: var(--dsw-specific-tip);
-}
-
-.barHead {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 36px;
-  padding: 4px 12px;
-  cursor: pointer;
-  list-style: none;
-}
-
-.barHead::-webkit-details-marker {
-  display: none;
-}
-
-/* Matches the Todo/Queue panel titles so the composer-stack cards read as one family. */
-.dockLabel {
-  flex: none;
-  font-size: 13px;
-  line-height: 24px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
-}
-
-.dockChip {
+.trigger {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  max-width: 240px;
-  padding: 1px 10px;
-  border-radius: 999px;
-  background: var(--dsw-alias-bg-layer-3);
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  font: inherit;
 }
 
-.dockChipTitle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.dockRoot[data-open] > .trigger .chevron {
+  transform: rotate(180deg);
+}
+
+.triggerLabel {
+  font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
 }
 
-.dockChip[data-state='passed'] .dockChipTitle {
+/* Portaled dropdown menu above the trigger, matching the composer menu family. */
+.menu {
+  position: fixed;
+  z-index: 40;
+  box-sizing: border-box;
+  min-width: 280px;
+  max-width: 440px;
+  max-height: 340px;
+  overflow: auto;
+  padding: 4px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+
+.menuItem {
+  border-radius: 8px;
+}
+
+.menuRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+}
+
+.menuRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.menuItem[data-open] > .menuRow .chevron {
+  transform: rotate(180deg);
+}
+
+.menuRowTitle {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.menuRowStatus {
+  flex: none;
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.menuItem[data-state='passed'] .menuRowStatus {
   color: var(--dsw-alias-state-success-primary);
 }
 
-.dockChip[data-state='blocked'] .dockChipTitle,
-.dockChip[data-state='tampered'] .dockChipTitle {
+.menuItem[data-state='blocked'] .menuRowStatus,
+.menuItem[data-state='tampered'] .menuRowStatus {
   color: var(--dsw-alias-state-error-primary);
 }
 
-.dockChip[data-state='pending'] .dockChipTitle {
-  color: var(--dsw-alias-label-tertiary);
-  opacity: 0.55;
-}
-
-/* The details card opens inside the dock strip, below its summary row. */
-.bar .panel {
+/* The details card opens inside the menu, below its row. */
+.menu .panel {
   position: static;
   width: auto;
-  padding: 0 12px 8px;
+  padding: 0 8px 6px 26px;
   border: 0;
   box-shadow: none;
   background: none;

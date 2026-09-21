@@ -15,6 +15,8 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { LspProviderId } from './brand.ts'
 import type {
+  LspMapRequest,
+  LspMapResult,
   LspProvider,
   LspQueryRequest,
   LspQueryResult,
@@ -24,8 +26,14 @@ import type {
 
 export { LspProviderId } from './brand.ts'
 export type {
+  LspCallEdge,
+  LspDocumentSymbol,
   LspHover,
   LspLocation,
+  LspMapOperation,
+  LspMapProviderQuery,
+  LspMapRequest,
+  LspMapResult,
   LspOperation,
   LspPosition,
   LspProvider,
@@ -35,6 +43,8 @@ export type {
   LspRange,
   LspRoute,
   LspService,
+  LspSymbol,
+  SymbolKindLabel,
 } from './types.ts'
 
 declare module '@deepseek-ai/cordis' {
@@ -148,6 +158,14 @@ export class Lsp extends Service implements LspService {
       throw new LspError(`no LSP provider handles "${request.filePath}"`, 'LSP_UNAVAILABLE')
     }
     return route.provider.query({ ...request, languageId: route.languageId }, signal)
+  }
+
+  async mapQuery(request: LspMapRequest, signal?: AbortSignal): Promise<LspMapResult> {
+    const route = this.routes.get(finalExtension(request.filePath))
+    if (route === undefined) {
+      throw new LspError(`no LSP provider handles "${request.filePath}"`, 'LSP_UNAVAILABLE')
+    }
+    return route.provider.mapQuery({ ...request, languageId: route.languageId }, signal)
   }
 
   listRoutes(): readonly LspRoute[] {

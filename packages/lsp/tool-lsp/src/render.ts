@@ -11,8 +11,14 @@ import type { LspHover, LspLocation, LspOperation, LspPosition, LspRoute } from 
 import { posix, win32 } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-/** The four operations the tool exposes, as a runtime tuple for schema enum + validation. */
+/** The four navigation operations the tool exposes, as a runtime tuple for schema enum + validation. */
 export const LSP_OPERATIONS: readonly LspOperation[] = ['goToDefinition', 'findReferences', 'goToImplementation', 'hover']
+
+/** Every operation the tool accepts: the four navigation ops plus the two one-hop relationship ops. */
+export type ToolOperation = LspOperation | 'callers' | 'callees'
+
+/** The full operation tuple for schema enum + validation. */
+export const TOOL_OPERATIONS: readonly ToolOperation[] = [...LSP_OPERATIONS, 'callers', 'callees']
 
 /** Default cap on rendered locations before an omission marker is appended. */
 export const DEFAULT_MAX_LOCATIONS = 100
@@ -22,7 +28,7 @@ export const DEFAULT_MAX_RESULT_CHARS = 16_000
 
 /** Validated `lsp` arguments after coordinate checks. */
 export interface LspToolInput {
-  readonly operation: LspOperation
+  readonly operation: ToolOperation
   readonly filePath: string
   /** Zero-based UTF-16 position converted from the one-based model coordinates. */
   readonly position: LspPosition
@@ -45,7 +51,7 @@ export interface LspToolArgs {
  */
 export function parseLspArgs(args: LspToolArgs): LspToolInput {
   if (!isOperation(args.operation)) {
-    throw new Error(`operation must be one of ${LSP_OPERATIONS.join(', ')}`)
+    throw new Error(`operation must be one of ${TOOL_OPERATIONS.join(', ')}`)
   }
   if (args.file_path.trim().length === 0) throw new Error('file_path must be a non-empty string')
   const line = oneBased(args.line, 'line')
@@ -58,9 +64,9 @@ export function parseLspArgs(args: LspToolArgs): LspToolInput {
   }
 }
 
-/** Whether a string is one of the four operations. */
-function isOperation(value: string): value is LspOperation {
-  return (LSP_OPERATIONS as readonly string[]).includes(value)
+/** Whether a string is one of the tool's operations. */
+function isOperation(value: string): value is ToolOperation {
+  return (TOOL_OPERATIONS as readonly string[]).includes(value)
 }
 
 /** Validate a one-based coordinate is a positive integer. */
@@ -117,6 +123,54 @@ export function formatLocations(
 export function formatHover(hover: LspHover | null, maxResultChars: number): string {
   const text = hover === null ? 'No hover information.' : hover.contents
   return boundResult(text, maxResultChars, 'hover')
+}
+
+/**
+ * The minimal symbol fields the call-edge renderer reads. Loose (`kind: string`) so both the seam's
+ * `LspSymbol` and the output-schema `InferValue` fit without a cast.
+ */
+export interface CallEdgeSymbolView {
+  readonly name: string
+  readonly kind: string
+  readonly uri: string
+  readonly selectionRange: { readonly start: { readonly line: number } }
+}
+
+/** The minimal edge fields the call-edge renderer reads. */
+export interface CallEdgeView {
+  readonly from: CallEdgeSymbolView
+  readonly to: CallEdgeSymbolView
+  readonly sites: readonly { readonly start: { readonly line: number } }[]
+}
+
+/**
+ * Render one hop of call edges in the full-word "callers of / callees of" tree. `root` is `null` when
+ * prepare found no symbol at the cursor. Each edge lists its peer symbol and the physical call sites
+ * (`fromRanges`) — the exact call expressions text search cannot see.
+ * @param root - the queried symbol, or null.
+ * @param edges - the one-hop edges (callers or callees).
+ * @param direction - which relationship the edges express.
+ * @param workspaceUri - the provider's canonical workspace URI for path relativization.
+ * @param maxResultChars - the complete rendered-text cap.
+ * @returns the rendered tree.
+ */
+export function formatCallEdges(
+  root: CallEdgeSymbolView | null,
+  edges: readonly CallEdgeView[],
+  direction: 'callers' | 'callees',
+  workspaceUri: string,
+  maxResultChars: number,
+): string {
+  if (root === null) return boundResult('No symbol at this cursor.', maxResultChars, 'callEdges')
+  const label = direction === 'callers' ? 'callers of' : 'callees of'
+  const header = `${label} ${root.name} (${root.kind}) — ${renderUri(root.uri, workspaceUri)}:${root.selectionRange.start.line + 1}`
+  if (edges.length === 0) return boundResult(`${header}\n(no ${direction})`, maxResultChars, 'callEdges')
+  const body = edges.map((edge) => {
+    const peer = direction === 'callers' ? edge.from : edge.to
+    const sites = edge.sites.map(site => `${renderUri(edge.from.uri, workspaceUri)}:${site.start.line + 1}`).join(', ')
+    return `  ${peer.name} (${peer.kind}) — ${renderUri(peer.uri, workspaceUri)}:${peer.selectionRange.start.line + 1} (call site ${sites})`
+  })
+  return boundResult([header, ...body].join('\n'), maxResultChars, 'callEdges')
 }
 
 /**

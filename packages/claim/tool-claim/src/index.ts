@@ -23,12 +23,13 @@ export const inject = ['agents', 'claims', 'tools', 'systemPrompt', 'sessionProj
 
 /** The standing requirement that opens every work turn with one or more claims. */
 export const CLAIM_DEMAND =
-  'At the start of a work turn, declare one or more claims with declare_claim: give each a short title and a '
-  + 'description of what must be true when it is settled, and bind exactly one shell script that exits 0 only '
-  + 'when that description holds, and make the check verify the change: run the focused unit tests and lint '
-  + 'covering it, not an always-passing assertion. A claim is immutable once declared. Re-run or repair when a '
-  + 'check fails; if a condition is wrong, abandon_claim it by id after its check has run at least once and say '
-  + 'why. When the turn is about to end, every bound check runs again and any failure is returned to you.'
+  'At the start of a work turn, declare one or more claims with declare_claim: give each a brief title of a few '
+  + 'words, and put the full detail of what must be true when it is settled in the description. Bind exactly one '
+  + 'shell script that exits 0 only when that description holds, and make the check verify the change: run the '
+  + 'focused unit tests and lint covering it, not an always-passing assertion. A claim is immutable once declared. '
+  + 'Re-run or repair when a check fails; if a condition is wrong, abandon_claim it by id after its check has run '
+  + 'at least once and say why. When the turn is about to end, every bound check runs again and any failure is '
+  + 'returned to you.'
 
 /** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
@@ -40,7 +41,7 @@ const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
  * are one-based, so step 1 is the turn's first step.
  */
 function renderTurnReminder(turn: number): string {
-  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — title, description, and one bound shell check each — before changing anything.`
+  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — a short title, a full description, and one bound shell check each — before changing anything.`
 }
 
 /** Compact status the model reads back after either tool call. */
@@ -154,12 +155,12 @@ export function apply(ctx: Context): void {
       title: {
         type: 'string',
         required: true,
-        description: 'Short label for this claim, e.g. what this claim verifies.',
+        description: 'A short label for this claim (a few words). Keep it brief — put the full detail in `description`.',
       },
       description: {
         type: 'string',
         required: true,
-        description: 'What must be true when this claim is settled.',
+        description: 'Everything this claim promises — the full detail of what must be true when the claim is settled.',
       },
       script: {
         type: 'string',

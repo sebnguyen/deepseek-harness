@@ -1,5 +1,5 @@
 ---
-description: "Web GUI 的 claim 界面：chat turn 尾部的声明状态行，显示所属轮次的待决声明；供 claim 体验的用户与维护者阅读。"
+description: "Web GUI 的 claim 界面：chat turn 尾部的逐轮声明芯片，以及输入框中的 Claims 下拉；供 claim 体验的用户与维护者阅读。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-Web GUI 的 claim 界面把 Session 的持久声明显示为 chat turn 尾部的状态行，位于 assistant 操作行（复制 / 点赞 / 点踩）正上方。声明待决期间，其所属轮次挂载该芯片——芯片限定在声明它的那一轮——Session 运行时输入框上方的停靠条也会重复显示它。悬停或聚焦芯片会显示声明目的、完成条件和最近一次核验结果。本插件只读取 `claim` session projection，不声明任何操作，也不创建声明。随附的 Web preset 会挂载它；从 web-app bundle 的 patch 中移除 `ui-claim` 行即可整体关闭该界面。
+Web GUI 的 claim 界面把 Session 的持久声明显示为两个位置的紧凑状态芯片。每轮尾部列出该轮声明的所有声明——无论待决还是已裁定——芯片以声明的 `title` 加上状态圆点（核验中为蓝色、通过为绿色、失败或被篡改为红色）；点击芯片会展开详情卡（标题、描述、原始核验脚本、最近一次运行与未通过原因）。输入框的 accessory 行带有一个紧凑的 `Claims` 触发器，其聚合圆点——任一声明失败为红色、仍有待决为蓝色、全部通过为绿色——点击后打开下拉菜单，列出最新一轮的声明。本插件只读取 `claim` session projection，不声明任何操作，也不创建声明。随附的 Web preset 会挂载它；从 web-app bundle 的 patch 中移除 `ui-claim` 行即可整体关闭该界面。
 
 ## 目录
 
@@ -24,7 +24,7 @@ Web GUI 的 claim 界面把 Session 的持久声明显示为 chat turn 尾部的
 <a id="use-this-package"></a>
 ## 使用本包
 
-与 `ui-chat` 一同挂载本插件；该状态行出现在声明待决的那一轮的复制 / 点赞 / 点踩操作行正上方。声明打开时芯片显示 `核验声明中`；一旦裁定，该行不渲染任何内容。没有 claim 能力的 Session 没有 `claim` projection，什么都不渲染；未声明 claim 的轮次同样不渲染。
+与 `ui-chat` 一同挂载本插件。每轮的操作行随即列出该轮的声明——已裁定的仍然可见——一旦存在声明，输入框会显示 `Claims` 下拉触发器。没有 claim 能力的 Session 没有 `claim` projection，什么都不渲染；未声明 claim 的轮次在操作行不渲染任何内容。
 
 -----
 
@@ -34,7 +34,7 @@ Web GUI 的 claim 界面把 Session 的持久声明显示为 chat turn 尾部的
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-芯片是纯读取端：`useProjection('claim')` 以整体快照的形式交付主机计算的按轮排序账本，action-row 条目从中选择本轮待决声明，即把声明的 `turn` 与所属 Turn 的位置相匹配。这里没有客户端折叠、没有领域存储、也没有变更路径。
+芯片是纯读取端：`useProjection('claim')` 以整体快照的形式交付主机计算的按轮排序账本。action-row 条目把账本过滤到所属 Turn；输入框触发器过滤到最新一轮，并根据裁定态推导聚合圆点。这里没有客户端折叠、没有领域存储、也没有变更路径。
 
 </details>
 
@@ -43,7 +43,7 @@ Web GUI 的 claim 界面把 Session 的持久声明显示为 chat turn 尾部的
 <a id="further-exploration"></a>
 ## 进一步探索
 
-- [dsh-claim](../../claim/claim/README.md) — claim 领域：本界面读取的 `claim/*` 事件、projection 与裁定策略。
+- `@deepseek-ai/dsh-claim`（`packages/claim/claim`）— claim 领域：本界面读取的 `claim/*` 事件、projection 与裁定策略。
 - [ui-chat](../ui-chat/README.zh.md) — 声明 `conversation.chat.turnStatus` slot 并拥有 turn 尾部。
 - [Client 包地图](../README.zh.md) — 相邻的浏览器 UI 包。
 

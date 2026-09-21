@@ -1,15 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
+  mapRequestMethod,
   negotiatePositionEncoding,
+  normalizeCallHierarchyItems,
+  normalizeDocumentSymbols,
   normalizeHover,
+  normalizeIncomingCalls,
   normalizeLocations,
+  normalizeOutgoingCalls,
   requestMethod,
+  supportsMapOperation,
   supportsOperation,
   supportsTransientOpen,
 } from '@deepseek-ai/dsh-lsp-stdio'
 import type { WireServerCapabilities } from '@deepseek-ai/dsh-lsp-stdio/src/protocol.ts'
+import type { LspSymbol } from '@deepseek-ai/dsh-lsp'
 
 const RANGE = { start: { line: 1, character: 2 }, end: { line: 1, character: 5 } }
+const SEL = { start: { line: 0, character: 0 }, end: { line: 0, character: 5 } }
+const ITEM = { name: 'f', kind: 12, uri: 'file:///a', range: RANGE, selectionRange: SEL }
 
 describe('requestMethod', () => {
   it('maps each operation to its textDocument request', () => {
@@ -169,5 +178,94 @@ describe('normalizeHover', () => {
   it('rejects a malformed range instead of silently dropping it', () => {
     expect(() => normalizeHover({ contents: 'x', range: { start: { line: 1 } } }))
       .toThrow(expect.objectContaining({ code: 'LSP_MALFORMED_RESPONSE' }))
+  })
+})
+
+describe('mapRequestMethod', () => {
+  it('maps documentSymbols and both hierarchy starts', () => {
+    expect(mapRequestMethod('documentSymbols')).toBe('textDocument/documentSymbol')
+    expect(mapRequestMethod('callers')).toBe('textDocument/prepareCallHierarchy')
+    expect(mapRequestMethod('callees')).toBe('textDocument/prepareCallHierarchy')
+  })
+})
+
+describe('supportsMapOperation', () => {
+  it('reads documentSymbolProvider and callHierarchyProvider', () => {
+    const caps: WireServerCapabilities = { documentSymbolProvider: true, callHierarchyProvider: { workDoneProgress: true } }
+    expect(supportsMapOperation(caps, 'documentSymbols')).toBe(true)
+    expect(supportsMapOperation(caps, 'callers')).toBe(true)
+    expect(supportsMapOperation(caps, 'callees')).toBe(true)
+  })
+
+  it('rejects an absent or false provider slot', () => {
+    expect(supportsMapOperation({}, 'documentSymbols')).toBe(false)
+    expect(supportsMapOperation({ callHierarchyProvider: false }, 'callers')).toBe(false)
+  })
+})
+
+describe('normalizeDocumentSymbols', () => {
+  it('maps a flat symbol and its kind label', () => {
+    const result = normalizeDocumentSymbols([{ name: 'Lsp', kind: 5, range: RANGE, selectionRange: SEL }])
+    expect(result).toEqual([{
+      name: 'Lsp', kind: 'class', range: RANGE, selectionRange: SEL, children: [],
+    }])
+  })
+
+  it('recurses children into a nested outline', () => {
+    const result = normalizeDocumentSymbols([{
+      name: 'Lsp', kind: 5, range: RANGE, selectionRange: SEL,
+      children: [{ name: 'query', kind: 6, range: RANGE, selectionRange: SEL }],
+    }])
+    expect(result[0]?.children[0]).toMatchObject({ name: 'query', kind: 'method' })
+  })
+
+  it('returns empty for null and rejects a non-array', () => {
+    expect(normalizeDocumentSymbols(null)).toEqual([])
+    expect(() => normalizeDocumentSymbols({})).toThrow(expect.objectContaining({ code: 'LSP_MALFORMED_RESPONSE' }))
+  })
+
+  it('flags deprecated via the boolean or tags', () => {
+    expect(normalizeDocumentSymbols([{ name: 'f', kind: 12, deprecated: true, range: RANGE, selectionRange: SEL }])[0]?.deprecated).toBe(true)
+    expect(normalizeDocumentSymbols([{ name: 'f', kind: 12, tags: [1], range: RANGE, selectionRange: SEL }])[0]?.deprecated).toBe(true)
+  })
+
+  it('rejects an unknown SymbolKind', () => {
+    expect(() => normalizeDocumentSymbols([{ name: 'f', kind: 99, range: RANGE, selectionRange: SEL }]))
+      .toThrow(expect.objectContaining({ code: 'LSP_MALFORMED_RESPONSE' }))
+  })
+})
+
+describe('normalizeCallHierarchyItems', () => {
+  it('returns empty for null and maps an item with a uri', () => {
+    expect(normalizeCallHierarchyItems(null)).toEqual([])
+    expect(normalizeCallHierarchyItems(ITEM)).toEqual([{ name: 'f', kind: 'function', uri: 'file:///a', range: RANGE, selectionRange: SEL }])
+  })
+
+  it('rejects an item missing a uri', () => {
+    expect(() => normalizeCallHierarchyItems([{ name: 'f', kind: 12, range: RANGE, selectionRange: SEL }]))
+      .toThrow(expect.objectContaining({ code: 'LSP_MALFORMED_RESPONSE' }))
+  })
+})
+
+describe('normalizeIncomingCalls and normalizeOutgoingCalls', () => {
+  const root: LspSymbol = { name: 'root', kind: 'function', uri: 'file:///root', range: RANGE, selectionRange: SEL }
+
+  it('maps incoming calls (caller → root) with their call sites', () => {
+    const edge = normalizeIncomingCalls(root, [{ from: ITEM, fromRanges: [RANGE] }])[0]
+    expect(edge?.from.name).toBe('f')
+    expect(edge?.to).toBe(root)
+    expect(edge?.sites).toEqual([RANGE])
+  })
+
+  it('maps outgoing calls (root → callee) with their call sites', () => {
+    const edge = normalizeOutgoingCalls(root, [{ to: ITEM, fromRanges: [RANGE] }])[0]
+    expect(edge?.from).toBe(root)
+    expect(edge?.to.name).toBe('f')
+    expect(edge?.sites).toEqual([RANGE])
+  })
+
+  it('returns empty for null', () => {
+    expect(normalizeIncomingCalls(root, null)).toEqual([])
+    expect(normalizeOutgoingCalls(root, null)).toEqual([])
   })
 })

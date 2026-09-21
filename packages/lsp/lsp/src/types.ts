@@ -87,6 +87,95 @@ export type LspQueryResult =
   | { readonly kind: 'hover'; readonly hover: LspHover | null }
 
 /**
+ * The symbol-and-call-hierarchy operations — a parallel family to {@link LspOperation}. The
+ * navigation union stays closed at four; structural and relationship queries use different
+ * request/result schemas, so they live here rather than in the navigation union. Adding an operation
+ * is a compile-enforced change across the seam, providers, and the tool.
+ */
+export type LspMapOperation = 'documentSymbols' | 'callers' | 'callees'
+
+/**
+ * A normalized symbol kind. The seam never exposes the protocol's numeric `SymbolKind` enum; the
+ * provider maps the 26 kinds to this closed label union, and the model-facing tool keys presentation
+ * off these labels.
+ */
+export type SymbolKindLabel =
+  | 'file' | 'module' | 'namespace' | 'package' | 'class' | 'method' | 'property'
+  | 'field' | 'constructor' | 'enum' | 'interface' | 'function' | 'variable'
+  | 'constant' | 'string' | 'number' | 'boolean' | 'array' | 'object' | 'key'
+  | 'null' | 'enumMember' | 'struct' | 'event' | 'operator' | 'typeParameter'
+
+/**
+ * A normalized symbol node — the common ancestor of {@link LspDocumentSymbol} and the peers of a
+ * {@link LspCallEdge}. `detail` is the only disambiguator for same-named symbols and is present only
+ * when the server supplied one.
+ */
+export interface LspSymbol {
+  /** The symbol's declared name. */
+  readonly name: string
+  /** The normalized symbol kind. */
+  readonly kind: SymbolKindLabel
+  /** Signature / container text the server supplied; absent when it did not. */
+  readonly detail?: string
+  /** Whether the server tagged the symbol `deprecated`. */
+  readonly deprecated?: boolean
+  /** The containing document URI. */
+  readonly uri: string
+  /** The symbol's full extent (declaration rail through body). */
+  readonly range: LspRange
+  /** The name token's extent — the jump target. */
+  readonly selectionRange: LspRange
+}
+
+/**
+ * A hierarchical document symbol. Document-scoped, so it carries no `uri` — the queried document is
+ * implied by the request. `children` makes the outline a tree; the leaf fields mirror {@link LspSymbol}
+ * minus the URI.
+ */
+export interface LspDocumentSymbol {
+  readonly name: string
+  readonly kind: SymbolKindLabel
+  readonly detail?: string
+  readonly deprecated?: boolean
+  readonly range: LspRange
+  readonly selectionRange: LspRange
+  readonly children: readonly LspDocumentSymbol[]
+}
+
+/**
+ * One directed call edge: `from` calls `to` at every `sites` range in `from`'s document. `sites` is
+ * the protocol's `fromRanges` — the physical call expressions, exactly what text search cannot see.
+ */
+export interface LspCallEdge {
+  readonly from: LspSymbol
+  readonly to: LspSymbol
+  readonly sites: readonly LspRange[]
+}
+
+/**
+ * A normalized structural/relationship query. `documentSymbols` is document-scoped (no cursor);
+ * `callers`/`callees` are cursor-scoped. Every field is required within its variant; the provider
+ * canonicalizes `filePath` against `workspaceRoot` exactly as the navigation seam does.
+ */
+export type LspMapRequest =
+  | { readonly operation: 'documentSymbols'; readonly filePath: string; readonly workspaceRoot: string }
+  | { readonly operation: 'callers' | 'callees'; readonly filePath: string; readonly workspaceRoot: string; readonly position: LspPosition }
+
+/** A map request as a provider receives it: the caller's {@link LspMapRequest} plus the derived language id. */
+export type LspMapProviderQuery = LspMapRequest & { readonly languageId: string }
+
+/**
+ * The closed map result union. `documentSymbols` normalizes to a `symbolTree`; `callers`/`callees`
+ * normalize to `callEdges` (a root plus one hop of edges, or a `null` root when prepare found no
+ * symbol at the cursor). Consumers `switch` on `kind` to exhaustiveness. The `callEdges` variant
+ * carries `resolvedWorkspaceUri` for the same reason the `locations` variant does: URI relativization
+ * must use the provider's canonical workspace URI.
+ */
+export type LspMapResult =
+  | { readonly kind: 'symbolTree'; readonly symbols: readonly LspDocumentSymbol[] }
+  | { readonly kind: 'callEdges'; readonly root: LspSymbol | null; readonly edges: readonly LspCallEdge[]; readonly resolvedWorkspaceUri: string }
+
+/**
  * A language-server backend registered on `ctx.lsp`. Each provider owns a stable {@link
  * LspProviderId} and an extension-to-language-id map (lowercase, leading-dot keys).
  * `findReferences` always includes declarations — the provider enforces this internally; callers
@@ -104,6 +193,14 @@ export interface LspProvider {
    * @returns the normalized, closed-union result.
    */
   query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Run one structural/relationship query. The seam has already selected this provider and derived
+   * `languageId`.
+   * @param request - the resolved map query (caller request + derived language id).
+   * @param signal - optional cancellation; the provider stops its own work when it aborts.
+   * @returns the normalized, closed-union map result.
+   */
+  mapQuery(request: LspMapProviderQuery, signal?: AbortSignal): Promise<LspMapResult>
 }
 
 /** One currently registered extension → language route, for coverage introspection only. */
@@ -135,6 +232,15 @@ export interface LspService {
    * @returns the normalized, closed-union result.
    */
   query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Select a provider by the file's extension and run one structural/relationship query. Selection is
+   * per-query and order-independent, sharing the extension table with navigation queries; no match
+   * throws `LspError` `LSP_UNAVAILABLE`.
+   * @param request - the normalized map query.
+   * @param signal - optional cancellation forwarded to the selected provider.
+   * @returns the normalized, closed-union map result.
+   */
+  mapQuery(request: LspMapRequest, signal?: AbortSignal): Promise<LspMapResult>
   /**
    * List every currently registered extension → language route. For introspection only (e.g.
    * describing live coverage in prompt guidance) — `query()` remains the seam's actual lookup, and
