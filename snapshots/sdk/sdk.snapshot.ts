@@ -137,8 +137,15 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
   },
   'persistent-tools': {
     environment: { DSH_SYSTEM_PROMPT: MINIMAL_SYSTEM_PROMPT },
-    expectedTools: { bash: ['command'], str_replace_editor: ['command', 'path'] },
-    expectedSystem: MINIMAL_SYSTEM_PROMPT,
+    expectedTools: {
+      abandon_claim: ['id', 'reason'],
+      bash: ['command'],
+      declare_claim: ['title', 'description', 'script'],
+      read_note: ['target'],
+      run_claim: ['id'],
+      str_replace_editor: ['command', 'path'],
+      upsert_note: ['target', 'claim'],
+    },
     expectedToolDescriptions: { bash: MINIMAL_BASH_DESCRIPTION },
     runtimeContext: {
       includes: ['Current DSH file policy: danger-full-access', 'Approval prompts are disabled in this session'],
