@@ -95,4 +95,35 @@ describe('AgentDefaultModelConfig', () => {
     expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm' })
     await ctx.fiber.dispose()
   })
+
+  it('applies a configured temperature default and round-trips a saved one', async () => {
+    const ctx = new Context()
+    const settingsFiber = ctx.plugin(MemorySettings)
+    await settingsFiber.await()
+    await ctx.plugin(AgentDefaultModelConfig, {
+      provider: 'deepseek-official', model: 'deepseek-v4-flash', temperature: 0.2,
+    })
+    expect(ctx.agentDefaultModel.currentSelection().temperature).toBe(0.2)
+
+    await ctx.agentDefaultModel.saveSelection({
+      provider: 'acme-gateway', model: 'acme-large', temperature: 0.7,
+    })
+    expect(ctx.agentDefaultModel.currentSelection()).toEqual({
+      provider: 'acme-gateway', model: 'acme-large', temperature: 0.7,
+    })
+
+    await ctx.agentDefaultModel.saveSelection({ provider: 'acme-gateway', model: 'acme-large' })
+    expect(ctx.agentDefaultModel.currentSelection()).toEqual({
+      provider: 'acme-gateway', model: 'acme-large', temperature: 0.2,
+    })
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects an out-of-range configured temperature', async () => {
+    const ctx = new Context()
+    await expect(ctx.plugin(AgentDefaultModelConfig, {
+      provider: 'p', model: 'm', temperature: 1.5,
+    })).rejects.toThrow()
+    await ctx.fiber.dispose()
+  })
 })

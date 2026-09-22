@@ -87,6 +87,7 @@ export interface ModelSelection {
   readonly provider: string
   readonly model: string
   readonly reasoningEffort?: string
+  readonly temperature?: number
 }
 
 /** Host fold state for durable model selection. */

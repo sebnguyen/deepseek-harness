@@ -121,6 +121,31 @@ describe('installModelSelection()', () => {
     await ctx.fiber.dispose()
   })
 
+  it('applies a selected sampling temperature over, but preserves absence against, the inherited base', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    const selection: ModelSelectionRef = { current: undefined, assembled: undefined }
+    const dispose = installModelSelection(ctx, selection)
+    const agent = createAgent()
+    const signal = new AbortController().signal
+    const seed: LlmCallConfig = { provider: 'seed', model: 'seed', temperature: 0.2 }
+
+    selection.current = { provider: 'alpha', model: 'a1', temperature: 0.7 }
+    await ctx.systemPrompt.assemble()
+    await expect(agentEvents(ctx, agent).waterfall(
+      'agent/request', { turn: 1, step: 0, signal }, () => Promise.resolve(seed),
+    )).resolves.toEqual({ provider: 'alpha', model: 'a1', temperature: 0.7 })
+
+    selection.current = { provider: 'beta', model: 'b1' }
+    await ctx.systemPrompt.assemble()
+    await expect(agentEvents(ctx, agent).waterfall(
+      'agent/request', { turn: 1, step: 1, signal }, () => Promise.resolve(seed),
+    )).resolves.toEqual({ provider: 'beta', model: 'b1', temperature: 0.2 })
+
+    dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('announces same-provider and cross-provider route changes from the assembled selection', async () => {
     const { agent, ctx, dispose, selection } = await switchHarness(
       { provider: 'alpha', model: 'a1' },

@@ -172,6 +172,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       return ui
     },
     seat: () => seats.get('conversation.input.model')!,
+    temperatureSeat: () => seats.get('conversation.input.temperature')!,
     hostCurrent: () => selected,
     setHostCurrent: (selection: ModelSelection) => { defaultSelection = selection },
     setProjected: (id: SessionId, value: ModelSelectionProjection) => { projections.get(id)?.set(value) },
@@ -191,6 +192,8 @@ describe('ui-model-selection dual entry', () => {
     expect(b.seat().inject).toBeTypeOf('function')
     // Copy rides the standard locale seat.
     expect(b.seat().locale).toBe('model')
+    expect(b.temperatureSeat().inject).toBeTypeOf('function')
+    expect(b.temperatureSeat().locale).toBe('model')
   })
 
   it('localizes built-in descriptions and preserves external provider descriptions', async () => {

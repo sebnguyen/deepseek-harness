@@ -37,21 +37,24 @@ function agentModelSelectionFromLogged(
     && loggedHeader.adapterDefaults?.reasoningEffort !== true
     ? logged.reasoningEffort
     : undefined
-  if (explicitEffort !== undefined) {
-    return {
-      provider: logged.provider,
-      model: logged.model,
-      reasoningEffort: ReasoningEffortId(explicitEffort),
-    }
-  }
+  const explicitTemperature = logged.temperature !== undefined
+    ? logged.temperature
+    : undefined
   const sameRoute = defaultSelection.provider === logged.provider
     && defaultSelection.model === logged.model
   return {
     provider: logged.provider,
     model: logged.model,
-    ...(sameRoute && defaultSelection.reasoningEffort !== undefined
-      ? { reasoningEffort: defaultSelection.reasoningEffort }
-      : {}),
+    ...(explicitEffort !== undefined
+      ? { reasoningEffort: ReasoningEffortId(explicitEffort) }
+      : sameRoute && defaultSelection.reasoningEffort !== undefined
+        ? { reasoningEffort: defaultSelection.reasoningEffort }
+        : {}),
+    ...(explicitTemperature !== undefined
+      ? { temperature: explicitTemperature }
+      : sameRoute && defaultSelection.temperature !== undefined
+        ? { temperature: defaultSelection.temperature }
+        : {}),
   }
 }
 
@@ -106,7 +109,7 @@ export type ApiSessionAgentResult =
 
 type InstalledSelection = ModelSelectionRef & {
   current: AgentModelSelection
-  consume(provider: string, model: string, reasoningEffort: string | undefined): boolean
+  consume(provider: string, model: string, reasoningEffort: string | undefined, temperature: number | undefined): boolean
 }
 
 /**
@@ -333,10 +336,11 @@ export class ApiSessionAgentController {
       set current(next: AgentModelSelection) {
         picked = next
       },
-      consume(provider: string, model: string, reasoningEffort: string | undefined): boolean {
+      consume(provider: string, model: string, reasoningEffort: string | undefined, temperature: number | undefined): boolean {
         if (picked?.provider !== provider
           || picked.model !== model
-          || picked.reasoningEffort !== reasoningEffort) return false
+          || picked.reasoningEffort !== reasoningEffort
+          || picked.temperature !== temperature) return false
         picked = undefined
         return true
       },
@@ -363,6 +367,7 @@ export class ApiSessionAgentController {
    * @param provider - provider route used by the request.
    * @param model - provider-owned model used by the request.
    * @param reasoningEffort - adapter-owned effort used by the request.
+   * @param temperature - sampling temperature used by the request.
    * @returns whether the pending selection was consumed.
    */
   consumeSelection(
@@ -370,8 +375,9 @@ export class ApiSessionAgentController {
     provider: string,
     model: string,
     reasoningEffort: string | undefined,
+    temperature: number | undefined,
   ): boolean {
-    return this.selections.get(agent)?.consume(provider, model, reasoningEffort) ?? false
+    return this.selections.get(agent)?.consume(provider, model, reasoningEffort, temperature) ?? false
   }
 
   /**
@@ -558,5 +564,6 @@ function agentModelSelection(selection: ModelSelection): AgentModelSelection {
     ...(selection.reasoningEffort === undefined
       ? {}
       : { reasoningEffort: ReasoningEffortId(selection.reasoningEffort) }),
+    ...(selection.temperature === undefined ? {} : { temperature: selection.temperature }),
   }
 }

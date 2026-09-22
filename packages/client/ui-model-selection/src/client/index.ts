@@ -27,6 +27,7 @@ import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
 import type { ModelSelectInjected } from './slots.ts'
 import { ModelSelect } from './ModelSelect.tsx'
+import { TemperatureSlider } from './TemperatureSlider.tsx'
 import { en, zh, type ModelKey } from './locales.ts'
 
 export { ModelDirectory } from './directory.ts'
@@ -107,6 +108,7 @@ function selectionOf(state: ModelDirectoryState, id: string): ModelSelection | u
         provider: group.id,
         model: model.id,
         ...reasoningEffort === undefined ? {} : { reasoningEffort },
+        ...(state.current?.temperature === undefined ? {} : { temperature: state.current.temperature }),
       }
     }
   }
@@ -192,5 +194,26 @@ export function apply(ctx: ClientContext): void {
         }
       },
     }, ModelSelect))
+
+    // Entry 3: the composer sampling-temperature slider over the SAME
+    // directory, reusing the model seat's injected face.
+    scope.slots.inject('conversation.input.temperature', () => scope.slots.register({
+      name: 'conversation.input.temperature',
+      locale: NS,
+      inject: (sessionId): ModelSelectInjected => {
+        const directory = models.directoryFor(sessionId)
+        const available = sessions.subagentAddress(sessionId) === undefined
+        return {
+          available,
+          directory: directory.store,
+          load: () => {
+            if (available) directory.load().catch(() => { /* surfaced on the store */ })
+          },
+          select: (selection: ModelSelection) => available
+            ? directory.select(selection).then(() => true, () => false)
+            : Promise.resolve(false),
+        }
+      },
+    }, TemperatureSlider))
   })
 }

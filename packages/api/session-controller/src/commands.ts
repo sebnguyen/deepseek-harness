@@ -140,6 +140,7 @@ export class SessionCommandController {
           ...(request.reasoningEffort === undefined
             ? {}
             : { reasoningEffort: ReasoningEffortId(request.reasoningEffort) }),
+          ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
         })
         const selected: AgentModelSelection = {
           provider: resolved.provider,
@@ -147,6 +148,7 @@ export class SessionCommandController {
           ...(resolved.reasoningEffort === undefined
             ? {}
             : { reasoningEffort: resolved.reasoningEffort }),
+          ...(resolved.temperature === undefined ? {} : { temperature: resolved.temperature }),
         }
         this.agents.selectForNextRequest(agent, selected)
         try {

@@ -12,7 +12,7 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import type { PreStepDecision } from './runtime-types.ts'
 
-/** Complete provider, model, and optional reasoning effort selected for one live Agent. */
+/** Complete provider, model, and optional reasoning effort and sampling temperature selected for one live Agent. */
 export interface ModelSelection {
   /** Registered provider route. */
   provider: string
@@ -20,6 +20,8 @@ export interface ModelSelection {
   model: string
   /** Adapter-owned reasoning effort, or provider/default behavior when absent. */
   reasoningEffort?: ReasoningEffortId
+  /** Sampling temperature in [0, 1]; absent defers to the provider/default behavior. */
+  temperature?: number
 }
 
 /** Mutable model selection plus the value captured for the current step. */
@@ -102,6 +104,12 @@ export function installModelSelection(agentCtx: Context, selection: ModelSelecti
         ...selected.reasoningEffort === undefined
           ? {}
           : { reasoningEffort: selected.reasoningEffort },
+        // Sampling temperature is model-independent: a selected value overrides
+        // the inherited base, while an absent one preserves the base so the
+        // slider stays put across model switches (unlike the model-scoped effort).
+        ...selected.temperature === undefined
+          ? {}
+          : { temperature: selected.temperature },
       }
     },
   )

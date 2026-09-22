@@ -28,6 +28,8 @@ export interface AgentDefaultModelSettings {
   model: string
   /** Adapter-owned reasoning effort, or provider/default behavior when absent. */
   reasoningEffort?: string
+  /** Sampling temperature in [0, 1], or provider/default behavior when absent. */
+  temperature?: number
 }
 
 /** Schema of the default Agent model settings section. */
@@ -35,6 +37,7 @@ export const AGENT_DEFAULT_MODEL_SETTINGS_SCHEMA: z<AgentDefaultModelSettings> =
   provider: z.string().required(),
   model: z.string().required(),
   reasoningEffort: z.string(),
+  temperature: z.number().min(0).max(1),
 })
 
 /** Composition entry for the default model selection. */
@@ -43,6 +46,8 @@ export interface Config {
   provider: string
   /** Provider-owned model id. */
   model: string
+  /** Sampling temperature in [0, 1]; the deployment default matched to the provider's accepted range. */
+  temperature?: number
 }
 
 /** Project stored settings onto the Agent-facing selection type. */
@@ -53,6 +58,9 @@ function selection(settings: AgentDefaultModelSettings): ModelSelection {
     ...settings.reasoningEffort === undefined
       ? {}
       : { reasoningEffort: ReasoningEffortId(settings.reasoningEffort) },
+    ...settings.temperature === undefined
+      ? {}
+      : { temperature: settings.temperature },
   }
 }
 
@@ -65,13 +73,18 @@ export class AgentDefaultModelConfig extends Service {
   static Config: z<Config> = z.object({
     provider: z.string().required(),
     model: z.string().required(),
+    temperature: z.number().min(0).max(1),
   })
 
   private source: () => AgentDefaultModelSettings
 
   constructor(ctx: Context, config: Config) {
     super(ctx, 'agentDefaultModel')
-    const entry: AgentDefaultModelSettings = { provider: config.provider, model: config.model }
+    const entry: AgentDefaultModelSettings = {
+      provider: config.provider,
+      model: config.model,
+      ...config.temperature === undefined ? {} : { temperature: config.temperature },
+    }
     this.source = () => entry
     ctx.inject(['settings'], (settingsCtx) => {
       settingsCtx.settings.installSection(ctx, AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE, AGENT_DEFAULT_MODEL_SETTINGS_SCHEMA, entry, {
@@ -102,6 +115,7 @@ export class AgentDefaultModelConfig extends Service {
       provider: next.provider,
       model: next.model,
       ...next.reasoningEffort === undefined ? {} : { reasoningEffort: String(next.reasoningEffort) },
+      ...next.temperature === undefined ? {} : { temperature: next.temperature },
     })
   }
 }

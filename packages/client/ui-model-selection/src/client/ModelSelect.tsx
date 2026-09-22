@@ -233,6 +233,7 @@ export function ModelSelect(
       provider: state.current.provider,
       model: state.current.model,
       ...effort === undefined ? {} : { reasoningEffort: effort },
+      ...(state.current.temperature === undefined ? {} : { temperature: state.current.temperature }),
     }
     lastActionRef.current = 'select'
     void select(selection).then(settleSelection)
@@ -349,7 +350,13 @@ export function ModelSelect(
                             key={model.id}
                             title={model.name}
                             disabled={busy}
-                            onClick={() => { choose({ provider: group.id, model: model.id }) }}
+                            onClick={() => { choose({
+                              provider: group.id,
+                              model: model.id,
+                              ...(state.current?.temperature === undefined
+                                ? {}
+                                : { temperature: state.current.temperature }),
+                            }) }}
                           >
                             <span className={css.optionCopy}>
                               <span className={css.modelName}>{model.name}</span>
