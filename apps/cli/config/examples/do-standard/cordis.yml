@@ -84,9 +84,37 @@
               high: high
               xhigh: xhigh
               max: max
+          - id: minimax-m2.5
+            contextWindow: 65536
+            maxTokens: 65536
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
+          - id: kimi-k2.6
+            contextWindow: 262144
+            maxTokens: 262144
+            reasoningEfforts:
+              off: none
+              low: low
+              medium: medium
+              high: high
+              xhigh: xhigh
+              max: max
           - id: deepseek-v4.1-flash
             contextWindow: 1048576
-            maxTokens: 32768
+            maxTokens: 384000
+            reasoningEfforts:
+              low: low
+              high: high
+              xhigh: xhigh
+              max: max
+          - id: deepseek-v4-flash-0731
+            contextWindow: 1048576
+            maxTokens: 1048576
             reasoningEfforts:
               low: low
               high: high
@@ -94,7 +122,7 @@
               max: max
           - id: deepseek-v4-pro-0813
             contextWindow: 1048576
-            maxTokens: 32768
+            maxTokens: 1048576
             reasoningEfforts:
               off: none
               low: low
@@ -104,7 +132,7 @@
               max: max
           - id: deepseek-v4-pro
             contextWindow: 1048576
-            maxTokens: 32768
+            maxTokens: 384000
             reasoningEfforts:
               off: none
               low: low
@@ -121,7 +149,7 @@
 - id: agent-default-model
   config:
     provider: digitalocean
-    model: glm-5.3-flash
+    model: deepseek-v4-flash-0731
     temperature: 0.2
 
 # ==============================================================================
