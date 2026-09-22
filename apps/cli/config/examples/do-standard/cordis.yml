@@ -122,6 +122,7 @@
   config:
     provider: digitalocean
     model: glm-5.3-flash
+    temperature: 0.2
 
 # ==============================================================================
 # SETUP GUIDES
