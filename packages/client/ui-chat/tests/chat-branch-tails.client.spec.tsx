@@ -32,7 +32,7 @@ const RETRY_ID = 'retry-fixture' as Extract<ConversationNode, { kind: 'model-ret
 
 // Recency scans the whole transcript; a detached fixture is its own latest row.
 const useDetachedChat: ChatNodeViewProps['useChat'] = bindSnapshotSelector({
-  subscribe: () => () => {},
+  subscribe: () => () => { },
   getSnapshot: () => ({ order: [], nodes: new Map() }),
 } as never)
 
@@ -1024,7 +1024,7 @@ describe('useCalendarDay boundary refresh', () => {
 })
 
 describe('small branch tails', () => {
-  it('AssistantMarkdown single-line reasoning summary skips the newline cut', () => {
+  it('AssistantMarkdown single-line reasoning shows finished status until expanded', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -1033,6 +1033,8 @@ describe('small branch tails', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
+    expect(view.getByText('已完成')).toBeTruthy()
+    fireEvent.click(view.getByText('思考'))
     expect(view.getByText('one-liner')).toBeTruthy()
   })
 
@@ -1043,7 +1045,7 @@ describe('small branch tails', () => {
       kind: 'assistant', seq: 1, time: 1_000, turn: 1, step: 1, blocks: [], usage: { outputTokens: 10 },
     }] as const
     const snap = chatSnapshotFixture({ nodes })
-    const source = { getSnapshot: () => snap, subscribe: () => () => {} }
+    const source = { getSnapshot: () => snap, subscribe: () => () => { } }
     const view = render(
       <StatsPills
         t={t}

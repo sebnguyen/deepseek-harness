@@ -6,15 +6,15 @@ import { installModelSelection } from '@deepseek-ai/dsh-agent'
 import type {
   Agent, AgentOptions, AgentSetup, ModelSelection as AgentModelSelection, ModelSelectionRef,
 } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-agent-default-model'
-import type {} from '@deepseek-ai/dsh-agent-presets'
+import type { } from '@deepseek-ai/dsh-agent-default-model'
+import type { } from '@deepseek-ai/dsh-agent-presets'
 import type { LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionInspection } from '@deepseek-ai/dsh-session-persistence'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
-import type {} from '@deepseek-ai/dsh-typert-registry'
+import type { } from '@deepseek-ai/dsh-typert-registry'
 import type { ModelSelection } from './types.ts'
 
 type LoggedRequestHeader = {
@@ -28,6 +28,20 @@ type LoggedRequestHeader = {
  * effort applies when the route matches so settings can supply reasoning for
  * gateways that stream chain-of-thought only when `reasoning_effort` is set.
  */
+/** Apply deployment sampling temperature when the route matches and the selection omitted it. */
+function withDeploymentTemperature(
+  selection: AgentModelSelection,
+  defaultSelection: AgentModelSelection,
+): AgentModelSelection {
+  if (selection.temperature !== undefined) return selection
+  if (selection.provider !== defaultSelection.provider
+    || selection.model !== defaultSelection.model
+    || defaultSelection.temperature === undefined) {
+    return selection
+  }
+  return { ...selection, temperature: defaultSelection.temperature }
+}
+
 function agentModelSelectionFromLogged(
   loggedHeader: LoggedRequestHeader,
   defaultSelection: AgentModelSelection,
@@ -59,7 +73,7 @@ function agentModelSelectionFromLogged(
 }
 
 /** Cold Session identity absent from persistence. */
-export class ApiSessionNotFound extends Error {}
+export class ApiSessionNotFound extends Error { }
 
 /** Session identity whose lifecycle belongs to subagent routing. */
 export class ApiSessionSubagentOwnership extends Error {
@@ -322,16 +336,20 @@ export class ApiSessionAgentController {
     if (projectionState === undefined) {
       throw new Error('api-session: required modelSelection projection is not registered')
     }
+    const defaultModel = this.ctx.agentDefaultModel
     let picked = projectionState.pending === null
       ? undefined
-      : agentModelSelection(projectionState.pending)
-    const defaultModel = this.ctx.agentDefaultModel
+      : withDeploymentTemperature(
+        agentModelSelection(projectionState.pending),
+        defaultModel.currentSelection(),
+      )
     const selection: InstalledSelection = {
       get current(): AgentModelSelection {
-        if (picked !== undefined) return picked
+        const defaultSelection = defaultModel.currentSelection()
+        if (picked !== undefined) return withDeploymentTemperature(picked, defaultSelection)
         const loggedHeader = agent.session.requestHeader()
-        if (loggedHeader === undefined) return defaultModel.currentSelection()
-        return agentModelSelectionFromLogged(loggedHeader, defaultModel.currentSelection())
+        if (loggedHeader === undefined) return defaultSelection
+        return agentModelSelectionFromLogged(loggedHeader, defaultSelection)
       },
       set current(next: AgentModelSelection) {
         picked = next
@@ -357,8 +375,12 @@ export class ApiSessionAgentController {
    * @param selection - validated selection to record and apply.
    */
   selectForNextRequest(agent: Agent, selection: AgentModelSelection): void {
-    agent.session.append('model/selection', selection)
-    this.selectionFor(agent).current = selection
+    const normalized = withDeploymentTemperature(
+      selection,
+      this.ctx.agentDefaultModel.currentSelection(),
+    )
+    agent.session.append('model/selection', normalized)
+    this.selectionFor(agent).current = normalized
   }
 
   /**

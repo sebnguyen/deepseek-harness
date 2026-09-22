@@ -14,7 +14,7 @@ const t = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
 
 describe('ReasoningRow', () => {
-  it('follows the latest streaming line, then restores the settled first line', () => {
+  it('shows streaming status while reasoning arrives, then finished when settled', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -23,9 +23,8 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('运行中')).toBeTruthy()
-    expect(view.getByText('Newest reasoning tokens').parentElement?.getAttribute('data-follow-end'))
-      .toBe('true')
+    expect(view.getByText('流式输出')).toBeTruthy()
+    expect(view.queryByText('Newest reasoning tokens')).toBeNull()
 
     view.rerender(
       <AssistantMarkdown
@@ -35,8 +34,8 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('Newest reasoning tokens keep arriving').parentElement
-      ?.getAttribute('data-follow-end')).toBe('true')
+    expect(view.getByText('流式输出')).toBeTruthy()
+    expect(view.queryByText('Newest reasoning tokens keep arriving')).toBeNull()
 
     view.rerender(
       <AssistantMarkdown
@@ -46,12 +45,11 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    const settledSummary = view.getByText('Inspect the session')
-    expect(view.queryByText('运行中')).toBeNull()
-    expect(settledSummary.parentElement?.hasAttribute('data-follow-end')).toBe(false)
+    expect(view.getByText('已完成')).toBeTruthy()
+    expect(view.queryByText('Inspect the session')).toBeNull()
   })
 
-  it('expands from either Think or the reasoning summary', () => {
+  it('expands from either Think or the status summary', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -62,7 +60,7 @@ describe('ReasoningRow', () => {
     )
     const row = view.getByRole('button')
 
-    fireEvent.click(view.getByText('Inspect the session'))
+    fireEvent.click(view.getByText('已完成'))
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(view.getByText(/Check persistence/)).toBeTruthy()
 
@@ -70,29 +68,19 @@ describe('ReasoningRow', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it.each([
-    {
-      label: 'settled',
-      text: '**Comparing checkout and merge bases**\nKeep **reviewing**',
-      streaming: false,
-    },
-    {
-      label: 'streaming',
-      text: 'Inspect the session\n**Comparing checkout and merge bases**',
-      streaming: true,
-    },
-  ])('strips double-asterisk markers from the $label summary without changing the reasoning body', ({ text, streaming }) => {
+  it('keeps the full reasoning body in the expanded disclosure', () => {
+    const text = '**Comparing checkout and merge bases**\nKeep **reviewing**'
     const view = render(
       <AssistantMarkdown
         t={t}
         blocks={[{ kind: 'reasoning', text }]}
-        streaming={streaming}
+        streaming={false}
         renderMessageImages={renderMessageImages}
       />,
     )
 
-    expect(view.getByText('Comparing checkout and merge bases')).toBeTruthy()
-    expect(view.queryByText('**Comparing checkout and merge bases**')).toBeNull()
+    expect(view.getByText('已完成')).toBeTruthy()
+    expect(view.queryByText('Comparing checkout and merge bases')).toBeNull()
 
     fireEvent.click(view.getByText('思考'))
     expect(view.container.querySelector('[class*="thinkBody"]')?.textContent).toBe(text)

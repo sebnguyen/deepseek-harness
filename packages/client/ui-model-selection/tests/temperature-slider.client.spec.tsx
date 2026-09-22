@@ -48,7 +48,8 @@ describe('TemperatureSlider', () => {
     expect(screen.queryByRole('slider')).toBeNull()
   })
 
-  it('renders the current temperature and submits the full selection with a new value', () => {
+  it('renders the current temperature and submits the full selection with a new value', async () => {
+    vi.useFakeTimers()
     const directory = createSnapshotStore<ModelDirectoryState>(state({
       current: {
         provider: 'deepseek-official', model: 'deepseek-v4-flash', reasoningEffort: 'high', temperature: 0.2,
@@ -66,15 +67,18 @@ describe('TemperatureSlider', () => {
     expect(slider.disabled).toBe(false)
 
     fireEvent.change(slider, { target: { value: '0.7' } })
+    await vi.advanceTimersByTimeAsync(120)
     expect(select).toHaveBeenCalledWith({
       provider: 'deepseek-official',
       model: 'deepseek-v4-flash',
       reasoningEffort: 'high',
       temperature: 0.7,
     })
+    vi.useRealTimers()
   })
 
-  it('shows the fallback default and omits effort when the selection carries neither', () => {
+  it('shows the fallback default and omits effort when the selection carries neither', async () => {
+    vi.useFakeTimers()
     const directory = createSnapshotStore<ModelDirectoryState>(state({
       current: { provider: 'p', model: 'm' },
     }))
@@ -85,10 +89,12 @@ describe('TemperatureSlider', () => {
     expect(slider.value).toBe('0.2')
 
     fireEvent.change(slider, { target: { value: '0.05' } })
+    await vi.advanceTimersByTimeAsync(120)
     expect(select).toHaveBeenCalledWith({ provider: 'p', model: 'm', temperature: 0.05 })
+    vi.useRealTimers()
   })
 
-  it('disables while locked, unresolved, or selecting', () => {
+  it('disables while locked or unresolved, but stays draggable during selectModel', () => {
     const locked = createSnapshotStore<ModelDirectoryState>(state())
     render(<TemperatureSlider locked available directory={locked} load={vi.fn()} select={vi.fn()} t={t} />)
     expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true)
@@ -101,7 +107,44 @@ describe('TemperatureSlider', () => {
     cleanup()
     const selecting = createSnapshotStore<ModelDirectoryState>(state({ status: 'selecting' }))
     render(<TemperatureSlider locked={false} available directory={selecting} load={vi.fn()} select={vi.fn()} t={t} />)
-    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(false)
+  })
+
+  it('updates immediately on change and commits after the drag settles', async () => {
+    vi.useFakeTimers()
+    const directory = createSnapshotStore<ModelDirectoryState>(state())
+    const select = vi.fn().mockResolvedValue(true)
+    render(<TemperatureSlider locked={false} available directory={directory} load={vi.fn()} select={select} t={t} />)
+
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '0.55' } })
+    expect(slider.value).toBe('0.55')
+    expect(select).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(120)
+    expect(select).toHaveBeenCalledWith({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      temperature: 0.55,
+    })
+    vi.useRealTimers()
+  })
+
+  it('commits immediately on pointer up without waiting for the debounce', () => {
+    vi.useFakeTimers()
+    const directory = createSnapshotStore<ModelDirectoryState>(state())
+    const select = vi.fn().mockResolvedValue(true)
+    render(<TemperatureSlider locked={false} available directory={directory} load={vi.fn()} select={select} t={t} />)
+
+    const slider = screen.getByRole('slider') as HTMLInputElement
+    fireEvent.change(slider, { target: { value: '0.4' } })
+    fireEvent.pointerUp(slider)
+    expect(select).toHaveBeenCalledWith({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      temperature: 0.4,
+    })
+    vi.useRealTimers()
   })
 
   it('ignores a change when no selection is resolved', () => {

@@ -297,6 +297,38 @@ describe('ApiSession model selection', () => {
     expect(agents.consumeSelection(untouched, 'fixture', 'fixture-model', undefined, undefined)).toBe(false)
   })
 
+  it('applies deployment temperature when an explicit selection omitted it on the same route', async () => {
+    const ctx = new Context()
+    roots.push(ctx)
+    await ctx.plugin(TypertRegistry)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    installSessionReadTestServices(ctx)
+    ctx.sessionProjections.register(agentPresetProjectionDefinition)
+    installModelSelectionProjection(ctx)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({
+        provider: 'logged-provider',
+        model: 'logged-model',
+        temperature: 0.2,
+      }),
+      saveSelection: () => Promise.resolve(),
+    } as never)
+    const agents = new ApiSessionAgentController(ctx)
+    const pending = agent(ctx, header('logged-model-temperature'))
+    agents.selectForNextRequest(pending, {
+      provider: 'logged-provider',
+      model: 'logged-model',
+      reasoningEffort: 'xhigh' as never,
+    })
+    expect(agents.selectionFor(pending).current).toEqual({
+      provider: 'logged-provider',
+      model: 'logged-model',
+      reasoningEffort: 'xhigh',
+      temperature: 0.2,
+    })
+  })
+
   it('applies deployment reasoning effort when the logged header omitted it on the same route', async () => {
     const ctx = new Context()
     roots.push(ctx)
