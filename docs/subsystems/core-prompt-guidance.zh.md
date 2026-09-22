@@ -32,11 +32,11 @@
 
 ## 推理流与用户回复
 
-模型可能同时产生**推理流**（thinking）与**用户可见回复**。Be Concise 仅约束推理流。Answer Structurally 仅约束**收尾**时的用户可见回复，不用于每轮中间消息，也不要预告即将执行的工具动作。轮次中间可省略或极简用户文字。
+模型可能同时产生**推理流**（thinking）与**用户可见回复**。Think Concise 仅约束推理流：每行动词加名词（意图或下一步动作），禁止叙述、第一人称、let me、The user wants 及 it/this/they；不要寒暄、铺垫、政策复述或 wait/actually。Answer Structurally 仅约束**收尾**时的用户可见回复，不用于每轮中间消息，也不要预告即将执行的工具动作。轮次中间可省略或极简用户文字。
 
 ## 核心人格与规则
 
-**Core Personality** 与八条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
+**Core Personality** 以 action first, think second 为总纲；八条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
 
 ## 工具建议（`Advice:`）
 

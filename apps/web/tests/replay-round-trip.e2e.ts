@@ -115,7 +115,7 @@ describe('web e2e: fresh round trip through the real assembly', () => {
     if (system === undefined) throw new Error('the settled Web request has no system prompt')
     const paragraphs = system.split('\n\n')
     expect(paragraphs[0]).toMatch(/^Core Personality: You are a helpful coding agent\./)
-    expect(paragraphs.some(p => p.startsWith('Core Rule: Be Concise'))).toBe(true)
+    expect(paragraphs.some(p => p.startsWith('Core Rule: Think Concise'))).toBe(true)
     const suffix = paragraphs.slice(-3).join('\n\n')
       .split(REPO_ROOT).join('{{sourceRoot}}')
       .split(join(scaffold.workspaceCwd, 'workspace')).join('{{cwd}}')
