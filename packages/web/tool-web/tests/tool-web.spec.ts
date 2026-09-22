@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import TurndownService from 'turndown'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
-import SystemPrompt, { renderPrompt, TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, { coreGuidanceParagraphs, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import WebRuntime from '@deepseek-ai/dsh-web'
 import type { WebSearchProvider, WebSearchResult } from '@deepseek-ai/dsh-web'
@@ -985,5 +985,5 @@ describe('scope-aware web guidance', () => {
 
 /** Preserve the default persona (including the built-in guidance) and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
-  return ['You are an AI agent powered by DeepSeek Harness.', TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT, ...sections].join('\n\n')
+  return [...coreGuidanceParagraphs({ proveIt: false }), ...sections].join('\n\n')
 }

@@ -6,9 +6,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { DiffCallView, DiffResultView, ToolResult } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-fs'
+import type { } from '@deepseek-ai/dsh-fs'
 import { computeHunkDiffs, diffsFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
 import { sessionResolveOptions } from './session-cwd.ts'
@@ -78,7 +79,8 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
     order: ctx.systemPrompt.getSectionOrder('TOOL_EDIT'),
     text: ({ scope }) => ctx.tools.get('edit', scope) === undefined
       ? ''
-      : 'Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.',
+      : adviceLine('Use edit for targeted replacements in an existing file; read the file first unless you just wrote it. Example: edit swap the middleware order by replacing the old register block with the new order.')
+      + ' old_string must match exactly once unless replace_all is true.',
   })
 
   ctx.tools.register(defineTool({

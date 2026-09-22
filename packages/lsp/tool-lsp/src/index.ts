@@ -12,6 +12,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { LspError, type LspSymbol } from '@deepseek-ai/dsh-lsp'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -56,7 +57,8 @@ export const DEFAULT_LSP_TOOL_TIMEOUT_MS = 60_000
 
 /** The stable system-prompt guidance positioning LSP as a precision aid. */
 export const LSP_PROMPT_TEXT =
-  'Use search/read for ordinary navigation. Use lsp when textual matches are ambiguous or before a change requires precise definitions, implementations, or references. Positions are one-based line and character (UTF-16) at the cursor; an off-symbol position may return no results. findReferences always includes the declaration. Use callers/callees for one hop of precise call sites — who calls a symbol, or what it calls, one chosen symbol at a time.'
+  adviceLine('Use lsp for definitions, references, callers, and callees when the symbol is known. Prefer it over grep when the symbol name is overloaded. Example: lsp find references on createUser before renaming.')
+  + ' Positions are one-based line and character (UTF-16) at the cursor; an off-symbol position may return no results. findReferences always includes the declaration. Use callers/callees for one hop of precise call sites.'
 
 /** Plugin configuration: result caps and the timeout budget. */
 export interface Config {

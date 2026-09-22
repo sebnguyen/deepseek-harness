@@ -2628,12 +2628,12 @@ Source: [`packages/e2b/subprocess-e2b/src/index.ts:26`](../packages/e2b/subproce
 ```ts config-catalog
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
 export interface Config {
-  /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
+  /** Include a harness identity opener at order -1000 (default false; text must stay model-neutral). */
   includeHarnessIdentity?: boolean
-  /** Include harness tool-batching guidance before tool sections (default true). */
-  includeToolBatchingGuidance?: boolean
-  /** Include the standard code-discovery flow before tool sections (default true). */
-  includeToolDiscoveryGuidance?: boolean
+  /** Include the core personality section at order 10 (default true). */
+  includeCorePersonalityGuidance?: boolean
+  /** Include all core rule sections at orders 20 through 90 (default true). */
+  includeCoreRulesGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -2655,7 +2655,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:290`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:309`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2768,7 +2768,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/tool-bash/src/index.ts:33`](../packages/shell/tool-bash/src/index.ts)
+Source: [`packages/shell/tool-bash/src/index.ts:34`](../packages/shell/tool-bash/src/index.ts)
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 
@@ -2935,7 +2935,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/lsp/tool-lsp/src/index.ts:62`](../packages/lsp/tool-lsp/src/index.ts)
+Source: [`packages/lsp/tool-lsp/src/index.ts:64`](../packages/lsp/tool-lsp/src/index.ts)
 
 <a id="deepseek-aidsh-tool-lsp-map"></a>
 

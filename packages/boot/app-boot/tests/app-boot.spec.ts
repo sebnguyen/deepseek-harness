@@ -471,7 +471,7 @@ describe('installFailLoud', () => {
     vi.useFakeTimers()
     try {
       const proc = fakeProc()
-      installFailLoud(NAME, proc, () => new Promise<void>(() => {}))
+      installFailLoud(NAME, proc, () => new Promise<void>(() => { }))
       proc.handlers[0]!(new Error('boom'))
       expect(proc.exits).toEqual([])
       await vi.advanceTimersByTimeAsync(FAIL_LOUD_RELEASE_TIMEOUT_MS)
@@ -506,18 +506,22 @@ describe('assertEntriesLoaded', () => {
     ({ loader: { entries: () => entries } }) as unknown as Context
 
   it('passes when every enabled entry has a fiber', () => {
-    expect(() => { assertEntriesLoaded(ctxWith([
-      { fiber: {}, options: { name: 'a' } },
-      { disabled: true, options: { name: 'off' } },
-    ]), NAME) }).not.toThrow()
+    expect(() => {
+      assertEntriesLoaded(ctxWith([
+        { fiber: {}, options: { name: 'a' } },
+        { disabled: true, options: { name: 'off' } },
+      ]), NAME)
+    }).not.toThrow()
   })
 
   it('throws naming every enabled fiber-less entry', () => {
-    expect(() => { assertEntriesLoaded(ctxWith([
-      { fiber: {}, options: { name: 'ok' } },
-      { options: { name: 'broken-a' } },
-      { options: { name: 'broken-b' } },
-    ]), NAME) }).toThrow(`${NAME}: plugin(s) failed to load: broken-a, broken-b`)
+    expect(() => {
+      assertEntriesLoaded(ctxWith([
+        { fiber: {}, options: { name: 'ok' } },
+        { options: { name: 'broken-a' } },
+        { options: { name: 'broken-b' } },
+      ]), NAME)
+    }).toThrow(`${NAME}: plugin(s) failed to load: broken-a, broken-b`)
   })
 })
 
@@ -908,14 +912,14 @@ describe('addHarnessSourceSection', () => {
       expect(rendered).toContain(EXPECTED)
       // The >= 0 guards keep a drifted opener/persona string from a false pass
       // through `-1 < n`.
-      const identityAt = rendered.indexOf('You are an AI agent powered by DeepSeek Harness.')
+      const coreAt = rendered.indexOf('Core Personality:')
       const sourceAt = rendered.indexOf(EXPECTED)
       const personaAt = rendered.indexOf('You are a coding agent.')
-      expect(identityAt).toBeGreaterThanOrEqual(0)
+      expect(coreAt).toBeGreaterThanOrEqual(0)
       expect(personaAt).toBeGreaterThanOrEqual(0)
       const sdkAt = rendered.indexOf('Reusable tool SDK.')
-      expect(personaAt).toBeGreaterThan(identityAt)
-      expect(sdkAt).toBeGreaterThan(personaAt)
+      expect(personaAt).toBeLessThan(coreAt)
+      expect(sdkAt).toBeGreaterThan(coreAt)
       expect(sdkAt).toBeLessThan(sourceAt)
     } finally {
       await ctx.fiber.dispose()

@@ -7,10 +7,7 @@
 - id: system-prompt
   config:
     personaSuffix: Your working directory is {{cwd}}.
-    personaPrefix: >-
-      You are a coding agent powered by the {{model}} model. When a step depends on an
-      assumption you cannot settle by inspection, ask the user with ask_user_question
-      instead of reasoning through a long chain of guesses.
+    personaPrefix: ''
 
 - id: tools
   config:

@@ -3,7 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { createUserMessage, ToolCallId, LlmError, ReasoningEffortId, StreamChunk, expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId, TurnEndReason } from '@deepseek-ai/dsh-session'
-import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, { coreGuidanceParagraphs } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import AgentRegistry, { type Agent, type AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
 
@@ -14,6 +14,8 @@ import { MockAdapter, maxTokensResponse, textResponse, toolCallResponse } from '
 function driverDone(agent: Agent): Promise<void> {
   return (agent as Agent & { done: Promise<void> }).done
 }
+
+const DEFAULT_CORE_PROMPT = coreGuidanceParagraphs({ proveIt: false }).join('\n\n')
 
 async function harness(adapter: MockAdapter, persona = '') {
   const ctx = new Context()
@@ -327,7 +329,7 @@ describe('agent loop', () => {
     })
     await started.promise
 
-    expect(() => agent.runMaintenance(async () => {})).toThrow('already has active work')
+    expect(() => agent.runMaintenance(async () => { })).toThrow('already has active work')
 
     finish.resolve(undefined)
     await active
@@ -378,7 +380,7 @@ describe('agent loop', () => {
     })
     await started.promise
 
-    expect(() => agent.runMaintenance(async () => {})).toThrow(/already has active work/)
+    expect(() => agent.runMaintenance(async () => { })).toThrow(/already has active work/)
 
     finish.resolve(undefined)
     await maintenance
@@ -509,7 +511,7 @@ describe('agent loop', () => {
     expect(types).toContain('tool/result')
   })
 
-  it('renders harness identity, then the persona, then tool guidance — with {{variables}} resolved', async () => {
+  it('renders core guidance, then the persona, then tool guidance — with {{variables}} resolved', async () => {
     const adapter = new MockAdapter([textResponse('ok')])
     // The persona is a TEMPLATE: {{model}} is the loop-registered variable
     // projecting this agent's configured model, so the model knows its own name.
@@ -529,7 +531,7 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
 
     const request = adapter.requests[0]
-    expect(systemOf(request)).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou are a test agent on mock.\n\nUse the noop tool wisely.')
+    expect(systemOf(request)).toBe(`You are a test agent on mock.\n\n${DEFAULT_CORE_PROMPT}\n\nUse the noop tool wisely.`)
     expect(request!.tools?.map(t => t.name)).toEqual(['noop'])
   })
 
@@ -546,7 +548,7 @@ describe('agent loop', () => {
     send(agent, 'hi')
     await waitForIdle(ctx, agent)
 
-    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nWorking in /work/space.')
+    expect(systemOf(adapter.requests[0])).toBe(`Working in /work/space.\n\n${DEFAULT_CORE_PROMPT}`)
   })
 
   it('contains a strict-variable render failure: the turn errors, the loop keeps serving turns', async () => {
@@ -582,7 +584,7 @@ describe('agent loop', () => {
     await waitForIdle(ctx, agent)
 
     expect(adapter.requests).toHaveLength(1)
-    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nIn /rescued.')
+    expect(systemOf(adapter.requests[0])).toBe(`In /rescued.\n\n${DEFAULT_CORE_PROMPT}`)
     const turnEnds = agent.session.snapshotEvents().filter(e => e.type === 'turn/end')
     expect(turnEnds).toHaveLength(2)
     expect(turnEnds[1]?.type === 'turn/end' && turnEnds[1].data.reason.kind).toBe('completed')
@@ -612,7 +614,7 @@ describe('agent loop', () => {
 
     expect(adapter.requests).toHaveLength(1)
     expect(adapter.requests[0]!.model).toBe('mock')
-    expect(systemOf(adapter.requests[0])).toBe('You are an AI agent powered by DeepSeek Harness.\n\nYou run on mock.')
+    expect(systemOf(adapter.requests[0])).toBe(`You run on mock.\n\n${DEFAULT_CORE_PROMPT}`)
   })
 
   it('sends no system message when system-prompt/assemble short-circuits with an empty assembly', async () => {
@@ -654,7 +656,7 @@ describe('agent loop', () => {
       send(agent, 'second')
       await secondIdle
       expect(adapter.requests).toHaveLength(2)
-      expect(systemOf(adapter.requests[1])).toBe('You are an AI agent powered by DeepSeek Harness.')
+      expect(systemOf(adapter.requests[1])).toBe(DEFAULT_CORE_PROMPT)
       expect(adapter.requests[1]?.messages.map(message => message.role)).toEqual(['system', 'user', 'assistant', 'user'])
       const replacement = agent.session.snapshotEvents().findLast(event => event.type === 'system/message')
       expect(replacement).toMatchObject({

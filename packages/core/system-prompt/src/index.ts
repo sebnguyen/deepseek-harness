@@ -9,6 +9,38 @@ import z from '@deepseek-ai/schemastery'
 import { AnonymousEntries, NamedEntries, ScopedLayers, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { ScopeKey, ScopeLayer, Scoped } from '@deepseek-ai/dsh-scope'
 import type { ContextSnapshotSection, ToolSchema } from '@deepseek-ai/dsh-llm'
+import {
+  CORE_PERSONALITY_SECTION,
+  CORE_PERSONALITY_TEXT,
+  CORE_RULE_PROVE_IT_SECTION,
+  CORE_RULE_PROVE_IT_TEXT,
+  CORE_RULE_SECTIONS,
+} from './core-guidance.ts'
+
+export {
+  adviceLine,
+  BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
+  CORE_PERSONALITY_SECTION,
+  CORE_PERSONALITY_TEXT,
+  CORE_RULE_ACTION_OVER_THINKING_SECTION,
+  CORE_RULE_ACTION_OVER_THINKING_TEXT,
+  CORE_RULE_ANSWER_STRUCTURE_SECTION,
+  CORE_RULE_ANSWER_STRUCTURE_TEXT,
+  CORE_RULE_ASK_USER_SECTION,
+  CORE_RULE_ASK_USER_TEXT,
+  CORE_RULE_BATCH_SECTION,
+  CORE_RULE_BATCH_TEXT,
+  CORE_RULE_CONCISE_SECTION,
+  CORE_RULE_CONCISE_TEXT,
+  CORE_RULE_CONTEXT_OVER_INFERENCE_SECTION,
+  CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT,
+  CORE_RULE_PROVE_IT_SECTION,
+  CORE_RULE_PROVE_IT_TEXT,
+  CORE_RULE_SECTIONS,
+  CORE_RULE_STANDARD_TOOLS_SECTION,
+  CORE_RULE_STANDARD_TOOLS_TEXT,
+  coreGuidanceParagraphs,
+} from './core-guidance.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -47,6 +79,11 @@ export interface AssembleContext {
   scope?: ScopeKey
   /** Explicit control signal for the turn that requested this assembly, when any. */
   signal?: AbortSignal
+  /**
+   * Tool names from the current assembly's provider evaluation. Populated only
+   * by {@link SystemPrompt.assemble} before section text resolves.
+   */
+  registeredToolNames?: ReadonlySet<string>
 }
 
 /** One contributed section of the system prompt (registry input). */
@@ -121,17 +158,21 @@ export interface PromptAssembly {
 const SECTION_ORDERS = {
   HARNESS_IDENTITY: -1000,
   DEPLOYMENT_PERSONA_PREFIX: 0,
+  CORE_PERSONALITY: 10,
+  CORE_RULE_CONCISE: 20,
+  CORE_RULE_ANSWER_STRUCTURE: 30,
+  CORE_RULE_STANDARD_TOOLS: 40,
+  CORE_RULE_ASK_USER: 50,
+  CORE_RULE_CONTEXT_OVER_INFERENCE: 60,
+  CORE_RULE_ACTION_OVER_THINKING: 70,
+  CORE_RULE_PROVE_IT: 80,
+  CORE_RULE_BATCH: 90,
   PLAN_POLICY: 500,
   TEAM_POLICY: 600,
   PTC_ONLY: 800,
   FILE_REFERENCE: 900,
-  TOOL_BATCHING: 950,
-  // The discovery funnel sits right after tool-batching (the general
-  // "how to call tools" meta) and ahead of the per-tool rules, so the model
-  // reads the find → structure → connect → drill procedure first.
-  TOOL_DISCOVERY: 960,
   // Filesystem guidance is grouped ahead of the shell guidance so the model
-  // reads the structured-discovery prose before the bash escape hatch.
+  // reads structured-tool prose before the bash escape hatch.
   TOOL_READ: 1000,
   TOOL_WRITE: 1010,
   TOOL_EDIT: 1020,
@@ -171,6 +212,17 @@ const SECTION_ORDERS = {
 /** Name of a centrally allocated prompt-section position. */
 export type PromptSectionOrderName = keyof typeof SECTION_ORDERS
 
+const CORE_RULE_ORDER_BY_SECTION: Record<string, PromptSectionOrderName> = {
+  'harness:core-rule:concise': 'CORE_RULE_CONCISE',
+  'harness:core-rule:answer-structure': 'CORE_RULE_ANSWER_STRUCTURE',
+  'harness:core-rule:standard-tools': 'CORE_RULE_STANDARD_TOOLS',
+  'harness:core-rule:ask-user': 'CORE_RULE_ASK_USER',
+  'harness:core-rule:context-over-inference': 'CORE_RULE_CONTEXT_OVER_INFERENCE',
+  'harness:core-rule:action-over-thinking': 'CORE_RULE_ACTION_OVER_THINKING',
+  'harness:core-rule:prove-it': 'CORE_RULE_PROVE_IT',
+  'harness:core-rule:batch': 'CORE_RULE_BATCH',
+}
+
 const CONTEXT_ORDERS = {
   SANDBOX_POLICY: 110,
   APPROVAL_POLICY: 115,
@@ -190,39 +242,6 @@ export const PERSONA_PREFIX_SECTION = 'deployment:persona-prefix'
 
 /** Deployment persona suffix section name shared by global and scoped contributions. */
 export const PERSONA_SUFFIX_SECTION = 'deployment:persona-suffix'
-
-/**
- * Harness tool-batching guidance section name. Reserved by the plugin like the
- * persona sections: one owner per section, so compositions replace it by
- * suppressing the built-in rather than re-registering the name.
- */
-export const TOOL_BATCHING_SECTION = 'harness:tool-batching'
-
-/**
- * Batch-independent-tool-calls guidance and mandatory structured-tool routing.
- * Using the structured tools is a hard requirement; bash is reserved for work
- * no structured tool covers. Model-visible verbatim; snapshot sidecars under
- * snapshots/ pin this text.
- */
-export const TOOL_BATCHING_TEXT =
-  'Batch independent tool calls. When several tool calls do not depend on each other\'s results, issue them all in the same response instead of one per turn. Using the structured tools for file and code work is mandatory: glob to find files, grep to search contents, read to inspect them, edit and write to change them, lsp for code structure — definitions, implementations, callers, callees, and references. Reach for bash only when no structured tool exists for the task (builds, git, processes), and never to find, read, search, or edit files. Prefer lsp over textual matches when a symbol name is ambiguous or a change needs precise call sites. These tools return structured results, and you can fire several in parallel in one turn, faster than a shell pipeline. Read-only calls — searching, listing, reading — are the common case: gather the context you need in one batch, then reason over the complete results. Call tools in separate turns only when a later call needs an earlier call\'s result, when the tool\'s instructions direct otherwise, or when the calls change state that affects one another.'
-
-/**
- * Harness code-discovery guidance section name. Reserved by the plugin like the
- * other built-ins: one owner per section, so a composition that owns its own
- * exploration instructions suppresses the built-in rather than re-registering
- * the name. Standard advice, not a capability advertisement: the funnel names
- * the symbol step as permitted, so it is correct in a deployment with no LSP.
- */
-export const TOOL_DISCOVERY_SECTION = 'harness:tool-discovery'
-
-/**
- * The ordered find → structure → locate → read procedure for unfamiliar code.
- * Model-visible verbatim; the symbol step is advisory so the advice holds
- * whether or not the deployment mounts a symbol tool.
- */
-export const TOOL_DISCOVERY_TEXT =
-  'Explore unfamiliar code in this order before reading it: glob to find the candidate files, symbols to outline their structure where a symbol tool is available, grep to locate the definitions and usages you need, then read only the files that matter. grep finds, symbols structures, callers/callees connects, read drills in.'
 
 /** Valid variable names: how they are written between the braces. */
 const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
@@ -288,12 +307,12 @@ function compareToolNames(a: ToolSchema, b: ToolSchema): number {
 
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
 export interface Config {
-  /** Include the fixed DeepSeek Harness identity before the deployment persona (default true). */
+  /** Include a harness identity opener at order -1000 (default false; text must stay model-neutral). */
   includeHarnessIdentity?: boolean
-  /** Include harness tool-batching guidance before tool sections (default true). */
-  includeToolBatchingGuidance?: boolean
-  /** Include the standard code-discovery flow before tool sections (default true). */
-  includeToolDiscoveryGuidance?: boolean
+  /** Include the core personality section at order 10 (default true). */
+  includeCorePersonalityGuidance?: boolean
+  /** Include all core rule sections at orders 20 through 90 (default true). */
+  includeCoreRulesGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
   /**
@@ -450,9 +469,9 @@ class PromptLayer implements ScopeLayer {
 /** Registry service for the prompt inputs assembled before each model step. */
 export class SystemPrompt extends Service {
   static Config: z<Config> = z.object({
-    includeHarnessIdentity: z.boolean().default(true),
-    includeToolBatchingGuidance: z.boolean().default(true),
-    includeToolDiscoveryGuidance: z.boolean().default(true),
+    includeHarnessIdentity: z.boolean().default(false),
+    includeCorePersonalityGuidance: z.boolean().default(true),
+    includeCoreRulesGuidance: z.boolean().default(true),
     includeRuntimeContext: z.boolean().default(true),
     personaPrefix: z.string().default(''),
     personaSuffix: z.string().default(''),
@@ -469,26 +488,11 @@ export class SystemPrompt extends Service {
   constructor(ctx: Context, config: Config) {
     super(ctx, 'systemPrompt')
     this.toolOrder = validateToolOrder(config.toolOrder)
-    // Keep harness-owned openers independent of the selected loop plugin.
-    if (config.includeHarnessIdentity ?? true) {
+    if (config.includeHarnessIdentity ?? false) {
       this.section({
         name: 'harness:identity',
         order: this.getSectionOrder('HARNESS_IDENTITY'),
-        text: 'You are an AI agent powered by DeepSeek Harness.',
-      })
-    }
-    if (config.includeToolBatchingGuidance ?? true) {
-      this.section({
-        name: TOOL_BATCHING_SECTION,
-        order: this.getSectionOrder('TOOL_BATCHING'),
-        text: TOOL_BATCHING_TEXT,
-      })
-    }
-    if (config.includeToolDiscoveryGuidance ?? true) {
-      this.section({
-        name: TOOL_DISCOVERY_SECTION,
-        order: this.getSectionOrder('TOOL_DISCOVERY'),
-        text: TOOL_DISCOVERY_TEXT,
+        text: '',
       })
     }
     this.section({
@@ -497,12 +501,57 @@ export class SystemPrompt extends Service {
       // The fallback narrows the optional input type; the schema already defaults it.
       text: config.personaPrefix ?? '',
     })
+    if (config.includeCorePersonalityGuidance ?? true) {
+      this.section({
+        name: CORE_PERSONALITY_SECTION,
+        order: this.getSectionOrder('CORE_PERSONALITY'),
+        text: CORE_PERSONALITY_TEXT,
+      })
+    }
+    if (config.includeCoreRulesGuidance ?? true) {
+      for (const rule of CORE_RULE_SECTIONS) {
+        const orderName = CORE_RULE_ORDER_BY_SECTION[rule.name]
+        if (orderName === undefined) throw new Error(`missing core rule order for ${rule.name}`)
+        this.section({
+          name: rule.name,
+          order: this.getSectionOrder(orderName),
+          text: rule.name === CORE_RULE_PROVE_IT_SECTION
+            ? (assemblyContext) => {
+              const names = assemblyContext.registeredToolNames
+              if (names === undefined) return ''
+              return names.has('declare_claim') && names.has('run_claim') ? CORE_RULE_PROVE_IT_TEXT : ''
+            }
+            : rule.text,
+        })
+      }
+    }
     this.section({
       name: PERSONA_SUFFIX_SECTION,
       order: this.getSectionOrder('DEPLOYMENT_PERSONA_SUFFIX'),
       text: config.personaSuffix ?? '',
     })
     if (!(config.includeRuntimeContext ?? true)) this.suppressRuntimeContext()
+  }
+
+  /**
+   * Tool names visible to one assembly from registered tool providers (pre-restriction universe).
+   * @param context - the assembly context passed to section providers.
+   * @returns every name reported by providers for this assembly.
+   */
+  collectRegisteredToolNames(context: AssembleContext): Set<string> {
+    const scope = context.scope
+    const scopeLayers = this.layers.chainLayers(scope)
+    const providers = [
+      ...this.layers.global.toolProviders.values(),
+      ...scopeLayers.flatMap(layer => [...layer.toolProviders.values()]),
+    ]
+    const knownNames = new Set<string>()
+    for (const provider of providers) {
+      const result = provider(context)
+      const acceptedKnownNames = result.knownNames ?? result.schemas.map(tool => tool.name)
+      for (const name of acceptedKnownNames) knownNames.add(name)
+    }
+    return knownNames
   }
 
   /**
@@ -636,24 +685,23 @@ export class SystemPrompt extends Service {
     // Scoped sections shadow globals before the deterministic order sort.
     const sectionByName = this.layers.merge(scope, layer => layer.sections)
     const contextByName = this.layers.merge(scope, layer => layer.contexts)
-    // Validate order against pre-restriction names while collecting visible schemas.
     const providers = [
       ...this.layers.global.toolProviders.values(),
       ...scopeLayers.flatMap(layer => [...layer.toolProviders.values()]),
     ]
-    const collected: ToolSchema[] = []
+    const providerResults = providers.map(provider => provider(context))
     const knownNames = new Set<string>()
-    for (const provider of providers) {
-      const result = provider(context)
-      const schemas = result.schemas.map(({ name, description, parameters }): ToolSchema => ({
+    const collected: ToolSchema[] = []
+    for (const result of providerResults) {
+      const acceptedKnownNames = result.knownNames ?? result.schemas.map(tool => tool.name)
+      for (const name of acceptedKnownNames) knownNames.add(name)
+      collected.push(...result.schemas.map(({ name, description, parameters }): ToolSchema => ({
         name,
         description,
         parameters: structuredClone(parameters),
-      }))
-      const acceptedKnownNames = result.knownNames ?? schemas.map(tool => tool.name)
-      collected.push(...schemas)
-      for (const name of acceptedKnownNames) knownNames.add(name)
+      })))
     }
+    const assemblyContext: AssembleContext = { ...context, registeredToolNames: knownNames }
     const sectionDefinitions = [...sectionByName.values()].sort(comparePromptSections)
     const completeSections = sectionDefinitions.filter(section => section.complete === true)
     if (completeSections.length > 1) {
@@ -664,7 +712,7 @@ export class SystemPrompt extends Service {
       .map((section) => {
         const assembled = {
           name: section.name,
-          text: typeof section.text === 'function' ? section.text(context) : section.text,
+          text: typeof section.text === 'function' ? section.text(assemblyContext) : section.text,
         }
         if (section.complete === true) completeSection = { ...assembled }
         return assembled

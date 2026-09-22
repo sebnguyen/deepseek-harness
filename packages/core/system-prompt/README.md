@@ -35,7 +35,6 @@ The config owns the fixed opener, the built-in tool-usage guidance, runtime cont
 ```yaml
 - name: '@deepseek-ai/dsh-system-prompt'
   config:
-    includeHarnessIdentity: true
     includeRuntimeContext: true
     personaPrefix: 'You are the deployment assistant.'
     toolOrder: ['<unlisted-tools>']
@@ -43,11 +42,11 @@ The config owns the fixed opener, the built-in tool-usage guidance, runtime cont
 
 | Field | Default | Meaning |
 |---|---|---|
-| `includeHarnessIdentity` | `true` | Include the fixed `You are an AI agent powered by DeepSeek Harness.` first-party opener at order −1000. Set false only when a compatibility deployment owns the complete system prompt. |
-| `includeToolBatchingGuidance` | `true` | Include the built-in `harness:tool-batching` guidance — batch independent calls and route file and code work through the structured tools — at order `950` |
-| `includeToolDiscoveryGuidance` | `true` | Include the built-in `harness:tool-discovery` flow at order `960`: glob to find candidate files, symbols to outline them where a symbol tool is available, grep to locate definitions and usages, then read only the files that matter. Standard advice, not a capability advertisement — the symbol step is permitted, so it holds in a deployment with no symbol tool |
+| `includeHarnessIdentity` | `false` | Register `harness:identity` when true; text must stay model-neutral (empty by default) |
+| `includeCorePersonalityGuidance` | `true` | Register `harness:core-personality` at order `10` |
+| `includeCoreRulesGuidance` | `true` | Register all `harness:core-rule:*` sections at orders `20`–`90` (prove-it text appears only when claim tools are mounted) |
 | `includeRuntimeContext` | `true` | Include ordered dynamic runtime context in assembly |
-| `personaPrefix` | `''` | Global persona prefix template at order `0`, before first-party guidance |
+| `personaPrefix` | `''` | Global persona prefix template at order `0`, before core guidance |
 | `personaSuffix` | `''` | Global `deployment:persona-suffix` template at order `10200`, after first-party guidance |
 | `toolOrder` | — | Explicit model-facing tool order with one `'<unlisted-tools>'` rest entry |
 
@@ -120,6 +119,7 @@ Scoped sections, variables, and tool providers shadow globals for one agent, and
 The package-level contract is enough for most consumers; read these when you need the surrounding domain.
 
 - [System-prompt subsystem](../../../docs/subsystems/system-prompt.md) — the exact cross-package types and generated service API.
+- [Core prompt guidance](../../../docs/subsystems/core-prompt-guidance.md) — core personality, core rules, folded batching/discovery, and `Advice:` tool lines.
 - [tools package](../tools/README.md) — the tool registry whose schemas flow into assembly.
 - [Prompt variables Agent Note](../../../.agents/notes/implemented/architecture/2026-07-05-prompt-variables-and-tool-guidance-ownership.md) — who owns which prompt facts.
 - [First-party prompt order Agent Note](../../../.agents/notes/archived/architecture/2026-08-25-sparse-first-party-prompt-section-orders.md) — the sparse named order allocation.
@@ -134,21 +134,15 @@ The package-level contract is enough for most consumers; read these when you nee
 
 #### What the model sees
 
-First-party sections render the harness identity, deployment persona prefix (including the model-name introduction), reusable instructions (including the generated tools SDK and structured-output guidance), then the environment-bearing suffix: harness source (`10000`), Web surface (`10100`), and deployment persona suffix (`10200`). External section orders and assembly listeners remain authoritative. `includeHarnessIdentity: false` omits only that fixed opener. Empty sections disappear; scoped sections and variables can shadow globals for one agent. The `system-prompt/assemble` waterfall determines the delivered prompt and tool schemas unless one effective section declares itself complete — that exact section then becomes the whole system prompt while the waterfall's contexts, tools, and variables remain. The rendered prompt reaches the model as a system-role message of derived history — surface node 0, or the latest system node after an in-history update — neither the loop request nor `request/header` carries a separate `system` field. If the complete rendering is empty, the loop clears every active system node through logged empty replacements, so no older prompt remains in model history. Ordered dynamic contexts are separate from sections and become sourced user-role snapshots only when present; `includeRuntimeContext: false` or a scoped suppressor removes them all.
-
-##### Harness identity
-
-```markdown
-You are an AI agent powered by DeepSeek Harness.
-```
+First-party sections render the deployment persona prefix (order `0`), core personality and core rules (orders `10`–`90`; see [core prompt guidance](../../../docs/subsystems/core-prompt-guidance.md)), reusable instructions and per-tool `Advice:` sections, then the environment-bearing suffix: harness source (`10000`), Web surface (`10100`), and deployment persona suffix (`10200`). External section orders and assembly listeners remain authoritative. `includeHarnessIdentity: true` registers an optional model-neutral `harness:identity` opener. Empty sections disappear; scoped sections and variables can shadow globals for one agent. The `system-prompt/assemble` waterfall determines the delivered prompt and tool schemas unless one effective section declares itself complete — that exact section then becomes the whole system prompt while the waterfall's contexts, tools, and variables remain. The rendered prompt reaches the model as a system-role message of derived history — surface node 0, or the latest system node after an in-history update — neither the loop request nor `request/header` carries a separate `system` field. If the complete rendering is empty, the loop clears every active system node through logged empty replacements, so no older prompt remains in model history. Ordered dynamic contexts are separate from sections and become sourced user-role snapshots only when present; `includeRuntimeContext: false` or a scoped suppressor removes them all.
 
 #### Token effect
 
-Identity is a fixed per-request cost when enabled. Persona prefixes, suffixes, and plugin text are repeated per request and scale with their rendered content.
+Core guidance, persona prefixes, suffixes, and plugin text are repeated per request and scale with their rendered content.
 
 #### KV Cache effect
 
-Prefix-stable while identity, persona, variables, section text, and order render identically: an unchanged rendering leaves the system nodes untouched unless an incapable route or a new request series must consolidate retained in-history prompts. Without `systemPromptUpdate`, non-empty prompt text is consolidated at the first system node through logged per-node replacements, so a head rewrite loses prefix reuse from its first changed token; when the prepared call declares `systemPromptUpdate: 'in-history'`, the agent loop appends a non-empty changed prompt after the cached history inside a continuing request series, so the prefix through that history stays reusable ([decision rule](../agent-loop/README.md#understand-the-implementation)). With the same model, persona prefix, tools, and preceding instructions, different source paths, local Web URLs, or persona suffix values leave the reusable first-party prefix unchanged. Persona prefix changes can alter the early prefix. Any change may invalidate reuse from the first changed token; provider cache sharing and measured hit rates are not guaranteed.
+Prefix-stable while persona, core guidance, variables, section text, and order render identically: an unchanged rendering leaves the system nodes untouched unless an incapable route or a new request series must consolidate retained in-history prompts. Without `systemPromptUpdate`, non-empty prompt text is consolidated at the first system node through logged per-node replacements, so a head rewrite loses prefix reuse from its first changed token; when the prepared call declares `systemPromptUpdate: 'in-history'`, the agent loop appends a non-empty changed prompt after the cached history inside a continuing request series, so the prefix through that history stays reusable ([decision rule](../agent-loop/README.md#understand-the-implementation)). With the same model, tools, and preceding instructions, different source paths, local Web URLs, or persona suffix values leave the reusable first-party prefix unchanged. Persona prefix changes can alter the early prefix. Any change may invalidate reuse from the first changed token; provider cache sharing and measured hit rates are not guaranteed.
 
 ### Tool schemas
 

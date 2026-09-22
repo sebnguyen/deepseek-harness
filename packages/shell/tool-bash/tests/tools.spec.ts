@@ -6,7 +6,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { ShellExecutor } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@deepseek-ai/dsh-shell'
-import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, { BUILT_IN_CORE_GUIDANCE_SECTION_NAMES } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -40,7 +40,7 @@ async function setup() {
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(LocalSubprocessRuntime)
-  ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
+  ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
   await ctx.plugin(ToolBash)
@@ -56,7 +56,7 @@ async function setupWithTasks() {
   await ctx.plugin(LocalJobRegistry)
   await ctx.plugin(ToolTasks)
   await ctx.plugin(LocalSubprocessRuntime)
-  ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
+  ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
   await ctx.plugin(ToolBash)
@@ -67,8 +67,8 @@ async function setupWithTasks() {
  * Build a fake {@link Agent} with the shared agent/session identity, give it a
  * dedicated lifecycle fiber for `Agent.ctx`, and register it in `ctx.agents`.
  */
-function registerFakeAgent(ctx: Context, sessionId: string, inject: (...args: unknown[]) => void = () => {}): Agent {
-  const scopeFiber = ctx.plugin(() => {})
+function registerFakeAgent(ctx: Context, sessionId: string, inject: (...args: unknown[]) => void = () => { }): Agent {
+  const scopeFiber = ctx.plugin(() => { })
   const id = SessionId(sessionId)
   const agent = {
     id,
@@ -213,7 +213,7 @@ function sandboxAgent(
   const id = SessionId('sandbox-session')
   return {
     id,
-    ...ctx === undefined ? {} : { ctx: ctx.plugin(() => {}).ctx },
+    ...ctx === undefined ? {} : { ctx: ctx.plugin(() => { }).ctx },
     session: {
       id,
       header: { version: 0, id, createdAt: 0 },
@@ -292,7 +292,7 @@ describe('bash tool', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
-    ;(ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
+    ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
     await ctx.plugin(LocalBashExecutor, { maxOutputBytes: 100, graceMs: 200 })
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(ToolBash)
@@ -399,10 +399,8 @@ describe('bash tool', () => {
     const assembly = await ctx.systemPrompt.assemble()
     const section = assembly.sections.find(s => s.name === 'tool:bash')
     expect(assembly.sections.map(s => s.name)).toEqual([
-      'harness:identity',
       'deployment:persona-prefix',
-      'harness:tool-batching',
-      'harness:tool-discovery',
+      ...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
       'test:before-bash',
       'tool:bash',
       'test:after-bash',
@@ -420,11 +418,20 @@ describe('bash tool', () => {
     await ctx.plugin(BashEnvPlugin)
     const fiber = await ctx.plugin(ToolBash)
     expect(ctx.tools.schemas()).toHaveLength(1)
-    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'tool:bash', 'deployment:persona-suffix'])
+    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual([
+      'deployment:persona-prefix',
+      ...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
+      'tool:bash',
+      'deployment:persona-suffix',
+    ])
     await fiber.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)
     // Only the system-prompt plugin's own built-in sections remain.
-    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual(['harness:identity', 'deployment:persona-prefix', 'harness:tool-batching', 'harness:tool-discovery', 'deployment:persona-suffix'])
+    expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual([
+      'deployment:persona-prefix',
+      ...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
+      'deployment:persona-suffix',
+    ])
   })
 
   it('tools depend on the executor: no registration without ctx.shell', async () => {
@@ -633,7 +640,7 @@ describe('sandbox escalation through the generic task producer', () => {
     expect(prompted).not.toHaveBeenCalled()
 
     const malformed = sandboxAgent()
-    ;(malformed.session.snapshotEvents() as unknown as Array<{ type: string; data: { mode: string }; seq: number }>).push({
+      ; (malformed.session.snapshotEvents() as unknown as Array<{ type: string; data: { mode: string }; seq: number }>).push({
       type: 'sandbox/mode',
       data: { mode: 'unknown-mode' },
       seq: malformed.session.seq,

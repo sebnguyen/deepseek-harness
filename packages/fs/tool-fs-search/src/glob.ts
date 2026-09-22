@@ -10,6 +10,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
 import { sep } from 'node:path'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, SearchResultView, ToolResult } from '@deepseek-ai/dsh-tools'
@@ -214,7 +215,7 @@ export function formatGlobOutput(sample: GlobSample, seen: number, spillRef: Spi
   const basis = sample.total === seen
     ? '.'
     : `, sampled across ${sample.shown} of the ${sample.total} top-level entries this pattern matched instead of taken in modification-time order.`
-      + (sample.shown < sample.total ? ' Narrow path to inspect a specific subtree.' : '')
+    + (sample.shown < sample.total ? ' Narrow path to inspect a specific subtree.' : '')
   return formatGlobPage(sample.items, seen, spillRef, basis)
 }
 
@@ -302,8 +303,8 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_GLOB'),
     text: ({ scope }) => ctx.tools.get('glob', scope) === undefined
       ? ''
-      : 'Use the glob tool — not shell find — to discover files by path pattern. A pattern with no "/" matches basenames at any depth, so "*" matches every file in the tree rather than its top level. '
-      + `Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, ${overCapGuidance}`,
+      : adviceLine('Use glob for path patterns; remember bare patterns match basenames at any depth. Do not use find in bash for discovery. Example: glob for test files under src before choosing which to run.')
+      + ` Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, ${overCapGuidance}`,
   })
 
   const overCapDescription = caps.sampleOverCapGlobResults

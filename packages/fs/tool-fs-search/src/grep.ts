@@ -12,6 +12,7 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, SearchResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { RetainedItems } from '@deepseek-ai/dsh-output-retention'
@@ -287,8 +288,8 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_GREP'),
     text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
       ? ''
-      : 'Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace.'
-        + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
+      : adviceLine('Use grep for content search across the workspace or a path you specify. Do not use bash rg for routine code search. Example: grep for class SessionStore then read the definition file.')
+      + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
   const tool = defineTool({

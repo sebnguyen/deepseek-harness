@@ -24,6 +24,7 @@ One page per subsystem of the DeepSeek Harness: what it is, the data structures 
 | [session-title.md](session-title.md) | durable title snapshots, cited source-message seqs, and the asynchronous provider contract |
 | [session-reference.md](session-reference.md) | structured cross-session references: `SessionReferenceInput`/`Candidate`, prepared message contexts, the stable error taxonomy |
 | [system-prompt.md](system-prompt.md) | per-assembly context, tool-provider results, prompt sections, and cooperative assembly |
+| [core-prompt-guidance.md](core-prompt-guidance.md) | first-party core personality and core rules (including folded batching/discovery), section order, `Advice:` tool lines, and config |
 | [tools.md](tools.md) | `ToolDefinition` full fields, the schema DSL, `ToolExecution`/`ToolResult`, tool-presentation UI types, and the guarded execution pipeline |
 | [user-questions.md](user-questions.md) | the UI-backed human question/answer seam: `AskUserQuestionRequest`, answer/options vocabulary, provider API, error taxonomy |
 | [approval.md](approval.md) | the one-shot user-approval seam: `ApprovalRequest`, `ApprovalOutcome`, per-session policy, audit events, and answerer contracts |

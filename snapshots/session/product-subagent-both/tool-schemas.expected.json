@@ -1,6 +1,27 @@
 {
   "initial": [
     {
+      "name": "abandon_claim",
+      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the declared condition was the wrong one."
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      }
+    },
+    {
       "name": "bash",
       "description": "Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` (the narrowest wider mode that suffices) plus a one-sentence `justification`. Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.",
       "parameters": {
@@ -62,6 +83,32 @@
         },
         "required": [
           "objective"
+        ]
+      }
+    },
+    {
+      "name": "declare_claim",
+      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
+          },
+          "description": {
+            "type": "string",
+            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
+          },
+          "script": {
+            "type": "string",
+            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "script"
         ]
       }
     },
@@ -153,7 +200,7 @@
     },
     {
       "name": "grep",
-      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.",
+      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Pass an absolute path to search outside the session workspace. Use read on a matched file for surrounding context.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -317,6 +364,38 @@
         },
         "required": [
           "file_path"
+        ]
+      }
+    },
+    {
+      "name": "read_note",
+      "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file whose note to read — the same path you would pass to `read`."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    },
+    {
+      "name": "run_claim",
+      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          }
+        },
+        "required": [
+          "id"
         ]
       }
     },
@@ -584,6 +663,27 @@
           "goal_id",
           "revision",
           "action"
+        ]
+      }
+    },
+    {
+      "name": "upsert_note",
+      "description": "Write, update, or remove the durable note for one source file. One note per file. State one fact worth knowing before changing the file; the harness stamps the note with the file's current content hash, so never compute or pass a hash. An empty `claim` removes the note.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file the note describes — the same path you would pass to `read`."
+          },
+          "claim": {
+            "type": "string",
+            "description": "The one fact worth knowing, as prose that stands alone. The empty string removes the note."
+          }
+        },
+        "required": [
+          "target",
+          "claim"
         ]
       }
     },

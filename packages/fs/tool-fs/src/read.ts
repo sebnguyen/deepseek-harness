@@ -5,9 +5,10 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ReadResultView, ToolResult } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-fs'
+import type { } from '@deepseek-ai/dsh-fs'
 import { buildWindow, formatReadOutput, langFromPath, readMetaFromMeta } from './read-render.ts'
 import { resolveRegularReadTarget } from './read-target.ts'
 
@@ -71,7 +72,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
     text: ({ scope }) => ctx.tools.get('read', scope) === undefined
       ? ''
-      : 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.',
+      : adviceLine('Use read for UTF-8 file contents with line numbers; use offset and limit on large files. Do not use cat or sed in bash for inspection. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
   })
 
   ctx.tools.register(defineTool({

@@ -15,7 +15,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { join, sep } from 'node:path'
 import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
-import SystemPrompt, { renderPrompt, TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, { adviceLine, coreGuidanceParagraphs, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH, type ToolExecution, type ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import { SubprocessRuntime } from '@deepseek-ai/dsh-subprocess'
 import type { SubprocessCollectedOutputs, SubprocessHandle, SubprocessOutcome, SubprocessOutputRead, SubprocessOutputReader, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
@@ -78,7 +78,7 @@ function runResult(
 
 /** A fixed-response collect-mode reader: the tools read each stream once, from 0, after settlement. */
 class FakeReader implements SubprocessOutputReader {
-  constructor(private readonly read: ScriptedStream) {}
+  constructor(private readonly read: ScriptedStream) { }
 
   readFrom(_fromByte: number): SubprocessOutputRead {
     return {
@@ -239,8 +239,8 @@ describe('registration', () => {
     expect(subprocess.spawns).toHaveLength(0)
     expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['glob', 'grep'])
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('Use the glob tool')
-    expect(prompt).toContain('Use the grep tool')
+    expect(prompt).toContain('Advice: Use glob for path patterns')
+    expect(prompt).toContain('Advice: Use grep for content search')
     expect(prompt).toContain('sampled across top-level entries')
     expect(prompt).not.toContain('sampled across top-level directories')
     const glob = ctx.tools.schemas().find(schema => schema.name === 'glob')
@@ -1221,9 +1221,10 @@ async function guidanceScope(ctx: Context) {
 }
 
 const originalSearchGuidance = {
-  glob: 'Use the glob tool — not shell find — to discover files by path pattern. A pattern with no "/" matches basenames at any depth, so "*" matches every file in the tree rather than its top level. '
-      + 'Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, while a larger one is sampled across top-level entries, so it spans the tree instead of one subtree.',
-  grep: 'Use the grep tool — not shell grep or rg — to search file contents. Pass an absolute path to search outside the session workspace. Use read on a matched file when you need surrounding context.',
+  glob: adviceLine('Use glob for path patterns; remember bare patterns match basenames at any depth. Do not use find in bash for discovery. Example: glob for test files under src before choosing which to run.')
+    + ' Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, while a larger one is sampled across top-level entries, so it spans the tree instead of one subtree.',
+  grep: adviceLine('Use grep for content search across the workspace or a path you specify. Do not use bash rg for routine code search. Example: grep for class SessionStore then read the definition file.')
+    + ' Use read on a matched file when you need surrounding context.',
 }
 
 describe('scope-aware search guidance', () => {
@@ -1262,7 +1263,7 @@ describe('scope-aware search guidance', () => {
   })
 })
 
-/** Preserve the default persona (including the tool-batching and discovery built-ins) and exact section separators in the oracle. */
+/** Preserve default core guidance and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
-  return ['You are an AI agent powered by DeepSeek Harness.', TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT, ...sections].join('\n\n')
+  return [...coreGuidanceParagraphs({ proveIt: false }), ...sections].join('\n\n')
 }

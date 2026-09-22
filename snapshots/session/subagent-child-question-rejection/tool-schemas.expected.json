@@ -1,6 +1,27 @@
 {
   "initial": [
     {
+      "name": "abandon_claim",
+      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the declared condition was the wrong one."
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      }
+    },
+    {
       "name": "ask_user_question",
       "description": "Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding. Send one or more questions, each with a stable id that will be echoed in the answer.",
       "parameters": {
@@ -129,6 +150,32 @@
       }
     },
     {
+      "name": "declare_claim",
+      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
+          },
+          "description": {
+            "type": "string",
+            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
+          },
+          "script": {
+            "type": "string",
+            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "script"
+        ]
+      }
+    },
+    {
       "name": "edit",
       "description": "Edit an existing UTF-8 text file by replacing literal text.",
       "parameters": {
@@ -216,7 +263,7 @@
     },
     {
       "name": "grep",
-      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Use read on a matched file for surrounding context.",
+      "description": "Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. Returns the first 250 matches inline; a capped result reports where the complete match list was saved. Pass an absolute path to search outside the session workspace. Use read on a matched file for surrounding context.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -384,6 +431,38 @@
       }
     },
     {
+      "name": "read_note",
+      "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file whose note to read — the same path you would pass to `read`."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    },
+    {
+      "name": "run_claim",
+      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
       "name": "send_message",
       "description": "Send a message to a direct continuable child by its agent id. If you are a resident continuable child, you may also target your direct parent. If the target is still working, the message steers its nearest step; if it is idle, the message starts a turn. This call returns no answer from the agent — only confirmation that the message was delivered. A failure means the message was NOT delivered.",
       "parameters": {
@@ -547,6 +626,27 @@
           "goal_id",
           "revision",
           "action"
+        ]
+      }
+    },
+    {
+      "name": "upsert_note",
+      "description": "Write, update, or remove the durable note for one source file. One note per file. State one fact worth knowing before changing the file; the harness stamps the note with the file's current content hash, so never compute or pass a hash. An empty `claim` removes the note.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file the note describes — the same path you would pass to `read`."
+          },
+          "claim": {
+            "type": "string",
+            "description": "The one fact worth knowing, as prose that stands alone. The empty string removes the note."
+          }
+        },
+        "required": [
+          "target",
+          "claim"
         ]
       }
     },

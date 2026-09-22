@@ -12,7 +12,12 @@ import { tmpdir } from 'node:os'
 import { join, resolve, sep } from 'node:path'
 import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
-import SystemPrompt, { renderPrompt, TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT } from '@deepseek-ai/dsh-system-prompt'
+import SystemPrompt, {
+  adviceLine,
+  BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
+  coreGuidanceParagraphs,
+  renderPrompt,
+} from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { type ToolResult } from '@deepseek-ai/dsh-tools'
 import { FileSystem, FsError, FsTargetKey, FsVersion } from '@deepseek-ai/dsh-fs'
 import type {
@@ -177,9 +182,9 @@ describe('registration', () => {
   it('registers prompt sections for each tool', async () => {
     const { ctx } = await setup()
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('Use the read tool')
-    expect(prompt).toContain('Use the write tool')
-    expect(prompt).toContain('Use the edit tool')
+    expect(prompt).toContain('Advice: Use read for UTF-8 file contents')
+    expect(prompt).toContain('Advice: Use write only to create a file')
+    expect(prompt).toContain('Advice: Use edit for targeted replacements')
   })
 
   it('stays pending until ctx.fs exists (inject)', async () => {
@@ -201,11 +206,23 @@ describe('registration', () => {
     // withdraw both, not just the schemas.
     expect(ctx.tools.schemas()).toHaveLength(3)
     const sectionNames = (a: { sections: { name: string }[] }) => a.sections.map(s => s.name).sort()
-    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual(['deployment:persona-prefix', 'deployment:persona-suffix', 'harness:identity', 'harness:tool-batching', 'harness:tool-discovery', 'tool:edit', 'tool:read', 'tool:write'])
+    const sortedCore = [...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES].sort()
+    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual([
+      'deployment:persona-prefix',
+      'deployment:persona-suffix',
+      ...sortedCore,
+      'tool:edit',
+      'tool:read',
+      'tool:write',
+    ])
     await fiber.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)
     // Only the system-prompt plugin's own built-in sections remain.
-    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual(['deployment:persona-prefix', 'deployment:persona-suffix', 'harness:identity', 'harness:tool-batching', 'harness:tool-discovery'])
+    expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual([
+      'deployment:persona-prefix',
+      'deployment:persona-suffix',
+      ...sortedCore,
+    ])
   })
 })
 
@@ -992,9 +1009,11 @@ async function guidanceScope(ctx: Context) {
 }
 
 const originalGuidance = {
-  read: 'Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.',
-  write: 'Use the write tool to create files or completely replace file contents. Existing files are overwritten, so read an existing file first (the default fs-observation-policy requires it) and prefer edit for targeted changes.',
-  edit: 'Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.',
+  read: adviceLine('Use read for UTF-8 file contents with line numbers; use offset and limit on large files. Do not use cat or sed in bash for inspection. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
+  write: adviceLine('Use write only to create a file or replace entire contents; prefer edit for partial changes. Example: write a new fixture file after the test shape is agreed.')
+    + ' Read an existing file first when overwriting (the default fs-observation-policy requires it).',
+  edit: adviceLine('Use edit for targeted replacements in an existing file; read the file first unless you just wrote it. Example: edit swap the middleware order by replacing the old register block with the new order.')
+    + ' old_string must match exactly once unless replace_all is true.',
 }
 
 describe('scope-aware filesystem guidance', () => {
@@ -1009,9 +1028,7 @@ describe('scope-aware filesystem guidance', () => {
     try {
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
       expect(assembly.tools.map(tool => tool.name)).toEqual([...allow].sort())
-      const expected = withPersona(...allow.map(name => name === 'write' && !allow.includes('edit')
-        ? originalGuidance.write.replace(' and prefer edit for targeted changes', '')
-        : originalGuidance[name]))
+      const expected = withPersona(...allow.map(name => originalGuidance[name]))
       expect(renderPrompt(assembly)).toBe(expected)
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
       release()
@@ -1034,17 +1051,16 @@ describe('scope-aware filesystem guidance', () => {
       scope.ctx.tools.register(write)
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
       expect(assembly.tools.map(tool => tool.name)).toEqual(['read', 'write'])
-      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.read,
-        originalGuidance.write.replace(' and prefer edit for targeted changes', '')))
+      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.read, originalGuidance.write))
     } finally {
       await scope.dispose()
     }
   })
 })
 
-/** Preserve the default persona (including the tool-batching and discovery built-ins) and exact section separators in the oracle. */
+/** Preserve default core guidance and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
-  return ['You are an AI agent powered by DeepSeek Harness.', TOOL_BATCHING_TEXT, TOOL_DISCOVERY_TEXT, ...sections].join('\n\n')
+  return [...coreGuidanceParagraphs({ proveIt: false }), ...sections].join('\n\n')
 }
 
 /** Schema assembly only: these cases never execute user code. */
