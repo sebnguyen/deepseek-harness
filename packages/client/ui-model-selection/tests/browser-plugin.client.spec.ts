@@ -152,7 +152,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  await ctx.plugin(function probe() {}).await()
+  await ctx.plugin(function probe() { }).await()
   const mint = (key: string) => {
     const id = sid(key)
     const handle = createScope(ctx, id)

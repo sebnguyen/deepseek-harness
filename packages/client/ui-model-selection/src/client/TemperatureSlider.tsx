@@ -7,7 +7,7 @@
  * durable projection and every entry shows the same session state.
  */
 import {
-  useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type PointerEvent,
+  useEffect, useRef, useState, useSyncExternalStore, type ChangeEvent, type CSSProperties, type PointerEvent,
 } from 'react'
 import type { ModelSelection } from '@deepseek-ai/dsh-api-remotes/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -99,11 +99,15 @@ export function TemperatureSlider(
     commit(Number(event.currentTarget.value))
   }
 
+  const fillPercent = ((shown - MIN) / (MAX - MIN)) * 100
+  const sliderStyle = { '--temperature-fill': `${fillPercent}%` } as CSSProperties
+
   return (
     <label className={css.root} title={t('temperature.label')}>
       <input
         type="range"
         className={css.slider}
+        style={sliderStyle}
         min={MIN}
         max={MAX}
         step={STEP}

@@ -36,7 +36,11 @@
 .slider::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--dsw-alias-label-caption) 55%, transparent);
+  background: linear-gradient(to right,
+      var(--dsw-alias-brand-primary) 0%,
+      var(--dsw-alias-brand-primary) var(--temperature-fill, 0%),
+      color-mix(in srgb, var(--dsw-alias-label-caption) 55%, transparent) var(--temperature-fill, 0%),
+      color-mix(in srgb, var(--dsw-alias-label-caption) 55%, transparent) 100%);
 }
 
 .slider::-webkit-slider-thumb {
@@ -55,6 +59,12 @@
   border: none;
   border-radius: 2px;
   background: color-mix(in srgb, var(--dsw-alias-label-caption) 55%, transparent);
+}
+
+.slider::-moz-range-progress {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--dsw-alias-brand-primary);
 }
 
 .slider::-moz-range-thumb {
