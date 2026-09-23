@@ -27,6 +27,8 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 70 | `CORE_RULE_ACTION_OVER_THINKING` | `harness:core-rule:action-over-thinking` | `dsh-system-prompt` |
 | 80 | `CORE_RULE_PROVE_IT` | `harness:core-rule:prove-it` | `dsh-system-prompt` (omit when claim tools are absent) |
 | 90 | `CORE_RULE_BATCH` | `harness:core-rule:batch` | `dsh-system-prompt` |
+| 100 | `CORE_RULE_DIAGNOSE_BEFORE_SWITCHING` | `harness:core-rule:diagnose-before-switching` | `dsh-system-prompt` |
+| 110 | `CORE_RULE_CLOSE_THE_DECISION` | `harness:core-rule:close-the-decision` | `dsh-system-prompt` |
 | 500 | `PLAN_POLICY` | `plan:policy` | `dsh-plan-mode`, non-empty only in plan mode |
 | 600 | `TEAM_POLICY` | `team:policy` | `dsh-experimental-tool-agent-team`, when the agent is on a team |
 | 800 | `PTC_ONLY` | (tools plugin) | `dsh-tools`, when tool presentation is `ptc` |
@@ -105,6 +107,18 @@ Register `harness:core-rule:prove-it` only when claim tools are mounted for the 
 ### Core Rule: Batch Over Individual
 
 Core Rule: Batch Over Individual - When tool calls do not depend on results from other calls, send them in one assistant message so the harness can run them in parallel. Batch read only work first (glob, grep, read, lsp) to maximize context, then mutate in a later message once you know what to change. Use separate turns when a later call needs an earlier result or when edits would change what you should read next. Example: onboarding to a service: one message with glob for TypeScript files under src/auth, grep for session, and read on the router file if the path is already known, instead of three turns with reasoning between each call.
+
+### Core Rule: Diagnose Before Switching
+
+Core Rule: Diagnose Before Switching - When an approach fails, read the failure and check the assumption behind it before changing tactics. Do not repeat an action that already failed, and do not abandon a workable approach after a single failure. After two or three attempts at the same thing with no new information, the approach is wrong rather than the execution; change the approach instead of trying another variation. Example: a test still failing after three edits to the same assertion means the assumption about what the test covers is wrong, so read the code under test instead of editing the assertion again.
+
+The rule is deliberately two-sided and both halves are load-bearing: a version that only forbade retrying would abandon workable approaches after one failure, and a version that only demanded persistence would burn a session on a dead end. The trigger is countable and asks a decidable question, whether the failed attempt taught anything new, rather than asking the model to judge whether it has made progress.
+
+### Core Rule: Close The Decision
+
+Core Rule: Close The Decision - Once the evidence is enough to choose, choose, and do not relitigate a decision the evidence already settled. When two readings both fit, take the plain one rather than the clever reading that happens to fit better. State the choice and the reason in one clause. If a doubt remains, say whether it changes the work; a doubt that changes nothing is not a reason to wait. Example: the config could be read as a default or an override, the plain reading is a default, so proceed on that reading and note the assumption instead of asking.
+
+This rule covers committing to a choice, which the older rules do not: Think Concise governs how options are written in the reasoning stream and Answer Structurally governs the concluding reply, while neither requires settling on one reading. Stating the choice and its reason is also what makes a shallow reading visible instead of hidden in an unstated assumption.
 
 ## Tool advice (`Advice:`)
 

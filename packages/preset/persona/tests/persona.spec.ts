@@ -23,7 +23,7 @@ describe('the persona row', () => {
     try {
       await ctx.plugin(SystemPrompt, { personaPrefix: 'Deployment.', personaSuffix: 'Global workspace.' })
       ctx.systemPrompt.variable('cwd', () => '/local')
-      ctx.systemPrompt.section({ name: 'guidance', order: 100, text: 'Use tools.' })
+      ctx.systemPrompt.section({ name: 'guidance', order: 400, text: 'Use tools.' })
       const key: ScopeKey = { agent: 'environment' }
       const scope = createScope(ctx, key)
       const fiber = await scope.ctx.plugin(Persona, { prefix: 'Preset.', suffix: 'Workspace {{cwd}}.' })

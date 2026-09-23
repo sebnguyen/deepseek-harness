@@ -516,7 +516,7 @@ describe('agent loop', () => {
     // The persona is a TEMPLATE: {{model}} is the loop-registered variable
     // projecting this agent's configured model, so the model knows its own name.
     const ctx = await harness(adapter, 'You are a test agent on {{model}}.')
-    ctx.systemPrompt.section({ name: 'tool:noop', order: 100, text: 'Use the noop tool wisely.' })
+    ctx.systemPrompt.section({ name: 'tool:noop', order: 400, text: 'Use the noop tool wisely.' })
     ctx.tools.register(defineContentToolFixture({
       name: 'noop',
       description: 'does nothing',

@@ -19,7 +19,7 @@
 | −1000 | `HARNESS_IDENTITY` | `harness:identity` | `dsh-system-prompt`（默认**关闭**） |
 | 0 | `DEPLOYMENT_PERSONA_PREFIX` | `deployment:persona-prefix` | 配置 / `dsh-persona` — 仅部署覆盖 |
 | 10 | `CORE_PERSONALITY` | `harness:core-personality` | `dsh-system-prompt` |
-| 20–90 | `CORE_RULE_*` | `harness:core-rule:*` | `dsh-system-prompt`（八条规则，见英文页全文） |
+| 20–110 | `CORE_RULE_*` | `harness:core-rule:*` | `dsh-system-prompt`（十条规则，见英文页全文） |
 | 500–900 | `PLAN_POLICY` 等 | 见英文页 | 计划模式、团队、PTC、`@` 引用等叠加层 |
 | 1000+ | `TOOL_*` | `tool:*` | 各工具包 — 正文以 `Advice: ` 开头 |
 | 10200 | `DEPLOYMENT_PERSONA_SUFFIX` | `deployment:persona-suffix` | 配置 / `dsh-persona` |
@@ -36,7 +36,7 @@
 
 ## 核心人格与规则
 
-**Core Personality** 以 action first, think second 为总纲；八条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
+**Core Personality** 以 action first, think second 为总纲；十条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
 
 ## 工具建议（`Advice:`）
 
