@@ -5,7 +5,9 @@ import SystemPrompt, {
   BUILT_IN_CORE_GUIDANCE_SECTION_NAMES,
   CORE_PERSONALITY_TEXT,
   CORE_RULE_BATCH_TEXT,
+  CORE_RULE_CLOSE_THE_DECISION_TEXT,
   CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT,
+  CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT,
   CORE_RULE_PROVE_IT_SECTION,
   CORE_RULE_SECTIONS,
   PromptAssembly,
@@ -25,7 +27,7 @@ const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
   'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STANDARD_TOOLS',
   'CORE_RULE_ASK_USER', 'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING',
-  'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH',
+  'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
   'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_READ',
   'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
   'TOOL_PWSH', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
@@ -38,7 +40,8 @@ const BUILT_IN_ORDER_EXCLUDED = new Set<PromptSectionOrderName>([
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX', 'CORE_PERSONALITY', 'CORE_RULE_CONCISE',
   'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STANDARD_TOOLS', 'CORE_RULE_ASK_USER',
   'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING', 'CORE_RULE_PROVE_IT',
-  'CORE_RULE_BATCH', 'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
+  'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
+  'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
 ])
 const CONTEXT_ORDER_NAMES = [
   'SANDBOX_POLICY', 'APPROVAL_POLICY', 'SUBAGENT_DELEGATION',
@@ -121,7 +124,7 @@ describe('SystemPrompt', () => {
       try {
         await ctx.plugin(SystemPrompt, { personaPrefix: 'Model {{model}}.', personaSuffix: 'Workspace {{cwd}}.' })
         ctx.systemPrompt.variable('model', () => 'm')
-        ctx.systemPrompt.section({ name: 'guidance', order: 100, text: 'Use tools.' })
+        ctx.systemPrompt.section({ name: 'guidance', order: 400, text: 'Use tools.' })
         const unresolved = await ctx.systemPrompt.assemble()
         expect(() => renderPrompt(unresolved))
           .toThrow('unknown prompt variable "{{cwd}}" in section "deployment:persona-suffix"')
@@ -171,12 +174,18 @@ describe('SystemPrompt', () => {
       expect(renderPrompt(assembly)).toBe(`You are a helpful software engineer assistant.\n\n${coreGuidanceParagraphs({ rules: false }).join('\n\n')}`)
     })
 
-    it('states context-over-inference and batch core rules in the default assembly', async () => {
+    it('states the discovery, batching, failure-recovery, and decision-closure core rules in the default assembly', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT)
-      expect(renderPrompt(await ctx.systemPrompt.assemble())).toContain(CORE_RULE_BATCH_TEXT)
+      const prompt = renderPrompt(await ctx.systemPrompt.assemble())
+      expect(prompt).toContain(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT)
+      expect(prompt).toContain(CORE_RULE_BATCH_TEXT)
+      expect(prompt).toContain(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)
+      expect(prompt).toContain(CORE_RULE_CLOSE_THE_DECISION_TEXT)
       expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('glob to list candidates, symbols to outline structure when available, grep to find definitions and usages, then read only the files you need')
+      // The two newer rules close the behavioral block, in registration order.
+      expect(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_BATCH_TEXT))
+      expect(prompt.indexOf(CORE_RULE_CLOSE_THE_DECISION_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT))
     })
 
     it('omits prove-it core rule text until claim tools are registered', async () => {

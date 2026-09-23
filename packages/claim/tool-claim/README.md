@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`dsh-tool-claim` gives the model three tools — `declare_claim` to state what must be true when the turn completes and the one shell check that proves it, `run_claim` to run that check inside the turn and settle the claim on a pass, and `abandon_claim` to give up on a claim that named the wrong condition — and contributes the standing demand that tells the model to open each turn with one or more claims. Mount it beside `dsh-claim`; the service stores claims and `dsh-claim-settlement` verifies any claim the model never runs itself.
+`dsh-tool-claim` gives the model three tools — `declare_claim` to state what must be true when the turn completes and the one shell check that proves it, `run_claim` to run that check inside the turn and settle the claim on a pass, and `abandon_claim` to give up on a claim that named the wrong condition — and contributes the standing demand that tells the model to open coding turns (repo edits or verification) with one or more claims while skipping claims on explanation-only turns. Mount it beside `dsh-claim`; the service stores claims and `dsh-claim-settlement` verifies any claim the model never runs itself.
 
 ## Table of Contents
 
@@ -86,7 +86,7 @@ All three return the compact claim status — id, turn, revision, `title`, `desc
 
 #### What the model sees
 
-One prompt section, always present, stating that the agent must declare one or more claims with `declare_claim` — one claim per independent condition — bind the check that proves each one, keep a claim's content immutable once declared, settle claims itself with `run_claim`, abandon a claim once its check has run and the condition itself was wrong, and expect one steered repair round for any claim it never runs. Each turn's first step also receives a short plugin-sourced reminder message naming the turn and pointing at `declare_claim` and `run_claim`. The package also contributes the three tool schemas.
+One prompt section, always present, stating when claims apply (coding turns only), how to declare one or more claims with `declare_claim` — one claim per independent condition — bind the check that proves each one, keep a claim's content immutable once declared, settle claims itself with `run_claim`, abandon a claim once its check has run and the condition itself was wrong, and expect one steered repair round for any claim it never runs. Each turn's first step also receives a short plugin-sourced reminder naming the turn, when to skip claims, and when to declare and settle them. The package also contributes the three tool schemas.
 
 #### Token effect
 

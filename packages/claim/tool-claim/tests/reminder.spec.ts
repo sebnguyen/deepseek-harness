@@ -18,8 +18,8 @@ function harness(agent: Agent): Record<'agent/pre-step', PreStepListener> {
     'agent/pre-step': () => Promise.resolve({ kind: 'reject' }),
   }
   const ctx = {
-    systemPrompt: { section: () => {}, getSectionOrder: () => 2450 },
-    tools: { register: () => {} },
+    systemPrompt: { section: () => { }, getSectionOrder: () => 2450 },
+    tools: { register: () => { } },
     agents: { get: (id: string) => (id === agent.id ? agent : undefined) },
     claims: {},
     sessionProjections: {},
@@ -45,6 +45,9 @@ describe('claim declaration reminder', () => {
     expect(decision.messages).toHaveLength(1)
     const source = decision.messages[0]?.source as { kind: string; plugin: string } | undefined
     expect(source).toEqual({ kind: 'plugin', plugin: 'tool-claim' })
+    const text = (decision.messages[0] as { content?: { text: string }[] }).content?.[0]?.text ?? ''
+    expect(text).toContain('skip claims')
+    expect(text).toContain('verification script')
   })
 
   it('does not remind on repair steps or for an agent that left the registry', async () => {

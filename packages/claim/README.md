@@ -7,7 +7,7 @@ kind: "package-group"
 
 ## Summary
 
-The claim group lets the agent open each work turn with an immutable declaration of why the turn exists and what must be true when it completes, bound to one shell verifier. The settlement package runs that verifier when the turn is about to close and steers a failure back for in-turn repair under a bounded budget. Claims are advisory: the group never blocks a tool call, escalates a sandbox mode, or changes what the model may do.
+The claim group lets the agent open coding turns with an immutable declaration of what must be true when the turn completes, bound to one shell verifier, while skipping claims on explanation-only turns. The settlement package runs that verifier when the turn is about to close and steers a failure back for in-turn repair under a bounded budget. Claims are advisory: the group never blocks a tool call, escalates a sandbox mode, or changes what the model may do.
 
 ## Table of Contents
 

@@ -13,7 +13,7 @@ import { boundedEvidence, runVerifier } from '@deepseek-ai/dsh-claim-settlement'
 import { createUserMessage, HarnessError } from '@deepseek-ai/dsh-llm'
 import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
-import type {} from '@deepseek-ai/dsh-session-projection'
+import type { } from '@deepseek-ai/dsh-session-projection'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import z from '@deepseek-ai/schemastery'
@@ -52,9 +52,11 @@ function resolveConfig(config: Config): ResolvedConfig {
   }
 }
 
-/** The standing requirement that opens every work turn with one or more claims. */
+/** The standing requirement for coding turns that change or verify the repository. */
 export const CLAIM_DEMAND =
-  'At the start of a work turn, declare one or more claims with declare_claim — declare more than one claim when '
+  'Use declare_claim only on coding turns: turns that will edit, create, or delete repository files or run shell '
+  + 'commands to verify such a change. Skip claims on explanation-only turns with no repo edits or verification '
+  + 'scripts planned. At the start of a coding turn, declare one or more claims with declare_claim — declare more than one claim when '
   + 'the turn promises several independent conditions, one claim per independent condition. Give each claim a brief '
   + 'title of a few words, and put the full detail of what must be true when it is settled in the description. Bind '
   + 'exactly one shell script that exits 0 only when that description holds, and make the check verify the change: '
@@ -78,9 +80,11 @@ const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
  * are one-based, so step 1 is the turn's first step.
  */
 function renderTurnReminder(turn: number): string {
-  return `New work turn (turn ${turn}). Declare this turn's claims with declare_claim — one claim per independent `
-    + 'condition, each with a short title, a full description, and one bound shell check — before changing anything, '
-    + 'and settle them with run_claim before you end the turn.'
+  return `New work turn (turn ${turn}). Use declare_claim only if this turn will edit, create, or delete repository `
+    + 'files or run a verification script for a code change; otherwise skip claims and answer directly. When claims '
+    + 'apply, declare this turn\'s claims with declare_claim — one claim per independent condition, each with a short '
+    + 'title, a full description, and one bound shell check — before changing anything, and settle them with '
+    + 'run_claim before you end the turn.'
 }
 
 /** Compact status the model reads back after either tool call. */
