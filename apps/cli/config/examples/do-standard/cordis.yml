@@ -63,9 +63,10 @@
           supportsDeveloperRole: false
           maxTokensField: max_completion_tokens
           requiresReasoningContentOnAssistantMessages: true
+        # contextWindow: min(DO catalog, 524288); models below 512k keep DO standard.
         models:
           - id: glm-5.3-flash
-            contextWindow: 1048576
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -75,7 +76,7 @@
               xhigh: xhigh
               max: max
           - id: glm-5.3
-            contextWindow: 1048576
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -86,7 +87,7 @@
               max: max
           - id: minimax-m2.5
             contextWindow: 65536
-            maxTokens: 65536
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
@@ -95,8 +96,8 @@
               xhigh: xhigh
               max: max
           - id: mimo-v2.5-pro
-            contextWindow: 1048576
-            maxTokens: 262144
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
@@ -106,7 +107,7 @@
               max: max
           - id: kimi-k2.6
             contextWindow: 262144
-            maxTokens: 262144
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
@@ -115,8 +116,8 @@
               xhigh: xhigh
               max: max
           - id: qwen3.8-max
-            contextWindow: 1048576
-            maxTokens: 262144
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
@@ -129,24 +130,24 @@
             maxTokens: 8192
             reasoningEfforts: false
           - id: deepseek-v4.1-flash
-            contextWindow: 1048576
-            maxTokens: 384000
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               low: low
               high: high
               xhigh: xhigh
               max: max
           - id: deepseek-v4-flash-0731
-            contextWindow: 1048576
-            maxTokens: 1048576
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               low: low
               high: high
               xhigh: xhigh
               max: max
           - id: deepseek-v4-pro-0813
-            contextWindow: 1048576
-            maxTokens: 1048576
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
@@ -155,8 +156,8 @@
               xhigh: xhigh
               max: max
           - id: deepseek-v4-pro
-            contextWindow: 1048576
-            maxTokens: 384000
+            contextWindow: 524288
+            maxTokens: 32768
             reasoningEfforts:
               off: none
               low: low
