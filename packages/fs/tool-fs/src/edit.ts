@@ -79,7 +79,7 @@ export function applyEditTool(ctx: Context, sandbox: FsSandboxController): void 
     order: ctx.systemPrompt.getSectionOrder('TOOL_EDIT'),
     text: ({ scope }) => ctx.tools.get('edit', scope) === undefined
       ? ''
-      : adviceLine('Use edit for targeted replacements in an existing file; read the file first unless you just wrote it. Example: edit swap the middleware order by replacing the old register block with the new order.')
+      : adviceLine('Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block.')
       + ' old_string must match exactly once unless replace_all is true.',
   })
 

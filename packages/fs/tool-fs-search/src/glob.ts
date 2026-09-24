@@ -303,7 +303,7 @@ export function applyGlobTool(ctx: Context, caps: GlobToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_GLOB'),
     text: ({ scope }) => ctx.tools.get('glob', scope) === undefined
       ? ''
-      : adviceLine('Use glob for path patterns; remember bare patterns match basenames at any depth. Do not use find in bash for discovery. Example: glob for test files under src before choosing which to run.')
+      : adviceLine('Glob answers which paths exist, and a bare pattern matches basenames at any depth, so it beats walking a tree by hand. Example: glob for test files under src before choosing which to run.')
       + ` Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, ${overCapGuidance}`,
   })
 

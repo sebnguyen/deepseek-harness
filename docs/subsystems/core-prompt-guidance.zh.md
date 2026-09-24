@@ -36,11 +36,15 @@
 
 ## 核心人格与规则
 
-**Core Personality** 以 action first, think second 为总纲；十条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
+**Core Personality** 以「每条规则服务于同一结果」为总纲，并给出两条解释规则：字面读法违背理由时依理由行事，两条规则冲突时由更贴合情境的理由胜出。十条 Core Rule 段落的英文正文（含每条后的 Example 行，以及 Tool Advice 范例）以 [core-prompt-guidance.md](core-prompt-guidance.md) 为准。模型可见正文须为 ASCII 友好措辞：不用箭头、unicode 破折号、省略号、markdown 强调、反引号或 glob 元字符；顺序用 then。实现与快照以该页 verbatim 文本为 oracle。
+
+## 提示词预算
+
+每条核心指导段落都有 `system-prompt.spec.ts` 断言的字符上限，整组段落另有一项总量上限。需要更多空间的段落在同一变更中说明理由并上调上限；收窄的段落则下调上限，使提示词不会逐句无声累积。上限不是删减目标，而是记录下来的实际规模：只有在文本仍承载原有全部理由与义务时，更低的数字才成立。
 
 ## 工具建议（`Advice:`）
 
-`TOOL_READ` 及之后的各 `tool:*` 段落正文以 **`Advice: `** 开头，一至两句，不重复 Core Rules。
+`TOOL_READ` 及之后的各 `tool:*` 段落正文以 **`Advice: `** 开头，用一至两句说明该工具做什么、为何优于替代做法，随后是 **`Example:`** 一行。由提示词之外的机制强制的要求，在理由之后仍以义务句形式保留。不重复 Core Rules。
 
 ## 配置
 

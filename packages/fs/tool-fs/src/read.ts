@@ -72,7 +72,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
     text: ({ scope }) => ctx.tools.get('read', scope) === undefined
       ? ''
-      : adviceLine('Use read for UTF-8 file contents with line numbers; use offset and limit on large files. Do not use cat or sed in bash for inspection. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
+      : adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot, and offset and limit keep a large file inside context. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
   })
 
   ctx.tools.register(defineTool({

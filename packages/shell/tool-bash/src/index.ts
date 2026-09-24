@@ -241,7 +241,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.systemPrompt.section({
     name: 'tool:bash',
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
-    text: adviceLine('Use bash for builds, git, installs, and test runners when no dedicated tool exists; always pass a short description. Do not use bash for find, read, grep, or file edits. Example: bash pnpm test with filter api after code changes, with description Run api package tests.')
+    text: adviceLine('Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests.')
       + ' Check the [exit code: N] marker on every bash result; investigate failures before moving on.',
   })
 

@@ -239,8 +239,8 @@ describe('registration', () => {
     expect(subprocess.spawns).toHaveLength(0)
     expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['glob', 'grep'])
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('Advice: Use glob for path patterns')
-    expect(prompt).toContain('Advice: Use grep for content search')
+    expect(prompt).toContain('Advice: Glob answers which paths exist')
+    expect(prompt).toContain('Advice: Grep searches file contents')
     expect(prompt).toContain('sampled across top-level entries')
     expect(prompt).not.toContain('sampled across top-level directories')
     const glob = ctx.tools.schemas().find(schema => schema.name === 'glob')
@@ -1221,9 +1221,9 @@ async function guidanceScope(ctx: Context) {
 }
 
 const originalSearchGuidance = {
-  glob: adviceLine('Use glob for path patterns; remember bare patterns match basenames at any depth. Do not use find in bash for discovery. Example: glob for test files under src before choosing which to run.')
+  glob: adviceLine('Glob answers which paths exist, and a bare pattern matches basenames at any depth, so it beats walking a tree by hand. Example: glob for test files under src before choosing which to run.')
     + ' Results are files only, never directories, and include hidden and ignored files: a result that fits comes back in modification-time order, while a larger one is sampled across top-level entries, so it spans the tree instead of one subtree.',
-  grep: adviceLine('Use grep for content search across the workspace or a path you specify. Do not use bash rg for routine code search. Example: grep for class SessionStore then read the definition file.')
+  grep: adviceLine('Grep searches file contents across the workspace or a path you specify, faster and better scoped than rg in bash. Example: grep for class SessionStore then read the definition file.')
     + ' Use read on a matched file when you need surrounding context.',
 }
 

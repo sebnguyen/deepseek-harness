@@ -57,7 +57,7 @@ export const DEFAULT_LSP_TOOL_TIMEOUT_MS = 60_000
 
 /** The stable system-prompt guidance positioning LSP as a precision aid. */
 export const LSP_PROMPT_TEXT =
-  adviceLine('Use lsp for definitions, references, callers, and callees when the symbol is known. Prefer it over grep when the symbol name is overloaded. Example: lsp find references on createUser before renaming.')
+  adviceLine('Lsp resolves definitions, references, callers, and callees from the language server, so it disambiguates a symbol name that grep cannot. Example: lsp find references on createUser before renaming.')
   + ' Positions are one-based line and character (UTF-16) at the cursor; an off-symbol position may return no results. findReferences always includes the declaration. Use callers/callees for one hop of precise call sites.'
 
 /** Plugin configuration: result caps and the timeout budget. */

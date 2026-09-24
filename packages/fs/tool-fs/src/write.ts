@@ -65,7 +65,7 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
     order: ctx.systemPrompt.getSectionOrder('TOOL_WRITE'),
     text: ({ scope }) => ctx.tools.get('write', scope) === undefined
       ? ''
-      : adviceLine('Use write only to create a file or replace entire contents; prefer edit for partial changes. Example: write a new fixture file after the test shape is agreed.')
+      : adviceLine('Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed.')
       + ' Read an existing file first when overwriting (the default fs-observation-policy requires it).',
   })
 

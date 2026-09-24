@@ -182,9 +182,9 @@ describe('registration', () => {
   it('registers prompt sections for each tool', async () => {
     const { ctx } = await setup()
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('Advice: Use read for UTF-8 file contents')
-    expect(prompt).toContain('Advice: Use write only to create a file')
-    expect(prompt).toContain('Advice: Use edit for targeted replacements')
+    expect(prompt).toContain('Advice: Read gives UTF-8 contents')
+    expect(prompt).toContain('Advice: Write replaces a whole file')
+    expect(prompt).toContain('Advice: Edit makes targeted replacements')
   })
 
   it('stays pending until ctx.fs exists (inject)', async () => {
@@ -1009,10 +1009,10 @@ async function guidanceScope(ctx: Context) {
 }
 
 const originalGuidance = {
-  read: adviceLine('Use read for UTF-8 file contents with line numbers; use offset and limit on large files. Do not use cat or sed in bash for inspection. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
-  write: adviceLine('Use write only to create a file or replace entire contents; prefer edit for partial changes. Example: write a new fixture file after the test shape is agreed.')
+  read: adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot, and offset and limit keep a large file inside context. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
+  write: adviceLine('Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed.')
     + ' Read an existing file first when overwriting (the default fs-observation-policy requires it).',
-  edit: adviceLine('Use edit for targeted replacements in an existing file; read the file first unless you just wrote it. Example: edit swap the middleware order by replacing the old register block with the new order.')
+  edit: adviceLine('Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block.')
     + ' old_string must match exactly once unless replace_all is true.',
 }
 

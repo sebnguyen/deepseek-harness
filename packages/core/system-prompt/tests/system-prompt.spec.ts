@@ -182,7 +182,7 @@ describe('SystemPrompt', () => {
       expect(prompt).toContain(CORE_RULE_BATCH_TEXT)
       expect(prompt).toContain(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)
       expect(prompt).toContain(CORE_RULE_CLOSE_THE_DECISION_TEXT)
-      expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('glob to list candidates, symbols to outline structure when available, grep to find definitions and usages, then read only the files you need')
+      expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('glob to list candidates, symbols to outline structure, grep for definitions and usages, then read only the files you need')
       // The two newer rules close the behavioral block, in registration order.
       expect(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_BATCH_TEXT))
       expect(prompt.indexOf(CORE_RULE_CLOSE_THE_DECISION_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT))
@@ -762,6 +762,45 @@ describe('SystemPrompt', () => {
         variables: { model: 'literal {{sneaky}} inside' },
       })
       expect(text).toBe('v = literal {{sneaky}} inside!')
+    })
+  })
+
+  describe('prompt budget', () => {
+    /**
+     * Per-section character ceilings for the model-facing prompt text.
+     * The ceilings ratchet down as sections shorten and rise only through the change
+     * that justifies the space; the oracle page owns the rationale.
+     */
+    const CEILINGS: Readonly<Record<string, number>> = {
+      'harness:core-personality': 671,
+      'harness:core-rule:concise': 635,
+      'harness:core-rule:answer-structure': 1023,
+      'harness:core-rule:standard-tools': 820,
+      'harness:core-rule:ask-user': 527,
+      'harness:core-rule:context-over-inference': 484,
+      'harness:core-rule:action-over-thinking': 867,
+      'harness:core-rule:prove-it': 871,
+      'harness:core-rule:batch': 589,
+      'harness:core-rule:diagnose-before-switching': 619,
+      'harness:core-rule:close-the-decision': 549,
+    }
+    const SECTIONS = [
+      { name: 'harness:core-personality', text: CORE_PERSONALITY_TEXT },
+      ...CORE_RULE_SECTIONS,
+    ]
+
+    it('keeps every section within its recorded ceiling', () => {
+      for (const section of SECTIONS) {
+        const ceiling = CEILINGS[section.name]
+        expect(ceiling, `no ceiling recorded for ${section.name}`).toBeTypeOf('number')
+        expect(section.text.length, `${section.name} exceeds its ceiling`).toBeLessThanOrEqual(ceiling as number)
+      }
+    })
+
+    it('keeps the recorded ceilings complete and the aggregate within its total', () => {
+      expect(Object.keys(CEILINGS).sort()).toEqual(SECTIONS.map(section => section.name).sort())
+      const total = SECTIONS.reduce((sum, section) => sum + section.text.length, 0)
+      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(7655)
     })
   })
 })

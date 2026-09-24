@@ -114,7 +114,7 @@ describe('web e2e: fresh round trip through the real assembly', () => {
     const system = systemPromptText(agent.session)
     if (system === undefined) throw new Error('the settled Web request has no system prompt')
     const paragraphs = system.split('\n\n')
-    expect(paragraphs[0]).toMatch(/^Core Personality: You are a helpful coding agent\./)
+    expect(paragraphs[0]).toMatch(/^Core Personality: You are a helpful coding agent, and every rule below serves one outcome:/)
     expect(paragraphs.some(p => p.startsWith('Core Rule: Think Concise'))).toBe(true)
     const suffix = paragraphs.slice(-3).join('\n\n')
       .split(REPO_ROOT).join('{{sourceRoot}}')
@@ -201,7 +201,7 @@ describe('web e2e: fresh round trip through the real assembly', () => {
     await expect.poll(() => disclosure.getAttribute('aria-expanded')).toBe('true')
     const opaque = body.locator('[data-context-text]')
     await expect.poll(() => opaque.count(), { timeout: 5_000 }).toBe(1)
-    expect(await opaque.textContent()).toContain('Core Personality: You are a helpful coding agent.')
+    expect(await opaque.textContent()).toContain('Core Personality: You are a helpful coding agent, and every rule below serves one outcome:')
 
     await disclosure.click()
     await expect.poll(() => disclosure.getAttribute('aria-expanded')).toBe('false')

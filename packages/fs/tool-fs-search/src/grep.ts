@@ -288,7 +288,7 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     order: ctx.systemPrompt.getSectionOrder('TOOL_GREP'),
     text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
       ? ''
-      : adviceLine('Use grep for content search across the workspace or a path you specify. Do not use bash rg for routine code search. Example: grep for class SessionStore then read the definition file.')
+      : adviceLine('Grep searches file contents across the workspace or a path you specify, faster and better scoped than rg in bash. Example: grep for class SessionStore then read the definition file.')
       + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
