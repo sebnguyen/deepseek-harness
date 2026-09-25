@@ -61,14 +61,6 @@ const EXPECTED_TOOLS = [
   'write',
 ]
 
-/**
- * `glob` and `grep` come from `dsh-tool-fs-search`, which spawns the PACKAGED
- * ripgrep binary (`@vscode/ripgrep`) through the subprocess seam, so the pair
- * is always present on every host — asserted as fixed members, not a host
- * dependency.
- */
-const RIPGREP_TOOLS = ['glob', 'grep']
-
 let scaffold: WebScaffold | undefined
 
 afterEach(async () => {
@@ -154,10 +146,12 @@ it('assembles the shipped Web transport, catalog, guidance, and defaults', async
   })
   try {
     const names = ctx.tools.schemas(handle.agent).map(schema => schema.name).sort()
-    expect(names.filter(name => !RIPGREP_TOOLS.includes(name))).toEqual(EXPECTED_TOOLS)
-    // The packaged ripgrep binary ships with the dependency, so the pair is a
-    // fixed roster member on every host.
-    expect(names.filter(name => RIPGREP_TOOLS.includes(name))).toEqual(RIPGREP_TOOLS)
+    // `glob` and `grep` are absent by design: the shipped presets leave text
+    // search to the shell and keep `read` for the numbered, observation-recording
+    // path the write and edit preconditions require.
+    expect(names).toEqual(EXPECTED_TOOLS)
+    expect(names).not.toContain('glob')
+    expect(names).not.toContain('grep')
     const fileReferenceSection = (await ctx.systemPrompt.assemble({ scope: handle.agent })).sections
       .find(section => section.name === 'ui:deliverable-file-references')
     expect(fileReferenceSection?.text).toBe(readFileSync(FILE_REFERENCE_PROMPT, 'utf8').trimEnd())

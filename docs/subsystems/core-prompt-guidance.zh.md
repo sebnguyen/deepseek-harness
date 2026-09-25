@@ -24,7 +24,7 @@
 | 1000+ | `TOOL_*` | `tool:*` | 各工具包 — 正文以 `Advice: ` 开头 |
 | 10200 | `DEPLOYMENT_PERSONA_SUFFIX` | `deployment:persona-suffix` | 配置 / `dsh-persona` |
 
-**已移除的位置：** `TOOL_BATCHING`（950）与 `TOOL_DISCOVERY`（960）不再作为独立段落；要求并入 **Standard Harness Tools**、**Context Over Inference**、**Batch Over Individual** 三条 Core Rule（英文页有完整措辞）。
+**已移除的位置：** `TOOL_BATCHING`（950）与 `TOOL_DISCOVERY`（960）不再作为独立段落；要求并入 **Structure Your Search**、**Context Over Inference**、**Batch Over Individual** 三条 Core Rule（英文页有完整措辞）。
 
 ## Harness 身份
 

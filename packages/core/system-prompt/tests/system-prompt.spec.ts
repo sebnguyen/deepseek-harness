@@ -25,7 +25,7 @@ const BUILT_IN = ['deployment:persona-prefix', ...BUILT_IN_CORE_GUIDANCE_SECTION
 const CORE_GUIDANCE = coreGuidanceParagraphs({ proveIt: false }).join('\n\n')
 const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
-  'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STANDARD_TOOLS',
+  'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH',
   'CORE_RULE_ASK_USER', 'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING',
   'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
   'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_READ',
@@ -38,7 +38,7 @@ const SECTION_ORDER_NAMES = [
 ] as const satisfies readonly PromptSectionOrderName[]
 const BUILT_IN_ORDER_EXCLUDED = new Set<PromptSectionOrderName>([
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX', 'CORE_PERSONALITY', 'CORE_RULE_CONCISE',
-  'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STANDARD_TOOLS', 'CORE_RULE_ASK_USER',
+  'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH', 'CORE_RULE_ASK_USER',
   'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING', 'CORE_RULE_PROVE_IT',
   'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
   'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
@@ -182,7 +182,7 @@ describe('SystemPrompt', () => {
       expect(prompt).toContain(CORE_RULE_BATCH_TEXT)
       expect(prompt).toContain(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)
       expect(prompt).toContain(CORE_RULE_CLOSE_THE_DECISION_TEXT)
-      expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('glob to list candidates, symbols to outline structure, grep for definitions and usages, then read only the files you need')
+      expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('list the candidates, outline the structure, search for definitions and usages, then read only the files you need')
       // The two newer rules close the behavioral block, in registration order.
       expect(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_BATCH_TEXT))
       expect(prompt.indexOf(CORE_RULE_CLOSE_THE_DECISION_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT))
@@ -775,12 +775,12 @@ describe('SystemPrompt', () => {
       'harness:core-personality': 671,
       'harness:core-rule:concise': 635,
       'harness:core-rule:answer-structure': 1023,
-      'harness:core-rule:standard-tools': 820,
+      'harness:core-rule:structure-your-search': 755,
       'harness:core-rule:ask-user': 527,
-      'harness:core-rule:context-over-inference': 484,
-      'harness:core-rule:action-over-thinking': 867,
+      'harness:core-rule:context-over-inference': 477,
+      'harness:core-rule:action-over-thinking': 866,
       'harness:core-rule:prove-it': 871,
-      'harness:core-rule:batch': 589,
+      'harness:core-rule:batch': 585,
       'harness:core-rule:diagnose-before-switching': 619,
       'harness:core-rule:close-the-decision': 549,
     }
@@ -800,7 +800,7 @@ describe('SystemPrompt', () => {
     it('keeps the recorded ceilings complete and the aggregate within its total', () => {
       expect(Object.keys(CEILINGS).sort()).toEqual(SECTIONS.map(section => section.name).sort())
       const total = SECTIONS.reduce((sum, section) => sum + section.text.length, 0)
-      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(7655)
+      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(7578)
     })
   })
 })

@@ -21,7 +21,7 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 10 | `CORE_PERSONALITY` | `harness:core-personality` | `dsh-system-prompt` |
 | 20 | `CORE_RULE_CONCISE` | `harness:core-rule:concise` | `dsh-system-prompt` |
 | 30 | `CORE_RULE_ANSWER_STRUCTURE` | `harness:core-rule:answer-structure` | `dsh-system-prompt` |
-| 40 | `CORE_RULE_STANDARD_TOOLS` | `harness:core-rule:standard-tools` | `dsh-system-prompt` |
+| 40 | `CORE_RULE_STRUCTURE_YOUR_SEARCH` | `harness:core-rule:structure-your-search` | `dsh-system-prompt` |
 | 50 | `CORE_RULE_ASK_USER` | `harness:core-rule:ask-user` | `dsh-system-prompt` |
 | 60 | `CORE_RULE_CONTEXT_OVER_INFERENCE` | `harness:core-rule:context-over-inference` | `dsh-system-prompt` |
 | 70 | `CORE_RULE_ACTION_OVER_THINKING` | `harness:core-rule:action-over-thinking` | `dsh-system-prompt` |
@@ -36,7 +36,7 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 1000+ | `TOOL_*` | `tool:*` | Each tool package, lines prefixed with Advice colon |
 | 10200 | `DEPLOYMENT_PERSONA_SUFFIX` | `deployment:persona-suffix` | Config / `dsh-persona` |
 
-**Removed placements:** `TOOL_BATCHING` (950) and `TOOL_DISCOVERY` (960) are **not** separate sections. Their requirements are folded into **Core Rule: Standard Harness Tools**, **Core Rule: Context Over Inference**, and **Core Rule: Batch Over Individual** below.
+**Removed placements:** `TOOL_BATCHING` (950) and `TOOL_DISCOVERY` (960) are **not** separate sections. Their requirements are folded into **Core Rule: Structure Your Search**, **Core Rule: Context Over Inference**, and **Core Rule: Batch Over Individual** below.
 
 ### Overlay slots (500 through 900)
 
@@ -82,9 +82,11 @@ Core Rule: Think Concise - The reasoning stream is private and the reply is the 
 
 Core Rule: Answer Structurally - The human reads the reply and nothing else, so it is where the result and its reasoning live. Give the reply that structure whenever it hands back a result; at a turn's start nothing is done yet, so the parts would report intentions as if they were results. Order it by what a reader can act on: the request as understood, the goal, the short rationale for the outcome, and what you did and what happened, so the reader grasps the context first. A small ask wants a short answer because speed is its point, so two to four sentences carry a rationale that needs no more and a yes or no task needs one. A summary of what mattered is not the raw output. Example: after fixing a failing test, conclude Problem user-api test expected 401 but got 500. Goal return 401 for missing tokens without breaking the happy path. Rationale the handler treated auth failures as generic errors; middleware now runs before the handler. Outcome reordered registration in routes.ts and the user-api test passes.
 
-### Core Rule: Standard Harness Tools
+### Core Rule: Structure Your Search
 
-Core Rule: Standard Harness Tools - These tools render in the interface, so the user sees the work while it happens: discovery belongs to glob, grep, symbols, lsp, and read, which narrow the search in the open, and changes belong to write, edit, and the other structured mutate tools, which show the change as a diff. Narrow with them before reading: symbols and lsp for the architecture, glob and grep to bisect to the file that matters; lsp resolves an ambiguous name that text matching cannot. Bash covers whatever no structured tool does: builds, git, installs, long running processes, and anything else the harness does not provide. Example: need to change a function name at call sites: lsp references or grep for the symbol, read the defining file, edit with edit, then run tests with bash if no test tool exists.
+Core Rule: Structure Your Search - A lookup becomes evidence only when the reply can name a file and a line, so settle the shape of a search before running it: symbols, callers, and callees first where a language server covers the file, then read the range the index returned, then a numbered text search for everything else. Text search reaches what a symbol index cannot: configuration, generated files, fixtures, docs, and every place that names a symbol as a string. Bound a listing before it floods the turn, and read files in a numbered window, so each offset you cite can be checked. Example: to rename a function across its call sites, take the references for the symbol, read the definition, edit each call site, then search the name as a string.
+
+The rule states a method, not a tool. It names no search or discovery tool, so it stays true in a scope that mounts the shell alone, and the tool-specific routing lives in each tool's own description and `Advice:` line, which disappear with the tool.
 
 ### Core Rule: Ask User Over Assumption
 
@@ -92,11 +94,11 @@ Core Rule: Ask User Over Assumption - A wrong assumption is invisible until it i
 
 ### Core Rule: Context Over Inference
 
-Core Rule: Context Over Inference - Every fact you take from the repository costs one read and cannot be wrong the way inference can, so gather before arguing. Work in order: glob to list candidates, symbols to outline structure, grep for definitions and usages, then read only the files you need. Example: instead of reasoning the cache might be in Redis or memory, run grep for cache client construction, read the matching file, then continue with the actual implementation in view.
+Core Rule: Context Over Inference - Every fact you take from the repository costs one read and cannot be wrong the way inference can, so gather before arguing. Work in order: list the candidates, outline the structure, search for definitions and usages, then read only the files you need. Example: instead of reasoning the cache might be in Redis or memory, search for the cache client construction, read the matching file, then continue with the actual implementation in view.
 
 ### Core Rule: Action Over Thinking
 
-Core Rule: Action Over Thinking - A tool result is true and a guess about it is not, so ground the work in observations: a read, a grep, or a short test run settles the doubt in front of you, where a chain of guesses settles nothing and spends the context that evidence would have used. The harness runs independent calls together, so batch every check that does not need another's result: one round trip instead of several, and the evidence lands together. A check that depends on an earlier result waits for it. Reasoning earns its space on tradeoffs, once the facts are in hand. Example: unsure whether an env var is read at startup, grep the variable name in the config loader file first; only if that is inconclusive, run one unit test or one short bash command that prints whether the var is set, instead of listing five guesses or chaining six discovery calls.
+Core Rule: Action Over Thinking - A tool result is true and a guess about it is not, so ground the work in observations: a read, a search, or a short test run settles the doubt in front of you, where a chain of guesses settles nothing and spends the context that evidence would have used. The harness runs independent calls together, so batch every check that does not need another's result: one round trip instead of several, and the evidence lands together. A check that depends on an earlier result waits for it. Reasoning earns its space on tradeoffs, once the facts are in hand. Example: unsure whether an env var is read at startup, search the variable in the config loader file first; only if that is inconclusive, run one unit test or one short bash command that prints whether the var is set, instead of listing five guesses or chaining six discovery calls.
 
 ### Core Rule: Prove It
 
@@ -106,7 +108,7 @@ Register `harness:core-rule:prove-it` only when claim tools are mounted for the 
 
 ### Core Rule: Batch Over Individual
 
-Core Rule: Batch Over Individual - The harness runs independent tool calls in parallel, so batching costs nothing and serializing costs wall-clock time. Batch read-only work first, glob, grep, read, and lsp together, then mutate once you know what to change. A call that needs an earlier result, or an edit that changes what you would read next, is a new message. Example: onboarding to a service: one message with glob for TypeScript files under src/auth, grep for session, and read on the router file if the path is already known, instead of three turns with reasoning between each call.
+Core Rule: Batch Over Individual - The harness runs independent tool calls in parallel, so batching costs nothing and serializing costs wall-clock time. Batch independent read-only work first — lookups, searches, and reads — then mutate once you know what to change. A call that needs an earlier result, or an edit that changes what you would read next, is a new message. Example: onboarding to a service: one message listing the files under src/auth, searching session, and reading the router file if the path is already known, instead of three turns with reasoning between each call.
 
 ### Core Rule: Diagnose Before Switching
 
