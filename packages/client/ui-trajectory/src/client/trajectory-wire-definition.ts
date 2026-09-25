@@ -29,7 +29,7 @@ const trajectoryWireDefinition: ConversationNodeDefinition<WireState> = {
       provider: data.provider,
       model: data.model,
       ...(data.purpose === undefined ? {} : { purpose: data.purpose }),
-      representation: data.representation,
+      ...(data.representation === undefined ? {} : { representation: data.representation }),
       payload: data.payload,
     }
   },

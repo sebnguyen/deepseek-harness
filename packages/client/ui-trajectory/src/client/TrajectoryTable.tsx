@@ -914,7 +914,9 @@ function RequestWirePanel({ wires, t }: {
             <div><dt>{t('wire.provider')}</dt><dd>{wire.provider}</dd></div>
             <div><dt>{t('wire.model')}</dt><dd>{wire.model}</dd></div>
             <div><dt>{t('wire.purpose')}</dt><dd>{wire.purpose ?? t('wire.purpose.conversation')}</dd></div>
-            <div><dt>{t('wire.representation')}</dt><dd>{t(WIRE_REPRESENTATION_KEYS[wire.representation])}</dd></div>
+            {wire.representation !== undefined && (
+              <div><dt>{t('wire.representation')}</dt><dd>{t(WIRE_REPRESENTATION_KEYS[wire.representation])}</dd></div>
+            )}
           </dl>
           <pre className={css.wirePayload}>{wire.payload}</pre>
         </section>
@@ -928,7 +930,7 @@ const WIRE_REPRESENTATION_KEYS = {
   none: 'wire.representation.none',
   file: 'wire.representation.file',
   base64: 'wire.representation.base64',
-} as const satisfies Record<TrajectoryRequestWire['representation'], TrajectoryKey>
+} as const satisfies Record<NonNullable<TrajectoryRequestWire['representation']>, TrajectoryKey>
 
 /**
  * This request's exact prompt composition — the ordered surface nodes it

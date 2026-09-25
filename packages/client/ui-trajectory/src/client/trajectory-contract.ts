@@ -21,7 +21,8 @@ export interface TrajectoryRequestWire {
   readonly provider: string
   readonly model: string
   readonly purpose?: 'compaction' | 'session-title'
-  readonly representation: 'none' | 'file' | 'base64'
+  /** Absent from an adapter that classifies no image representation per request. */
+  readonly representation?: 'none' | 'file' | 'base64'
   readonly payload: string
 }
 

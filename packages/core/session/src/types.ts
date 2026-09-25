@@ -250,7 +250,7 @@ export interface RequestContext {
   systemPromptUpdate?: SystemPromptUpdate
 }
 
-/** Image representation one dispatched request body used. */
+/** Image representation one dispatched request body used, where the adapter classifies one. */
 export type RequestWireRepresentation = 'none' | 'file' | 'base64'
 
 /**
@@ -269,9 +269,13 @@ export interface RequestWireRecord {
   model: string
   /** Provider-neutral purpose of the call; absent for ordinary conversation requests. */
   purpose?: 'compaction' | 'session-title'
-  /** Image representation the body used after any fallback. */
-  representation: RequestWireRepresentation
-  /** Exact request body handed to the transport, byte for byte. */
+  /**
+   * Image representation the body used after any fallback. Absent from an
+   * adapter that owns no such classification — a multi-protocol provider
+   * decides image transport per protocol, not per request.
+   */
+  representation?: RequestWireRepresentation
+  /** Request body handed to the transport; exact text where the adapter owns serialization. */
   payload: string
 }
 

@@ -101,6 +101,32 @@ export interface PiAiAdapterOptions {
    * conversion because its stored replay state is unusable by this build.
    */
   onReplayDegrade?: (detail: { provider: string; model: string; reason: string }) => void
+  /**
+   * Report one provider payload immediately before pi-ai sends it. pi-ai
+   * exposes this through the per-request `onPayload` callback every API module
+   * honours, which is the portable interception point: several modules refuse a
+   * custom `fetch`, so a transport-level capture is not available here.
+   */
+  onWireRequest?: (request: PiAiWireRequest) => void
+}
+
+/** One provider payload reported before pi-ai sends it. */
+export interface PiAiWireRequest {
+  /** Provider route the payload is sent to. */
+  provider: string
+  /** Provider-owned model id the payload requests. */
+  model: string
+  /** Provider-neutral purpose of the call; absent for ordinary conversation requests. */
+  purpose?: 'compaction' | 'session-title'
+  /**
+   * The provider payload as pi-ai assembled it, serialized as JSON. Every API
+   * module that carries a JSON body hands that exact object to `onPayload`, so
+   * this matches the sent body for those protocols; Bedrock's command input is
+   * serialized the same way rather than sent as a JSON body.
+   */
+  payload: string
+  /** Session the request was dispatched for, when the caller stamped one. */
+  sessionId?: GenerateOptions['sessionId']
 }
 
 /** The two auth injectables a pi-ai collection is built with. */
@@ -382,6 +408,20 @@ export class PiAiAdapter extends LlmAdapter {
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
+        ...this.config.onWireRequest === undefined ? {} : {
+          onPayload: (payload: unknown) => {
+            const serialized = JSON.stringify(payload)
+            this.config.onWireRequest?.({
+              provider: options.provider,
+              model: options.model,
+              ...options.purpose === undefined ? {} : { purpose: options.purpose },
+              payload: serialized ?? String(payload),
+              ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
+            })
+            // Returning nothing keeps pi-ai's payload unchanged.
+            return undefined
+          },
+        },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.

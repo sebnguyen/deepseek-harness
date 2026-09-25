@@ -61,6 +61,9 @@ import { assertUsableApiKey, LlmError, resolveImageAttachmentAccess } from '@dee
 import type { AdapterRegistrationHandle, DirectoryRegistrationHandle, LlmConfigurableProvider } from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-settings'
+// Type-only: brings the `ctx.sessions` service and the durable `request/wire`
+// event member into the program; the capture hook below appends through them.
+import type {} from '@deepseek-ai/dsh-session'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { PiAiAdapter } from './adapter.ts'
 import { authContextFrom, credentialStoreFrom } from './auth.ts'
@@ -72,7 +75,7 @@ import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
 
 export { PiAiAdapter } from './adapter.ts'
-export type { PiAiAdapterOptions } from './adapter.ts'
+export type { PiAiAdapterOptions, PiAiWireRequest } from './adapter.ts'
 export { Config } from './config.ts'
 export type {
   PiAiCompatProfile,
@@ -209,6 +212,15 @@ export function apply(ctx: Context, config: Config): void {
         `llm-pi-ai: unusable replay state on assistant history for route "${provider}/${model}";`
         + ` sending that message as provider-neutral content (${reason})`,
       )
+    },
+    onWireRequest: (request) => {
+      if (request.sessionId === undefined) return
+      ctx.get('sessions')?.get(request.sessionId)?.append('request/wire', {
+        provider: request.provider,
+        model: request.model,
+        ...request.purpose === undefined ? {} : { purpose: request.purpose },
+        payload: request.payload,
+      })
     },
   })
   // Independent of the route set: signing in is what makes a route worth
