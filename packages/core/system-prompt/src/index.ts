@@ -41,8 +41,8 @@ export {
   CORE_RULE_PROVE_IT_SECTION,
   CORE_RULE_PROVE_IT_TEXT,
   CORE_RULE_SECTIONS,
-  CORE_RULE_STANDARD_TOOLS_SECTION,
-  CORE_RULE_STANDARD_TOOLS_TEXT,
+  CORE_RULE_STRUCTURE_YOUR_SEARCH_SECTION,
+  CORE_RULE_STRUCTURE_YOUR_SEARCH_TEXT,
   coreGuidanceParagraphs,
 } from './core-guidance.ts'
 
@@ -165,7 +165,7 @@ const SECTION_ORDERS = {
   CORE_PERSONALITY: 10,
   CORE_RULE_CONCISE: 20,
   CORE_RULE_ANSWER_STRUCTURE: 30,
-  CORE_RULE_STANDARD_TOOLS: 40,
+  CORE_RULE_STRUCTURE_YOUR_SEARCH: 40,
   CORE_RULE_ASK_USER: 50,
   CORE_RULE_CONTEXT_OVER_INFERENCE: 60,
   CORE_RULE_ACTION_OVER_THINKING: 70,
@@ -221,7 +221,7 @@ export type PromptSectionOrderName = keyof typeof SECTION_ORDERS
 const CORE_RULE_ORDER_BY_SECTION: Record<string, PromptSectionOrderName> = {
   'harness:core-rule:concise': 'CORE_RULE_CONCISE',
   'harness:core-rule:answer-structure': 'CORE_RULE_ANSWER_STRUCTURE',
-  'harness:core-rule:standard-tools': 'CORE_RULE_STANDARD_TOOLS',
+  'harness:core-rule:structure-your-search': 'CORE_RULE_STRUCTURE_YOUR_SEARCH',
   'harness:core-rule:ask-user': 'CORE_RULE_ASK_USER',
   'harness:core-rule:context-over-inference': 'CORE_RULE_CONTEXT_OVER_INFERENCE',
   'harness:core-rule:action-over-thinking': 'CORE_RULE_ACTION_OVER_THINKING',

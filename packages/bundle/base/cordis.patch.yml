@@ -264,10 +264,9 @@
     - id: tool-fs
       name: '@deepseek-ai/dsh-tool-fs'
 
-    - id: tool-fs-search
-      name: '@deepseek-ai/dsh-tool-fs-search'
-      config:
-        sampleOverCapGlobResults: false
+    # `tool-fs-search` (glob, grep) is deliberately unmounted: text search runs
+    # through the shell, and `read` stays as the file path that records the
+    # observation the write and edit preconditions require.
 
     - id: agent-instructions
       name: '@deepseek-ai/dsh-agent-instructions'

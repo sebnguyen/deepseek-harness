@@ -61,15 +61,13 @@
 
 # ── filesystem ──────────────────────────────────────────────────────────────
 
-# Both register into the host `tools` registry and provide nothing, so
-# they need no realm. The `fs` service and its policy stay in the host.
+# Registers into the host `tools` registry and provides nothing, so it needs no
+# realm. The `fs` service and its policy stay in the host. `tool-fs-search`
+# (glob, grep) is deliberately unmounted: text search runs through the shell, and
+# `read` remains the file path that records the observation the write and edit
+# preconditions require.
 - id: tool-fs
   name: '@deepseek-ai/dsh-tool-fs'
-
-- id: tool-fs-search
-  name: '@deepseek-ai/dsh-tool-fs-search'
-  config:
-    sampleOverCapGlobResults: false
 
 # ── background jobs ────────────────────────────────────────────────────────
 
