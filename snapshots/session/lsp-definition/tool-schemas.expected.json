@@ -308,6 +308,14 @@
       }
     },
     {
+      "name": "list_claims",
+      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
       "name": "lsp",
       "description": "Query a language server for precise code navigation. operation is one of goToDefinition, findReferences, goToImplementation, hover, callers, callees. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration; callers/callees return one hop of precise call sites.",
       "parameters": {

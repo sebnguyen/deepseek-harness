@@ -250,6 +250,31 @@ export interface RequestContext {
   systemPromptUpdate?: SystemPromptUpdate
 }
 
+/** Image representation one dispatched request body used. */
+export type RequestWireRepresentation = 'none' | 'file' | 'base64'
+
+/**
+ * One provider request exactly as it left the adapter: the serialized body
+ * handed to the transport, plus the identity needed to place it.
+ *
+ * The body is not reconstructable from other logged state. Provider extension
+ * fields, Files API file ids, and the image representation an attempt settled
+ * on after a fallback are resolved at dispatch, so this event is the only
+ * durable record of what the provider actually received.
+ */
+export interface RequestWireRecord {
+  /** Registered provider route the body was sent to. */
+  provider: string
+  /** Provider-owned model id the body requested. */
+  model: string
+  /** Provider-neutral purpose of the call; absent for ordinary conversation requests. */
+  purpose?: 'compaction' | 'session-title'
+  /** Image representation the body used after any fallback. */
+  representation: RequestWireRepresentation
+  /** Exact request body handed to the transport, byte for byte. */
+  payload: string
+}
+
 /**
  * Why a `request/header` snapshot was appended: `'initial'` — the log's first
  * header (a new conversation); `'resume'` — a loop instance's first request
@@ -375,6 +400,15 @@ export interface SessionEventMap {
    * call's capability, not this snapshot from an earlier request.
    */
   'request/context': RequestContext
+  /**
+   * The exact serialized body one adapter handed to its transport, appended
+   * immediately before dispatch. It is log-only and contributes no derived
+   * history; it exists so a provider request can be diagnosed after the fact.
+   * The adapter reports it, not the loop, because only the adapter holds the
+   * completed body — provider extension fields and resolved image references
+   * are merged after the loop's request is frozen.
+   */
+  'request/wire': RequestWireRecord
   /**
    * Marks the end of a constructor seed. Events before it have smaller seq
    * values and came from the seed (resume, fork, or replay); this lifecycle

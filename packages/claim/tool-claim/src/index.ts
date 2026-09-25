@@ -1,7 +1,7 @@
 /**
- * Model-facing `declare_claim`, `run_claim`, and `abandon_claim` tools over the
- * persisted claim domain, plus the standing declaration requirement contributed
- * as a prompt section.
+ * Model-facing `declare_claim`, `run_claim`, `abandon_claim`, and `list_claims`
+ * tools over the persisted claim domain, plus the standing declaration
+ * requirement contributed as a prompt section.
  * @module @deepseek-ai/dsh-tool-claim
  */
 
@@ -68,7 +68,8 @@ export const CLAIM_DEMAND =
   + 'that single repair round a still-failing claim is blocked. The turn must be complete before the boundary '
   + 'verifier runs, so finish all edits, test runs, and repairs inside the turn and never end a turn with work still '
   + 'in flight. Do not cycle: use the one boundary repair round to fix the work, not to declare replacement claims '
-  + 'round after round.'
+  + 'round after round. If the transcript no longer shows what this turn declared — after context compaction, for '
+  + 'example — call list_claims to read this turn\'s claims back before settling or ending the turn.'
 
 /** The turn-boundary reminder is plugin-sourced, never attributed to the human. */
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
@@ -143,6 +144,46 @@ const CLAIM_OUTPUT = {
   render: (_args: unknown, value: ClaimToolValue) => [{ type: 'text' as const, text: JSON.stringify(value) }],
 }
 
+/** One claim as `list_claims` reports it: identity, promise, and lifecycle state. */
+interface ClaimSummary {
+  readonly id: string
+  readonly title: string
+  readonly description: string
+  readonly settlement: string
+}
+
+/** Compact roster a `list_claims` result carries: this turn's claims in declaration order. */
+interface ClaimListValue {
+  readonly claims: ClaimSummary[]
+}
+
+/** Wire schema for one listed claim. */
+const CLAIM_SUMMARY_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    id: { type: 'string', required: true },
+    title: { type: 'string', required: true },
+    description: { type: 'string', required: true },
+    settlement: { type: 'string', required: true },
+  },
+} as const
+
+/** Wire schema for the compact claim roster. */
+const CLAIM_LIST_VALUE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    claims: { type: 'array', required: true, items: CLAIM_SUMMARY_SCHEMA },
+  },
+} as const
+
+/** Compact JSON roster result, status fields only. */
+const CLAIM_LIST_OUTPUT = {
+  schema: CLAIM_LIST_VALUE_SCHEMA,
+  render: (_args: unknown, value: ClaimListValue) => [{ type: 'text' as const, text: JSON.stringify(value) }],
+}
+
 /** Generic, args-only pending presentation shared by the claim tools. */
 function present(title: string, kind: 'read' | 'other'): GenericCallView {
   return { card: 'generic', title, kind }
@@ -176,6 +217,18 @@ function claimValue(claim: Claim | undefined): ClaimToolValue {
     }
 }
 
+/** Render the open turn's claims as the compact roster. */
+function listValue(claims: readonly Claim[]): ClaimListValue {
+  return {
+    claims: claims.map(claim => ({
+      id: claim.id,
+      title: claim.title,
+      description: claim.description,
+      settlement: claim.settlement.kind,
+    })),
+  }
+}
+
 /** Render one settled or re-run claim as the compact `run_claim` status. */
 function runValue(claim: Claim, outcome: string, evidence: string, evidenceLines: number): ClaimToolValue {
   return {
@@ -192,7 +245,7 @@ function runValue(claim: Claim, outcome: string, evidence: string, evidenceLines
   }
 }
 
-/** Register the three claim tools and their shared demand section. */
+/** Register the four claim tools and their shared demand section. */
 export function apply(ctx: Context, config: Config = {}): void {
   const resolved = resolveConfig(config)
 
@@ -276,6 +329,20 @@ export function apply(ctx: Context, config: Config = {}): void {
       return runValue(current, result.outcome, result.evidence, resolved.evidenceLines)
     },
     presentCall: () => present('Run claim', 'other'),
+  }))
+
+  ctx.tools.register(defineTool({
+    name: 'list_claims',
+    description: 'List every claim this turn declared, in declaration order, with each claim\'s id, title, '
+      + 'description, and settlement. Call it when the transcript no longer shows what this turn declared — after '
+      + 'context compaction, for example — before settling or ending the turn. Empty when this turn declared none.',
+    parameters: {},
+    output: CLAIM_LIST_OUTPUT,
+    execute(_args, exec) {
+      const agent = liveAgent(ctx, exec)
+      return Promise.resolve(listValue(ctx.claims.turnClaims(agent)))
+    },
+    presentCall: () => present('List claims', 'read'),
   }))
 
   ctx.tools.register(defineTool({

@@ -28,6 +28,13 @@ import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 import type { Behavior } from './mock-server.ts'
 
 const TEST_USER_ID = '00000000-0000-4000-8000-000000000001' as AnonymousUserId
+
+declare module '@deepseek-ai/dsh-deepseek-llm-api-extensions/types' {
+  interface DeepSeekLlmApiExtensionMap {
+    dsh_probe: { marker: string }
+  }
+}
+
 let testHome: string
 
 beforeEach(() => {
@@ -63,6 +70,7 @@ function adapterOf(
   config: Partial<LlmDeepSeek.Config> & { apiKey?: string } = {},
   attachments?: AttachmentStore,
   files?: LlmDeepSeek.DeepSeekFileStore,
+  onWireRequest?: (request: LlmDeepSeek.DeepSeekWireRequest) => void,
 ): DeepSeekAdapter {
   const { apiKey, ...rest } = config
   return new DeepSeekAdapter({
@@ -71,6 +79,7 @@ function adapterOf(
     resolveUserId: () => TEST_USER_ID,
     resolveAttachments: () => attachments,
     ...files === undefined ? {} : { resolveFiles: () => files },
+    ...onWireRequest === undefined ? {} : { onWireRequest },
     prepareExtensions: noExtensions,
   })
 }
@@ -1154,6 +1163,67 @@ describe('DeepSeekAdapter against a mock server', () => {
     })
 
     expect(server.headers[0]?.['x-deepseek-harness-compact']).toBe('1')
+  })
+
+  it('reports the exact dispatched body after extension fields are merged', async () => {
+    const server = await mockServer([{ kind: 'sse', events: textEvents }])
+    const reported: LlmDeepSeek.DeepSeekWireRequest[] = []
+    const adapter = new DeepSeekAdapter({
+      options: () => resolveAdapterOptions({ baseURL: server.url }),
+      resolveApiKey: () => Promise.resolve('k'),
+      resolveUserId: () => TEST_USER_ID,
+      prepareExtensions: () => Promise.resolve({
+        fields: { dsh_probe: { marker: 'merged' } },
+        accept: () => Promise.resolve(),
+      }),
+      onWireRequest: (request) => { reported.push(request) },
+    })
+
+    await drain(adapter.stream({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      sessionId: SessionId('wire-session'),
+      messages: [createUserMessage({
+        content: [{ type: 'text', text: 'hi' }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }))
+
+    // Byte-for-byte the body the transport received, extension field included,
+    // and never the pre-merge serialization.
+    expect(reported).toHaveLength(1)
+    expect(reported[0]?.payload).toBe(server.rawRequests[0])
+    expect(reported[0]).toMatchObject({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+      representation: 'none',
+      sessionId: 'wire-session',
+    })
+    expect(JSON.parse(reported[0]?.payload ?? '')).toMatchObject({ dsh_probe: { marker: 'merged' } })
+  })
+
+  it('reports only the body an attempt actually dispatched', async () => {
+    const server = await mockServer([{ kind: 'sse', events: textEvents }])
+    const attachments = attachmentStoreOf(ref => Promise.resolve(requestImage(ref))).store
+    const files = fileStoreOf(() => Promise.reject(new LlmError('Files unavailable', 'SERVER')))
+    const reported: LlmDeepSeek.DeepSeekWireRequest[] = []
+    const adapter = adapterOf({
+      baseURL: server.url,
+      models: [{ id: 'deepseek-v4-flash-vision-exp', inputModalities: ['text', 'image'] }],
+    }, attachments, files.store, (request) => { reported.push(request) })
+
+    await drain(adapter.stream({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash-vision-exp',
+      messages: [createUserMessage({
+        content: [{ type: 'image', attachment: imageRef }],
+        source: { kind: 'plugin', plugin: 'test' },
+      })],
+    }))
+
+    // The file attempt failed before dispatch, so only the inline fallback is reported.
+    expect(reported.map(request => request.representation)).toEqual(['base64'])
+    expect(reported[0]?.payload).toBe(server.rawRequests[0])
   })
 
   it('switches dynamically from the configured low default through off to max', async () => {

@@ -23,7 +23,7 @@ The claim group lets the agent open coding turns with an immutable declaration o
 | Package | Role | ctx key |
 |---|---|---|
 | [`claim`](claim/README.md) | Immutable claims, any number per turn: declare, record verifier runs, settle, abandon | `ctx.claims` |
-| [`tool-claim`](tool-claim/README.md) | Model tools `declare_claim`, `run_claim`, and `abandon_claim`, the standing demand, and the per-turn reminder | registers on `ctx.tools`, `ctx.systemPrompt`, and `agent/pre-step` |
+| [`tool-claim`](tool-claim/README.md) | Model tools `declare_claim`, `run_claim`, `list_claims`, and `abandon_claim`, the standing demand, and the per-turn reminder | registers on `ctx.tools`, `ctx.systemPrompt`, and `agent/pre-step` |
 | [`claim-settlement`](claim-settlement/README.md) | Turn-boundary settlement: runs the bound verifier, steers repairs, owns the budget policy | no service key |
 
 Mount all three for the complete loop. Mounting `claim` alone stores and serves claims without running or prompting anything.

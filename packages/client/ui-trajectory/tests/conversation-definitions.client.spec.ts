@@ -18,6 +18,7 @@ import { registerTrajectoryMessageDefinitions } from '../src/client/trajectory-m
 import { registerTrajectoryRequestHeaderDefinition } from '../src/client/trajectory-request-header-definition.ts'
 import { trajectoryViewDefinition } from '../src/client/trajectory-snapshot-builder.ts'
 import { registerTrajectoryToolDefinition } from '../src/client/trajectory-tool-definition.ts'
+import { registerTrajectoryWireDefinition } from '../src/client/trajectory-wire-definition.ts'
 
 const DEFINITIONS: ConversationNodeDefinition[] = []
 const registrationContext = {
@@ -38,6 +39,7 @@ registerTrajectoryRequestHeaderDefinition(registrationContext)
 registerTrajectoryAssistantDefinition(registrationContext)
 registerTrajectoryToolDefinition(registrationContext)
 registerTrajectoryCompactionDefinitions(registrationContext)
+registerTrajectoryWireDefinition(registrationContext)
 
 class TestEventDefinitions {
   entries(): readonly ConversationNodeDefinition[] {
@@ -884,8 +886,44 @@ describe('Trajectory conversation Definitions', () => {
     const headerState = { seq: 2, time: 2, prompt: { config: { provider: 'test', model: 'test' } }, location: invalidStart.location }
     expect(() => header.start({} as never, invalidStart, {} as never))
       .toThrow('trajectory-request-header start requires request/header')
+
+    const wire = DEFINITIONS.find(candidate => candidate.kind === 'trajectory-request-wire')
+    if (wire === undefined) throw new Error('trajectory-request-wire Definition is not registered')
+    const wireState = {
+      seq: 3, time: 3, provider: 'deepseek-official', model: 'deepseek-v4-flash',
+      representation: 'none' as const, payload: '{}',
+    }
+    expect(wire.match(invalidStart.event)).toBeNull()
+    expect(wire.update({ state: wireState } as never, invalidStart)).toBe(wireState)
+    expect(() => wire.start({} as never, invalidStart, {} as never))
+      .toThrow('trajectory-request-wire start requires request/wire')
     expect(header.update({ state: headerState } as never, invalidStart)).toBe(headerState)
     expect(header.buildViewNode?.({ state: undefined } as never)).toBeNull()
+  })
+
+  it('groups captured request bodies by step in dispatch order', () => {
+    const first = '{"model":"deepseek-v4-flash","messages":[]}'
+    const second = '{"model":"deepseek-v4-flash","messages":[],"dsh_session_log":{}}'
+    const captured = snapshot(assembler(packedInputs([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'step/start', { turn: 1, step: 1 }),
+      at(3, 'request/wire', {
+        provider: 'deepseek-official', model: 'deepseek-v4-flash', representation: 'none', payload: first,
+      }),
+      at(4, 'request/wire', {
+        provider: 'deepseek-official', model: 'deepseek-v4-flash', representation: 'none', payload: second,
+      }),
+      at(5, 'step/start', { turn: 1, step: 2 }),
+    ])))
+
+    expect(captured.requestWires?.get('1\u00001')?.map(wire => wire.payload)).toEqual([first, second])
+    // A step whose provider reported no body contributes no entry at all.
+    expect(captured.requestWires?.has('1\u00002')).toBe(false)
+    // Without any capture the snapshot omits the map, so the tab shows its fallback.
+    expect(snapshot(assembler(packedInputs([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'step/start', { turn: 1, step: 1 }),
+    ]))).requestWires).toBeUndefined()
   })
 
   it('replays pending splice chains and scopes steering to the current claim', () => {

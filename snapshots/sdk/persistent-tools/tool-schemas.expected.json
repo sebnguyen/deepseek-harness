@@ -64,6 +64,14 @@
       }
     },
     {
+      "name": "list_claims",
+      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
       "name": "read_note",
       "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
       "parameters": {

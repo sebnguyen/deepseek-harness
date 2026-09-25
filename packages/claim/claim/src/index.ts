@@ -116,15 +116,25 @@ export class ClaimService extends Service {
   }
 
   /**
+   * Read every claim of the open turn, pending or settled, in declaration order.
+   * @param agent - owning live agent.
+   * @returns the open turn's claims; empty when that turn declared none.
+   * @throws {@link ClaimError} when no model turn is open or the agent is not live.
+   */
+  turnClaims(agent: Agent): readonly Claim[] {
+    this.assertLive(agent)
+    const turn = this.openTurn(agent)
+    return this.ledger(agent).filter(claim => claim.turn === turn)
+  }
+
+  /**
    * Read every currently-pending claim of the open turn, in declaration order.
    * @param agent - owning live agent.
    * @returns the open turn's pending claims; empty when that turn declared none or settled every claim.
    * @throws {@link ClaimError} when no model turn is open or the agent is not live.
    */
   openClaims(agent: Agent): readonly Claim[] {
-    this.assertLive(agent)
-    const turn = this.openTurn(agent)
-    return this.ledger(agent).filter(claim => claim.turn === turn && claim.settlement.kind === 'pending')
+    return this.turnClaims(agent).filter(claim => claim.settlement.kind === 'pending')
   }
 
   /**

@@ -124,6 +124,12 @@ The plugin is built on one explicit resolve step and one registration fact. `res
 
 One `stream()` call normally makes one chat request: resolve deterministic request images, prefer Files ids, prepare any registered top-level request extensions, fetch from the resolved `baseURL`, accept extension transactions after HTTP 2xx, and translate the SSE stream into the harness protocol. File-resolution failure makes the first chat inline; a provider stale-file response permits one replacement attempt, also inline if replacement resolution fails. Every chat and Files call carries shared attribution plus the stable anonymous user id outside model input, and a session call also carries its session id. Reasoning history is serialized back when required, and cache accounting maps DeepSeek's cache-hit metrics into harness usage.
 
+### Durable request capture
+
+Every attempt that reaches the transport reports its completed body to the owning plugin through `DeepSeekAdapterOptions.onWireRequest`, called after registered extension fields are merged, so the reported text is byte-identical to what the provider receives. An attempt that fails during request-image or Files resolution never reaches the transport and is not reported, so a request logs only the bodies it actually dispatched.
+
+The plugin appends that body to the addressed Session as a log-only `request/wire` event, resolving the Session from the `sessionId` the loop stamps on each request. A request without a stamped id, or one naming a Session the store does not hold, streams normally and records nothing. The adapter itself holds no Session; only the plugin's `apply` scope touches the log. Replayed sessions substitute the replay adapter's streaming path and therefore carry no capture.
+
 </details>
 
 -----

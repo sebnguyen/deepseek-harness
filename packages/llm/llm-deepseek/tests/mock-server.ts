@@ -11,6 +11,8 @@ export interface MockServer {
   url: string
   /** Bodies of received requests, in order. */
   requests: unknown[]
+  /** Exact chat request body text as received, in order (parallel to `requests`). */
+  rawRequests: string[]
   /** Header bags of received requests, in order (parallel to `requests`). */
   headers: IncomingMessage['headers'][]
   /** Parsed Files API operations, excluded from chat request ordering. */
@@ -37,6 +39,7 @@ export const textEvents = [
 /** Local chat-completions stand-in: replays scripted behaviors per request. */
 export async function mockServer(script: Behavior[]): Promise<MockServer> {
   const requests: unknown[] = []
+  const rawRequests: string[] = []
   const headers: IncomingMessage['headers'][] = []
   const fileRequests: MockServer['fileRequests'] = []
   const files = new Map<string, { id: string; object: 'file'; bytes: number; created_at: number; filename: string; purpose: 'user_data'; expires_at: number }>()
@@ -115,6 +118,7 @@ export async function mockServer(script: Behavior[]): Promise<MockServer> {
         }
 
         requests.push(JSON.parse(body.toString('utf8')))
+        rawRequests.push(body.toString('utf8'))
         headers.push(request.headers)
         const behavior = script.shift()
         if (!behavior) {
@@ -152,6 +156,7 @@ export async function mockServer(script: Behavior[]): Promise<MockServer> {
   return {
     url: `http://127.0.0.1:${address.port}`,
     requests,
+    rawRequests,
     headers,
     fileRequests,
     script,

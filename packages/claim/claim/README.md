@@ -36,6 +36,7 @@ A claim moves through durable moments — declared, zero or more recorded verifi
 | Operation | What it does |
 |---|---|
 | `openClaims(agent)` | Read the open turn's pending claims in declaration order |
+| `turnClaims(agent)` | Read every claim of the open turn, pending or settled, in declaration order |
 | `ledger(agent)` | Read every claim of the current session in turn order |
 | `declare(agent, { title, description, script })` | Open one claim of the turn and hash the script into a frozen verifier |
 | `record(agent, id, result)` | Append one verifier execution to that claim |

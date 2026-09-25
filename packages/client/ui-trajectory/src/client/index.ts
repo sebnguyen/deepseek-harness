@@ -29,6 +29,7 @@ import {
 } from './trajectory-snapshot-builder.ts'
 import type { TrajectorySnapshot } from './trajectory-contract.ts'
 import { registerTrajectoryToolDefinition } from './trajectory-tool-definition.ts'
+import { registerTrajectoryWireDefinition } from './trajectory-wire-definition.ts'
 import { TrajectoryView, type TrajectoryViewInjected } from './TrajectoryView.tsx'
 
 export type { TrajectoryKey } from './locales.ts'
@@ -36,6 +37,7 @@ export type {
   TrajectoryContribution,
   TrajectoryConversationViewNode,
   TrajectoryRequestHeaderState,
+  TrajectoryRequestWire,
   TrajectorySnapshot,
   UseTrajectory,
 } from './trajectory-contract.ts'
@@ -92,6 +94,7 @@ export function apply(ctx: Context): void {
   registerTrajectoryAssistantDefinition(ctx)
   registerTrajectoryToolDefinition(ctx)
   registerTrajectoryCompactionDefinitions(ctx)
+  registerTrajectoryWireDefinition(ctx)
   registerTrajectoryConversationView(ctx)
   registerTrajectoryCompositionDefinition(ctx)
   ctx.uiSession.provide({

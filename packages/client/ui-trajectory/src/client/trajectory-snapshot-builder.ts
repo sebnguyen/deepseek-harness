@@ -6,7 +6,7 @@ import type {
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
 import type {
   TrajectoryConversationViewNode, TrajectoryRequestHeaderState,
-  TrajectorySnapshot,
+  TrajectoryRequestWire, TrajectorySnapshot,
 } from './trajectory-contract.ts'
 
 const EMPTY_LIST: readonly never[] = []
@@ -28,7 +28,11 @@ function stepKey(turn: number, step: number): string {
 }
 
 function headerStepKey(header: TrajectoryRequestHeaderState): string | undefined {
-  const location = header.location
+  return locationStepKey(header.location)
+}
+
+/** Step key for a contribution whose location identifies its step. */
+function locationStepKey(location: TrajectoryConversationViewNode['location']): string | undefined {
   return location.kind === 'step'
     ? stepKey(location.turn.turn, location.step.step)
     : undefined
@@ -213,6 +217,7 @@ export class TrajectorySnapshotBuilder implements ConversationViewBuilder<
       errorCode?: string
     }[] = []
     const callSchemas = new Map<string, ToolSchema>()
+    const requestWires = new Map<string, TrajectoryRequestWire[]>()
     const consumedPromptChanges = new Set<number>()
     let previousHeader: TrajectoryRequestHeaderState | undefined
     let previousTools: ReadonlyMap<string, ToolSchema> = new Map()
@@ -228,6 +233,13 @@ export class TrajectorySnapshotBuilder implements ConversationViewBuilder<
       if (data.kind === 'request-header') {
         previousHeader = data.header
         previousTools = indexTools(data.header.prompt.tools)
+        continue
+      }
+      if (data.kind === 'request-wire') {
+        const key = locationStepKey(contribution.location)
+        if (key !== undefined) {
+          requestWires.set(key, [...requestWires.get(key) ?? [], data.wire])
+        }
         continue
       }
       if (data.kind === 'node') {
@@ -285,6 +297,7 @@ export class TrajectorySnapshotBuilder implements ConversationViewBuilder<
       eventLocations,
       requests,
       callSchemas,
+      ...requestWires.size === 0 ? {} : { requestWires },
       partial,
       runningCalls,
     }

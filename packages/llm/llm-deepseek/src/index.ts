@@ -19,6 +19,9 @@ import type {} from '@deepseek-ai/dsh-fs'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { launchEnvironmentOf, type LaunchEnvironmentSnapshot } from '@deepseek-ai/dsh-launch-environment'
 import type {} from '@deepseek-ai/dsh-settings'
+// Type-only: brings the `ctx.sessions` service and the durable `request/wire`
+// event member into the program; the capture hook below appends through them.
+import type {} from '@deepseek-ai/dsh-session'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
@@ -59,7 +62,7 @@ export {
   DEFAULT_STREAM_IDLE_TIMEOUT_MS,
   DeepSeekAdapter,
 } from './adapter.ts'
-export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions } from './adapter.ts'
+export type { DeepSeekAdapterOptions, DeepSeekCatalogModel, DeepSeekConnectionOptions, DeepSeekWireRequest } from './adapter.ts'
 export {
   DEFAULT_LOW_DETAIL_IMAGE_PIXEL_BUDGET,
   DEFAULT_MAX_IMAGES_PER_REQUEST,
@@ -489,6 +492,16 @@ export function apply(ctx: Context, config: Config): void {
       const extensions = ctx.get('deepseekLlmApiExtensions')
       return extensions?.prepare(request)
         ?? Promise.resolve({ fields: {}, accept: () => Promise.resolve() })
+    },
+    onWireRequest: (request) => {
+      if (request.sessionId === undefined) return
+      ctx.get('sessions')?.get(request.sessionId)?.append('request/wire', {
+        provider: request.provider,
+        model: request.model,
+        ...request.purpose === undefined ? {} : { purpose: request.purpose },
+        representation: request.representation,
+        payload: request.payload,
+      })
     },
   })
   ctx.llm.registerConfigurableProviders([

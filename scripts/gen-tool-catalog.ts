@@ -58,6 +58,7 @@ import * as ToolClaim from '@deepseek-ai/dsh-tool-claim'
 import * as ToolSchedule from '@deepseek-ai/dsh-schedule'
 import Lsp from '@deepseek-ai/dsh-lsp'
 import * as ToolLsp from '@deepseek-ai/dsh-tool-lsp'
+import * as ToolLspMap from '@deepseek-ai/dsh-tool-lsp-map'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolSessionQuery from '@deepseek-ai/dsh-tool-session-query'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
@@ -403,7 +404,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolClaim)
     },
     note:
-      'A claim\'s content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim\'s bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary.',
+      'A claim\'s content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim\'s bound verifier inside the turn and settles the claim on a pass, list_claims reads the open turn\'s claims back when the transcript no longer shows them, and abandon_claim is refused until that check has run at least once; a declaration that binds no script is refused at the tool boundary.',
   },
   {
     pkg: '@deepseek-ai/dsh-schedule',
@@ -439,6 +440,20 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-lsp-map',
+    dir: 'tool-lsp-map',
+    source: 'packages/lsp/tool-lsp-map/src/index.ts',
+    requires: ['ctx.tools', 'ctx.lsp', 'ctx.systemPrompt'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      // The tool registers from the seam alone; the schema does not depend on any provider.
+      await ctx.plugin(Lsp)
+      await ctx.plugin(ToolLspMap)
+    },
+    note:
+      'The symbols tool batches one `documentSymbol` query per file behind ctx.lsp and caps the complete rendered map (filesPerBatch then symbolsPerFile then maxResultChars, each with an omission marker). It requires an LSP provider advertising `documentSymbolProvider` and a session workspace root; optional `hotspots` appends one-hop in:/out: counts, while `lsp` returns the precise call sites.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-ralph',

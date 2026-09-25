@@ -14,6 +14,17 @@ export interface TrajectoryRequestHeaderState {
   readonly location: ConversationLocation
 }
 
+/** One exact request body an adapter dispatched for a step, retained for diagnosis. */
+export interface TrajectoryRequestWire {
+  readonly seq: number
+  readonly time: number
+  readonly provider: string
+  readonly model: string
+  readonly purpose?: 'compaction' | 'session-title'
+  readonly representation: 'none' | 'file' | 'base64'
+  readonly payload: string
+}
+
 /** One independently assembled contribution to the legacy Trajectory ledger. */
 export type TrajectoryContribution =
   | { readonly kind: 'system-prompt'; readonly prompt: SystemPromptNode }
@@ -34,6 +45,10 @@ export type TrajectoryContribution =
   | {
     readonly kind: 'request-header'
     readonly header: TrajectoryRequestHeaderState
+  }
+  | {
+    readonly kind: 'request-wire'
+    readonly wire: TrajectoryRequestWire
   }
   | {
     readonly kind: 'compaction'
@@ -67,6 +82,12 @@ export interface TrajectorySnapshot {
   readonly eventNodes: readonly ConversationNode[]
   readonly eventLocations: ReadonlyMap<number, ConversationLocation>
   readonly requests: readonly RequestView[]
+  /**
+   * Exact bodies dispatched per step, keyed by `turn\0step` in dispatch order.
+   * Empty for a step whose provider reported none, and for every historical
+   * log written before adapters captured bodies.
+   */
+  readonly requestWires?: ReadonlyMap<string, readonly TrajectoryRequestWire[]>
   readonly callSchemas: ReadonlyMap<string, ConversationPromptSnapshot['tools'][number]>
   readonly partial: PartialAssistant | null
   readonly runningCalls: readonly RunningToolCall[]

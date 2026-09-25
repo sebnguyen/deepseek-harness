@@ -1557,6 +1557,19 @@
   min-height: 0;
 }
 
+.wirePayload {
+  margin: 8px 0 0;
+  padding: 8px;
+  overflow: auto;
+  max-height: 320px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--dsw-alias-bg-layer-1);
+  color: var(--dsw-alias-label-primary);
+  font: 400 12px/18px var(--ds-font-family-code);
+  border-radius: 6px;
+}
+
 .schema {
   min-height: 100%;
   background: var(--dsw-alias-bg-layer-1);

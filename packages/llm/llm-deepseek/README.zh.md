@@ -124,6 +124,12 @@ Files 模式通过 `maxRequestFilesBytes` 与 `maxImagesPerRequest` 限制保留
 
 一次 `stream()` 调用通常发一条 chat 请求：解析确定性请求图片、优先使用 Files id、准备所有已注册顶层请求扩展、向解析后的 `baseURL` 发起 fetch、在 HTTP 2xx 后接受扩展事务，并把 SSE 流翻译为 harness 协议。文件解析失败会让首条 chat 使用内联模式；提供方的陈旧文件响应允许一次替换尝试，且替换解析失败时也使用内联模式。每条 chat 与 Files 调用都在模型输入之外携带共享归因和稳定匿名用户 id，会话调用还携带 session id。推理历史会按需序列化回请求，缓存计量则把 DeepSeek 的缓存命中指标映射进 harness 用量桶。
 
+### 持久化的请求捕获
+
+每一次真正抵达传输层的尝试都会通过 `DeepSeekAdapterOptions.onWireRequest` 向所属插件上报其完整请求体；该回调在已注册扩展字段合并之后调用，因此上报文本与提供方收到的内容逐字节一致。在请求图片或 Files 解析阶段失败的尝试根本不会抵达传输层，也就不会被上报，因此一次请求只记录它实际派发出去的请求体。
+
+插件把该请求体作为仅记录型（log-only）的 `request/wire` 事件追加到被寻址的 Session 上，并用循环为每个请求打标的 `sessionId` 解析该 Session。没有打标 id 的请求、或 id 指向 store 中不存在的 Session 的请求照常流式发送且不记录任何内容。适配器本身不掌握任何 Session；只有插件的 `apply` 作用域会触达日志。重放会话替换为 replay 适配器的流式路径，因此不携带捕获记录。
+
 </details>
 
 -----

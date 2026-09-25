@@ -29,9 +29,10 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
-| `@deepseek-ai/dsh-tool-claim` | `abandon_claim`, `declare_claim`, `run_claim` | `ctx.tools`, `ctx.agents`, `ctx.claims`, `ctx.systemPrompt`, `ctx.shell`, `a calling Agent in the live registry` | `tool/call`, `claim/declared, claim/result, or claim/settled for mutations`, `tool/result` | - | A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary. |
+| `@deepseek-ai/dsh-tool-claim` | `abandon_claim`, `declare_claim`, `list_claims`, `run_claim` | `ctx.tools`, `ctx.agents`, `ctx.claims`, `ctx.systemPrompt`, `ctx.shell`, `a calling Agent in the live registry` | `tool/call`, `claim/declared, claim/result, or claim/settled for mutations`, `tool/result` | - | A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass, list_claims reads the open turn's claims back when the transcript no longer shows them, and abandon_claim is refused until that check has run at least once; a declaration that binds no script is refused at the tool boundary. |
 | `@deepseek-ai/dsh-schedule` | `schedule_create`, `schedule_delete`, `schedule_list` | `ctx.tools`, `ctx.sessions`, `Session persistence`, `a future live root Agent` | `tool/call`, `schedule/change create or delete`, `tool/result` | - | Registered only inside live root Agent scopes created after the opt-in Schedule plugin loads. Version 1 accepts after_seconds, explicit absolute at, and bounded fixed-rate every_seconds, and discloses session-local delivery; management reads and mutations require the shared Session persistence barrier. |
 | `@deepseek-ai/dsh-tool-lsp` | `lsp` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema. |
+| `@deepseek-ai/dsh-tool-lsp-map` | `symbols` | `ctx.tools`, `ctx.lsp`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | The symbols tool batches one `documentSymbol` query per file behind ctx.lsp and caps the complete rendered map (filesPerBatch then symbolsPerFile then maxResultChars, each with an omission marker). It requires an LSP provider advertising `documentSymbolProvider` and a session workspace root; optional `hotspots` appends one-hop in:/out: counts, while `lsp` returns the precise call sites. |
 | `@deepseek-ai/dsh-tool-ralph` | `ralph` | `ctx.tools`, `ctx.workflowEngine`, `ctx.subagents`, `ctx.systemPrompt`, `a calling Agent (exec.agent parents every fresh round)` | `tool/call`, `tool/result`, `workflow and child session events during execution` | - | A fixed foreground workflow starts one fresh structured child per round; the model selects only the immutable objective and an optional round cap. |
 | `@deepseek-ai/dsh-tool-skill` | `skill` | `ctx.tools`, `ctx.agents`, `ctx.skills` | `tool/call`, `tool/result`, `user/message replacement catalogs via agent.inject()` | - | - |
 | `@deepseek-ai/dsh-tool-session-query` | `session_event_read`, `session_event_search`, `session_event_trace`, `session_search`, `session_trace` | `ctx.tools`, `ctx.systemPrompt`, `ctx.sessionQuery`, `a calling Agent for workspace authority` | `tool/call`, `tool/result` | - | The five read-only tools hide provider cursors and authorize every result from the immutable calling agent session. The package is opt-in; compositions that need enforced deadlines or bounded inline output also mount the generic timeout or spill policies. |
@@ -1202,6 +1203,19 @@ Declare one claim for this turn: a short title, a description of what must be tr
 
 Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts)
 
+### `list_claims`
+
+List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.
+
+```json
+{
+  "type": "object",
+  "properties": {}
+}
+```
+
+Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts)
+
 ### `run_claim`
 
 Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.
@@ -1223,7 +1237,7 @@ Run one open claim's bound check now, inside the turn. A pass settles the claim 
 
 Source: [`packages/claim/tool-claim/src/index.ts`](../packages/claim/tool-claim/src/index.ts)
 
-A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass; abandon_claim is refused until that check has run at least once, and a declaration that binds no script is refused at the tool boundary.
+A claim's content is immutable once declared; a turn may declare any number of claims, one per independent condition. run_claim runs a claim's bound verifier inside the turn and settles the claim on a pass, list_claims reads the open turn's claims back when the transcript no longer shows them, and abandon_claim is refused until that check has run at least once; a declaration that binds no script is refused at the tool boundary.
 
 <a id="deepseek-aidsh-schedule"></a>
 
@@ -1371,6 +1385,40 @@ Query a language server for precise code navigation. operation is one of goToDef
 Source: [`packages/lsp/tool-lsp/src/index.ts`](../packages/lsp/tool-lsp/src/index.ts)
 
 The lsp tool keeps provider selection and language-server subprocesses behind ctx.lsp, so its model-visible schema stays stable across providers. Requires a registered provider (e.g. `@deepseek-ai/dsh-lsp-stdio`) at runtime; without one, a query returns the structured `LSP_UNAVAILABLE` error rather than changing the schema.
+
+<a id="deepseek-aidsh-tool-lsp-map"></a>
+
+## `@deepseek-ai/dsh-tool-lsp-map`
+
+### `symbols`
+
+Map a batch of source files to a condensed symbol layout. Pipe a `glob` result into `files` to see each file as `path: [ :line (abbrev) name in:n out:m ; … ]`; `in:` = incoming callers, `out:` = outgoing callees (present only with hotspots). Use `lsp` callers/callees on a chosen symbol for the precise call sites.
+
+```json
+{
+  "type": "object",
+  "properties": {
+    "files": {
+      "type": "array",
+      "description": "Source file paths to outline — the paths a `glob` returned.",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hotspots": {
+      "type": "boolean",
+      "description": "Also run call hierarchy per symbol to append in:/out: caller/callee counts (2 extra map queries per symbol)."
+    }
+  },
+  "required": [
+    "files"
+  ]
+}
+```
+
+Source: [`packages/lsp/tool-lsp-map/src/index.ts`](../packages/lsp/tool-lsp-map/src/index.ts)
+
+The symbols tool batches one `documentSymbol` query per file behind ctx.lsp and caps the complete rendered map (filesPerBatch then symbolsPerFile then maxResultChars, each with an omission marker). It requires an LSP provider advertising `documentSymbolProvider` and a session workspace root; optional `hotspots` appends one-hop in:/out: counts, while `lsp` returns the precise call sites.
 
 <a id="deepseek-aidsh-tool-ralph"></a>
 

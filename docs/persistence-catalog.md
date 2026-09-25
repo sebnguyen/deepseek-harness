@@ -83,7 +83,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-Sources: [`packages/core/session/src/types.ts:404`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:412`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:434`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:465`](../packages/core/session/src/types.ts)
+Sources: [`packages/core/session/src/types.ts:438`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:446`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:468`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:499`](../packages/core/session/src/types.ts)
 
 ## Events
 
@@ -210,7 +210,7 @@ Source: [`packages/interaction/user-approval/src/index.ts:33`](../packages/inter
 'assistant/attempt': { turn: number; step: number; stream: AssistantStreamRecord[] }
 ```
 
-Source: [`packages/core/session/src/types.ts:335`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:360`](../packages/core/session/src/types.ts)
 
 <a id="assistantmessage--surface"></a>
 
@@ -240,7 +240,7 @@ Source: [`packages/core/session/src/types.ts:335`](../packages/core/session/src/
 
 Types: [TokenUsage](subsystems/llm-streaming.md)
 
-Source: [`packages/core/session/src/types.ts:321`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:346`](../packages/core/session/src/types.ts)
 
 ### `claim/*`
 
@@ -250,7 +250,7 @@ Source: [`packages/core/session/src/types.ts:321`](../packages/core/session/src/
 
 ```ts persistence-catalog
 /**
- * Opens one turn's claim. Log-only: the claim is durable evidence and
+ * Opens one claim in a turn. Log-only: the claim is durable evidence and
  * never part of the model transcript.
  */
 'claim/declared': ClaimDeclaredMeta
@@ -263,7 +263,7 @@ Source: [`packages/claim/claim/src/domain.ts:54`](../packages/claim/claim/src/do
 #### `claim/result` — log-only
 
 ```ts persistence-catalog
-/** Records one verifier execution against the open claim. Log-only. */
+/** Records one verifier execution against a claim. Log-only. */
 'claim/result': ClaimResultMeta
 ```
 
@@ -274,7 +274,7 @@ Source: [`packages/claim/claim/src/domain.ts:56`](../packages/claim/claim/src/do
 #### `claim/settled` — log-only
 
 ```ts persistence-catalog
-/** Closes the open claim. Log-only. */
+/** Closes one claim. Log-only. */
 'claim/settled': ClaimSettledMeta
 ```
 
@@ -643,7 +643,7 @@ Source: [`packages/plan/plan-mode/src/index.ts:47`](../packages/plan/plan-mode/s
 'request/context': RequestContext
 ```
 
-Source: [`packages/core/session/src/types.ts:377`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:402`](../packages/core/session/src/types.ts)
 
 <a id="requestheader--log-only"></a>
 
@@ -662,7 +662,25 @@ Source: [`packages/core/session/src/types.ts:377`](../packages/core/session/src/
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:365`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:390`](../packages/core/session/src/types.ts)
+
+<a id="requestwire--log-only"></a>
+
+#### `request/wire` — log-only
+
+```ts persistence-catalog
+/**
+ * The exact serialized body one adapter handed to its transport, appended
+ * immediately before dispatch. It is log-only and contributes no derived
+ * history; it exists so a provider request can be diagnosed after the fact.
+ * The adapter reports it, not the loop, because only the adapter holds the
+ * completed body — provider extension fields and resolved image references
+ * are merged after the loop's request is frozen.
+ */
+'request/wire': RequestWireRecord
+```
+
+Source: [`packages/core/session/src/types.ts:411`](../packages/core/session/src/types.ts)
 
 ### `sandbox/*`
 
@@ -737,7 +755,7 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 'session/end-seed': { inherited?: true }
 ```
 
-Source: [`packages/core/session/src/types.ts:400`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:434`](../packages/core/session/src/types.ts)
 
 <a id="sessiontitle--log-only"></a>
 
@@ -799,7 +817,7 @@ Source: [`packages/session/session-log-deepseek/src/types.ts:81`](../packages/se
 'step/end': { turn: number; step: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:289`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:314`](../packages/core/session/src/types.ts)
 
 <a id="stepstart--log-only"></a>
 
@@ -810,7 +828,7 @@ Source: [`packages/core/session/src/types.ts:289`](../packages/core/session/src/
 'step/start': { turn: number; step: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:287`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:312`](../packages/core/session/src/types.ts)
 
 ### `subagent/*`
 
@@ -886,7 +904,7 @@ Source: [`packages/subagent/tool-subagent/src/model-selection-state.ts:17`](../p
 'system/message': { turn: number; step: number; message: SystemMessage }
 ```
 
-Source: [`packages/core/session/src/types.ts:310`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:335`](../packages/core/session/src/types.ts)
 
 ### `team/*`
 
@@ -979,7 +997,7 @@ Source: [`packages/todo/tool-todo/src/types.ts:31`](../packages/todo/tool-todo/s
 
 Types: [ToolCallId](subsystems/core.md)
 
-Source: [`packages/core/session/src/types.ts:341`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:366`](../packages/core/session/src/types.ts)
 
 <a id="toolptc-dispatch--log-only"></a>
 
@@ -1055,7 +1073,7 @@ Source: [`packages/core/tools/src/types.ts:40`](../packages/core/tools/src/types
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:353`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:378`](../packages/core/session/src/types.ts)
 
 ### `tool-workflow/*`
 
@@ -1135,7 +1153,7 @@ Source: [`packages/workflow/tool-workflow/src/types.ts:47`](../packages/workflow
 
 Types: [TurnEndReason](subsystems/session.md)
 
-Source: [`packages/core/session/src/types.ts:285`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:310`](../packages/core/session/src/types.ts)
 
 <a id="turnstart--log-only"></a>
 
@@ -1151,7 +1169,7 @@ Source: [`packages/core/session/src/types.ts:285`](../packages/core/session/src/
 'turn/start': { turn: number }
 ```
 
-Source: [`packages/core/session/src/types.ts:276`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:301`](../packages/core/session/src/types.ts)
 
 ### `user/*`
 
@@ -1170,7 +1188,7 @@ Source: [`packages/core/session/src/types.ts:276`](../packages/core/session/src/
 'user/message': UserMessage
 ```
 
-Source: [`packages/core/session/src/types.ts:297`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:322`](../packages/core/session/src/types.ts)
 
 ### `web/*`
 

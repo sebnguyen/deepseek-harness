@@ -30,6 +30,8 @@ The claim's content is immutable once declared and a turn declares any number of
 
 `abandon_claim(id, reason)` is the honest exit for a claim the model declared wrongly; it settles the claim as `blocked` with code `abandoned`, is logged, and ends claim handling for that claim. It is refused while the bound verifier has not yet run, so a declaration cannot be walked away from without facing its check at least once, and no claim can be opened and closed to dodge verification entirely. The refusal reads the count of recorded results for the claim, so the guard is a fold over the log rather than separate bookkeeping. Because a turn declares any number of claims, a replacement declaration after an abandonment is possible; the abandoned claim stays in the ledger as recorded evidence, and the standing demand tells the model to repair the work rather than declare replacement claims round after round.
 
+`list_claims()` is the recovery read: it answers with the open turn's claims — pending or settled, in declaration order, from the folded ledger. Claim identity otherwise lives only in the transcript the model reads, so a turn whose declaration messages left the context through compaction, or a resumed turn, could not settle or repair what it declared. The read is turn-scoped rather than ledger-wide because the turn is the unit that owes settlement. Nothing re-injects the roster on compaction; the demand section names the tool and the decision to call it is the model's.
+
 ### Ordering is not enforced
 
 A commitment is only a commitment if it precedes the work, and the obvious way to guarantee that is to deny workspace mutation until a claim exists. This design does not do it, for two reasons that are about authority and cost rather than effort.
@@ -83,7 +85,7 @@ The session log is the only store. Three log-only events — `claim/declared`, `
 | Package | Role |
 |---|---|
 | [`packages/claim/claim`](../../../../packages/claim/claim/README.md) | `ClaimService` on `ctx.claims`: declare, record, settle, abandon; the `claim/*` events, their fold, the `claim` projection unit, and `bindVerifier` |
-| [`packages/claim/tool-claim`](../../../../packages/claim/tool-claim/README.md) | `declare_claim`, `run_claim`, and `abandon_claim` tools plus the standing declaration demand as a prompt section |
+| [`packages/claim/tool-claim`](../../../../packages/claim/tool-claim/README.md) | `declare_claim`, `run_claim`, `list_claims`, and `abandon_claim` tools plus the standing declaration demand as a prompt section |
 | [`packages/claim/claim-settlement`](../../../../packages/claim/claim-settlement/README.md) | The `agent/turn-stopping` listener: run the verifier, steer failures, own the budget policy |
 
 Mount all three for the complete loop. Mounting `claim` alone stores and serves claims without running or prompting anything.
@@ -109,13 +111,15 @@ Mount all three for the complete loop. Mounting `claim` alone stores and serves 
 - **Semantic claims cannot be verified.** A `description` like "the design is coherent" has no script; the agent still declares one, but the check will be a proxy at best.
 - **A claim does not make remote effects stashable.** An agent that pushed a branch or sent a message before a failed verifier cannot undo it; repair steers it to fix forward, and `abandon` records that it gave up.
 - **The base bundle mounts the group.** No real-composition Loader test covers the assembled graph yet; the current tests exercise each package against a real `ClaimService` with a scripted shell seam.
+- **Claim recovery is model-initiated.** Compaction does not re-inject the open turn's roster, so a model that never calls `list_claims` still loses the ids of claims the log holds.
 
 ## Testing
 
-- [`packages/claim/claim/tests/claim.spec.ts`](../../../../packages/claim/claim/tests/claim.spec.ts) covers the service: open-turn refusal, one claim per turn, per-turn keys, revision and failure counting, `abandon` refusal before the verifier runs, settlement shapes, live-agent authority, and log-folded replay.
+- [`packages/claim/claim/tests/claim.spec.ts`](../../../../packages/claim/claim/tests/claim.spec.ts) covers the service: open-turn refusal, one claim per turn, per-turn keys, the turn-scoped read of pending and settled claims, revision and failure counting, `abandon` refusal before the verifier runs, settlement shapes, live-agent authority, and log-folded replay.
 - [`packages/claim/claim/tests/invariant.spec.ts`](../../../../packages/claim/claim/tests/invariant.spec.ts) exercises the invariant companion against committed event streams: unsettled turn ends, out-of-turn records, double declarations, and malformed outcomes rejected before commit.
 - [`packages/claim/claim-settlement/tests/settlement.spec.ts`](../../../../packages/claim/claim-settlement/tests/settlement.spec.ts) drives the `turn-stopping` listener against a real `ClaimService` with a scripted shell seam: pass, steered failure, the default single repair re-insert with budget exhaustion, inconclusive retries, infrastructure rejection, and the tampered digest.
 - [`packages/claim/tool-claim/tests/run-claim.spec.ts`](../../../../packages/claim/tool-claim/tests/run-claim.spec.ts) drives `run_claim` against a real `ClaimService` and scripted shell: pass settles, a fail is recorded with bounded evidence and leaves the claim open and abandonable, an inconclusive run stays pending, a tampered binding settles, and an id outside the open turn is rejected.
 - [`packages/claim/tool-claim/tests/reminder.spec.ts`](../../../../packages/claim/tool-claim/tests/reminder.spec.ts) covers the turn-boundary reminder: appended once at each turn's first step, skipped on repair steps and agents that left the registry, and a rejection passed through untouched.
+- [`packages/claim/tool-claim/tests/list-claims.spec.ts`](../../../../packages/claim/tool-claim/tests/list-claims.spec.ts) covers the recovery read: a settled and a pending claim of the open turn in declaration order, an empty roster for a turn that declared nothing, and the live-agent gate.
 
 Deferred: `claim-settlement` and `tool-claim` lack a real-composition Loader test.

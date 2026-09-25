@@ -27,6 +27,7 @@ import {
 } from './trajectory-virtual-rows.ts'
 import type { TrajectoryVirtualRow } from './trajectory-virtual-rows.ts'
 import type { TrajectoryTurnModel } from './layout.ts'
+import type { TrajectoryRequestWire } from './trajectory-contract.ts'
 import { trajectoryPreviewText } from './trajectory-preview.ts'
 import type { TrajectoryKey, TrajectoryTranslate } from './locales.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
@@ -45,6 +46,7 @@ const VIRTUALIZATION_THRESHOLD = 100
 const VIRTUAL_OVERSCAN_ROWS = 12
 const VIRTUAL_INITIAL_VIEWPORT_HEIGHT_PX = 600
 const EMPTY_RAW_SURFACE_EVENTS: ReadonlyMap<number, SessionEvent> = new Map()
+const EMPTY_REQUEST_WIRES: ReadonlyMap<string, readonly TrajectoryRequestWire[]> = new Map()
 
 const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
   system: 'kind.system',
@@ -178,6 +180,7 @@ type DetailTab =
   | 'timing'
   | 'diff'
   | 'context'
+  | 'wire'
 type RecordState = 'complete' | 'running' | 'error'
 
 interface DetailTabItem {
@@ -230,6 +233,7 @@ const REQUEST_TABS: readonly DetailTabItem[] = [
   { id: 'usage', labelKey: 'tab.usage' },
   { id: 'timing', labelKey: 'tab.timing' },
   { id: 'context', labelKey: 'tab.context' },
+  { id: 'wire', labelKey: 'tab.wire' },
 ]
 
 function jsonTreeLabels(t: TrajectoryTranslate): JsonTreeLabels {
@@ -441,6 +445,11 @@ export interface TrajectoryTableProps {
    * fallback.
    */
   rawSurfaceEvents?: ReadonlyMap<number, SessionEvent>
+  /**
+   * Exact dispatched request bodies per step, keyed by `turn\0step`. Absent
+   * renders the Wire tab's "not captured" fallback.
+   */
+  requestWires?: ReadonlyMap<string, readonly TrajectoryRequestWire[]> | undefined
 }
 
 /** Request-inspector fields shared by ordinary generation and compaction. */
@@ -881,6 +890,45 @@ const CONTEXT_CACHE_LABEL_KEY: Record<CompositionSegment['cacheClass'], Trajecto
 }
 
 type ContextSpanStyle = CSSProperties & { '--context-hit-fraction'?: number }
+
+/**
+ * Exact request bodies dispatched for one step, in dispatch order — the bytes
+ * the provider received, including fields resolved after the loop froze its
+ * request. Empty for a historical log written before adapters captured bodies.
+ */
+function RequestWirePanel({ wires, t }: {
+  wires: readonly TrajectoryRequestWire[] | undefined
+  t: TrajectoryTranslate
+}) {
+  if (wires === undefined || wires.length === 0) {
+    return <p className={css.noPayload}>{t('wire.notCaptured')}</p>
+  }
+  return (
+    <div className={css.usagePanel}>
+      {wires.map((wire, index) => (
+        <section key={wire.seq} className={css.usageGroup}>
+          <h4 className={css.usageHeading}>
+            {wires.length > 1 ? t('wire.attempt', { index: String(index + 1) }) : t('wire.heading')}
+          </h4>
+          <dl className={css.usagePanel}>
+            <div><dt>{t('wire.provider')}</dt><dd>{wire.provider}</dd></div>
+            <div><dt>{t('wire.model')}</dt><dd>{wire.model}</dd></div>
+            <div><dt>{t('wire.purpose')}</dt><dd>{wire.purpose ?? t('wire.purpose.conversation')}</dd></div>
+            <div><dt>{t('wire.representation')}</dt><dd>{t(WIRE_REPRESENTATION_KEYS[wire.representation])}</dd></div>
+          </dl>
+          <pre className={css.wirePayload}>{wire.payload}</pre>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+/** Locale key for each captured image representation. */
+const WIRE_REPRESENTATION_KEYS = {
+  none: 'wire.representation.none',
+  file: 'wire.representation.file',
+  base64: 'wire.representation.base64',
+} as const satisfies Record<TrajectoryRequestWire['representation'], TrajectoryKey>
 
 /**
  * This request's exact prompt composition — the ordered surface nodes it
@@ -1961,6 +2009,7 @@ export function TrajectoryTable({
   inspectCallId = null,
   onInspectApplied,
   rawSurfaceEvents = EMPTY_RAW_SURFACE_EVENTS,
+  requestWires = EMPTY_REQUEST_WIRES,
 }: TrajectoryTableProps) {
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null)
   const [selectedRequest, setSelectedRequest] = useState<SelectedRequest | null>(null)
@@ -2180,6 +2229,9 @@ export function TrajectoryTable({
     if (selectedRequestBoundarySeq === undefined) return undefined
     return requestContextWindow([...rawSurfaceEvents.values()], selectedRequestBoundarySeq)
   }, [rawSurfaceEvents, selectedRequestBoundarySeq])
+  const selectedRequestWires = selectedRequestInfo === undefined || selectedRequestInfo.turn === null
+    ? undefined
+    : requestWires.get(`${selectedRequestInfo.turn}\u0000${selectedRequestInfo.step}`)
   const [compositionBackfill, setCompositionBackfill] = useState(false)
   const compositionHistoryLoad = useRef(false)
   useEffect(() => {
@@ -2222,7 +2274,8 @@ export function TrajectoryTable({
   const selectedTabs = selectedRequestInfo !== undefined
     ? REQUEST_TABS.filter(tab =>
       (tab.id !== 'options' || selectedRequestOptions !== undefined)
-      && (tab.id !== 'context' || selectedRequestBoundarySeq !== undefined))
+      && (tab.id !== 'context' || selectedRequestBoundarySeq !== undefined)
+      && (tab.id !== 'wire' || selectedRequestWires !== undefined))
     : selected === undefined ? [] : detailTabs(selected)
   const selectedParents: ParentRecords = selected === undefined
     ? {}
@@ -3147,6 +3200,9 @@ export function TrajectoryTable({
                 compositionUnavailable={compositionUnavailable}
                 t={t}
               />
+            )}
+            {selectedRequestInfo !== undefined && activeTab === 'wire' && (
+              <RequestWirePanel wires={selectedRequestWires} t={t} />
             )}
             {selectedPrompt !== undefined
                 && selectedPreviousPrompt !== undefined

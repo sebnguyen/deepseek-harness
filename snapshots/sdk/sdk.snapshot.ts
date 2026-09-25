@@ -141,6 +141,7 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
       abandon_claim: ['id', 'reason'],
       bash: ['command'],
       declare_claim: ['title', 'description', 'script'],
+      list_claims: [],
       read_note: ['target'],
       run_claim: ['id'],
       str_replace_editor: ['command', 'path'],

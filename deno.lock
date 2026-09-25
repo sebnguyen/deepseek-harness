@@ -1,0 +1,1355 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@deno/installer-shell-setup@*": "0.3.4"
+  },
+  "jsr": {
+    "@deno/installer-shell-setup@0.3.4": {
+      "integrity": "48665d1a737d487cce6874bc97bba70a5aeffa7053aca3f60df93c6fab8963b4"
+    }
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@stylistic/eslint-plugin@^5.10.0",
+        "npm:@testing-library/dom@^10.4.1",
+        "npm:@testing-library/react@^16.3.2",
+        "npm:@types/js-yaml@^4.0.9",
+        "npm:@types/jsdom@^28.0.3",
+        "npm:@types/mdast@^4.0.4",
+        "npm:@types/node@^22.20.0",
+        "npm:@types/spdx-expression-parse@4",
+        "npm:@vitest/coverage-v8@^4.1.8",
+        "npm:@yao-pkg/pkg@6.21.0",
+        "npm:@yarnpkg/cli-dist@4.17.1",
+        "npm:eslint-plugin-sonarjs@^4.1.0",
+        "npm:execa@10",
+        "npm:fast-check@^4.8.0",
+        "npm:istanbul-lib-report@^3.0.1",
+        "npm:js-yaml@^4.2.0",
+        "npm:jscpd@^5.0.12",
+        "npm:jsdom@29.1.1",
+        "npm:lefthook@^2.1.9",
+        "npm:lightningcss@^1.32.0",
+        "npm:mdast-util-from-markdown@^2.0.3",
+        "npm:mdast-util-gfm@^3.1.0",
+        "npm:mermaid@11.16.0",
+        "npm:micromark-extension-gfm@3",
+        "npm:oxlint-tsgolint@7.0.2001",
+        "npm:oxlint@1.76.0",
+        "npm:publint@~0.3.21",
+        "npm:smol-toml@^1.7.1",
+        "npm:spdx-expression-parse@5",
+        "npm:tsdown@~0.22.2",
+        "npm:tsx@^4.22.4",
+        "npm:typescript@^6.0.3",
+        "npm:vite-tsconfig-paths@^6.1.1",
+        "npm:vitest@^4.1.8"
+      ]
+    },
+    "members": {
+      "apps/cli": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@agentclientprotocol/sdk@1.4.0",
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:@types/ws@8.18.1",
+            "npm:commander@15",
+            "npm:execa@10",
+            "npm:js-yaml@^4.2.0",
+            "npm:node-addon-require-builtin@~0.1.4",
+            "npm:ws@8.21.0"
+          ]
+        }
+      },
+      "apps/desktop": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@aws-sdk/client-s3@3.1067.0",
+            "npm:@electron/notarize@2.5.0",
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:@types/node@^22.20.0",
+            "npm:@types/semver@^7.8.0",
+            "npm:app-builder-lib@26.15.3",
+            "npm:electron-builder@^26.15.3",
+            "npm:electron-updater@^6.8.9",
+            "npm:electron@44",
+            "npm:extract-zip@^2.0.1",
+            "npm:js-yaml@^4.2.0",
+            "npm:pnpm@11.7.0",
+            "npm:semver@^7.8.5",
+            "npm:tar@^7.5.0",
+            "npm:typescript@^6.0.3"
+          ]
+        }
+      },
+      "apps/web": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/node@22",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:@types/ws@8.18.1",
+            "npm:@vitejs/plugin-react@4",
+            "npm:fflate@~0.8.2",
+            "npm:http-server@^14.1.1",
+            "npm:playwright@^1.49.0",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:typescript@^6.0.3",
+            "npm:vite@6",
+            "npm:vitest@^4.1.8",
+            "npm:ws@8.21.0"
+          ]
+        }
+      },
+      "native/system": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/node@^26.0.1",
+            "npm:tsx@^4.20.6",
+            "npm:typescript@^6.0.3"
+          ]
+        }
+      },
+      "packages/acp/acp": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@agentclientprotocol/sdk@1.4.0"
+          ]
+        }
+      },
+      "packages/api/gateway": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/ws@^8.18.1",
+            "npm:ws@^8.21.0",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/api/remotes": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/api/session-controller": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/mime-types@^3.0.1",
+            "npm:mime-types@^3.0.2",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/api/settings-controller": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/api/workspace-controller": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/api/workspace-files": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/attachment/attachment-local": {
+        "packageJson": {
+          "dependencies": [
+            "npm:sharp@~0.35.3"
+          ]
+        }
+      },
+      "packages/boot/app-boot": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:chokidar@4.0.3",
+            "npm:js-yaml@^4.2.0",
+            "npm:resolve.exports@^2.0.3"
+          ]
+        }
+      },
+      "packages/boot/cmdline": {
+        "packageJson": {
+          "dependencies": [
+            "npm:commander@15"
+          ]
+        }
+      },
+      "packages/bundle/acp-app": {
+        "packageJson": {
+          "dependencies": [
+            "npm:commander@15"
+          ]
+        }
+      },
+      "packages/bundle/headless": {
+        "packageJson": {
+          "dependencies": [
+            "npm:commander@15"
+          ]
+        }
+      },
+      "packages/bundle/sdk-app": {
+        "packageJson": {
+          "dependencies": [
+            "npm:commander@15"
+          ]
+        }
+      },
+      "packages/bundle/web-app": {
+        "packageJson": {
+          "dependencies": [
+            "npm:commander@15",
+            "npm:open@11"
+          ]
+        }
+      },
+      "packages/claim/claim": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/claim/tool-claim": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/client/connection": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/client/file-upload": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/client/locale": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/store": {
+        "packageJson": {
+          "dependencies": [
+            "npm:immer@^10.1.1",
+            "npm:zustand@~4.4.7"
+          ]
+        }
+      },
+      "packages/client/ui-agent-preset": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-approval": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-attachment": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-brand-official": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-chat": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-claim": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-commands": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-conversation": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@lexical/headless@0.49",
+            "npm:@lexical/history@0.49",
+            "npm:@lexical/plain-text@0.49",
+            "npm:@lexical/text@0.49",
+            "npm:@lexical/utils@0.49",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:lexical@0.49",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/client/ui-deliverables": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-directory-picker-browse": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-directory-picker-native": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-dockkit": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-goal": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-input-trigger": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-jobs": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-layout": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-message-feedback": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-model-selection": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@^2.1.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-open-in-app": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-permission-presets": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-plan": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-primitives": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@shikijs/langs@^4.3.1",
+            "npm:@types/mdast@^4.0.4",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:anser@^2.3.5",
+            "npm:clsx@2",
+            "npm:katex@~0.16.47",
+            "npm:mdast-util-from-markdown@^2.0.3",
+            "npm:mdast-util-gfm@^3.1.0",
+            "npm:mdast-util-math@3",
+            "npm:mermaid@12",
+            "npm:micromark-core-commonmark@^2.0.3",
+            "npm:micromark-extension-gfm@3",
+            "npm:micromark-extension-math@^3.1.0",
+            "npm:micromark-factory-space@^2.0.1",
+            "npm:micromark-util-character@^2.1.1",
+            "npm:micromark-util-classify-character@^2.0.1",
+            "npm:micromark-util-sanitize-uri@^2.0.1",
+            "npm:micromark-util-symbol@^2.0.1",
+            "npm:micromark-util-types@^2.0.2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:shiki@^4.3.1"
+          ]
+        }
+      },
+      "packages/client/ui-renderer": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:@types/use-sync-external-store@^1.5.0",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:use-sync-external-store@1.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-schedule": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-session": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-settings": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-settings-general": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-settings-models": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-settings-plugin-inventory": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-settings-plugins": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-sidebar": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-sidebar-documentpreview": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:pdfjs-dist@6.3.289",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-sidebar-files": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-sidebar-right": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/picomatch@^4.0.2",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:picomatch@^4.0.4",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-skill": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-slots": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1"
+          ]
+        }
+      },
+      "packages/client/ui-subagent": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-theme": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-tool": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-trajectory": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@tanstack/react-virtual@^3.14.9",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:diff@9",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-user-questions": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-workflow-run": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/ui-workspace": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:clsx@2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/client/web": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:typescript@^6.0.3"
+          ]
+        }
+      },
+      "packages/context/session-reference": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/context/time-context": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/context/tmux-context": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/core/agent-loop": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/credentials/credentials-local": {
+        "packageJson": {
+          "dependencies": [
+            "npm:chokidar@^4.0.3",
+            "npm:yaml@^2.9.0"
+          ]
+        }
+      },
+      "packages/e2b/e2b": {
+        "packageJson": {
+          "dependencies": [
+            "npm:e2b@2.29.1"
+          ]
+        }
+      },
+      "packages/experimental/agent-team": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/experimental/agent-team-profile": {
+        "packageJson": {
+          "dependencies": [
+            "npm:js-yaml@^4.2.0"
+          ]
+        }
+      },
+      "packages/experimental/agent-team-web-profile": {
+        "packageJson": {
+          "dependencies": [
+            "npm:js-yaml@^4.2.0"
+          ]
+        }
+      },
+      "packages/experimental/client-ui-agent-team": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/react@^16.1.0",
+            "npm:@types/react@~18.3.1",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/experimental/inspector": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/ws@^8.18.1",
+            "npm:playwright@^1.49.0",
+            "npm:tsx@^4.19.2",
+            "npm:ws@^8.21.0"
+          ]
+        }
+      },
+      "packages/experimental/webworker-packer": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:@types/picomatch@^3.0.2",
+            "npm:js-yaml@^4.2.0",
+            "npm:picomatch@^4.0.4"
+          ]
+        }
+      },
+      "packages/experimental/webworker-runtime": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@noble/hashes@^2.3.0",
+            "npm:@types/picomatch@^3.0.2",
+            "npm:@types/readable-stream@^4.0.24",
+            "npm:@yarnpkg/parsers@^3.1.0",
+            "npm:acorn@^8.17.0",
+            "npm:buffer@^6.0.3",
+            "npm:chokidar@5",
+            "npm:picomatch@^4.0.4",
+            "npm:readable-stream@^4.7.0"
+          ]
+        }
+      },
+      "packages/extensions/cordis-client-runner": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/extensions/cordis-host-runner": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/extensions/ui-cordis": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/feedback/command-feedback": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/feedback/message-feedback": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/fs/fs-local": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0"
+          ]
+        }
+      },
+      "packages/fs/tool-fs": {
+        "packageJson": {
+          "dependencies": [
+            "npm:diff@9"
+          ]
+        }
+      },
+      "packages/fs/tool-fs-search": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@vscode/ripgrep@^1.18.0"
+          ]
+        }
+      },
+      "packages/goal/goal": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/host/directory-picker-native": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0",
+            "npm:tsx@^4.19.2"
+          ]
+        }
+      },
+      "packages/host/plugin-inventory": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/host/webserver": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/compression@^1.8.1",
+            "npm:@types/negotiator@~0.6.5",
+            "npm:compression@^1.8.1",
+            "npm:negotiator@1"
+          ]
+        }
+      },
+      "packages/interaction/commands": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/interaction/permission-presets": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/knowledge/knowledge-notes": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/llm/llm": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/llm/llm-deepseek": {
+        "packageJson": {
+          "dependencies": [
+            "npm:eventsource-parser@^3.1.0"
+          ]
+        }
+      },
+      "packages/llm/llm-pi-ai": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@earendil-works/pi-ai@~0.85.1"
+          ]
+        }
+      },
+      "packages/llm/llm-retry": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/llm/token-meter": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/lsp/lsp-stdio": {
+        "packageJson": {
+          "dependencies": [
+            "npm:typescript-language-server@5",
+            "npm:typescript@^6.0.3"
+          ]
+        }
+      },
+      "packages/mcp/mcp-client": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@modelcontextprotocol/sdk@^1.12.0",
+            "npm:@modelcontextprotocol/server-everything@^2026.7.4",
+            "npm:@modelcontextprotocol/server-filesystem@^2026.7.4",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/plan/plan-mode": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/preset/agent-presets": {
+        "packageJson": {
+          "dependencies": [
+            "npm:js-yaml@^4.1.0",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/sandbox/sandbox-policy": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/sandbox/sandbox-windows-acl": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0"
+          ]
+        }
+      },
+      "packages/schedule/schedule": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/session-query/session-log-export": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@types/react@~18.3.1",
+            "npm:fflate@~0.8.2",
+            "npm:react@^18.2.0"
+          ]
+        }
+      },
+      "packages/session/session-persistence-jsonl": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0"
+          ]
+        }
+      },
+      "packages/session/session-projection": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/session/session-projection-cache": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/session/session-stats": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/session/session-telemetry-otel": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@opentelemetry/api-logs@0.220",
+            "npm:@opentelemetry/api@^1.9.1",
+            "npm:@opentelemetry/exporter-logs-otlp-http@0.220",
+            "npm:@opentelemetry/otlp-exporter-base@0.220",
+            "npm:@opentelemetry/resources@^2.9.0",
+            "npm:@opentelemetry/sdk-logs@0.220"
+          ]
+        }
+      },
+      "packages/session/session-title": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/session/session-turn-outline": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/settings/settings-file": {
+        "packageJson": {
+          "dependencies": [
+            "npm:chokidar@^4.0.3",
+            "npm:yaml@^2.9.0"
+          ]
+        }
+      },
+      "packages/skill/skill-filesystem": {
+        "packageJson": {
+          "dependencies": [
+            "npm:chokidar@5",
+            "npm:yaml@^2.4.2"
+          ]
+        }
+      },
+      "packages/storage/storage-domain": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/subagent/subagent": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/subagent/subagent-acp": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@agentclientprotocol/sdk@1.4.0"
+          ]
+        }
+      },
+      "packages/subagent/subagent-claude-code": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@anthropic-ai/claude-agent-sdk@0.3.263",
+            "npm:@anthropic-ai/sdk@0.93.0",
+            "npm:@modelcontextprotocol/sdk@^1.29.0",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/subagent/subagent-codex": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@openai/codex@0.153.4"
+          ]
+        }
+      },
+      "packages/subagent/tool-subagent": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/subprocess/subprocess-local": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0",
+            "npm:node-pty@1.2.0-beta.15"
+          ]
+        }
+      },
+      "packages/subprocess/win32-process": {
+        "packageJson": {
+          "dependencies": [
+            "npm:koffi@^3.1.0"
+          ]
+        }
+      },
+      "packages/terminal/terminal-bash": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@xterm/headless@6"
+          ]
+        }
+      },
+      "packages/test-support/client-runtime": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@testing-library/dom@^10.4.1",
+            "npm:@testing-library/react@^16.3.2",
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:@types/react-dom@18.3",
+            "npm:@types/react@~18.3.1",
+            "npm:js-yaml@^4.2.0",
+            "npm:react-dom@^18.2.0",
+            "npm:react@^18.2.0",
+            "npm:vitest@^4.1.8"
+          ]
+        }
+      },
+      "packages/test-support/loader-smoke": {
+        "packageJson": {
+          "dependencies": [
+            "npm:execa@10",
+            "npm:tsx@^4.22.4"
+          ]
+        }
+      },
+      "packages/test-support/remote-mock": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@vitest/spy@^4.1.8",
+            "npm:typescript@^6.0.3"
+          ]
+        }
+      },
+      "packages/test-support/session-snapshot": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@agentclientprotocol/sdk@1.4.0",
+            "npm:@types/js-yaml@^4.0.9",
+            "npm:js-yaml@^4.2.0",
+            "npm:vitest@^4.1.8"
+          ]
+        }
+      },
+      "packages/todo/tool-todo": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/typert/generator": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@jridgewell/gen-mapping@~0.3.13",
+            "npm:typescript@^6.0.3",
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/typert/loader": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/typert/registry": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/util/chunked-list": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "packages/util/http-proxy": {
+        "packageJson": {
+          "dependencies": [
+            "npm:undici@^8.10.0"
+          ]
+        }
+      },
+      "packages/web/tool-web": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@joplin/turndown-plugin-gfm@^1.0.67",
+            "npm:@types/turndown@^5.0.6",
+            "npm:turndown@^7.2.4"
+          ]
+        }
+      },
+      "packages/web/web-fetch-http": {
+        "packageJson": {
+          "dependencies": [
+            "npm:ipaddr.js@^2.5.0",
+            "npm:undici@^8.10.0"
+          ]
+        }
+      },
+      "packages/webhook/webhook-github": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@octokit/webhooks@^14.2.0"
+          ]
+        }
+      },
+      "packages/workflow/workflow-worker-thread": {
+        "packageJson": {
+          "dependencies": [
+            "npm:tsx@^4.19.2"
+          ]
+        }
+      },
+      "packages/workspace/workspace": {
+        "packageJson": {
+          "dependencies": [
+            "npm:zod@^4.4.3"
+          ]
+        }
+      },
+      "vendor/cordis": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@standard-schema/spec@^1.1.0"
+          ]
+        }
+      },
+      "vendor/hmr": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@babel/code-frame@^7.29.0",
+            "npm:@types/babel__code-frame@^7.27.0",
+            "npm:@types/picomatch@^3.0.2",
+            "npm:chokidar@^4.0.3",
+            "npm:esbuild@~0.28.1",
+            "npm:picomatch@^4.0.3"
+          ]
+        }
+      },
+      "vendor/include": {
+        "packageJson": {
+          "dependencies": [
+            "npm:js-yaml@^4.1.0"
+          ]
+        }
+      },
+      "vendor/logger-console": {
+        "packageJson": {
+          "dependencies": [
+            "npm:supports-color@^9.4.0"
+          ]
+        }
+      },
+      "vendor/schemastery": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@standard-schema/spec@^1.1.0"
+          ]
+        }
+      },
+      "website": {
+        "packageJson": {
+          "dependencies": [
+            "npm:@braintree/sanitize-url@7.1.2",
+            "npm:cytoscape-cose-bilkent@4.1.0",
+            "npm:cytoscape@3.34.0",
+            "npm:dayjs@1.11.21",
+            "npm:debug@4.4.3",
+            "npm:mermaid@11.16.0",
+            "npm:vite@^5.4.14",
+            "npm:vitepress-plugin-mermaid@^2.0.17",
+            "npm:vitepress@^1.6.4"
+          ]
+        }
+      }
+    }
+  }
+}

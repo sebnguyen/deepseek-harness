@@ -118,6 +118,22 @@ export interface DeepSeekConnectionOptions {
   retryPolicy: ResolvedRetryPolicy
 }
 
+/** One dispatched request body, reported before it reaches the transport. */
+export interface DeepSeekWireRequest {
+  /** Provider route the body is sent to. */
+  provider: string
+  /** Provider-owned model id the body requests. */
+  model: string
+  /** Provider-neutral purpose of the call; absent for ordinary conversation requests. */
+  purpose?: 'compaction' | 'session-title'
+  /** Image representation this body uses after any Files API fallback. */
+  representation: 'none' | 'file' | 'base64'
+  /** Exact body handed to the transport, byte for byte. */
+  payload: string
+  /** Session the request was dispatched for, when the caller stamped one. */
+  sessionId?: GenerateOptions['sessionId']
+}
+
 /** Constructor options for {@link DeepSeekAdapter}: the operation-local resolution hooks the plugin owns. */
 export interface DeepSeekAdapterOptions {
   /** Current validated connection facts; called once per operation. */
@@ -139,6 +155,12 @@ export interface DeepSeekAdapterOptions {
   resolveFiles?: () => DeepSeekFileStore
   /** Prepare the official API's plugin-contributed top-level fields for one exact wire request. */
   prepareExtensions: (request: DeepSeekLlmApiExtensionRequest) => Promise<PreparedDeepSeekLlmApiExtensions>
+  /**
+   * Report one completed request body immediately before dispatch. Called once
+   * per attempt that reaches the transport, after extension fields are merged,
+   * so the reported payload is exactly what the provider receives.
+   */
+  onWireRequest?: (request: DeepSeekWireRequest) => void
 }
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
@@ -643,6 +665,14 @@ export class DeepSeekAdapter extends LlmAdapter {
       // Prepared outside the try so the TRANSPORT label below covers exactly the
       // transport boundary, never a serialization failure.
       const payload = JSON.stringify({ ...body, ...extensions.fields })
+      this.config.onWireRequest?.({
+        provider: options.provider,
+        model: options.model,
+        ...options.purpose === undefined ? {} : { purpose: options.purpose },
+        representation: attachments === undefined || requestImages.size === 0 ? 'none' : representation,
+        payload,
+        ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
+      })
 
       // TODO(http): adopt the Cordis HTTP service when shared transport configuration
       // outweighs its additional runtime dependencies.

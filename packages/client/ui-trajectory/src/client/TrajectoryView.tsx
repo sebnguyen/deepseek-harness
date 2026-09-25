@@ -158,6 +158,7 @@ export function TrajectoryView({
   } | null>(null)
   const completeInspection = useTrajectory(snapshot => snapshot)
   const rawSurfaceEvents = useTrajectoryComposition(snapshot => snapshot.events)
+  const requestWires = useTrajectory(snapshot => snapshot.requestWires)
   const latestNodeSeq = completeInspection.eventNodes.at(-1)?.seq
   const [historyTailSeq, setHistoryTailSeq] = useState(latestNodeSeq)
   const [historyNodeLimit, setHistoryNodeLimit] = useState(HISTORY_PAGE_NODES)
@@ -568,6 +569,7 @@ export function TrajectoryView({
           inspectCallId={inspectCallId}
           onInspectApplied={completeViewRequest}
           rawSurfaceEvents={rawSurfaceEvents}
+          requestWires={requestWires}
         />
       </div>
     </div>

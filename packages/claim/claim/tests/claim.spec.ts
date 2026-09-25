@@ -90,6 +90,23 @@ describe('claim service', () => {
     expect(ctx.claims.openClaims(agent)).toEqual([second])
   })
 
+  it('reads every claim of the open turn, pending or settled, and no other turn', async () => {
+    const { ctx, agent, startTurn, endTurn } = await harness()
+    startTurn(1)
+    const earlier = ctx.claims.declare(agent, { title: 'first', description: 'a', script: 'exit 0' })
+    ctx.claims.settle(agent, earlier.id, { kind: 'passed' })
+    endTurn(1)
+    startTurn(2)
+    expect(ctx.claims.turnClaims(agent)).toEqual([])
+    const settled = ctx.claims.declare(agent, { title: 'second', description: 'b', script: 'exit 0' })
+    ctx.claims.settle(agent, settled.id, { kind: 'passed' })
+    ctx.claims.declare(agent, { title: 'third', description: 'c', script: 'exit 0' })
+    expect(ctx.claims.turnClaims(agent).map(claim => [claim.title, claim.settlement.kind]))
+      .toEqual([['second', 'passed'], ['third', 'pending']])
+    expect(ctx.claims.openClaims(agent).map(claim => claim.title)).toEqual(['third'])
+    expect(ctx.claims.ledger(agent)).toHaveLength(3)
+  })
+
   it('refuses an empty title or description', async () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
