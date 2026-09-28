@@ -894,15 +894,13 @@ type ContextSpanStyle = CSSProperties & { '--context-hit-fraction'?: number }
 /**
  * Exact request bodies dispatched for one step, in dispatch order — the bytes
  * the provider received, including fields resolved after the loop froze its
- * request. Empty for a historical log written before adapters captured bodies.
+ * request. Rendered only for a request that captured at least one body, so a
+ * historical log written before adapters captured bodies simply has no tab.
  */
 function RequestWirePanel({ wires, t }: {
-  wires: readonly TrajectoryRequestWire[] | undefined
+  wires: readonly TrajectoryRequestWire[]
   t: TrajectoryTranslate
 }) {
-  if (wires === undefined || wires.length === 0) {
-    return <p className={css.noPayload}>{t('wire.notCaptured')}</p>
-  }
   return (
     <div className={css.usagePanel}>
       {wires.map((wire, index) => (
@@ -910,7 +908,7 @@ function RequestWirePanel({ wires, t }: {
           <h4 className={css.usageHeading}>
             {wires.length > 1 ? t('wire.attempt', { index: String(index + 1) }) : t('wire.heading')}
           </h4>
-          <dl className={css.usagePanel}>
+          <dl className={css.overview}>
             <div><dt>{t('wire.provider')}</dt><dd>{wire.provider}</dd></div>
             <div><dt>{t('wire.model')}</dt><dd>{wire.model}</dd></div>
             <div><dt>{t('wire.purpose')}</dt><dd>{wire.purpose ?? t('wire.purpose.conversation')}</dd></div>
@@ -918,11 +916,45 @@ function RequestWirePanel({ wires, t }: {
               <div><dt>{t('wire.representation')}</dt><dd>{t(WIRE_REPRESENTATION_KEYS[wire.representation])}</dd></div>
             )}
           </dl>
-          <pre className={css.wirePayload}>{wire.payload}</pre>
+          <WirePayload payload={wire.payload} t={t} />
         </section>
       ))}
     </div>
   )
+}
+
+/**
+ * One captured body as the ledger's standard JSON tree — expandable and
+ * copyable, matching the Options and Source tabs — or its exact recorded text
+ * when the body is not a JSON object or array.
+ */
+function WirePayload({ payload, t }: { payload: string; t: TrajectoryTranslate }) {
+  const parsed = useMemo(() => parseWirePayload(payload), [payload])
+  return parsed === undefined
+    ? <pre className={css.wirePayload}>{payload}</pre>
+    : <JsonTree
+      data={parsed}
+      label={t('wire.payload')}
+      labels={jsonTreeLabels(t)}
+      className={css.jsonPayload}
+      wrap
+    />
+}
+
+/**
+ * Parse one captured body into a JSON tree value.
+ * @param payload - Exact body text recorded for the request.
+ * @returns The parsed object or array, or `undefined` when the body is neither.
+ */
+function parseWirePayload(payload: string): object | unknown[] | undefined {
+  let value: unknown
+  try {
+    value = JSON.parse(payload)
+  } catch {
+    // A body that is not JSON is still the exact dispatch record; the caller renders it verbatim.
+    return undefined
+  }
+  return typeof value === 'object' && value !== null ? value as object | unknown[] : undefined
 }
 
 /** Locale key for each captured image representation. */
@@ -3203,7 +3235,9 @@ export function TrajectoryTable({
                 t={t}
               />
             )}
-            {selectedRequestInfo !== undefined && activeTab === 'wire' && (
+            {selectedRequestInfo !== undefined
+              && activeTab === 'wire'
+              && selectedRequestWires !== undefined && (
               <RequestWirePanel wires={selectedRequestWires} t={t} />
             )}
             {selectedPrompt !== undefined

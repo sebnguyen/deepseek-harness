@@ -92,6 +92,24 @@
   z-index: 1;
 }
 
+/* Opt-in word wrap: rows grow instead of widening the tree into a horizontal scroll. */
+.wrapRoot {
+  overflow-x: hidden;
+}
+
+.wrapRoot .container,
+.wrapRoot .expandedTopLevel {
+  width: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.wrapRoot .row:not(.topLevelBracket):hover:not(:has(.row:hover))::after,
+.wrapRoot .row:not(.topLevelBracket)[data-json-copy-active]::after,
+.wrapRoot .row:has(> .expander:focus-visible)::after {
+  height: 100%;
+}
+
 .label {
   margin-right: 3px;
   color: var(--json-tree-property);

@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ComponentProps } from 'react'
 import { JsonTree as LocalizedJsonTree } from '@deepseek-ai/dsh-client-ui-primitives'
+import css from '../src/JsonTree.module.css'
 import { jsonTreeLabels } from './labels.client.ts'
 
 function JsonTree(props: Omit<ComponentProps<typeof LocalizedJsonTree>, 'label' | 'labels'> & {
@@ -343,5 +344,14 @@ describe('JsonTree', () => {
 
     fireEvent.mouseLeave(root)
     expect(screen.queryByRole('button', { name: /Copy/ })).toBeNull()
+  })
+
+  it('takes the wrap variant only when the caller asks for it', () => {
+    const plain = render(<JsonTree data={{ value: 1 }} />)
+    const plainRoot = plain.container.firstElementChild as HTMLElement
+    expect(plainRoot.classList.contains(css.wrapRoot!)).toBe(false)
+
+    plain.rerender(<JsonTree data={{ value: 1 }} wrap />)
+    expect(plainRoot.classList.contains(css.wrapRoot!)).toBe(true)
   })
 })

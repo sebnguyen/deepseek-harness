@@ -994,6 +994,114 @@ describe('TrajectoryTable', () => {
     expect(screen.queryByText(/\? tokens/)).toBeNull()
   })
 
+  it('pretty-prints the captured request body on the Request body tab', () => {
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [{
+        title: 'Step 1',
+        cells: [{ index: 1, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+      }],
+    }]
+    const payload = JSON.stringify({ marker: 'WIRE_PAYLOAD_MARKER', messages: [] })
+    render(
+      <TrajectoryTable
+        turns={turns}
+        requestNumbers={[{ turn: 1, step: 1, seq: 1, group: 'Step 1', number: 1 }]}
+        requestWires={new Map([['1\u00001', [{
+          seq: 2,
+          time: 2,
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          payload,
+        }]]])}
+        {...FOLD_PROPS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Request body' }))
+
+    // The body parses into the ledger's JSON tree: fields are addressable and the
+    // single-line serialization is gone. JsonTree renders strings JSON-quoted.
+    expect(screen.getByText(/"WIRE_PAYLOAD_MARKER"/)).toBeTruthy()
+    expect(screen.getByText(/marker/)).toBeTruthy()
+    expect(screen.queryByText(payload)).toBeNull()
+  })
+
+  it.each([
+    { label: 'text that is not JSON', payload: 'NOT_JSON_BODY', shown: 'NOT_JSON_BODY' },
+    { label: 'a JSON scalar', payload: '"SCALAR_JSON_STRING"', shown: '"SCALAR_JSON_STRING"' },
+    { label: 'JSON null', payload: 'null', shown: 'null' },
+  ])('renders a body of $label verbatim on the Request body tab', ({ payload, shown }) => {
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [{
+        title: 'Step 1',
+        cells: [{ index: 1, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+      }],
+    }]
+    render(
+      <TrajectoryTable
+        turns={turns}
+        requestNumbers={[{ turn: 1, step: 1, seq: 1, group: 'Step 1', number: 1 }]}
+        requestWires={new Map([['1\u00001', [{
+          seq: 2,
+          time: 2,
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          payload,
+        }]]])}
+        {...FOLD_PROPS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Request body' }))
+
+    expect(screen.getByText(shown)).toBeTruthy()
+  })
+
+  it('offers no Request body tab for a request with no captured body', () => {
+    const turns: readonly TrajectoryTurnModel[] = [{
+      turn: 1,
+      groups: [
+        {
+          title: 'Step 1',
+          cells: [{ index: 1, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+        },
+        {
+          title: 'Step 2',
+          cells: [{ index: 2, kind: 'message', text: '', requestOnly: true, timeSeconds: 0 }],
+        },
+      ],
+    }]
+    render(
+      <TrajectoryTable
+        turns={turns}
+        requestNumbers={[
+          { turn: 1, step: 1, seq: 1, group: 'Step 1', number: 1 },
+          { turn: 1, step: 2, seq: 3, group: 'Step 2', number: 2 },
+        ]}
+        requestWires={new Map([['1\u00001', [{
+          seq: 2,
+          time: 2,
+          provider: 'deepseek',
+          model: 'deepseek-v4-flash',
+          payload: '{"marker":"WIRE_PAYLOAD_MARKER"}',
+        }]]])}
+        {...FOLD_PROPS}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    expect(screen.getByRole('tab', { name: 'Request body' })).toBeTruthy()
+
+    // A request whose body was never captured, and a historical log, both simply
+    // lack the tab rather than showing an empty body.
+    fireEvent.click(screen.getByRole('button', { name: 'Request #2' }))
+    expect(screen.queryByRole('tab', { name: 'Request body' })).toBeNull()
+  })
+
   it('shows the custom role tooltip only from the responsive icon', () => {
     const view = render(<TrajectoryTable turns={TURNS} {...FOLD_PROPS} />)
     const toolTag = view.container.querySelector<HTMLElement>('[data-role-kind="tool"]')
