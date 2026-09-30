@@ -29,7 +29,7 @@ const SECTION_ORDER_NAMES = [
   'CORE_RULE_ASK_USER', 'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING',
   'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
   'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_READ',
-  'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
+  'TOOL_WRITE', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
   'TOOL_PWSH', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
   'TOOL_LSP', 'TOOL_LSP_COVERAGE', 'TOOL_LSP_MAP', 'TOOL_SESSION_QUERY', 'TOOL_GOAL', 'TOOL_CLAIM',
   'TOOL_CORDIS', 'TOOL_WORKFLOW', 'TOOL_RALPH', 'TOOL_SUBAGENT', 'TOOL_REPORT', 'TOOLS_SDK',
@@ -64,7 +64,7 @@ describe('SystemPrompt', () => {
   it('groups filesystem guidance together and ahead of the shell guidance', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt, {})
-    const fsOrders = (['TOOL_READ', 'TOOL_WRITE', 'TOOL_EDIT', 'TOOL_GLOB', 'TOOL_GREP'] as const)
+    const fsOrders = (['TOOL_READ', 'TOOL_WRITE', 'TOOL_GLOB', 'TOOL_GREP'] as const)
       .map(name => ctx.systemPrompt.getSectionOrder(name))
     const shellOrders = (['TOOL_BASH', 'TOOL_PWSH'] as const)
       .map(name => ctx.systemPrompt.getSectionOrder(name))

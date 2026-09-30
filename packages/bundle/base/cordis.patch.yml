@@ -255,9 +255,6 @@
     - id: tool-jobs
       name: '@deepseek-ai/dsh-tool-jobs'
 
-    - id: fs-observation-policy
-      name: '@deepseek-ai/dsh-fs-observation-policy'
-
     - id: knowledge-notes
       name: '@deepseek-ai/dsh-knowledge-notes'
 
@@ -265,8 +262,9 @@
       name: '@deepseek-ai/dsh-tool-fs'
 
     # `tool-fs-search` (glob, grep) is deliberately unmounted: text search runs
-    # through the shell, and `read` stays as the file path that records the
-    # observation the write and edit preconditions require.
+    # through the shell, and `read` stays as the recorded-observation path the
+    # unified write's overwrite guard uses; loading fs-observation-policy on top
+    # restores strict read-before-mutation for a deployment.
 
     - id: agent-instructions
       name: '@deepseek-ai/dsh-agent-instructions'

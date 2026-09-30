@@ -10,7 +10,8 @@ import { FsError } from '@deepseek-ai/dsh-fs'
 /**
  * Render the stable model-facing diagnostic for a guarded-mutation failure.
  * `FS_STALE_VERSION` keeps the provider's reason and appends its re-read
- * remedy. `FS_NOT_OBSERVED` replaces operation-specific policy/provider text
+ * remedy. `FS_OVERWRITE_DENIED` names the explicit-overwrite escape for unread
+ * content writes. `FS_NOT_OBSERVED` replaces operation-specific policy/provider text
  * with one path-aware reason and read remedy. The original error remains the
  * cause, and both diagnostics preserve its code for machine routing. Anything
  * else passes through untouched.
@@ -23,6 +24,13 @@ export function remediateFsError(error: unknown, displayPath: string): unknown {
   if (error.code === 'FS_NOT_OBSERVED') {
     return new FsError(
       `cannot modify "${displayPath}": file has not been read — read the file, then retry`,
+      error.code,
+      { cause: error },
+    )
+  }
+  if (error.code === 'FS_OVERWRITE_DENIED') {
+    return new FsError(
+      `cannot overwrite "${displayPath}": not read this session — read it first, or pass overwrite: true`,
       error.code,
       { cause: error },
     )

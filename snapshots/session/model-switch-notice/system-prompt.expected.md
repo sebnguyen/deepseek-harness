@@ -29,9 +29,7 @@ Core Rule: Close The Decision - Evidence that already settles a question stops p
 
 Advice: Read gives UTF-8 contents with line numbers that bash cat and sed cannot, and offset and limit keep a large file inside context. Example: read the handler file at offset 1 limit 120 before editing the error branch.
 
-Advice: Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed. Read an existing file first when overwriting (the default fs-observation-policy requires it).
-
-Advice: Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block. old_string must match exactly once unless replace_all is true.
+Advice: Write creates, replaces, or patches a UTF-8 text file, sed-style: content seeds the file and edits entries — literal (old_string), regex (pattern), line range (first_line/last_line), insert (after_line) — apply sequentially in one atomic commit; overwriting a file this session never read needs overwrite: true, and dry_run previews without committing. Example: write a new fixture file once the shape is agreed.
 
 Advice: Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests. Check the [exit code: N] marker on every bash result; investigate failures before moving on.
 
@@ -84,9 +82,7 @@ Core Rule: Close The Decision - Evidence that already settles a question stops p
 
 Advice: Read gives UTF-8 contents with line numbers that bash cat and sed cannot, and offset and limit keep a large file inside context. Example: read the handler file at offset 1 limit 120 before editing the error branch.
 
-Advice: Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed. Read an existing file first when overwriting (the default fs-observation-policy requires it).
-
-Advice: Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block. old_string must match exactly once unless replace_all is true.
+Advice: Write creates, replaces, or patches a UTF-8 text file, sed-style: content seeds the file and edits entries — literal (old_string), regex (pattern), line range (first_line/last_line), insert (after_line) — apply sequentially in one atomic commit; overwriting a file this session never read needs overwrite: true, and dry_run previews without committing. Example: write a new fixture file once the shape is agreed.
 
 Advice: Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests. Check the [exit code: N] marker on every bash result; investigate failures before moving on.
 

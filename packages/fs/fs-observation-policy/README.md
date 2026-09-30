@@ -59,7 +59,7 @@ This section explains the design decisions behind the policy plugin and points a
 
 The plugin is built on two ideas:
 
-- **Event gate, not method service.** The plugin influences the world only through the `fs/*` events, so it registers no `ctx.fsPolicy` service and has no public methods. Removing it cannot break `dsh-tool-fs` at a service-injection boundary — the tool falls through to the bare provider.
+- **Event gate, not method service.** The plugin influences the world only through the `fs/*` events, so it registers no `ctx.fsPolicy` service and has no public methods. Removing it cannot break `dsh-tool-fs` at a service-injection boundary — the tool falls back to its own default gate, which still refuses unread whole-file overwrites without the explicit overwrite flag.
 - **Observed state is a prior-observation record.** A weak owner-to-target map holds three logical states — unseen, confirmed absent, or present at a version. The plugin performs no filesystem I/O of its own; it converts recorded state into the provider's optional guard, and the provider performs the atomic freshness check.
 
 ### Source map
@@ -71,7 +71,7 @@ The plugin is built on two ideas:
 
 ### Decision flow
 
-`fs/write-intent` resolves unseen or confirmed absent to `{ kind: 'createIfAbsent' }` and observed present to `{ kind: 'replaceIfVersion', version: vObserved }`. `fs/edit-intent` rejects an unseen target with `FS_NOT_OBSERVED`, a confirmed-absent target with `FS_NOT_FOUND`, and otherwise supplies the observed version as the compare-and-swap basis. `fs/observed` records `{ kind: 'present', version }` or `{ kind: 'absent' }` for the owner and target — a synchronous, side-effect-only `WeakMap.set`, because successful mutations have already committed.
+In content mode, `fs/write-intent` resolves unseen or confirmed absent to `{ kind: 'createIfAbsent' }` (the provider still rejects a blind create onto an existing target) and observed present to `{ kind: 'replaceIfVersion', version: vObserved }`. In program mode it rejects an unseen target with `FS_NOT_OBSERVED` and a confirmed-absent target with `FS_NOT_FOUND`, and observed presence supplies the observed version as the compare-and-swap basis. `fs/observed` records `{ kind: 'present', version }` or `{ kind: 'absent' }` for the owner and target — a synchronous, side-effect-only `WeakMap.set`, because successful mutations have already committed.
 
 ### Single-slot, first-wins
 
