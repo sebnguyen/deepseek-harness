@@ -7,7 +7,7 @@ import { isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { FsError } from '@deepseek-ai/dsh-fs'
-import type { FsInfo, FsTarget, FsWriteIntent } from '@deepseek-ai/dsh-fs'
+import type { FsInfo, FsTarget, FsVersion, FsWriteIntent } from '@deepseek-ai/dsh-fs'
 import { sandboxDenialMarker } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
@@ -119,6 +119,19 @@ async function statExisting(
     )
   }
   return info
+}
+
+/**
+ * Collide the single intent slot onto a concrete CAS basis: a policy's observed
+ * version when present, otherwise the tool's own stat of a program target.
+ * @param intent - the slot decision, if a decider owned it.
+ * @param basis - the tool-stat version for unguarded program slots.
+ * @returns the provider write intent for the commit.
+ */
+function slotBasis(intent: FsWriteIntent | undefined, basis: FsVersion): FsWriteIntent {
+  return intent !== undefined && intent.kind === 'replaceIfVersion'
+    ? intent
+    : { kind: 'replaceIfVersion', version: basis }
 }
 
 function requiredForCommand(
@@ -253,6 +266,7 @@ async function createFile(
   const intent = await ctx.waterfall(
     'fs/write-intent',
     target,
+    'content' as const,
     exec,
     () => ({ kind: 'createIfAbsent' } as const),
   )
@@ -285,7 +299,13 @@ async function replaceInFile(
   }
   const sandboxPolicy = policy.resolve(exec)
   const target = await resolveTarget(ctx, path, exec.signal)
-  const intent = await ctx.waterfall('fs/edit-intent', target, exec, () => undefined)
+  const intent = await ctx.waterfall(
+    'fs/write-intent',
+    target,
+    'program' as const,
+    exec,
+    () => undefined,
+  )
   const oldValue = requiredForCommand(oldStr, 'old_str', 'str_replace', false)
   const newValue = newStr ?? ''
   const info = await statExisting(ctx, target, 'str_replace', exec)
@@ -313,9 +333,7 @@ async function replaceInFile(
     outcome = await ctx.fs.writeText(
       target,
       before.slice(0, offset) + newValue + before.slice(offset + oldValue.length),
-      intent === undefined
-        ? { kind: 'replaceIfVersion', version: info.version }
-        : { kind: 'replaceIfVersion', version: intent.version },
+      slotBasis(intent, info.version),
       exec.signal,
       sandboxPolicy,
     )
@@ -338,7 +356,13 @@ async function insertInFile(
   const value = requiredForCommand(newStr, 'new_str', 'insert')
   const sandboxPolicy = policy.resolve(exec)
   const target = await resolveTarget(ctx, path, exec.signal)
-  const intent = await ctx.waterfall('fs/edit-intent', target, exec, () => undefined)
+  const intent = await ctx.waterfall(
+    'fs/write-intent',
+    target,
+    'program' as const,
+    exec,
+    () => undefined,
+  )
   const info = await statExisting(ctx, target, 'insert', exec)
   if (info.type !== 'file') {
     throw new FsError(`cannot insert into "${target.displayPath}": not a regular file`, 'FS_NOT_REGULAR_FILE')
@@ -355,9 +379,7 @@ async function insertInFile(
     ...value.split('\n'),
     ...lines.slice(insertLine),
   ].join('\n')
-  const expected: FsWriteIntent = intent === undefined
-    ? { kind: 'replaceIfVersion', version: info.version }
-    : { kind: 'replaceIfVersion', version: intent.version }
+  const expected: FsWriteIntent = slotBasis(intent, info.version)
   let outcome
   try {
     outcome = await ctx.fs.writeText(target, after, expected, exec.signal, sandboxPolicy)

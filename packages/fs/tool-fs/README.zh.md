@@ -1,5 +1,5 @@
 ---
-description: "面向模型的 read、read_image、write 与 edit 工具：供组合或排查 agent 文件系统访问的用户与维护者使用。"
+description: "面向模型的 read、read_image 与统一 sed 风格 write 工具：供组合或排查 agent 文件系统访问的用户与维护者使用。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-使用 `dsh-tool-fs` 可让模型带行号读取 UTF-8 文件、读取受支持的图片、创建或原子地替换文件，以及执行有针对性的字面量编辑。结果都有上限，失败会提供稳定错误码与恢复指令。当写入和编辑必须在成功读取后执行时，请添加 `dsh-fs-observation-policy`；省略它时，变更仍是原子的，但不受此条件约束。图片读取需要持久附件存储和支持图片输入的路由模型。glob 或 grep 搜索请选择同级的发现工具包。
+使用 `dsh-tool-fs` 可让模型带行号读取 UTF-8 文件、读取受支持的图片、创建、替换或以 sed 风格修补文件，并在一次原子提交中完成。结果都有上限，失败会提供稳定错误码与恢复指令。工具自有 gate 已拒绝未读整文件覆盖（除非显式 `overwrite: true`），并让每次提交携带观测或新鲜版本基；需要更严格（程序也须先读）的部署请添加 `dsh-fs-observation-policy`。图片读取需要持久附件存储和支持图片输入的路由模型。glob 或 grep 搜索请选择同级的发现工具包。
 
 ## 目录
 
@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在 `ctx.fs` 后端之后挂载工具，并在需要先读后写/编辑行为时挂载策略插件。模型随后获得带行号的读取、原子的写入与编辑，以及——挂载附件存储时——图像读取；每个结果都有上限，失败携带稳定错误码与恢复指令。
+在 `ctx.fs` 后端之后挂载工具，并在需要严格先读后改行为时挂载策略插件。模型随后获得带行号的读取、原子的写入与编辑，以及——挂载附件存储时——图像读取；每个结果都有上限，失败携带稳定错误码与恢复指令。
 
 ### 最小组合
 
@@ -37,7 +37,7 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-tool-fs'
 ```
 
-策略插件是可选的：省略时，工具直接使用裸提供方（无条件写入、覆盖与编辑，无已观察状态）。加载这些工具的部署也应加载该插件，从而提供写入/编辑前读取行为。`read_image` 只在持久 `ctx.attachments` 服务已挂载时注册；执行时还拒绝确切模型未声明图像输入的路由，因此文本路由的持久历史不会出现图像块。
+工具自有 gate 随本包提供：对未读既有文件的整体覆盖需要显式 `overwrite` 标志；程序始终在观测或新鲜版本基上提交；每次变更都记录观察。策略插件仍可选且更严格：加载后，未读的内容写入与程序都以 `FS_NOT_OBSERVED` 拒绝，其裁决在意图槽位列先。`read_image` 只在持久 `ctx.attachments` 服务已挂载时注册；执行时还拒绝确切模型未声明图像输入的路由，因此文本路由的持久历史不会出现图像块。
 
 ### 工具
 
@@ -45,10 +45,9 @@ kind: "package-reference"
 |---|---|---|
 | `read` | `file_path`、`offset?`、`limit?` | 带行号的 UTF-8 内容与分页 footer；`offset` 从 1 开始，`limit` 默认为配置的 `readLimit`，上限也为该值 |
 | `read_image` | `file_path` | 读取并持久保存 PNG/JPEG/WebP/GIF 源图；无扩展名路径（包括规范化附件对象路径）按文件签名识别格式；规范化可在下一次模型请求前缩小图片，因此模型无需先创建缩略图 |
-| `write` | `file_path`、`content` | 创建或完整替换文件；有策略插件时，覆盖要求先在未变版本上执行 `read`，创建不需要 |
-| `edit` | `file_path`、`old_string`、`new_string`、`replace_all?` | 字面量替换，除非 `replace_all` 为 true 否则要求唯一匹配；有策略插件时，要求先执行 `read` 且文件未变 |
+| `write` | `file_path`、`content?`、`edits?`、`overwrite?`、`dry_run?` | 一次原子提交内创建、替换或修补；`edits` 条目（字面量、正则、行范围、插入）按序作用于 `content` 或磁盘文本；未读整文件覆盖需要 `overwrite: true`；`dry_run` 只预览不提交 |
 
-字段名使用 snake_case，与 Claude Code 和现有 harness 工具 schema 一致。成功返回紧凑信封——读取窗口、图像引用或 `Created file`/`Updated file` 确认——`write`/`edit` 还会派生可回放的 diff 卡片元数据供 UI 展示。
+字段名使用 snake_case，与 Claude Code 和现有 harness 工具 schema 一致。成功返回紧凑信封——读取窗口、图像引用或 `Created file`/`Updated file` 确认——`write` 还会派生可回放的 diff 卡片元数据供 UI 展示。
 
 ### 配置
 
@@ -67,11 +66,11 @@ kind: "package-reference"
 
 `read` 与 `read_image` 的路径授权完全由 `ctx.fs` 负责；媒体类型声明和文件签名只决定 `read_image` 是否接受该后端返回的字节。
 
-挂载策略插件后，`write` 与 `edit` 从 `fs/*` 意图槽位取得防护，因此未读目标或陈旧观察会以 `FS_NOT_OBSERVED` 或 `FS_STALE_VERSION` 及恢复指令失败。使用施加沙箱限制的后端（`fs-sandbox`）时，`write`/`edit` 还会公开 `sandbox_permissions` 与 `justification`；被拒绝的变更返回 `[sandbox: file access denied under <mode> mode]` 标记与同轮次升级提示，获批的重试可以在该次调用中加盖严格更宽的模式。
+防护位于单一 `fs/write-intent` 槽位：默认由工具自有 gate 裁决——未读内容覆盖且无 `overwrite` 时 `FS_OVERWRITE_DENIED`，漂移时 `FS_STALE_VERSION`；加载策略插件后其裁决列先，对程序追加 `FS_NOT_OBSERVED`。使用施加沙箱限制的后端（`fs-sandbox`）时，`write` 还会公开 `sandbox_permissions` 与 `justification`；被拒绝的变更返回 `[sandbox: file access denied under <mode> mode]` 标记与同轮次升级提示，获批的重试可以在该次调用中加盖严格更宽的模式。
 
 ### 失败与恢复
 
-失败被规范化为 `Error: <message>`，并为调用方保留结构化错误码。稳定消息包括 `file_path must be a non-empty string`、`limit must be less than or equal to <max>`、`cannot read "<path>": not found`、`cannot read "<path>": not a regular file`，以及图像路由拒绝 `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`。无论拒绝来自策略还是提供方，`FS_NOT_OBSERVED` 都规范化为 `cannot modify "<path>": file has not been read — read the file, then retry`；`FS_STALE_VERSION` 保留提供方原因并追加 `— re-read the file, then retry`。该次重新读取确认缺失后，`edit` 报告 `FS_NOT_FOUND` 而不会重复陈旧恢复指令，`write` 则使用防护创建。
+失败被规范化为 `Error: <message>`，并为调用方保留结构化错误码。稳定消息包括 `file_path must be a non-empty string`、`limit must be less than or equal to <max>`、`cannot read "<path>": not found`、`cannot read "<path>": not a regular file`，以及图像路由拒绝 `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`。严格策略下，`FS_NOT_OBSERVED` 规范化为 `cannot modify "<path>": file has not been read — read the file, then retry`；默认 gate 的 `FS_OVERWRITE_DENIED` 规范化为 `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`；`FS_STALE_VERSION` 保留提供方原因并追加 `— re-read the file, then retry`。重新读取确认缺失后，程序报告 `FS_NOT_FOUND` 而不会重复陈旧恢复指令，内容写入则使用防护创建。
 
 -----
 
@@ -94,19 +93,20 @@ kind: "package-reference"
 | [`src/index.ts`](src/index.ts) | 插件入口：`Config`、工具组合、`read_image` 附件门禁 |
 | [`src/read.ts`](src/read.ts) | `read` 执行器：一次 stat、流式决策、窗口构建、观察 |
 | [`src/read-image.ts`](src/read-image.ts) | `read_image` 执行器：路由与媒体类型门禁、有界字节、附件保存 |
-| [`src/write.ts`](src/write.ts) | `write` 执行器：意图 waterfall、原子写入、观察 |
-| [`src/edit.ts`](src/edit.ts) | `edit` 执行器：意图 waterfall、字面量编辑、观察 |
+| [`src/write.ts`](src/write.ts) | `write` 执行器：意图 waterfall、原子提交、观察 |
+| [`src/program.ts`](src/program.ts) | sed 风格引擎：条目校验、顺序折叠、按条目匹配计数 |
+| [`src/gate.ts`](src/gate.ts) | 基于 `fs/observed` 状态的工具自有默认裁决器，提供 `fs/write-intent` 默认 |
 | [`src/read-render.ts`](src/read-render.ts) | 不依赖 Cordis 的窗口构建与信封格式化 |
 | [`src/sandbox.ts`](src/sandbox.ts) | `write`/`edit` 共享的升权 API：策略解析与拒绝标记映射 |
 | [`src/error.ts`](src/error.ts) | 防护变更失败的稳定模型侧诊断 |
 
 ### 各工具流程
 
-四个工具共享同一种流程形态：用调用会话的 cwd 解析路径、运行适用的门禁、恰好执行一次提供方操作，并且只在成功后发出 `fs/observed`。`read` 与 `read_image` 为类型与大小路由付出一次 `stat`；`write` 与 `edit` 不执行 stat，因为防护来自意图槽位，提供方失败以类型化 `FsError` 结果呈现。各工具执行器位于 `src/read.ts`、`src/read-image.ts`、`src/write.ts` 与 `src/edit.ts`。
+四个工具共享同一种流程形态：用调用会话的 cwd 解析路径、运行适用的门禁、恰好执行一次提供方操作，并且只在成功后发出 `fs/observed`。`read` 与 `read_image` 为类型与大小路由付出一次 `stat`；`write` 与 `edit` 不执行 stat，因为防护来自意图槽位，提供方失败以类型化 `FsError` 结果呈现。各工具执行器位于 `src/read.ts`、`src/read-image.ts` 与 `src/write.ts`，程序引擎在 `src/program.ts`，默认 gate 在 `src/gate.ts`。
 
 ### 观察与并发
 
-`fs/observed` 在操作成功之后通过普通 `ctx.emit` 发出；监听器的约定是同步且只有副作用的记录器，因此异步或可能失败的观察不属于该事件。`read` 允许并发调度，因为它唯一改变状态的操作是同步记录版本；稍后的 `write` 或 `edit` 会在目标锁内重新检查版本，因此记录器竞态会安全地失败，两个变更工具仍保持互斥。
+`fs/observed` 在操作成功之后通过普通 `ctx.emit` 发出；监听器的约定是同步且只有副作用的记录器，因此异步或可能失败的观察不属于该事件。`read` 允许并发调度，因为它唯一改变状态的操作是同步记录版本；稍后的 `write` 会在目标锁内重新检查版本，因此记录器竞态会安全地失败，变更工具仍保持互斥。
 
 </details>
 
@@ -133,7 +133,7 @@ kind: "package-reference"
 
 #### 模型看到的内容
 
-组装时，每个指导段落通过 `ctx.tools.get(name, scope)` 检查对应工具，仅在该 agent 可见时输出。write 段落仅在 edit 可见时推荐 edit。三个工具都可用时，下方原文保持不变；限制的施加、解除和工具注册变化在下次组装时生效。同一检查适用于直接限制 agent 和 subagent 的 `toolFilter`，也适用于通过 `run_code` 暴露的 PTC 能力。 write/edit 中的先读后改句子描述观察策略，并非要求调用名为 `read` 的工具。隐藏 `read` 时仍保留这些句子：策略继续保护修改操作，其他产生观察记录的操作（例如 `str_replace_editor` 的 `command: view`）也能建立同一文件观察记录。工具可见性不会禁用该前置条件。
+组装时，每个指导段落通过 `ctx.tools.get(name, scope)` 检查对应工具，仅在该 agent 可见时输出。单一 `tool:write` 段落描述全部四种 sed 形态、overwrite 标志与 dry_run。三个工具都可用时，下方原文保持不变；限制的施加、解除和工具注册变化在下次组装时生效。同一检查适用于直接限制 agent 和 subagent 的 `toolFilter`，也适用于通过 `run_code` 暴露的 PTC 能力。 write 段落中先读后改的句子描述默认 gate 与观察策略，并非要求调用名为 `read` 的工具；隐藏 `read` 时仍保留：gate 继续保护变更，其他产生观察记录的操作也能建立同一文件观察。工具可见性不会禁用该前置条件。
 
 ##### Read 指导
 
@@ -144,13 +144,7 @@ Use the read tool — not shell commands like cat — to inspect text files. Res
 ##### Write 指导
 
 ```markdown
-Use the write tool to create files or completely replace file contents. Existing files are overwritten, so read an existing file first (the default fs-observation-policy requires it) and prefer edit for targeted changes.
-```
-
-##### Edit 指导
-
-```markdown
-Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.
+Use the write tool to create files, replace them whole, or patch them sed-style: pass content for the stream, edits entries (literal, regex, line-range, insert) for hunks applied in one atomic commit, overwrite: true to explicitly clobber a file this session never read, and dry_run to preview without committing.
 ```
 
 #### Token 影响
@@ -165,7 +159,7 @@ Use the edit tool for targeted changes to existing UTF-8 text files. It replaces
 
 #### 模型看到的内容
 
-模型会看到已生成的 [`read`、`read_image`、`write` 和 `edit` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-fs)，参数使用 snake_case。图片工具只在持久附件存储已挂载时出现；schema 本身与路由无关，严格门禁在执行时拒绝。作用域工具限制可以为某个 agent 移除任一定义。
+模型会看到已生成的 [`read`、`read_image` 与 `write` schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-fs)，参数使用 snake_case。图片工具只在持久附件存储已挂载时出现；schema 本身与路由无关，严格门禁在执行时拒绝。作用域工具限制可以为某个 agent 移除任一定义。
 
 #### Token 影响
 
@@ -203,7 +197,7 @@ Use the edit tool for targeted changes to existing UTF-8 text files. It replaces
 
 仅追加；新可见内容跟在可复用请求前缀之后，不会使既有 KV 缓存条目失效。
 
-### 写入与编辑结果
+### 写入结果
 
 #### 模型看到的内容
 

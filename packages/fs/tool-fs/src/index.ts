@@ -1,7 +1,9 @@
 /**
- * Model-facing read, read_image, write, and edit tools over `ctx.fs`. This package owns schemas, validation,
- * read windows, formatting, and observation events, never a concrete provider. An optional
- * event policy supplies mutation guards; without one the tools use unconditional provider calls.
+ * Model-facing read, read_image, and the unified write tool over `ctx.fs`. This package owns schemas, validation,
+ * read windows, formatting, and observation events, never a concrete provider. The tool-owned
+ * gate supplies default write decisions from observed state (explicit overwrite flag for unread
+ * files, fresh CAS basis for sed programs); loading `fs-observation-policy` on top restores
+ * strict read-before-mutation for that deployment.
  * @module @deepseek-ai/dsh-tool-fs
  */
 
@@ -10,9 +12,9 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from './read.ts'
 import { applyWriteTool } from './write.ts'
-import { applyEditTool } from './edit.ts'
 import { applyReadImageTool } from './read-image.ts'
 import { READ_MAX_BYTES, READ_MAX_LINE_LENGTH } from './read-render.ts'
+import { ToolOwnedGate } from './gate.ts'
 import { FsSandboxController } from './sandbox.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
@@ -50,7 +52,7 @@ function assertPositiveInteger(name: string, value: number): void {
   }
 }
 
-/** Register the full `read`/`write`/`edit` filesystem tool suite, plus `read_image` while `attachments` is mounted. */
+/** Register the `read`/`write` filesystem tools and `read_image` while `attachments` is mounted. */
 export function apply(ctx: Context, config: Config): void {
   // schemastery (Config) has already filled every defaulted field.
   const resolved = config as ResolvedConfig
@@ -74,6 +76,11 @@ export function apply(ctx: Context, config: Config): void {
   // per-call policy resolution, and denial-marker mapping, all keyed off whether
   // the mounted ctx.fs confines (ctx.fs.sandboxMode).
   const sandbox = new FsSandboxController(ctx)
-  applyWriteTool(ctx, sandbox)
-  applyEditTool(ctx, sandbox)
+  const gate = new ToolOwnedGate(ctx)
+  gate.registerObservedListener()
+  ctx.effect(() => () => {
+    // Drop recorded state on disposal so a reloaded plugin starts clean (HMR).
+    gate.clear()
+  }, 'tool-fs observed-state teardown')
+  applyWriteTool(ctx, sandbox, gate)
 }

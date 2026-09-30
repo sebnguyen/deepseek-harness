@@ -59,7 +59,7 @@ kind: "package-reference"
 
 插件建立在两个想法之上：
 
-- **事件门禁，而非方法服务。** 插件只通过 `fs/*` 事件影响外部世界，因此不注册 `ctx.fsPolicy` 服务，也没有公开方法。移除它不会在服务注入边界破坏 `dsh-tool-fs`——工具会直接落到裸提供方。
+- **事件门禁，而非方法服务。** 插件只通过 `fs/*` 事件影响外部世界，因此不注册 `ctx.fsPolicy` 服务，也没有公开方法。移除它不会在服务注入边界破坏 `dsh-tool-fs`——工具会回退到自有默认 gate：未读整文件覆盖仍需显式 overwrite 标志。
 - **已观察状态是先前观察记录。** 一张以所有者为弱键、记录各目标的映射表持有三种逻辑状态——未见、确认缺失、存在于某个版本。插件本身不执行任何文件系统 I/O；它把记录的状态转换为提供方的可选防护，由提供方执行原子新鲜度检查。
 
 ### 源码地图
@@ -71,7 +71,7 @@ kind: "package-reference"
 
 ### 决策流程
 
-`fs/write-intent` 把未见或确认缺失解析为 `{ kind: 'createIfAbsent' }`，把已观测存在解析为 `{ kind: 'replaceIfVersion', version: vObserved }`。`fs/edit-intent` 以 `FS_NOT_OBSERVED` 拒绝未见目标，以 `FS_NOT_FOUND` 拒绝确认缺失的目标，否则提供观察到的版本作为比较并交换的基础。`fs/observed` 为该所有者与目标记录 `{ kind: 'present', version }` 或 `{ kind: 'absent' }`——同步、只有副作用的 `WeakMap.set`，因为成功的变更已经提交。
+content 模式下，`fs/write-intent` 把未见或确认缺失解析为 `{ kind: 'createIfAbsent' }`（提供方仍会对既有目标拒绝盲目创建），把已观测存在解析为 `{ kind: 'replaceIfVersion', version: vObserved }`。program 模式下以 `FS_NOT_OBSERVED` 拒绝未见目标，以 `FS_NOT_FOUND` 拒绝确认缺失的目标，否则提供观察到的版本作为比较并交换的基础。`fs/observed` 为该所有者与目标记录 `{ kind: 'present', version }` 或 `{ kind: 'absent' }`——同步、只有副作用的 `WeakMap.set`，因为成功的变更已经提交。
 
 ### 单 slot、先到者胜
 

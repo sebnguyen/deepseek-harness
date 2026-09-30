@@ -122,6 +122,17 @@ async function setup() {
   return { ctx, fs }
 }
 
+/** The default deployment: tool-owned gate, no strict policy. */
+async function setupDefault() {
+  const ctx = new Context()
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRuntime)
+  await ctx.plugin(FakeFs)
+  await ctx.plugin(ToolFs)
+  const fs = ctx.fs as FakeFs
+  return { ctx, fs }
+}
+
 let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: object) {
   return ctx.tools.execute({
@@ -164,18 +175,16 @@ describe('session cwd resolution', () => {
 })
 
 describe('registration', () => {
-  it('registers read, write, and edit', async () => {
+  it('registers read and the unified write', async () => {
     const { ctx } = await setup()
-    expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['edit', 'read', 'write'])
+    expect(ctx.tools.schemas().map(s => s.name).sort()).toEqual(['read', 'write'])
   })
 
-  it('declares read parallel-safe while write/edit remain exclusive', async () => {
+  it('declares read parallel-safe while write remains exclusive', async () => {
     const { ctx } = await setup()
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-safe'), name: 'read', arguments: { file_path: 'a.txt' } }))
       .toEqual({ kind: 'parallel' })
     expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-exclusive'), name: 'write', arguments: { file_path: 'a.txt', content: 'x' } }))
-      .toEqual({ kind: 'exclusive' })
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('edit-exclusive'), name: 'edit', arguments: { file_path: 'a.txt', old_string: 'x', new_string: 'y' } }))
       .toEqual({ kind: 'exclusive' })
   })
 
@@ -183,8 +192,7 @@ describe('registration', () => {
     const { ctx } = await setup()
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
     expect(prompt).toContain('Advice: Read gives UTF-8 contents')
-    expect(prompt).toContain('Advice: Write replaces a whole file')
-    expect(prompt).toContain('Advice: Edit makes targeted replacements')
+    expect(prompt).toContain('Advice: Write creates, replaces, or patches')
   })
 
   it('stays pending until ctx.fs exists (inject)', async () => {
@@ -196,6 +204,7 @@ describe('registration', () => {
   })
 
   it('unregisters everything on fiber disposal (HMR safety)', async () => {
+    // Length asserted below stays 2: read + the unified write.
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
@@ -204,14 +213,13 @@ describe('registration', () => {
     const fiber = await ctx.plugin(ToolFs)
     // Each tool contributes BOTH a schema and a prompt section; disposal must
     // withdraw both, not just the schemas.
-    expect(ctx.tools.schemas()).toHaveLength(3)
+    expect(ctx.tools.schemas()).toHaveLength(2)
     const sectionNames = (a: { sections: { name: string }[] }) => a.sections.map(s => s.name).sort()
     const sortedCore = [...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES].sort()
     expect(sectionNames(await ctx.systemPrompt.assemble())).toEqual([
       'deployment:persona-prefix',
       'deployment:persona-suffix',
       ...sortedCore,
-      'tool:edit',
       'tool:read',
       'tool:write',
     ])
@@ -299,14 +307,14 @@ describe('read tool', () => {
     expect(text(result)).toContain('file_path must be a non-empty string')
   })
 
-  it('records observed state so a follow-up edit by the same session is authorized', async () => {
+  it('records observed state so a follow-up program write by the same session is authorized', async () => {
     const { ctx, fs } = await setup()
     const session = { header: {} }
     fs.files.set('key:a.txt', 'hello')
     expect((await call(ctx, 'read', { file_path: 'a.txt' }, { session })).isError).toBe(false)
-    const edited = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'hello', new_string: 'bye' }, { session })
-    expect(edited.isError).toBe(false)
-    expect(fs.editIntents).toEqual([{ version: 'v1' }])
+    const patched = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'hello', new_string: 'bye' }] }, { session })
+    expect(patched.isError).toBe(false)
+    expect(fs.writeIntents).toEqual([{ kind: 'replaceIfVersion', version: 'v1' }])
   })
 
   it('propagates FS_NOT_FOUND for an absent file', async () => {
@@ -422,7 +430,7 @@ describe('write tool', () => {
     const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'hi' }, { session: { header: {} } })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected write success')
-    expect(result.value).toEqual({ path: '/abs/a.txt', operation: 'create', before: null, after: 'hi' })
+    expect(result.value).toEqual({ path: '/abs/a.txt', before: null, after: 'hi', committed: true, outcomes: [] })
     expect(text(result)).toContain('Created file')
     expect(fs.writeIntents).toEqual([{ kind: 'createIfAbsent' }])
   })
@@ -444,52 +452,107 @@ describe('write tool', () => {
   })
 })
 
-describe('edit tool', () => {
-  it('formats a single-replacement success after a read', async () => {
-    const { ctx, fs } = await setup()
-    const session = { header: {} }
+describe('unified write program arm', () => {
+  it('applies a literal hunk without a prior read and reports per-entry matches', async () => {
+    const { ctx, fs } = await setupDefault()
     fs.files.set('key:a.txt', 'a')
-    await call(ctx, 'read', { file_path: 'a.txt' }, { session })
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'a', new_string: 'b' }, { session })
-    if (result.isError) throw new Error('expected edit success')
-    expect(result.value).toEqual({ path: '/abs/a.txt', before: 'a', after: 'b' })
-    expect(text(result)).toBe('The file /abs/a.txt has been updated successfully.')
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', new_string: 'b' }] })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected write success')
+    expect(result.value).toEqual({ path: '/abs/a.txt', before: 'a', after: 'b', committed: true, outcomes: [{ index: 0, kind: 'literal', matches: 1 }] })
+    expect(text(result)).toContain('Updated file. 1 edits applied (1 matches).')
+    expect(fs.files.get('key:a.txt')).toBe('b')
   })
 
-  it('formats the replace_all success message distinctly', async () => {
-    const { ctx, fs } = await setup()
-    const session = { header: {} }
+  it('counts every replaced occurrence with replace_all', async () => {
+    const { ctx, fs } = await setupDefault()
     fs.files.set('key:a.txt', 'a a a')
-    await call(ctx, 'read', { file_path: 'a.txt' }, { session })
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'a', new_string: 'b', replace_all: true }, { session })
-    expect(text(result)).toBe('The file /abs/a.txt has been updated. All occurrences were successfully replaced.')
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', new_string: 'b', replace_all: true }] })
+    expect(result.isError).toBe(false)
+    expect(fs.files.get('key:a.txt')).toBe('b b b')
+    expect(text(result)).toContain('3 matches')
+  })
+
+  it('applies regex entries with $1 group references', async () => {
+    const { ctx, fs } = await setupDefault()
+    fs.files.set('key:a.txt', 'lat 40 ms')
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ pattern: '(\\d+) ms', new_string: '$1ms' }] })
+    expect(result.isError).toBe(false)
+    expect(fs.files.get('key:a.txt')).toBe('lat 40ms')
+  })
+
+  it('applies line-range and insert forms in one commit', async () => {
+    const { ctx, fs } = await setupDefault()
+    fs.files.set('key:a.txt', 'one\ntwo\nthree')
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [
+      { after_line: 0, new_string: '# top' },
+      { first_line: 3, last_line: 3, new_string: '' },
+    ] })
+    expect(result.isError).toBe(false)
+    expect(fs.files.get('key:a.txt')).toBe('# top\none\nthree')
+  })
+
+  it('content plus edits materializes the stream then patches it', async () => {
+    const { ctx, fs } = await setupDefault()
+    const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'alpha beta', edits: [{ old_string: 'beta', new_string: 'BETA' }] })
+    expect(result.isError).toBe(false)
+    expect(fs.files.get('key:a.txt')).toBe('alpha BETA')
+  })
+
+  it('dry_run previews per-entry counts and commits nothing', async () => {
+    const { ctx, fs } = await setupDefault()
+    fs.files.set('key:a.txt', 'a')
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', new_string: 'b' }], dry_run: true })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected dry run success')
+    const preview = result.value as unknown as { committed: boolean }
+    expect(preview.committed).toBe(false)
+    expect(text(result)).toContain('Dry run — no commit.')
+    expect(fs.files.get('key:a.txt')).toBe('a')
   })
 
   it('rejects identical old/new strings', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'x', new_string: 'x' })
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'x', new_string: 'x' }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('must differ')
   })
 
   it('rejects an empty old_string', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: '', new_string: 'x' })
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: '', new_string: 'x' }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('old_string must be a non-empty string')
   })
 
   it('rejects a blank file_path', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'edit', { file_path: '  ', old_string: 'a', new_string: 'b' })
+    const result = await call(ctx, 'write', { file_path: '  ', edits: [{ old_string: 'a', new_string: 'b' }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('file_path must be a non-empty string')
   })
 
-  it('propagates FS_NOT_OBSERVED when the file was never read (the gate decides)', async () => {
+  it('rejects entries matching no form and entries mixing forms', async () => {
+    const { ctx } = await setup()
+    const shapeless = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ new_string: 'x' }] })
+    expect(shapeless.isError).toBe(true)
+    expect(text(shapeless)).toContain('edits[0]')
+    const mixed = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', pattern: 'b' }] })
+    expect(mixed.isError).toBe(true)
+    expect(text(mixed)).toContain('must match exactly one oneOf branch')
+  })
+
+  it('rejects an all-empty call (neither content nor edits)', async () => {
+    const { ctx } = await setup()
+    const result = await call(ctx, 'write', { file_path: 'a.txt' })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toContain('a write with neither is a no-op')
+  })
+
+  it('propagates FS_NOT_OBSERVED for an unread program when the strict policy is loaded', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:a.txt', 'hello')
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'a', new_string: 'b' }, { session: { header: {} } })
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', new_string: 'b' }] }, { session: { header: {} } })
     expect(result.isError).toBe(true)
     expect(result.error).toMatchObject({ info: { code: 'FS_NOT_OBSERVED' } })
   })
@@ -610,12 +673,20 @@ describe('tool-owned presentation (pure presentCall)', () => {
     })
   })
 
-  it('edit: an empty old_string maps to oldText null (a whole-file replace diff)', async () => {
-    // presentCall runs on replay of raw logged args, which parseEditArgs does not
-    // gate — an empty old_string must still produce a valid diff (oldText null).
-    expect(await presentCall('edit', { file_path: 'a.txt', old_string: '', new_string: 'seed' })).toEqual({
-      card: 'diff', title: 'Edit a.txt',
-      diffs: [{ path: 'a.txt', oldText: null, newText: 'seed' }],
+  it('write: a patch card carries one snippet per entry, one line for all four forms', async () => {
+    expect(await presentCall('write', { file_path: 'a.txt', edits: [
+      { old_string: 'a', new_string: 'b' },
+      { pattern: 'c(.*)', new_string: 'C$1' },
+      { first_line: 2, last_line: 3, new_string: '' },
+      { after_line: 1, new_string: 'x' },
+    ] })).toEqual({
+      card: 'diff', title: 'Patch a.txt',
+      diffs: [
+        { path: 'a.txt', oldText: 'a', newText: 'b' },
+        { path: 'a.txt', oldText: '/c(.*)/', newText: 'C$1' },
+        { path: 'a.txt', oldText: 'lines 2-3', newText: '' },
+        { path: 'a.txt', oldText: null, newText: 'x' },
+      ],
       locations: [{ path: 'a.txt' }],
     })
   })
@@ -626,27 +697,27 @@ describe('result-time contextual diff (meta + presentResult)', () => {
   // presentResult narrows it back into a replayable `diff` result card.
   const withContext = 'a\nb\nc\nOLD\nd\ne\nf\n'
 
-  it('edit: execute attaches the applied hunk as meta { diffs }', async () => {
+  it('program write: execute attaches the applied hunk as meta { diffs }', async () => {
     const { ctx, fs } = await setup()
     const session = { header: {} }
     fs.files.set('key:a.txt', withContext)
     await call(ctx, 'read', { file_path: 'a.txt' }, { session })
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'OLD', new_string: 'NEW' }, { session })
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'OLD', new_string: 'NEW' }] }, { session })
     expect(result.isError).toBe(false)
     expect(result.meta).toEqual({
       diffs: [{ path: 'a.txt', oldText: 'a\nb\nc\nOLD\nd\ne\nf', newText: 'a\nb\nc\nNEW\nd\ne\nf' }],
     })
   })
 
-  it('edit: presentResult turns the meta into a diff result card', async () => {
+  it('program write: presentResult turns the meta into a diff result card', async () => {
     const { ctx, fs } = await setup()
     const session = { header: {} }
     fs.files.set('key:a.txt', withContext)
     await call(ctx, 'read', { file_path: 'a.txt' }, { session })
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'OLD', new_string: 'NEW' }, { session })
-    const view = ctx.tools.get('edit')?.presentResult?.({ file_path: 'a.txt', old_string: 'OLD', new_string: 'NEW' }, result)
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'OLD', new_string: 'NEW' }] }, { session })
+    const view = ctx.tools.get('write')?.presentResult?.({ file_path: 'a.txt', edits: [{ old_string: 'OLD', new_string: 'NEW' }] }, result)
     expect(view).toEqual({
-      card: 'diff', title: 'Edit a.txt',
+      card: 'diff', title: 'Patch a.txt',
       diffs: [{ path: 'a.txt', oldText: 'a\nb\nc\nOLD\nd\ne\nf', newText: 'a\nb\nc\nNEW\nd\ne\nf' }],
     })
   })
@@ -690,16 +761,14 @@ describe('result-time contextual diff (meta + presentResult)', () => {
   it('presentResult returns undefined on an error result (nothing applied)', async () => {
     const { ctx } = await setup()
     const errorResult = { content: [{ type: 'text' as const, text: 'Error: boom' }], isError: true }
-    expect(ctx.tools.get('edit')?.presentResult?.({ file_path: 'a.txt', old_string: 'x', new_string: 'y' }, errorResult)).toBeUndefined()
     expect(ctx.tools.get('write')?.presentResult?.({ file_path: 'a.txt', content: 'y' }, errorResult)).toBeUndefined()
   })
 
-  it('edit presentResult returns undefined on malformed meta (defensive narrowing)', async () => {
-    // edit has no whole-file fallback (only a literal replacement), so a malformed
-    // meta yields the generic "updated successfully" rendering.
+  it('program write presentResult falls back to the args-derived snippets on malformed meta', async () => {
     const { ctx } = await setup()
     const badMeta = { content: [{ type: 'text' as const, text: 'ok' }], isError: false, meta: { diffs: 'nope' } }
-    expect(ctx.tools.get('edit')?.presentResult?.({ file_path: 'a.txt', old_string: 'x', new_string: 'y' }, badMeta)).toBeUndefined()
+    const view = ctx.tools.get('write')?.presentResult?.({ file_path: 'a.txt', edits: [{ old_string: 'x', new_string: 'y' }] }, badMeta)
+    expect(view).toEqual({ card: 'diff', title: 'Patch a.txt', diffs: [{ path: 'a.txt', oldText: 'x', newText: 'y' }] })
   })
 
   it('write presentResult falls back to a whole-file diff on malformed meta (never leaks the result text)', async () => {
@@ -784,7 +853,7 @@ describe('read caps are plugin config', () => {
   })
 })
 
-describe('sandbox escalation API (write/edit)', () => {
+describe('sandbox escalation API (write)', () => {
   /** A confining fake `ctx.fs`: reports a default mode, records each per-call policy, and can arm a sandbox denial. */
   class SandboxingFakeFs extends FakeFs {
     stamped: (SandboxExecutionPolicy | undefined)[] = []
@@ -871,7 +940,7 @@ describe('sandbox escalation API (write/edit)', () => {
     }
   }
 
-  function fsSchema(ctx: Context, name: 'write' | 'edit') {
+  function fsSchema(ctx: Context, name: 'write') {
     const schema = ctx.tools.schemas().find(s => s.name === name)
     if (!schema) throw new Error(`${name} tool not registered`)
     return schema as unknown as { parameters: { properties: Record<string, { enum?: string[] }> } }
@@ -888,20 +957,16 @@ describe('sandbox escalation API (write/edit)', () => {
   it('advertises no escalation fields under a non-confining backend', async () => {
     const { ctx } = await setup()
     expect(ctx.fs.sandboxMode).toBeUndefined()
-    for (const name of ['write', 'edit'] as const) {
-      const props = fsSchema(ctx, name).parameters.properties
-      expect(props['sandbox_permissions']).toBeUndefined()
-      expect(props['justification']).toBeUndefined()
-    }
+    const props = fsSchema(ctx, 'write').parameters.properties
+    expect(props['sandbox_permissions']).toBeUndefined()
+    expect(props['justification']).toBeUndefined()
   })
 
-  it('advertises the closed target vocabulary on write and edit under a confining backend', async () => {
+  it('advertises the closed target vocabulary on write under a confining backend', async () => {
     const { ctx } = await setupConfining()
-    for (const name of ['write', 'edit'] as const) {
-      const props = fsSchema(ctx, name).parameters.properties
-      expect(props['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
-      expect(props['justification']).toBeDefined()
-    }
+    const props = fsSchema(ctx, 'write').parameters.properties
+    expect(props['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
+    expect(props['justification']).toBeDefined()
   })
 
   it('a plain write stamps the default mode with the calling session root', async () => {
@@ -964,7 +1029,7 @@ describe('sandbox escalation API (write/edit)', () => {
   it('a rejected escalation fails closed with its own text and never mutates', async () => {
     const { ctx, fs } = await setupConfining({ approval: true })
     ctx.on('approval/request', () => Promise.resolve('rejected' as const))
-    const result = await call(ctx, 'edit', { file_path: 'a.txt', old_string: 'x', new_string: 'y', sandbox_permissions: 'danger-full-access', justification: 'the test needs it' }, escalationAgent())
+    const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'clob', sandbox_permissions: 'danger-full-access', justification: 'the test needs it' }, escalationAgent())
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('the user rejected escalating this operation to "danger-full-access"')
     expect(fs.stamped).toEqual([])
@@ -1010,17 +1075,14 @@ async function guidanceScope(ctx: Context) {
 
 const originalGuidance = {
   read: adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot, and offset and limit keep a large file inside context. Example: read the handler file at offset 1 limit 120 before editing the error branch.'),
-  write: adviceLine('Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed.')
-    + ' Read an existing file first when overwriting (the default fs-observation-policy requires it).',
-  edit: adviceLine('Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block.')
-    + ' old_string must match exactly once unless replace_all is true.',
+  write: adviceLine('Write creates, replaces, or patches a UTF-8 text file, sed-style: content seeds the file and edits entries — literal (old_string), regex (pattern), line range (first_line/last_line), insert (after_line) — apply sequentially in one atomic commit; overwriting a file this session never read needs overwrite: true, and dry_run previews without committing. Example: write a new fixture file once the shape is agreed.'),
 }
 
 describe('scope-aware filesystem guidance', () => {
-  it.each(Array.from({ length: 8 }, (_, mask) => mask))('preserves exact text for visible tools (mask %i)', async (mask) => {
+  it.each(Array.from({ length: 4 }, (_, mask) => mask))('preserves exact text for visible tools (mask %i)', async (mask) => {
     const { ctx } = await setup()
     const { key, scope } = await guidanceScope(ctx)
-    const names = ['read', 'write', 'edit'] as const
+    const names = ['read', 'write'] as const
     const allow = names.filter((_, index) => (mask & (1 << index)) !== 0)
     const baseline = withPersona(...names.map(name => originalGuidance[name]))
     expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
@@ -1042,7 +1104,7 @@ describe('scope-aware filesystem guidance', () => {
     const { ctx } = await setup()
     const { key, scope } = await guidanceScope(ctx)
     const write = ctx.tools.get('write')!
-    scope.ctx.tools.restrict({ deny: ['write', 'edit'] })
+    scope.ctx.tools.restrict({ deny: ['write'] })
     try {
       expect(renderPrompt(await ctx.systemPrompt.assemble({ scope: key }))).toBe(withPersona(originalGuidance.read))
       const denied = await call(ctx, 'write', { file_path: '/blocked', content: 'blocked' }, key)
@@ -1057,7 +1119,6 @@ describe('scope-aware filesystem guidance', () => {
     }
   })
 })
-
 /** Preserve default core guidance and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
   return [...coreGuidanceParagraphs({ proveIt: false }), ...sections].join('\n\n')
@@ -1088,7 +1149,6 @@ describe('scope-aware PTC guidance', () => {
         .map(section => section.text).filter(Boolean)).toEqual([originalGuidance.read])
       expect(renderPrompt(assembly)).toContain(originalGuidance.read)
       expect(renderPrompt(assembly)).not.toContain(originalGuidance.write)
-      expect(renderPrompt(assembly)).not.toContain(originalGuidance.edit)
       release()
       expect(renderPrompt(await ctx.systemPrompt.assemble({ scope: key }))).toBe(baseline)
     } finally {

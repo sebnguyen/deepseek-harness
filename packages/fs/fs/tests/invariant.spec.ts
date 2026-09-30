@@ -21,11 +21,11 @@ describe('filesystem invariants', () => {
   it('accepts decision and observation events with usable identities', async () => {
     const ctx = await setup()
     await expect(ctx.waterfall(
-      ctx as never, 'fs/write-intent', target(), undefined,
+      ctx as never, 'fs/write-intent', target(), 'content', undefined,
       () => Promise.resolve(undefined),
     )).resolves.toBeUndefined()
     await expect(ctx.waterfall(
-      ctx as never, 'fs/edit-intent', target(), undefined,
+      ctx as never, 'fs/write-intent', target(), 'program', undefined,
       () => Promise.resolve(undefined),
     )).resolves.toBeUndefined()
     expect(() => {

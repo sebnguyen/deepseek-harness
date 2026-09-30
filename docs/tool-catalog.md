@@ -25,7 +25,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tool-bash-persistent` | `bash` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent bash tool; deployment composition supplies the PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-pwsh-persistent` | `pwsh` | `ctx.tools`, `ctx.terminals`, `an owning Agent at execution time` | `tool/call`, `PTY shell state`, `tool/result` | - | One owner-isolated persistent pwsh tool, the Windows counterpart of the persistent bash tool; deployment composition supplies a pwsh-dialect PTY backend and may override the model-facing environment description. |
 | `@deepseek-ai/dsh-tool-str-replace-editor` | `str_replace_editor` | `ctx.tools`, `ctx.fs` | `tool/call`, `fs/observed after view presence/absence, edit absence, or successful mutation`, `tool/result` | - | Standalone view/create/unique literal replace/line insert tool over the filesystem seam; it composes with any shell or terminal API. |
-| `@deepseek-ai/dsh-tool-fs` | `edit`, `read`, `read_image`, `write` | `ctx.tools`, `ctx.fs`, `ctx.systemPrompt`, `ctx.attachments (image-tool registration)`, `ctx.llm + an image-capable route (image-tool execution)` | `tool/call`, `fs/write-intent or fs/edit-intent for mutations`, `fs/observed after read presence/absence or successful file operation`, `durable attachment (read_image)`, `tool/result` | - | The read-before-write/edit policy is added by `@deepseek-ai/dsh-fs-observation-policy` (an `fs/*` event-gate plugin, no schema change); a deployment that loads these tools is expected to also load it. The image tool is not registered without `ctx.attachments`; its schema is route-independent, and execution refuses unless the exact routed model declares image input. |
+| `@deepseek-ai/dsh-tool-fs` | `read`, `read_image`, `write` | `ctx.tools`, `ctx.fs`, `ctx.systemPrompt`, `ctx.attachments (image-tool registration)`, `ctx.llm + an image-capable route (image-tool execution)` | `tool/call`, `fs/write-intent or fs/edit-intent for mutations`, `fs/observed after read presence/absence or successful file operation`, `durable attachment (read_image)`, `tool/result` | - | The read-before-write/edit policy is added by `@deepseek-ai/dsh-fs-observation-policy` (an `fs/*` event-gate plugin, no schema change); a deployment that loads these tools is expected to also load it. The image tool is not registered without `ctx.attachments`; its schema is route-independent, and execution refuses unless the exact routed model declares image input. |
 | `@deepseek-ai/dsh-tool-fs-search` | `glob`, `grep` | `ctx.tools`, `ctx.subprocess`, `ctx.systemPrompt` | `tool/call`, `tool/result` | - | glob and grep are unconditional discovery tools that spawn the packaged ripgrep binary (`@vscode/ripgrep`) through ctx.subprocess as ordinary foreground calls (never background jobs) — no host `rg` install and no shell layer. The catalog uses `sampleOverCapGlobResults: true`; deployments must choose that behavior explicitly. Capped results save the complete formatted list through the optional ctx.spillStore backend; returned locators are follow-up-readable/searchable when the backend exposes local paths in co-located deployments. |
 | `@deepseek-ai/dsh-tool-terminal` | `terminal_close`, `terminal_list`, `terminal_open`, `terminal_read`, `terminal_send`, `terminal_signal` | `ctx.tools`, `ctx.terminals`, `ctx.systemPrompt`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The six terminal tools are opt-in and complement one-shot shell/filesystem tools. `terminal_send(run_in_background: true)` registers with `ctx.jobs`; TUI, named key sequences, BEL, resize, auto-start, and cross-agent sharing are absent from the schema. |
 | `@deepseek-ai/dsh-tool-goal` | `create_goal`, `get_goal`, `update_goal` | `ctx.tools`, `ctx.agents`, `ctx.goals`, `ctx.systemPrompt`, `a calling Agent in an authorized open turn` | `tool/call`, `goal/change for mutations`, `tool/result` | - | create, edit, pause, and resume require direct-human root authority; complete and blocked also accept the exact current goal round. The default blocked lower bound is three admitted rounds. |
@@ -710,41 +710,6 @@ Standalone view/create/unique literal replace/line insert tool over the filesyst
 
 ## `@deepseek-ai/dsh-tool-fs`
 
-### `edit`
-
-Edit an existing UTF-8 text file by replacing literal text.
-
-```json
-{
-  "type": "object",
-  "properties": {
-    "file_path": {
-      "type": "string",
-      "description": "Path to edit, resolved by the filesystem backend."
-    },
-    "old_string": {
-      "type": "string",
-      "description": "Literal text to replace. Must match exactly."
-    },
-    "new_string": {
-      "type": "string",
-      "description": "Literal replacement text. Use an empty string to delete the match."
-    },
-    "replace_all": {
-      "type": "boolean",
-      "description": "Replace all matches. Defaults to false; when false, old_string must appear exactly once."
-    }
-  },
-  "required": [
-    "file_path",
-    "old_string",
-    "new_string"
-  ]
-}
-```
-
-Source: [`packages/fs/tool-fs/src/index.ts`](../packages/fs/tool-fs/src/index.ts)
-
 ### `read`
 
 Read a UTF-8 text file and return line-numbered content.
@@ -797,7 +762,7 @@ Source: [`packages/fs/tool-fs/src/index.ts`](../packages/fs/tool-fs/src/index.ts
 
 ### `write`
 
-Create or fully replace a UTF-8 text file.
+Create, replace, or patch one UTF-8 text file; sed-style entries batch atomically.
 
 ```json
 {
@@ -805,16 +770,113 @@ Create or fully replace a UTF-8 text file.
   "properties": {
     "file_path": {
       "type": "string",
-      "description": "Path to write, resolved by the filesystem backend."
+      "description": "Path of the file to write, resolved by the filesystem backend."
     },
     "content": {
       "type": "string",
-      "description": "Full UTF-8 text content to write."
+      "description": "The input stream. Without edits, creates or fully replaces the file; with edits, this text — not the current disk content — is what the entries operate on."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "CLI -f style: explicitly allow content to replace an existing file this session has not read. Never needed for new files, for files read or written this session, or for edits-only calls; operations stay atomic against concurrent changes either way."
+    },
+    "edits": {
+      "type": "array",
+      "description": "Sed-style operations applied in order and committed atomically; later entries address the text produced by earlier ones. A failed entry commits nothing and reports its index. Use dry_run to preview.",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "old_string": {
+                "type": "string",
+                "description": "Literal match: the exact text to find. Must appear exactly once unless replace_all is true."
+              },
+              "new_string": {
+                "type": "string",
+                "description": "Replacement text; omitted or empty deletes each match."
+              },
+              "replace_all": {
+                "type": "boolean",
+                "description": "Replace every match instead of requiring exactly one. Defaults to false."
+              }
+            },
+            "required": [
+              "old_string"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "pattern": {
+                "type": "string",
+                "description": "JavaScript regular-expression source matched against the text. Group references in new_string use $1 style."
+              },
+              "new_string": {
+                "type": "string",
+                "description": "Replacement text, $1-style groups allowed; omitted or empty deletes each match."
+              },
+              "replace_all": {
+                "type": "boolean",
+                "description": "Replace every match instead of the first only. Defaults to false."
+              }
+            },
+            "required": [
+              "pattern"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "first_line": {
+                "type": "integer",
+                "description": "First (1-based, inclusive) of the lines to replace or delete; addresses the text after earlier entries."
+              },
+              "last_line": {
+                "type": "integer",
+                "description": "Last (1-based, inclusive) of the lines to replace or delete; must be >= first_line."
+              },
+              "new_string": {
+                "type": "string",
+                "description": "Lines to substitute for the range; omitted or empty deletes the range."
+              }
+            },
+            "required": [
+              "first_line",
+              "last_line"
+            ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "after_line": {
+                "type": "integer",
+                "description": "Insert new_string as new lines after this 1-based line; 0 inserts at the top, the file line count appends at the end."
+              },
+              "new_string": {
+                "type": "string",
+                "description": "The lines to insert; required non-empty for this form."
+              }
+            },
+            "required": [
+              "after_line",
+              "new_string"
+            ]
+          }
+        ]
+      }
+    },
+    "dry_run": {
+      "type": "boolean",
+      "description": "Run the whole program in memory and commit nothing: returns the would-be content and per-entry match counts, bypassing the guards the real commit enforces."
     }
   },
   "required": [
-    "file_path",
-    "content"
+    "file_path"
   ]
 }
 ```

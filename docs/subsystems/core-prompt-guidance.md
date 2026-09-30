@@ -138,9 +138,7 @@ Advice: Grep searches file contents across the workspace or a path you specify, 
 
 Advice: Lsp resolves definitions, references, callers, and callees from the language server, so it disambiguates a symbol name that grep cannot. Example: lsp find references on createUser before renaming.
 
-Advice: Edit makes targeted replacements; read the file first unless you just wrote it, since old_string must match what is on disk. Example: edit swap the middleware order by replacing the old block.
-
-Advice: Write replaces a whole file; a full rewrite hides the diff, so prefer edit for partial changes. Example: write a new fixture file once the shape is agreed.
+Advice: Write creates, replaces, or patches a UTF-8 text file, sed-style: content seeds the file and edits entries — literal (old_string), regex (pattern), line range (first_line/last_line), insert (after_line) — apply sequentially in one atomic commit; overwriting a file this session never read needs overwrite: true, and dry_run previews without committing. Example: write a new fixture file once the shape is agreed.
 
 Advice: Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests.
 

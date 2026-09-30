@@ -2,9 +2,9 @@
 
 [English](filesystem.md) | 中文
 
-可选的文件系统能力由四个部分组成：[dsh-fs](../../packages/fs/fs) 拥有 `ctx.fs` 以及带可选守卫的原子文本操作；[dsh-fs-local](../../packages/fs/fs-local) 实现本地磁盘后端；[dsh-fs-observation-policy](../../packages/fs/fs-observation-policy) 记录观测到的存在或缺失状态，并通过事件（而非服务）添加新鲜度规则；[dsh-tool-fs](../../packages/fs/tool-fs) 直接执行面向模型的 read/write/edit 调用并渲染窗口。它位于 agent loop（智能体循环）主干之外；替换后端不会改变策略或工具 schema。
+可选的文件系统能力由四个部分组成：[dsh-fs](../../packages/fs/fs) 拥有 `ctx.fs` 以及带可选守卫的原子文本操作；[dsh-fs-local](../../packages/fs/fs-local) 实现本地磁盘后端；[dsh-fs-observation-policy](../../packages/fs/fs-observation-policy) 记录观测到的存在或缺失状态，并通过事件（而非服务）添加新鲜度规则；[dsh-tool-fs](../../packages/fs/tool-fs) 直接执行面向模型的 read 与统一 write 调用并渲染窗口。它位于 agent loop（智能体循环）主干之外；替换后端不会改变策略或工具 schema。
 
-`dsh-fs-observation-policy` 是可选插件。没有该插件时，`FileSystem` 服务定义、一个提供方和 `dsh-tool-fs` 消费方组成完整且不受约束的文件系统 seam：`write` 无条件创建或覆盖，`edit` 无条件替换字面文本。策略插件通过裁决 `fs/*` waterfall（瀑布式事件）来改变这些操作。移除该插件不会破坏工具，因为工具调用 `ctx.fs` 并分发事件，而不调用策略方法。加载了 `dsh-tool-fs` 的部署也应加载 `dsh-fs-observation-policy`，使默认行为为「先读后写/编辑」。
+`dsh-fs-observation-policy` 是可选插件。没有该插件时，`dsh-tool-fs` 在 `fs/*` 事件之上应用自有默认 gate：对未读既有文件的整体覆盖需要显式 overwrite 标志，且每次 content 或 program 提交都携带观测版本或新鲜版本基。策略插件只通过以更严格的「先读后改」口味裁决 `fs/write-intent` waterfall（瀑布式事件）来改变这些操作。移除该插件不会破坏工具，因为工具调用 `ctx.fs` 并分发事件，而不调用策略方法。
 
 提供方源码：[`packages/fs/fs/src/types.ts`](../../packages/fs/fs/src/types.ts) 与 [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)。策略源码：[`packages/fs/fs-observation-policy/src/types.ts`](../../packages/fs/fs-observation-policy/src/types.ts)。读取渲染源码：[`packages/fs/tool-fs/src/read-render.ts`](../../packages/fs/tool-fs/src/read-render.ts)。
 
@@ -182,7 +182,7 @@ interface FsEditOutcome {
 
 `dsh-fs` 拥有三个事件，由工具分发、策略插件监听，使事件发出方（`dsh-tool-fs`）与监听方（`dsh-fs-observation-policy`）共享词汇，而事件发出方无需依赖策略插件。它们只携带 `dsh-fs` 词汇加一个不透明的 `object` actor，不含面向模型的概念，也不含 agent/会话所有者结构。
 
-`fs/write-intent` 与 `fs/edit-intent` 是**单槽决策 waterfall**：工具分发时附带一个默认 thunk（返回 `undefined`，即裸提供方），监听方完全决策而不调用 `next()`。该 slot 按注册顺序先到先得——由策略插件占据是部署约定，而非强制不变式。`fs/observed` 是一个即发即弃的记录事件，携带 `FsObservation`：存在于某个版本，或确认缺失。该事件通过普通 `ctx.emit` 分发；其监听方必须是同步的、仅产生副作用，因为工具不会捕获该 emit 抛出的异常——抛出异常的监听方可能取代读取操作原本待返回的错误，或使工具在变更已经成功后返回 `isError` 结果。下方生成的 [cordis surface](#cordis-surface) 展示确切签名。
+`fs/write-intent` 是**单槽决策 waterfall**：工具分发时附带工具自有 gate 作为默认 thunk，监听方完全决策而不调用 `next()`。该 slot 按注册顺序先到先得——由策略插件占据是部署约定，而非强制不变式。`fs/observed` 是一个即发即弃的记录事件，携带 `FsObservation`：存在于某个版本，或确认缺失。该事件通过普通 `ctx.emit` 分发；其监听方必须是同步的、仅产生副作用，因为工具不会捕获该 emit 抛出的异常——抛出异常的监听方可能取代读取操作原本待返回的错误，或使工具在变更已经成功后返回 `isError` 结果。下方生成的 [cordis surface](#cordis-surface) 展示确切签名。
 
 ```ts type-equiv
 /**

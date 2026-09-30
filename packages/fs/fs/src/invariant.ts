@@ -21,7 +21,6 @@ function validateTarget(target: FsTarget, fail: (message: string) => never): voi
 const install: InvariantInstaller = (ctx, fail) => {
   ctx.on('internal/dispatch', (_mode, eventName, args) => {
     if (eventName !== 'fs/write-intent'
-      && eventName !== 'fs/edit-intent'
       && eventName !== 'fs/observed') return
     validateTarget(args[0] as FsTarget, fail)
     if (eventName === 'fs/observed') {

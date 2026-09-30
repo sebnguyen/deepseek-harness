@@ -181,9 +181,8 @@ const SECTION_ORDERS = {
   // reads structured-tool prose before the bash escape hatch.
   TOOL_READ: 1000,
   TOOL_WRITE: 1010,
-  TOOL_EDIT: 1020,
-  TOOL_GLOB: 1030,
-  TOOL_GREP: 1040,
+  TOOL_GLOB: 1020,
+  TOOL_GREP: 1030,
   TOOL_BASH: 1050,
   TOOL_PWSH: 1060,
   TOOL_JOBS: 1600,

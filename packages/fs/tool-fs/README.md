@@ -1,5 +1,5 @@
 ---
-description: "The model-facing read, read_image, write, and edit tools for users and maintainers composing or debugging filesystem access for agents."
+description: "The model-facing read, read_image, and unified sed-style write tools for users and maintainers composing or debugging filesystem access for agents."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-fs` to let a model read UTF-8 files with line numbers, read supported images, create or atomically replace files, and apply targeted literal edits. Results are capped, and failures provide stable error codes and recovery instructions. Add `dsh-fs-observation-policy` when writes and edits must follow a successful read; without it, mutations remain atomic but are unconditional. Image reads require durable attachment storage and an image-capable routed model. Choose the sibling discovery package for glob or grep searches.
+Use `dsh-tool-fs` to let a model read UTF-8 files with line numbers, read supported images, and create, replace, or sed-style patch files in one atomic commit. Results are capped, and failures provide stable error codes and recovery instructions. The tool-owned gate already refuses unread whole-file overwrites unless the call passes `overwrite: true` and keeps every commit at an observed or fresh version; add `dsh-fs-observation-policy` for the stricter deployments where even programs require a prior read. Image reads require durable attachment storage and an image-capable routed model. Choose the sibling discovery package for glob or grep searches.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ Use `dsh-tool-fs` to let a model read UTF-8 files with line numbers, read suppor
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the tools after a `ctx.fs` backend and, for read-before-write/edit behavior, the policy plugin. The model then gets line-numbered reads, atomic writes and edits, and — with an attachment store mounted — image reads; every result is capped, and failures carry stable codes with recovery instructions.
+Mount the tools after a `ctx.fs` backend and, for strict read-before-mutation behavior, the policy plugin. The model then gets line-numbered reads, atomic writes and edits, and — with an attachment store mounted — image reads; every result is capped, and failures carry stable codes with recovery instructions.
 
 ### Minimal composition
 
@@ -37,7 +37,7 @@ A backend, the policy plugin, then the tools; the attachment store is optional a
 - name: '@deepseek-ai/dsh-tool-fs'
 ```
 
-The policy plugin is optional: without it the tools run against the bare provider (unconditional write, overwrite, and edit with no observed-state). A deployment that loads these tools is expected to also load it, so the behavior is read-before-write/edit. `read_image` registers only while a durable `ctx.attachments` service is mounted; execution additionally refuses on a route whose exact model does not declare image input, so a text route's durable history stays free of image blocks.
+The tool-owned gate ships inside this package: content writes over unread existing files need the explicit `overwrite` flag, programs always commit at an observed or fresh version, and every mutation records its observation. The policy plugin remains optional and stricter: with it loaded, programs as well as unread content writes refuse until the file was read, and its decision wins the intent slot. `read_image` registers only while a durable `ctx.attachments` service is mounted; execution additionally refuses on a route whose exact model does not declare image input, so a text route's durable history stays free of image blocks.
 
 ### The tools
 
@@ -45,10 +45,9 @@ The policy plugin is optional: without it the tools run against the bare provide
 |---|---|---|
 | `read` | `file_path`, `offset?`, `limit?` | Line-numbered UTF-8 content with a pagination footer; `offset` is 1-based and `limit` defaults to and caps at the configured `readLimit` |
 | `read_image` | `file_path` | Reads and persists a PNG/JPEG/WebP/GIF source; an extension-less path (normalized attachment object paths included) is identified from its file signature; normalization can downscale it before the next model request, so the model need not create a thumbnail first |
-| `write` | `file_path`, `content` | Creates or fully replaces a file; with the policy plugin, overwriting requires a prior `read` at the unchanged version, creating does not |
-| `edit` | `file_path`, `old_string`, `new_string`, `replace_all?` | Literal replacement requiring a unique match unless `replace_all` is true; with the policy plugin, requires a prior `read` and an unchanged file |
+| `write` | `file_path`, `content?`, `edits?`, `overwrite?`, `dry_run?` | Creates, replaces, or patches in one atomic commit; `edits` entries (literal, regex, line-range, insert) apply sequentially over `content` or the disk text; unread whole-file overwrites need `overwrite: true`; `dry_run` previews without committing |
 
-Field names are snake_case to match Claude Code and existing harness tool schemas. Successes return compact envelopes — a read window, an image reference, or a `Created file`/`Updated file` confirmation — and `write`/`edit` derive replayable diff-card metadata for UI presentation.
+Field names are snake_case to match Claude Code and existing harness tool schemas. Successes return compact envelopes — a read window, an image reference, or a `Created file`/`Updated file` confirmation — and `write` derives replayable diff-card metadata for UI presentation.
 
 ### Configuration
 
@@ -67,11 +66,11 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 Path authorization for `read` and `read_image` belongs entirely to `ctx.fs`; media-type declarations and file signatures only decide whether `read_image` accepts the bytes returned by that backend.
 
-With the policy plugin mounted, `write` and `edit` obtain their guard from the `fs/*` intent slots, so an unread target or a stale observation fails with `FS_NOT_OBSERVED` or `FS_STALE_VERSION` and a recovery instruction. Under a confining backend (`fs-sandbox`), `write`/`edit` additionally advertise `sandbox_permissions` and `justification`; a denied mutation returns the `[sandbox: file access denied under <mode> mode]` marker with the same-turn escalation hint, and an approved retry may stamp a strictly wider mode for that one call.
+The guard rides the single `fs/write-intent` slot: the tool-owned gate decides by default — `FS_OVERWRITE_DENIED` for unread content overwrites without `overwrite`, `FS_STALE_VERSION` on drift — and a loaded policy plugin decides first instead, adding `FS_NOT_OBSERVED` for programs. Under a confining backend (`fs-sandbox`), `write` additionally advertises `sandbox_permissions` and `justification`; a denied mutation returns the `[sandbox: file access denied under <mode> mode]` marker with the same-turn escalation hint, and an approved retry may stamp a strictly wider mode for that one call.
 
 ### Failures and recovery
 
-Failures are normalized as `Error: <message>` with a structured code preserved for callers. Stable messages include `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, and the image-route refusal `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`. `FS_NOT_OBSERVED` is normalized to `cannot modify "<path>": file has not been read — read the file, then retry`, independent of whether the policy or provider rejected the operation; `FS_STALE_VERSION` retains the provider's reason and appends `— re-read the file, then retry`. After the reread confirms absence, `edit` reports `FS_NOT_FOUND` instead of repeating a stale remedy, while `write` uses guarded creation.
+Failures are normalized as `Error: <message>` with a structured code preserved for callers. Stable messages include `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, and the image-route refusal `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`. `FS_NOT_OBSERVED` is normalized to `cannot modify "<path>": file has not been read — read the file, then retry` under the strict policy; the default gate's `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` retains the provider's reason and appends `— re-read the file, then retry`. After the reread confirms absence, programs report `FS_NOT_FOUND` instead of repeating a stale remedy, while content writes use guarded creation.
 
 -----
 
@@ -95,18 +94,19 @@ The tools are the executor; policy is an event gate. The tools inject no policy 
 | [`src/read.ts`](src/read.ts) | `read` executor: one stat, streaming decision, window build, observation |
 | [`src/read-image.ts`](src/read-image.ts) | `read_image` executor: route and media-type gates, bounded bytes, attachment save |
 | [`src/write.ts`](src/write.ts) | `write` executor: intent waterfall, atomic write, observation |
-| [`src/edit.ts`](src/edit.ts) | `edit` executor: intent waterfall, literal edit, observation |
+| [`src/program.ts`](src/program.ts) | The sed-style engine: entry validation, sequential fold, per-entry match accounting |
+| [`src/gate.ts`](src/gate.ts) | Tool-owned default decider over `fs/observed` state; supplies the `fs/write-intent` default |
 | [`src/read-render.ts`](src/read-render.ts) | Cordis-free windowing and envelope formatting |
 | [`src/sandbox.ts`](src/sandbox.ts) | Escalation API shared by `write`/`edit`: policy resolution and denial-marker mapping |
 | [`src/error.ts`](src/error.ts) | Stable model-facing diagnostics for guarded-mutation failures |
 
 ### Per-tool flow
 
-All four tools share one flow shape: resolve the path with the calling session's cwd, run the applicable gate, perform exactly one provider operation, and emit `fs/observed` only after success. `read` and `read_image` pay one `stat` for type and size routing; `write` and `edit` pay none because their guard comes from the intent slot, and provider failures surface as typed `FsError` results. The per-tool executors live in `src/read.ts`, `src/read-image.ts`, `src/write.ts`, and `src/edit.ts`.
+All four tools share one flow shape: resolve the path with the calling session's cwd, run the applicable gate, perform exactly one provider operation, and emit `fs/observed` only after success. `read` and `read_image` pay one `stat` for type and size routing; `write` and `edit` pay none because their guard comes from the intent slot, and provider failures surface as typed `FsError` results. The per-tool executors live in `src/read.ts`, `src/read-image.ts`, and `src/write.ts`, with the program engine in `src/program.ts` and the default gate in `src/gate.ts`.
 
 ### Observation and concurrency
 
-`fs/observed` fires after the operation succeeded via a plain `ctx.emit`; a listener is contractually a synchronous, side-effect-only recorder, so async or fallible observation does not belong on this event. `read` opts into concurrent scheduling because its only mutation is the synchronous version recorder; recorder races fail closed when a later `write` or `edit` re-checks the version under its target lock, and both mutation tools remain exclusive.
+`fs/observed` fires after the operation succeeded via a plain `ctx.emit`; a listener is contractually a synchronous, side-effect-only recorder, so async or fallible observation does not belong on this event. `read` opts into concurrent scheduling because its only mutation is the synchronous version recorder; recorder races fail closed when a later `write` re-checks the version under its target lock, and the mutation tool remains exclusive.
 
 </details>
 
@@ -133,7 +133,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-At assembly time, each guidance section checks `ctx.tools.get(name, scope)` and renders only while its tool is visible to that agent. The write paragraph recommends edit only while edit is visible. The text below is unchanged when all three tools are available; restrictions, their removal, and tool registration changes take effect on the next assembly. The same check works for direct agent restrictions and subagent `toolFilter`, including PTC capabilities behind `run_code`. The read-before-mutation sentences in write/edit describe the observation policy, not a requirement to invoke the tool named `read`. They remain when `read` is hidden: the policy still guards mutations, and another observing operation, such as `str_replace_editor` with `command: view`, can establish the same file observation. Tool visibility does not disable that precondition.
+At assembly time, each guidance section checks `ctx.tools.get(name, scope)` and renders only while its tool is visible to that agent. The single `tool:write` section describes all four sed forms, the overwrite flag, and dry_run. The text below is unchanged when all three tools are available; restrictions, their removal, and tool registration changes take effect on the next assembly. The same check works for direct agent restrictions and subagent `toolFilter`, including PTC capabilities behind `run_code`. The read-before-mutation sentences in write/edit describe the observation policy, not a requirement to invoke the tool named `read`. They remain when `read` is hidden: the policy still guards mutations, and another observing operation, such as `str_replace_editor` with `command: view`, can establish the same file observation. Tool visibility does not disable that precondition.
 
 ##### Read guidance
 
@@ -144,13 +144,7 @@ Use the read tool — not shell commands like cat — to inspect text files. Res
 ##### Write guidance
 
 ```markdown
-Use the write tool to create files or completely replace file contents. Existing files are overwritten, so read an existing file first (the default fs-observation-policy requires it) and prefer edit for targeted changes.
-```
-
-##### Edit guidance
-
-```markdown
-Use the edit tool for targeted changes to existing UTF-8 text files. It replaces literal old_string with new_string; by default old_string must appear exactly once. If old_string appears multiple times, provide a more specific old_string or set replace_all to true. Read the file first (the default fs-observation-policy requires it), unless you just created or edited it in this session.
+Use the write tool to create files, replace them whole, or patch them sed-style: pass content for the stream, edits entries (literal, regex, line-range, insert) for hunks applied in one atomic commit, overwrite: true to explicitly clobber a file this session never read, and dry_run to preview without committing.
 ```
 
 #### Token effect
@@ -165,7 +159,7 @@ Prefix-stable while the visible tool set, plugin scope, and guidance text are un
 
 #### What the model sees
 
-The model sees the generated [`read`, `read_image`, `write`, and `edit` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-fs), with snake_case arguments. The image tool appears only while a durable attachment store is mounted; its schema is route-independent, and the strict gate refuses at execution. Scoped tool restrictions can remove any definition for one agent.
+The model sees the generated [`read`, `read_image`, and `write` schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-fs), with snake_case arguments. The image tool appears only while a durable attachment store is mounted; its schema is route-independent, and the strict gate refuses at execution. Scoped tool restrictions can remove any definition for one agent.
 
 #### Token effect
 
@@ -203,11 +197,11 @@ The image is billed on every later request until compaction. Each call is indepe
 
 Append-only; newly visible content follows the reusable request prefix and does not invalidate existing KV-cache entries.
 
-### Write and edit results
+### Write results
 
 #### What the model sees
 
-Write returns the exact five-line envelope `<path><displayPath></path>`, `<type>file</type>`, `<content>`, `Created file` or `Updated file`, then `</content>`. Edit returns exactly `The file <displayPath> has been updated successfully.` or, for `replace_all`, `The file <displayPath> has been updated. All occurrences were successfully replaced.` The full write or replacement text remains in the assistant tool-call arguments.
+Write returns the exact five-line envelope `<path><displayPath></path>`, `<type>file</type>`, `<content>`, then a one-line outcome (`Created file`, `Updated file`, `Updated file. N edits applied (M matches).`, or the `Dry run — no commit.` wording), then `</content>`. Its structured result also carries per-entry match counts so the model sees what its program did without re-reading. The full write or replacement text remains in the assistant tool-call arguments.
 
 #### Token effect
 
@@ -221,7 +215,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Failures are normalized as `Error: <message>`. This package's stable validation and read messages are `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `old_string must be a non-empty string`, `old_string and new_string must differ`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, `offset <offset> is out of range for "<path>" (<total> lines)`, `cannot read "<path>": the <ext> extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats`, `cannot read "<path>": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`, `cannot read "<path>": the bytes do not decode as a supported PNG/JPEG/WebP/GIF image; the file may be truncated or corrupt`, `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`, and the mismatch repair `cannot read "<path>": the <ext> extension declares <type>, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats` (an extension-less mismatch reports `cannot read "<path>": the file signature claims <type>, but the bytes decode as a different image format; the file may be corrupt`). A failed 16-bit conversion reports `cannot read "<path>": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`. Provider and policy templates are quoted in their package READMEs. The model-facing error wrapper normalizes every `FS_NOT_OBSERVED` source to `cannot modify "<path>": file has not been read — read the file, then retry`; `FS_STALE_VERSION` keeps the provider's reason and adds `— re-read the file, then retry`. Both retain the structured error code and original cause. After that reread confirms absence, `edit` reports `FS_NOT_FOUND` instead of repeating a stale remedy, while `write` uses guarded creation.
+Failures are normalized as `Error: <message>`. This package's stable validation and read messages are `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `old_string must be a non-empty string`, `old_string and new_string must differ`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, `offset <offset> is out of range for "<path>" (<total> lines)`, `cannot read "<path>": the <ext> extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats`, `cannot read "<path>": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`, `cannot read "<path>": the bytes do not decode as a supported PNG/JPEG/WebP/GIF image; the file may be truncated or corrupt`, `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`, and the mismatch repair `cannot read "<path>": the <ext> extension declares <type>, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats` (an extension-less mismatch reports `cannot read "<path>": the file signature claims <type>, but the bytes decode as a different image format; the file may be corrupt`). A failed 16-bit conversion reports `cannot read "<path>": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`. Provider and policy templates are quoted in their package READMEs. The model-facing error wrapper normalizes every `FS_NOT_OBSERVED` source to `cannot modify "<path>": file has not been read — read the file, then retry` (strict policy loaded); `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` keeps the provider's reason and adds `— re-read the file, then retry`. All retain the structured error code and original cause. After a reread confirms absence, programs report `FS_NOT_FOUND` instead of a stale remedy, while content writes use guarded creation.
 
 #### Token effect
 

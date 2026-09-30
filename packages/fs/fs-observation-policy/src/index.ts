@@ -9,7 +9,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { FsError } from '@deepseek-ai/dsh-fs'
-import type { FsObservation, FsTarget, FsVersion, FsWriteIntent } from '@deepseek-ai/dsh-fs'
+import type { FsObservation, FsTarget, FsWriteIntent } from '@deepseek-ai/dsh-fs'
 import type { FsObservationActor } from './types.ts'
 
 export type { FsObservationActor } from './types.ts'
@@ -59,32 +59,26 @@ class ObservedStateGate {
   }
 
   /**
-   * Decide the write intent: unseen or confirmed absent ⇒ `createIfAbsent`;
-   * confirmed present ⇒ `replaceIfVersion` at the observed version.
+   * Decide the write intent: content keeps the historical arms — unseen or
+   * confirmed absent ⇒ `createIfAbsent` (the provider still rejects a blind
+   * create onto an existing target), present ⇒ `replaceIfVersion` at the
+   * observed version. A program is the strict arm: it needs seen content, so
+   * unseen rejects `FS_NOT_OBSERVED` and confirmed absent rejects `FS_NOT_FOUND`.
    */
-  writeIntent(target: FsTarget, actor: object | undefined): FsWriteIntent {
+  writeIntent(target: FsTarget, mode: 'content' | 'program', actor: object | undefined): FsWriteIntent {
     const owner = this.owner(actor)
     const prior = owner ? this.get(owner, target.targetKey) : undefined
+    if (mode === 'program') {
+      if (!owner || prior === undefined) {
+        throw new FsError(`edit requires reading "${target.displayPath}" first`, 'FS_NOT_OBSERVED')
+      }
+      if (prior.kind === 'absent') {
+        throw new FsError(`cannot edit "${target.displayPath}": not found`, 'FS_NOT_FOUND')
+      }
+    }
     return prior?.kind === 'present'
       ? { kind: 'replaceIfVersion', version: prior.version }
       : { kind: 'createIfAbsent' }
-  }
-
-  /**
-   * Decide the edit version guard: unseen rejects with `FS_NOT_OBSERVED`,
-   * confirmed absence rejects with `FS_NOT_FOUND`, and presence supplies the
-   * observed version as the CAS basis.
-   */
-  editIntent(target: FsTarget, actor: object | undefined): { version: FsVersion } {
-    const owner = this.owner(actor)
-    const prior = owner ? this.get(owner, target.targetKey) : undefined
-    if (!owner || prior === undefined) {
-      throw new FsError(`edit requires reading "${target.displayPath}" first`, 'FS_NOT_OBSERVED')
-    }
-    if (prior.kind === 'absent') {
-      throw new FsError(`cannot edit "${target.displayPath}": not found`, 'FS_NOT_FOUND')
-    }
-    return { version: prior.version }
   }
 
   /** Record an authoritative present or absent observation for this owner and target. */
@@ -116,10 +110,7 @@ export function apply(ctx: Context): void {
   // fs/write-intent: occupy the single decision slot — do NOT call next().
   // Deferred through Promise.resolve().then so the declared Promise return type
   // holds (a throw rejects, never escapes synchronously through the waterfall).
-  ctx.on('fs/write-intent', (target, actor) => Promise.resolve().then(() => gate.writeIntent(target, actor)))
-
-  // fs/edit-intent: occupy the single decision slot — do not call next().
-  ctx.on('fs/edit-intent', (target, actor) => Promise.resolve().then(() => gate.editIntent(target, actor)))
+  ctx.on('fs/write-intent', (target, mode, actor) => Promise.resolve().then(() => gate.writeIntent(target, mode, actor)))
 
   // fs/observed must remain synchronous and non-throwing: emit does not await
   // promises, and successful mutations have already committed. WeakMap.set
