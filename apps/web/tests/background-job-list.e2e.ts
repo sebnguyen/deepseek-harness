@@ -20,7 +20,9 @@ const MODE = webSnapshotMode()
 const SEED_ID = 'background-job-list-web-e2e'
 // Long enough that the running assertions never race the process exiting on
 // their own; the test kills it explicitly to reach the settled state.
-const COMMAND = 'sleep 45'
+// The leading echo gives the drawer's output tail a line to stream while
+// the job is still running; the sleep holds the slot open for the asserts.
+const COMMAND = 'echo background-stream-ok; sleep 45'
 
 /**
  * Wait for opening a session to publish its live Agent.
@@ -79,6 +81,14 @@ describe.skipIf(MODE === 'record')('web e2e: background activity drawer', () => 
     const chip = page.getByRole('button', { name: '1 background activity running' })
     expect(await chip.count()).toBe(0)
 
+    // Geometry of the drawer: closed it must occupy no height at all (a
+    // closed drawer may not take space above the composer), and open it
+    // expands to exactly its fixed pane — min(60vh, 640px) is 600px at
+    // this lane's 1000px viewport.
+    const wrapHeight = (): Promise<number> => page
+      .locator('[role="region"][aria-label="Background activity"]')
+      .evaluate(element => element.parentElement!.getBoundingClientRect().height)
+
     const started = await scaffold.ctx.tools.execute({
       signal: new AbortController().signal,
       callId: ToolCallId('background-job-list-e2e'),
@@ -92,20 +102,33 @@ describe.skipIf(MODE === 'record')('web e2e: background activity drawer', () => 
     jobId = JobId(matched[0])
 
     await chip.waitFor({ timeout: 15_000 })
+    await expect.poll(wrapHeight, { timeout: 5_000 }).toBe(0)
+
     await chip.click()
     const drawer = page.getByRole('region', { name: 'Background activity' })
     await drawer.waitFor({ timeout: 10_000 })
+    await expect.poll(wrapHeight, { timeout: 5_000 }).toBe(600)
     const row = drawer.getByRole('list', { name: 'Live activity' }).getByRole('listitem').first()
     await row.waitFor({ timeout: 10_000 })
     await expect.poll(() => row.textContent()).toContain(COMMAND)
 
     // Selecting the live row shows its running status in the detail pane,
     // and Escape closes the drawer and returns focus to the chip.
+    // The row status repeats the status word, so the detail assertion must
+    // stay scoped to the detail pane to remain a single match.
     await row.getByRole('button').click()
-    await drawer.getByText('running', { exact: true }).waitFor({ timeout: 10_000 })
+    await drawer.getByLabel('Activity detail').getByText('running', { exact: true }).waitFor({ timeout: 10_000 })
+
+    // The jobOutput mirror reaches the pane live while the job runs.
+    await expect.poll(
+      () => drawer.getByLabel('Job output').textContent() ?? '',
+      { timeout: 10_000 },
+    ).toContain('background-stream-ok')
 
     await page.keyboard.press('Escape')
     await drawer.waitFor({ state: 'hidden', timeout: 10_000 })
+    await expect.poll(wrapHeight, { timeout: 5_000 }).toBe(0)
+
 
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
@@ -128,9 +151,14 @@ describe.skipIf(MODE === 'record')('web e2e: background activity drawer', () => 
     await row.waitFor({ timeout: 10_000 })
     await expect.poll(() => row.textContent()).toContain(COMMAND)
 
-    // The settled row's status stays legible where it is the only outcome text.
-    await row.getByRole('button').click()
-    await drawer.getByText('cancelled', { exact: true }).waitFor({ timeout: 10_000 })
+    // The settled row's outcome stays legible in the pane's detail line;
+    // scoped to the detail pane because the row repeats the status word.
+    // Selection is a toggle that survives across tests, so re-click when
+    // the first press flips an already-selected row off.
+    const rowButton = row.getByRole('button')
+    await rowButton.click()
+    if (await rowButton.getAttribute('aria-pressed') !== 'true') await rowButton.click()
+    await drawer.getByLabel('Activity detail').getByText('cancelled', { exact: true }).waitFor({ timeout: 10_000 })
 
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])

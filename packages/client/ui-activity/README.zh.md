@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-本包渲染 Web GUI 的后台活动表面：一个停靠在 composer 上方的 chip，在 session 拥有至少一个后台项时出现；一个抽屉在 composer 下方展开，把整个 sticky 栈顶起。一个行模型把会话镜像的 jobs 与其直接 subagent 后代合并；树把活行与归档分开，详情面板展示 job 的结论文本，或进入 subagent 完整 session 视图的入口。所有事实都经 Session Controller 的镜像到达——`jobsBySession`、`subagentsByParent` 与会话摘要——两个注入回调经 sessions 服务的目录动词路由，因此本包不发起任何 RPC。模型对同一批 job 的视图属于 `dsh-tool-jobs`；本包是面向人的只读投影。
+本包渲染 Web GUI 的后台活动表面：一个停靠在 composer 上方的 chip，在 session 拥有至少一个后台项时出现；一个抽屉在 sticky 座内、composer chip 之下以普通流滑出展开，座底固定，把 chip 与输入卡片顶到其固定高度面板之上，两个方向都有动画；详情面板实时尾随所选 job 的输出行。一个行模型把会话镜像的 jobs 与其直接 subagent 后代合并；树把活行与归档分开，详情面板展示 job 的结论文本，或进入 subagent 完整 session 视图的入口。所有事实都经 Session Controller 的镜像到达——`jobsBySession`、`subagentsByParent` 与会话摘要——两个注入回调经 sessions 服务的目录动词路由，因此本包不发起任何 RPC。模型对同一批 job 的视图属于 `dsh-tool-jobs`；本包是面向人的只读投影。
 
 ## 目录
 
@@ -39,7 +39,7 @@ kind: "package-reference"
 <details>
 <summary>实现内部——点击展开</summary>
 
-本包向 `conversation.input.dock` 贡献一个条目（`ActivityDock`），以 `inject` 回调注册，闭包读取 `ctx.sessions`：`onRefresh` 是现有的 `refreshSubagents(parentSessionId)` 触发，每次打开触发一次，使 subagent 行获得目录标签与模式；`onOpenChild` 经 `subagentAddress` 解析子会话保留的地址并交给 `openSubagent`，与目录所用导航相同。`model.ts` 是纯投影：job 记录原样成为行；直接 subagent 子项从会话摘要读取并由就绪的目录细化；`sections` 将活行按开始时间排序、已落定行按最近落定排序，同一毫秒的平手以开始时间为准。行时钟仅在打开的抽屉显示活工作时每秒走秒一次。抽屉渲染在 sticky composer 栈内、输入条之下，因此打开它时整个栈以单一几何顶起。
+本包向 `conversation.input.dock` 贡献一个条目（`ActivityDock`），以 `inject` 回调注册，闭包读取 `ctx.sessions`：`onRefresh` 是现有的 `refreshSubagents(parentSessionId)` 触发，每次打开触发一次，使 subagent 行获得目录标签与模式；`onOpenChild` 经 `subagentAddress` 解析子会话保留的地址并交给 `openSubagent`，与目录所用导航相同。`model.ts` 是纯投影：job 记录原样成为行；直接 subagent 子项从会话摘要读取并由就绪的目录细化；`sections` 将活行按开始时间排序、已落定行按最近落定排序，同一毫秒的平手以开始时间为准。行时钟仅在打开的抽屉显示活工作时每秒走秒一次。抽屉在 sticky composer 座内以普通流生长：座底固定，打开高度把 chip 与输入卡片以单一流几何顶起，面板相对自身盒子裁剪而非铺满窗口，高度过渡双向滑动。座高发布（ui-conversation 的 syncSeatMetrics）在开合过渡期间冻结 --dsh-composer-height 的重写、结束时重锚一次，动画因此不按帧重解依赖的 chat 边栏。关闭时可见性的一段在过渡结束后落下，保住下滑动画。选中 job 行时，终端风格面板尾随其 jobOutput 镜像缓冲行并跟随最后一行。
 
 </details>
 

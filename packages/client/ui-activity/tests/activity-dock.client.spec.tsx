@@ -199,6 +199,36 @@ describe('ActivityDock tree and detail', () => {
     expect(detail.getByText('exit 1')).toBeDefined()
   })
 
+  it('streams the selected job output buffer and tails new lines', () => {
+    const h = harness([job()])
+    h.state = {
+      ...h.state,
+      jobOutputBySession: { [SESSION]: { [job().id]: { lines: ['line one'], first: 0, next: 1 } } },
+    }
+    const view = render(<ActivityDock {...props(h)} />)
+    openDock()
+    fireEvent.click(screen.getByTestId('activity-row-job:bash-1'))
+    const detail = within(screen.getByLabelText(zh['detail.aria']))
+    const tail = detail.getByLabelText(zh['output.aria'])
+    expect(tail.textContent).toBe('line one')
+
+    // A later frame appends: the pane follows and keeps the tail in view.
+    h.state = {
+      ...h.state,
+      jobOutputBySession: { [SESSION]: { [job().id]: { lines: ['line one', 'line two'], first: 0, next: 2 } } },
+    }
+    view.rerender(<ActivityDock {...props(h)} />)
+    expect(detail.getByLabelText(zh['output.aria']).textContent).toBe('line one\nline two')
+  })
+
+  it('shows the empty output copy until a job produces lines', () => {
+    render(<ActivityDock {...props(harness([job()]))} />)
+    openDock()
+    fireEvent.click(screen.getByTestId('activity-row-job:bash-1'))
+    const detail = within(screen.getByLabelText(zh['detail.aria']))
+    expect(detail.getByText(zh['output.empty'])).toBeDefined()
+  })
+
   it('falls back to the status word for a selected job without detail', () => {
     render(<ActivityDock {...props(harness([job({ status: 'stopping' })]))} />)
     openDock()

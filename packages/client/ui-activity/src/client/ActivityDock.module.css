@@ -7,7 +7,6 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
 }
 
 .chip {
@@ -47,19 +46,35 @@
   margin: 0 5px;
 }
 
-/* The clip wrapper collapses through a 0fr/1fr row so opening the drawer
-   lifts the input bar with a smooth height transition; closed rows stay
-   hidden and out of the tab order while mounted. */
+/* The clip wrapper overlays the transcript from its own layer inside
+   the sticky composer seat, anchored above the chip row (the root's gap
+   keeps the chip-to-drawer breathing room), so opening never reflows the
+   transcript; the input card rides the pane's top edge through a
+   compositor transform (InputBar). The height runs between 0 and the
+   pane's fixed min(60vh, 640px). The visibility leg lands only after the
+   close transition ends (and is instant on open), or the hidden state
+   would swallow the slide-down. Closed rows stay hidden and out of the
+   tab order while mounted. */
 .wrap {
-  display: grid;
-  grid-template-rows: 0fr;
+  /* Ordinary child of this dock root: the sticky seat's pinned bottom
+     lifts the chip and input card above the pane as it grows, and the
+     width follows the root's card cap rather than the window. The
+     relative box contains the fixed pane so the pane reveals upward as
+     the clip grows. The chip-to-drawer breathing room only exists while
+     open via the margin, so a closed drawer adds no space. The
+     visibility leg lands only after the close transition ends (and is
+     instant on open), or the hidden state would swallow the slide-down. */
+  position: relative;
   width: 100%;
+  height: 0;
   overflow: hidden;
-  transition: grid-template-rows 180ms ease;
+  transition: height 180ms ease, margin-top 180ms ease, visibility 0s linear 180ms;
 }
 
 .wrap[data-open='true'] {
-  grid-template-rows: 1fr;
+  height: calc(min(60vh, 640px));
+  margin-top: 4px;
+  transition: height 180ms ease, margin-top 180ms ease, visibility 0s;
 }
 
 .wrap[aria-hidden='true'] .drawer {
@@ -75,9 +90,14 @@
 .drawer {
   display: grid;
   grid-template-columns: minmax(220px, 2fr) minmax(240px, 3fr);
+  /* A single constrained row: an auto row would grow past the fixed pane
+     and let both columns overflow the clip instead of scrolling. */
+  grid-template-rows: minmax(0, 1fr);
   gap: 8px;
   box-sizing: border-box;
-  /* Review-sized pane: a fixed share of the viewport, not content height. */
+  /* Review-sized pane: a fixed share of the viewport, not content height,
+     mirrored by the clip wrapper's open height and by the input card's
+     ride distance. */
   height: calc(min(60vh, 640px));
   width: 100%;
   padding: 8px;
@@ -268,4 +288,22 @@
 .openSession:disabled {
   cursor: default;
   opacity: 0.5;
+}
+
+/* Live tail of the selected job's buffered output: fills the pane like a
+   terminal and keeps its last line in view. */
+.output {
+  margin: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

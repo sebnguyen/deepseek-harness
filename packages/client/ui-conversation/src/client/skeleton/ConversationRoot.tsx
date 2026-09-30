@@ -7,6 +7,7 @@ import clsx from 'clsx'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
 import type { ConversationSlotProps, InputZone } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
+import { syncSeatMetrics } from './seatMetrics.ts'
 import { HeroShell, WorkspaceChip, workspaceLabel } from './EmptyHero.tsx'
 import css from './ConversationRoot.module.css'
 
@@ -157,24 +158,18 @@ export function ConversationRoot({
   // scroll body: the seat's height as --dsh-composer-height, so controls clear
   // the composer as it grows, and the scrollport's own height as
   // --dsh-conversation-viewport-height, so a control can sit in the band the
-  // seat leaves visible. Callback ref, not an effect; stable identity prevents
-  // observer churn while the first blank session fills the resident body
-  // outlet.
-  const seatObserver = useRef<ResizeObserver | null>(null)
+  // seat leaves visible. The sync skips the dock drawer's open/close height
+  // transition and re-anchors once at its end, so the animation never
+  // re-solves the dependent rails per frame. Callback ref, not an effect;
+  // stable identity prevents observer churn while the first blank session
+  // fills the resident body outlet.
+  const disposeSeatMetrics = useRef<(() => void) | null>(null)
   const seatResizeRef = useCallback((seat: HTMLDivElement | null): void => {
-    seatObserver.current?.disconnect()
-    seatObserver.current = null
+    disposeSeatMetrics.current?.()
+    disposeSeatMetrics.current = null
     const scroller = seat?.parentElement ?? null
     if (seat === null || scroller === null) return
-    seatObserver.current = new ResizeObserver(() => {
-      scroller.style.setProperty('--dsh-composer-height', `${seat.offsetHeight}px`)
-      scroller.style.setProperty(
-        '--dsh-conversation-viewport-height',
-        `${scroller.clientHeight}px`,
-      )
-    })
-    seatObserver.current.observe(seat)
-    seatObserver.current.observe(scroller)
+    disposeSeatMetrics.current = syncSeatMetrics(seat, scroller)
   }, [])
 
   // Publishes the column's live width as --dsh-conversation-column-width so

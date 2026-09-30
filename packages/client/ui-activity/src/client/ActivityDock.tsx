@@ -1,12 +1,14 @@
 /**
  * The background-activity chip and its drawer, docked in the sticky composer
- * stack directly below the input bar (bottom-of-screen drawer): opening it
- * grows the stack, so the input slides up above the drawer while the
- * transcript's visible area shrinks. The chip counts live work; the drawer
+ * stack directly below the input bar. The drawer grows in normal flow inside
+ * the sticky seat, whose pinned bottom lifts the chip and input card above
+ * the fixed-height pane in both directions. The chip counts live work; the
+ * drawer
  * renders the ownership tree (live rows, then an archive) beside the selected
  * row's detail — a terminal tail for jobs, an opening into the full session
- * view for subagents. All data arrives through the Session Controller
- * mirrors; the plugin issues no RPC of its own.
+ * view for subagents, beside a live tail of the selected job's buffered
+ * output lines. All data arrives through the Session Controller mirrors;
+ * the plugin issues no RPC of its own.
  */
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
@@ -74,6 +76,7 @@ export function ActivityDock({
     state.currentAddress !== undefined
     && state.byId[sessionId]?.origin === 'subagent')
   const jobs = useSessions(state => (isAddressedChild ? NO_JOBS : state.jobsBySession[sessionId])) ?? NO_JOBS
+  const outputs = useSessions(state => state.jobOutputBySession[sessionId])
   const catalog = useSessions(state => (isAddressedChild ? undefined : state.subagentsByParent[sessionId]))
   const summaries = useSessions(state => state.byId)
 
@@ -98,6 +101,16 @@ export function ActivityDock({
   const selected = selectedKey === undefined
     ? undefined
     : [...split.live, ...split.archive].find(row => rowKey(row) === selectedKey)
+  const outputLines = selected?.domain === 'job'
+    ? outputs?.[selected.id as JobView['id']]?.lines
+    : undefined
+
+  // The tail panes like a terminal: new output keeps the last line in view.
+  const outputRef = useRef<HTMLPreElement>(null)
+  useEffect(() => {
+    const node = outputRef.current
+    if (node !== null) node.scrollTop = node.scrollHeight
+  }, [outputLines])
 
   // The catalog is pulled, not pushed: ask once per open so subagent rows gain
   // labels and modes, and report interest while the drawer is being watched.
@@ -189,7 +202,7 @@ export function ActivityDock({
   }
 
   return (
-    <div className={css.root} onKeyDown={onKeyDown}>
+    <div className={css.root} data-activity-dock-open={open || undefined} onKeyDown={onKeyDown}>
       <button
         ref={chipRef}
         type="button"
@@ -255,7 +268,18 @@ export function ActivityDock({
             {selected === undefined
               ? <p className={css.detailEmpty}>{t('detail.empty')}</p>
               : selected.domain === 'job'
-                ? <p className={css.detailEmpty}>{selected.detail ?? t(statusKey(selected.status))}</p>
+                ? (
+                  <>
+                    <p className={css.detailEmpty}>{selected.detail ?? t(statusKey(selected.status))}</p>
+                    {outputLines === undefined || outputLines.length === 0
+                      ? <p className={css.detailEmpty}>{t('output.empty')}</p>
+                      : (
+                        <pre ref={outputRef} className={css.output} aria-label={t('output.aria')}>
+                          {outputLines.join('\n')}
+                        </pre>
+                      )}
+                  </>
+                )
                 : (
                   <>
                     <p className={css.detailEmpty}>{t(statusKey(selected.status))}</p>
