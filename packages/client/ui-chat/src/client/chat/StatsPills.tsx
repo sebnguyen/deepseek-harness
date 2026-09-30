@@ -1,6 +1,7 @@
 // Session stats under the composer, split into two icon pills: a gauge pill
-// (turn/step counts + output speed) opening the time-and-speed dialog, and a
-// database pill (total tokens + cache hit) opening the token-usage dialog.
+// (turn/step counts + average and last-request output speed) opening the
+// time-and-speed dialog, and a database pill (input/cache/output token buckets
+// + cache hit) opening the token-usage dialog.
 // Settled-node identity prevents stream-delta updates from rerendering the row.
 // Mounted on 'conversation.composer.dock' so it sticks with the composer in the
 // active conversation scrollport (see ConversationRoot data-conversation-scroll).
@@ -100,6 +101,24 @@ export function formatDuration(ms: number, t: ChatViewSlotProps['t']): string {
 }
 
 /**
+ * Decode throughput of the most recent settled request: the newest assistant
+ * node carrying both decode timing and provider usage (the window tail is the
+ * newest settled step), keeping a current-speed reading beside the pooled
+ * whole-session average.
+ * @param nodes - snapshot nodes of the loaded window.
+ * @returns that request's tok/s, or null when no settled step carries both.
+ */
+export function lastRequestTps(nodes: ChatSnapshot['legacy']['nodes']): number | null {
+  for (const node of [...nodes].reverse()) {
+    if (node.kind !== 'assistant') continue
+    const reading = assistantStepReading(node)
+    if (reading.decodeMs === null || reading.outputTokens === null || reading.decodeMs <= 0) continue
+    return reading.outputTokens / (reading.decodeMs / 1_000)
+  }
+  return null
+}
+
+/**
  * Display-ready cache-hit share of prompt-side input over the whole durable log.
  * @param usage - the session's token-usage projection value.
  * @returns integer text when integer rounding stays below 100, otherwise the
@@ -135,25 +154,37 @@ function exactCount(value: number, t: ChatViewSlotProps['t']): string {
 /** External open state one pill's dialog reads and writes (the row's exclusive slot). */
 type PillDialog = Pick<ReturnType<typeof useStatDialog>, 'open' | 'setOpen'>
 
-function TimePill({ stats, t, dialog }: {
+function TimePill({ stats, lastTps, t, dialog }: {
   stats: WindowStats
+  /** The most recent settled request's tok/s; null when none is readable. */
+  lastTps: number | null
   t: ChatViewSlotProps['t']
   dialog: PillDialog
 }) {
   const { open, setOpen, rootRef, panelRef, pos } = useStatDialog(dialog)
   const counts = t('stats.counts', { turns: stats.turns, steps: stats.steps })
-  const tps = stats.decodeMs > 0
-    ? t('message.tokensPerSecond', {
+  const avg = stats.decodeMs > 0
+    ? t('stats.avgTps', {
       tps: formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1_000)),
     })
     : null
+  const last = lastTps !== null
+    ? t('stats.lastTps', { tps: formatTokensPerSecond(lastTps) })
+    : null
+  const segments = [counts, avg, last].filter((s): s is string => s !== null)
   const label = (
     <span className={css.label}>
       {counts}
-      {tps !== null && (
+      {avg !== null && (
         <>
           <span className={css.sep} aria-hidden>·</span>
-          {tps}
+          {avg}
+        </>
+      )}
+      {last !== null && (
+        <>
+          <span className={css.sep} aria-hidden>·</span>
+          {last}
         </>
       )}
     </span>
@@ -177,7 +208,7 @@ function TimePill({ stats, t, dialog }: {
         className={css.pill}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={tps === null ? counts : `${counts} · ${tps}`}
+        aria-label={segments.join(' · ')}
         onClick={() => { setOpen(!open) }}
       >
         <IconGaugeOutline16 />
@@ -225,6 +256,12 @@ function TimePill({ stats, t, dialog }: {
                 })}</dd>
               </>
             )}
+            {lastTps !== null && (
+              <>
+                <dt>{t('stats.dialog.lastSpeed')}</dt>
+                <dd>{t('message.tokensPerSecond', { tps: formatTokensPerSecond(lastTps) })}</dd>
+              </>
+            )}
           </dl>
         </div>,
         document.body,
@@ -242,8 +279,14 @@ function UsagePill({ usage, t, dialog }: {
   // Same aggregate as the Turn pill's totalTokens: every prompt-side billing bucket plus output.
   const total = billedInputTokens(usage) + usage.outputTokens
   const totalText = t('message.turnUsage.count', { count: formatTokens(total, t) })
+  const inputText = t('stats.usageInput', { count: formatTokens(usage.uncachedInputTokens, t) })
+  const cacheText = t('stats.usageCache', { count: formatTokens(usage.cacheReadTokens, t) })
+  const outputText = t('stats.usageOutput', { count: formatTokens(usage.outputTokens, t) })
   const cacheHit = cacheHitPercent(usage)
   const cacheHitText = cacheHit !== null ? t('stats.cacheHit', { percent: cacheHit }) : null
+  const segments = cacheHitText === null
+    ? [inputText, cacheText, outputText]
+    : [inputText, cacheText, outputText, cacheHitText]
   return (
     <span ref={rootRef} className={css.anchor}>
       <button
@@ -251,12 +294,16 @@ function UsagePill({ usage, t, dialog }: {
         className={css.pill}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={cacheHitText === null ? totalText : `${totalText} · ${cacheHitText}`}
+        aria-label={segments.join(' · ')}
         onClick={() => { setOpen(!open) }}
       >
         <IconDatabaseOutline16 />
         <span className={css.label}>
-          {totalText}
+          {inputText}
+          <span className={css.sep} aria-hidden>·</span>
+          {cacheText}
+          <span className={css.sep} aria-hidden>·</span>
+          {outputText}
           {cacheHitText !== null && (
             <>
               <span className={css.sep} aria-hidden>·</span>
@@ -325,6 +372,9 @@ export const StatsPills = memo(function StatsPills({ useChat, useProjection, t }
   // while no projection value is served.
   const projected = useProjection('sessionStats')
   const stats = useMemo(() => projected ?? deriveStats(settledNodes), [projected, settledNodes])
+  // The current-speed reading always rides the loaded window: the durable
+  // projection aggregates the whole log and carries no per-request figure.
+  const lastTps = useMemo(() => lastRequestTps(settledNodes), [settledNodes])
   // Gated on actual token activity: a session whose steps all settled without
   // billing (e.g. every request failed) shows its counts without a usage pill.
   const hasTokens = usage !== undefined
@@ -337,6 +387,7 @@ export const StatsPills = memo(function StatsPills({ useChat, useProjection, t }
       {stats.steps > 0 && (
         <TimePill
           stats={stats}
+          lastTps={lastTps}
           t={t}
           dialog={{
             open: openPill === 'time',
