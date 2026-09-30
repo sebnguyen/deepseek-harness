@@ -5,13 +5,14 @@
 import { Component, useMemo, useState, useSyncExternalStore, type FC, type ReactNode } from 'react'
 import {
   SlotOwnershipError, StaleAuthorizationError, standardHookPropName,
-  type ChainRenderOpts, type HostObservable, type KeyedStandardSource, type LocaleFace, type RenderOpts,
+  type ChainRenderOpts, type HostObservable, type KeyedStandardSource, type LocaleFace, type PinnedSessionAreaProps,
+  type PinnedSessionProviderComponent, type RenderOpts,
   type ScopedStandardSourceBinding, type SessionAreaProps, type SessionProviderComponent, type SlotRenderer,
   type SlotRendererHost, type SlotScope, type SlotScopeAdapter, type StandardSourceBinding,
   type StoredEntry, type Translate,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import {
-  HostContext, RootStandardProvider, ScopeProvider, SlotAssemblyError,
+  HostContext, PinnedScopeBinding, RootStandardProvider, ScopeProvider, SlotAssemblyError,
   keyedObservableHook, maybeObservableHook, observableHook, useHost, useRootBinding,
   useScopeBinding,
 } from './bindings.tsx'
@@ -410,6 +411,37 @@ function scopeAreaProvider(adapter: SlotScopeAdapter): SessionProviderComponent 
   return Provider
 }
 
+const pinnedAreaCache = new WeakMap<SlotScopeAdapter, PinnedSessionProviderComponent>()
+
+/**
+ * Bind the domain-owned scope area renderer to a NAMED binding: the area (and
+ * every scoped outlet inside it) rides the named session through
+ * PinnedScopeBinding while the ambient binding keeps following the real
+ * selection. The root list read re-renders the seat when the sessions roster
+ * moves, so an id that materializes or vanishes outside a parent re-render
+ * still flips between the empty body and the body.
+ */
+function pinnedScopeAreaProvider(adapter: SlotScopeAdapter): PinnedSessionProviderComponent {
+  let Provider = pinnedAreaCache.get(adapter)
+  if (Provider !== undefined) return Provider
+  if (adapter.renderArea === undefined) {
+    throw new SlotAssemblyError("scope 'session' adapter does not provide its area renderer")
+  }
+  const renderArea = adapter.renderArea.bind(adapter)
+  Provider = function PinnedScopeAreaProvider({ sessionId, empty, children }: PinnedSessionAreaProps): ReactNode {
+    useRootBinding()
+    const binding = adapter.resolve(sessionId)
+    if (binding === undefined) return <>{empty?.() ?? null}</>
+    return (
+      <PinnedScopeBinding binding={binding}>
+        {renderArea(binding, { empty, children })}
+      </PinnedScopeBinding>
+    )
+  }
+  pinnedAreaCache.set(adapter, Provider)
+  return Provider
+}
+
 /**
  * Standard-kit synthesis shared by both scope branches: the global
  * useSessions/useWorkspaces hooks, the per-session provide bundle (every
@@ -471,6 +503,15 @@ function standardKit(
       }
       kit['SessionProvider'] = scopeAreaProvider(adapter)
     }
+  }
+  // The pinned seat is scope machinery, not per-entry declaration: any entry
+  // may hold several named session subtrees while another selection is
+  // current. An adapter without its area renderer contributes no seat — the
+  // same condition under which SessionProvider would fail — so bare test
+  // hosts keep the pre-carousel kit shape.
+  const pinnedAdapter = host.scope('session')
+  if (pinnedAdapter !== undefined && pinnedAdapter.renderArea !== undefined) {
+    kit['PinnedSessionProvider'] = pinnedScopeAreaProvider(pinnedAdapter)
   }
   return { kit, standard, actions: store?.actions }
 }

@@ -10,7 +10,7 @@ Workspace Files serves both file content and workspace navigation. Applying work
 
 ## Decision
 
-`read`, `readBytes`, `readAll`, `readRelated`, and `stat` inherit the addressed Session filesystem backend's read authority. The workspace root is the base for relative input paths, not a read boundary; absolute paths and relative paths that leave the workspace are readable when the backend allows them. The service still requires regular files, refuses symlinks, and applies its text and byte caps.
+`read`, `readBytes`, `readAll`, `readRelated`, and `stat` inherit the addressed Session filesystem backend's read authority. The workspace root is the base for relative input paths, not a read boundary; absolute paths and relative paths that leave the workspace are readable when the backend allows them. The service still requires regular files and applies its text and byte caps, and it follows a final symbolic link to its target, as the [symlink-follow decision](2026-09-28-workspace-file-symlink-follow.md) records.
 
 `list` and `changes` remain workspace-scoped because they expose workspace navigation and observation rather than a named file read. `list` rejects a directory outside the root, and `changes` filters observations through the backend's workspace-containment predicate.
 

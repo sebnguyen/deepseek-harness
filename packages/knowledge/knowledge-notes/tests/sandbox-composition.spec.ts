@@ -71,7 +71,7 @@ describe.each(['read-only', 'workspace-write', 'danger-full-access'] as const)('
       hashScheme: 'source-norm@1',
       author: 'agent',
     })
-    const parsed = JSON.parse(await readFile(store().notePathFor(target.displayPath), 'utf8'))
+    const parsed = JSON.parse(await readFile(store().notePathFor(target.displayPath), 'utf8')) as { claim: string }
     expect(parsed.claim).toBe('fact')
   })
 })

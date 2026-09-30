@@ -600,5 +600,11 @@ describe('tool-bash-persistent', () => {
     expect(() => {
       ToolBashPersistent.apply(new Context(), { description: ' ' })
     }).toThrow('description must be non-empty')
+    expect(() => {
+      ToolBashPersistent.apply(new Context(), { backgroundAfterMs: -1 })
+    }).toThrow('backgroundAfterMs must be a non-negative safe integer')
+    expect(() => {
+      ToolBashPersistent.apply(new Context(), { contentionAfterMs: 1.5 })
+    }).toThrow('contentionAfterMs must be a non-negative safe integer')
   })
 })

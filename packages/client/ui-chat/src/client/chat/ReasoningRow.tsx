@@ -34,6 +34,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
         open={expanded}
         expandable
         expandOnRowClick
+        keepChildrenMounted
         onToggle={() => { setExpanded(value => !value) }}
         collapsedContent={(
           <>

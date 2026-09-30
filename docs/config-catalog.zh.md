@@ -49,7 +49,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/core/agent-default-model/src/index.ts:41`](../packages/core/agent-default-model/src/index.ts)
+来源：[`packages/core/agent-default-model/src/index.ts:44`](../packages/core/agent-default-model/src/index.ts)
 
 <a id="deepseek-aidsh-agent-instructions"></a>
 
@@ -212,6 +212,12 @@ export interface Config {
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Milliseconds between control-stream frames carrying a job's new output
+   * lines (default 250). A deployment paying for the cadence slows it here;
+   * `0` disables output publishing, leaving output to the paged read.
+   */
+  readonly jobOutputPollMs?: number
 }
 ```
 
@@ -1009,7 +1015,7 @@ export interface Config {
 }
 ```
 
-来源：[`packages/jobs/jobs-local/src/index.ts:31`](../packages/jobs/jobs-local/src/index.ts)
+来源：[`packages/jobs/jobs-local/src/index.ts:27`](../packages/jobs/jobs-local/src/index.ts)
 
 <a id="deepseek-aidsh-llm-deepseek"></a>
 
@@ -2719,6 +2725,12 @@ export type TokenMeterConfig = Record<string, never>
 export interface Config {
   /** Expose `run_in_background` (default true); disabled calls are also rejected. */
   enableRunInBackground?: boolean
+  /**
+   * Milliseconds a foreground command may run before it is retired into a
+   * background job instead of holding the shell (default 10000). `0` disables
+   * promotion, leaving `timeoutMs` as the only bound.
+   */
+  backgroundAfterMs?: number
 }
 ```
 
@@ -2741,10 +2753,26 @@ export interface Config {
   maxOutputChars?: number
   /** Model-facing tool description; deployments may describe their environment. */
   description?: string
+  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
+  enableRunInBackground?: boolean
+  /**
+   * Milliseconds a foreground command may run before it is retired into a
+   * background job instead of holding the shell (default 10000). `0` disables
+   * promotion, leaving `timeoutMs` as the only bound.
+   */
+  backgroundAfterMs?: number
+  /**
+   * Milliseconds a foreground command may run before a call waiting for its
+   * shell retires it instead (default 1000). Contention lowers
+   * `backgroundAfterMs` to this bar rather than removing it, so a command that
+   * finishes inside the bar still serves its own caller. `0` leaves only the
+   * threshold.
+   */
+  contentionAfterMs?: number
 }
 ```
 
-来源：[`packages/shell/tool-bash-persistent/src/index.ts:435`](../packages/shell/tool-bash-persistent/src/index.ts)
+来源：[`packages/shell/tool-bash-persistent/src/index.ts:707`](../packages/shell/tool-bash-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs"></a>
 
@@ -2826,12 +2854,8 @@ export interface Config {
 需要：`tools` · `jobs` · `systemPrompt`
 
 ```ts config-catalog
-/** Configures bounded `job_output` waits and completion-notice delivery. */
+/** Configures completion-notice delivery. */
 export interface Config {
-  /** Wait duration applied when `job_output` sets `wait` without `timeout_ms` (default 30s). */
-  waitTimeoutMs?: number
-  /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 10min). */
-  maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */
   completionDelivery?: CompletionDelivery
   /**
@@ -3453,6 +3477,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-locale`（[`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts)）
 - `@deepseek-ai/dsh-client-modules` — 需要 `loader`（[`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts)）
 - `@deepseek-ai/dsh-client-resources`（[`packages/client/resources/src/index.ts`](../packages/client/resources/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-activity`（[`packages/client/ui-activity/src/index.ts`](../packages/client/ui-activity/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-agent-preset`（[`packages/client/ui-agent-preset/src/index.ts`](../packages/client/ui-agent-preset/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-approval`（[`packages/client/ui-approval/src/index.ts`](../packages/client/ui-approval/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-attachment`（[`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts)）
@@ -3466,7 +3491,6 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-directory-picker-native`（[`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-goal`（[`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-input-trigger`（[`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts)）
-- `@deepseek-ai/dsh-client-ui-jobs`（[`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-layout`（[`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-message-feedback`（[`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-model-selection`（[`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts)）

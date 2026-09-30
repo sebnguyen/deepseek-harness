@@ -25,6 +25,7 @@ import { Notifier } from './notifier.ts'
 import { ProjectionValueStore } from './projection-store.ts'
 import { Session } from './session.ts'
 import type { SessionRemotes } from './remotes.ts'
+import type { JobId } from '@deepseek-ai/dsh-jobs/brand'
 
 function sessionSeqCursor(value: number): SessionSeqCursor {
   return value === -1 ? -1 : SessionSeq(value)
@@ -46,6 +47,22 @@ export interface SessionSearchResultItem {
   snippet: string
 }
 
+/** Lines one job's browser buffer keeps before the oldest are dropped. */
+export const JOB_OUTPUT_BUFFER_LINES = 500
+
+/**
+ * One job's accumulated output lines as the browser holds them. Indices are
+ * absolute over the job's own line stream, so a view can tell that earlier
+ * lines were dropped here (`first > 0`) and fetch them from the paged read.
+ */
+export interface JobOutputBuffer {
+  readonly lines: readonly string[]
+  /** Absolute line index of `lines[0]`; anything below it left this buffer. */
+  readonly first: number
+  /** Absolute line index one past the last line held here. */
+  readonly next: number
+}
+
 /** Immutable session-list snapshot for useSessionList. */
 export interface SessionListSnapshot {
   items: readonly SessionListEntry[]
@@ -58,6 +75,8 @@ export interface SessionListSnapshot {
   subagentsByParent: Readonly<Record<SessionId, SubagentCatalogSnapshot>>
   /** Background jobs per session; an absent key is an empty set. */
   jobsBySession: Readonly<Record<SessionId, readonly JobView[]>>
+  /** Mirrored job output lines per session and job; an absent key holds none. */
+  jobOutputBySession: Readonly<Record<SessionId, Readonly<Record<JobId, JobOutputBuffer>>>>
   currentAddress: SubagentAddress | undefined
 }
 
@@ -132,6 +151,35 @@ export class SessionManager {
    * one representation.
    */
   private readonly jobsBySession = new Map<SessionId, readonly JobView[]>()
+
+  /**
+   * Job output lines per session and job, appended from `jobOutput` frames and
+   * bounded per job. A buffer is dropped with its job and cleared by a
+   * reconnect baseline, so it never outlives what it mirrors.
+   */
+  private readonly jobOutputBySession = new Map<SessionId, Map<JobId, JobOutputBuffer>>()
+
+  /**
+   * Reference-stable list-snapshot projections of the three control mirrors.
+   * Each is rebuilt only when its own map mutated since the last snapshot, so a
+   * `jobOutput` burst re-renders no consumer that does not read the buffers:
+   * without this, every burst minted fresh `subagentsByParent`/`jobsBySession`
+   * objects and woke every `useSessions` subscriber beside the history fold
+   * while a session opened.
+   */
+  private catalogsProjection: Readonly<Record<SessionId, SubagentCatalogSnapshot>> = {}
+  private catalogsProjectionVersion = 0
+  private catalogsVersion = 0
+  private jobsProjection: Readonly<Record<SessionId, readonly JobView[]>> = {}
+  private jobsProjectionVersion = 0
+  private jobsVersion = 0
+  private jobOutputProjection: Readonly<Record<SessionId, Readonly<Record<JobId, JobOutputBuffer>>>> = {}
+  private jobOutputProjectionVersion = 0
+  private jobOutputVersion = 0
+
+  private touchCatalogs(): void { this.catalogsVersion++ }
+  private touchJobs(): void { this.jobsVersion++ }
+  private touchJobOutput(): void { this.jobOutputVersion++ }
 
   private selected: SessionId | undefined
 
@@ -358,6 +406,7 @@ export class SessionManager {
     const previous = this.catalogs.get(parentSessionId)
     const expandableRows = new Set<SessionId>()
     const activityRows = new Map<SessionId, 'running' | 'inactive'>()
+    this.touchCatalogs()
     this.catalogs.set(parentSessionId, {
       entries: previous?.entries ?? [],
       ...(previous?.parentAvailable === undefined
@@ -373,6 +422,7 @@ export class SessionManager {
         if (result.ok) {
           const parentAvailable = this.catalogInflight.get(parentSessionId)?.parentAvailableOverride
             ?? result.value.parentAvailable
+          this.touchCatalogs()
           this.catalogs.set(parentSessionId, {
             ...result.value,
             entries: this.withCatalogMutations(result.value.entries, expandableRows, activityRows),
@@ -385,6 +435,7 @@ export class SessionManager {
             this.sessions.get(childId)?.handleSubagentParentAvailable(parentAvailable)
           }
         } else {
+          this.touchCatalogs()
           this.catalogs.set(parentSessionId, {
             entries: this.withCatalogMutations(
               previous?.entries ?? [], expandableRows, activityRows,
@@ -399,6 +450,7 @@ export class SessionManager {
         }
       } catch (error: unknown) {
         if (!isRemoteFailure(error)) throw error
+        this.touchCatalogs()
         this.catalogs.set(parentSessionId, {
           entries: this.withCatalogMutations(
             previous?.entries ?? [], expandableRows, activityRows,
@@ -672,11 +724,62 @@ export class SessionManager {
     if (frame.type === 'jobs') {
       if (frame.jobs.length === 0) this.jobsBySession.delete(frame.sessionId)
       else this.jobsBySession.set(frame.sessionId, frame.jobs)
+      this.touchJobs()
+      this.pruneJobOutput(frame.sessionId, frame.jobs)
+      this.notifier.markDirty()
+      return
+    }
+    if (frame.type === 'jobOutput') {
+      this.appendJobOutput(frame.sessionId, frame.jobId, frame.lines, frame.next)
       this.notifier.markDirty()
       return
     }
     this.queues.set(frame.sessionId, frame.items)
     this.sessions.get(frame.sessionId)?.handleControlFrame(frame)
+  }
+
+  /**
+   * Append one frame's lines to a job's buffer, keeping the newest
+   * {@link JOB_OUTPUT_BUFFER_LINES}. A gap the producer reported re-anchors the
+   * buffer rather than splicing unrelated lines onto what it already held.
+   * @param sessionId - owning session of the job.
+   * @param jobId - job the lines belong to.
+   * @param lines - new lines in order.
+   * @param next - absolute index one past the last new line.
+   */
+  private appendJobOutput(sessionId: SessionId, jobId: JobId, lines: readonly string[], next: number): void {
+    const buffers = this.jobOutputBySession.get(sessionId) ?? new Map<JobId, JobOutputBuffer>()
+    this.jobOutputBySession.set(sessionId, buffers)
+    const held = buffers.get(jobId)
+    const start = next - lines.length
+    const combined = held === undefined || held.next !== start
+      ? { lines: [...lines], first: start }
+      : { lines: [...held.lines, ...lines], first: held.first }
+    const dropped = Math.max(combined.lines.length - JOB_OUTPUT_BUFFER_LINES, 0)
+    buffers.set(jobId, {
+      lines: combined.lines.slice(dropped),
+      first: combined.first + dropped,
+      next,
+    })
+    this.touchJobOutput()
+  }
+
+  /**
+   * Drop buffered lines for jobs the visible set no longer holds, so the mirror
+   * never keeps output for a job the browser cannot see.
+   * @param sessionId - owning session of the visible set.
+   * @param jobs - the session's current visible jobs.
+   */
+  private pruneJobOutput(sessionId: SessionId, jobs: readonly JobView[]): void {
+    const buffers = this.jobOutputBySession.get(sessionId)
+    if (buffers === undefined) return
+    const visible = new Set(jobs.map(job => job.id))
+    let changed = false
+    for (const jobId of buffers.keys()) {
+      if (!visible.has(jobId)) { buffers.delete(jobId); changed = true }
+    }
+    if (buffers.size === 0) { this.jobOutputBySession.delete(sessionId); changed = true }
+    if (changed) this.touchJobOutput()
   }
 
   private replaceControlBaseline(baseline: SessionControlBaseline): void {
@@ -689,6 +792,12 @@ export class SessionManager {
     for (const [sessionId, jobs] of Object.entries(baseline.jobs)) {
       if (jobs.length > 0) this.jobsBySession.set(sessionId as SessionId, jobs)
     }
+    this.touchJobs()
+
+    // A baseline is a new generation: lines from the previous one are not
+    // authoritative, and the paged read serves anything a view still needs.
+    this.jobOutputBySession.clear()
+    this.touchJobOutput()
 
     for (const [sessionId, block] of Object.entries(baseline.projections)) {
       const store = this.projectionStore(sessionId as SessionId)
@@ -740,6 +849,9 @@ export class SessionManager {
     else this.sessions.get(sessionId)?.handleRemoved()
     this.queues.delete(sessionId)
     this.jobsBySession.delete(sessionId)
+    this.touchJobs()
+    this.jobOutputBySession.delete(sessionId)
+    this.touchJobOutput()
     if (!durableSubagent) this.projectionStores.delete(sessionId)
     const inflightCatalog = this.catalogInflight.get(sessionId)
     if (inflightCatalog !== undefined) {
@@ -748,6 +860,7 @@ export class SessionManager {
     }
     const ownedCatalog = this.catalogs.get(sessionId)
     if (ownedCatalog !== undefined && ownedCatalog.parentAvailable) {
+      this.touchCatalogs()
       this.catalogs.set(sessionId, { ...ownedCatalog, parentAvailable: false })
     }
     for (const [childId, address] of this.addresses) {
@@ -830,6 +943,7 @@ export class SessionManager {
         return { ...entry, activity }
       })
       changed = true
+      this.touchCatalogs()
       this.catalogs.set(parentSessionId, { ...catalog, entries })
     }
     if (changed) this.notifier.markDirty()
@@ -852,6 +966,7 @@ export class SessionManager {
         return { ...entry, hasChildren: true }
       })
       changed = true
+      this.touchCatalogs()
       this.catalogs.set(catalogParentId, { ...catalog, entries })
     }
     if (changed) this.notifier.markDirty()
@@ -950,8 +1065,20 @@ export class SessionManager {
       state: this.listState,
       phase: this.listPhase,
       error: this.listError,
-      subagentsByParent: Object.fromEntries(this.catalogs),
-      jobsBySession: Object.fromEntries(this.jobsBySession),
+      subagentsByParent: this.catalogsProjectionVersion === this.catalogsVersion
+        ? this.catalogsProjection
+        : (this.catalogsProjectionVersion = this.catalogsVersion,
+        this.catalogsProjection = Object.fromEntries(this.catalogs)),
+      jobsBySession: this.jobsProjectionVersion === this.jobsVersion
+        ? this.jobsProjection
+        : (this.jobsProjectionVersion = this.jobsVersion,
+        this.jobsProjection = Object.fromEntries(this.jobsBySession)),
+      jobOutputBySession: this.jobOutputProjectionVersion === this.jobOutputVersion
+        ? this.jobOutputProjection
+        : (this.jobOutputProjectionVersion = this.jobOutputVersion,
+        this.jobOutputProjection = Object.fromEntries(
+          [...this.jobOutputBySession].map(([sessionId, buffers]) => [sessionId, Object.fromEntries(buffers)]),
+        )),
       currentAddress: current === undefined ? undefined : this.addresses.get(current),
     }
   }

@@ -954,7 +954,7 @@ function parseWirePayload(payload: string): object | unknown[] | undefined {
     // A body that is not JSON is still the exact dispatch record; the caller renders it verbatim.
     return undefined
   }
-  return typeof value === 'object' && value !== null ? value as object | unknown[] : undefined
+  return typeof value === 'object' && value !== null ? value : undefined
 }
 
 /** Locale key for each captured image representation. */

@@ -56,12 +56,13 @@ Web 客户端需要从一个未必在 Host 机器上的浏览器查看会话工�
 
 `read`、`readBytes`、`readAll`、`readRelated` 与 `stat` 共享普通文件检查，之后依赖文件系统后端的读取权限。`list` 共享路径检查，但还会检查工作区包含关系；`changes` 则把观察过滤到工作区根内。服务执行以下检查：
 
-1. **路径本身。** `lstat` 在跟随任何东西之前检查路径：缺失路径为 `not-found`；符号链接——不论指向哪里，包括指回工作区内——对文件方法为 `not-regular-file`（kind 为 `symlink`），对 `list` 为 `not-directory`。空路径是 `gateway/bad-request`。
-2. **`list` 的工作区包含。** 目录解析为目标，由 `ctx.fs.contains(root, target)` 判定，其中 `root` 是从所选 Session header 解析出的 `WorkspaceFileScope.workspaceRoot`。`..` 爬出或根外绝对目录为 `outside-workspace`。`changes` 对观察到的目标使用相同的后端包含判定。
-3. **上限。** 超过 `maxBytes` 的页或窗口，或 `read` 索要超过 `maxLines` 的行数，一律拒绝、绝不截短，因为悄悄截短的页读起来就像整页；超过 `maxEntries` 的列表被截断并如实报告。全文及关联文件读取超过 `maxFileBytes` 时被拒绝。
-4. **文本。** 仅限 `read`：到页末为止不是 UTF-8 的内容、后端 8 KiB 开头样本里的 NUL 字节，或页内任何位置的 NUL 字节，都是 `not-text`；页之后的字节不检查。
+1. **路径。** 解析会跟随路径的末端组件，因此符号链接会解析到其目标：无条目的路径，包括目标缺失的链接，为 `not-found`。[跟随符号链接决策](2026-09-28-workspace-file-symlink-follow.zh.md)取代本笔记原先对末端链接的拒绝。空路径是 `gateway/bad-request`。
+2. **解析后的类型。** 文件方法要求普通文件，否则抛出 `not-regular-file`；`list` 要求目录，否则抛出 `not-directory`。
+3. **`list` 的工作区包含。** 目录解析为目标，由 `ctx.fs.contains(root, target)` 判定，其中 `root` 是从所选 Session header 解析出的 `WorkspaceFileScope.workspaceRoot`。`..` 爬出、根外绝对目录，或目标位于根外的链接，都是 `outside-workspace`。`changes` 对观察到的目标使用相同的后端包含判定。
+4. **上限。** 超过 `maxBytes` 的页或窗口，或 `read` 索要超过 `maxLines` 的行数，一律拒绝、绝不截短，因为悄悄截短的页读起来就像整页；超过 `maxEntries` 的列表被截断并如实报告。全文及关联文件读取超过 `maxFileBytes` 时被拒绝。
+5. **文本。** 仅限 `read`：到页末为止不是 UTF-8 的内容、后端 8 KiB 开头样本里的 NUL 字节，或页内任何位置的 NUL 字节，都是 `not-text`；页之后的字节不检查。
 
-路径检查之后，文件方法再对解析出的目标 `stat` 一次，因为文件可能在读取前已消失或换了种类：消失者为 `not-found`，被替换者为带新种类的 `not-regular-file`。对 `list` 而言，根外条目若类型本身已不合格，会先报告其种类而不是位置。
+对 `list` 而言，根外条目若类型本身已不合格，会先报告其种类而不是位置。文件若在类型检查之后消失或改变类型，由后端报告——后端在读取前会再 stat 一次。
 
 ### 失败
 
@@ -73,8 +74,8 @@ Web 客户端需要从一个未必在 Host 机器上的浏览器查看会话工�
 | `workspace-file/outside-workspace` | `list` 的目标不在工作区根内 | `{ path }` |
 | `workspace-file/too-large` | 一页文本或字节窗口超过 `maxBytes`，或全文读取超过 `maxFileBytes` | `{ path, limit }` |
 | `workspace-file/not-text` | 到页末为止的非法 UTF-8，或样本或页内的 NUL 字节（仅 `read`） | `{ path }` |
-| `workspace-file/not-regular-file` | 对非普通文件执行 `read`、`readBytes`、`readAll`、`readRelated` 或 `stat` | `{ path, kind: 'directory' \| 'symlink' \| 'other' }` |
-| `workspace-file/not-directory` | 对非目录执行 `list` | `{ path, kind: 'file' \| 'symlink' \| 'other' }` |
+| `workspace-file/not-regular-file` | 对非普通文件执行 `read`、`readBytes`、`readAll`、`readRelated` 或 `stat` | `{ path, kind: 'directory' \| 'other' }` |
+| `workspace-file/not-directory` | 对非目录执行 `list` | `{ path, kind: 'file' \| 'other' }` |
 | `workspace-file/unsupported-address` | Client 铸出：本提供者无法服务的资源地址 | `{ address }` |
 | `workspace-file/unknown-workspace` | Client 铸出：不携带 Session 的 `absolute` 地址 | `{ address }` |
 | `gateway/bad-request` | 空路径，或不是范围内整数的 `offset`、`limit`、`length` | `{}` |

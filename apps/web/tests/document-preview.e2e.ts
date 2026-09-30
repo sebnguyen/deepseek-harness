@@ -1,4 +1,4 @@
-/** Keyless document-preview smoke through a real Session, Files tab, and shipped renderers. */
+/** Keyless document-preview smoke through a real Session, explorer column, and shipped renderers. */
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
@@ -51,7 +51,7 @@ async function canvasColor(canvas: Locator): Promise<string> {
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: document preview through Files', () => {
+describe.skipIf(MODE === 'record')('web e2e: document preview through the explorer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -132,60 +132,44 @@ describe.skipIf(MODE === 'record')('web e2e: document preview through Files', ()
       writeFile(join(cwd, 'smoke.pdf'), pdfFixture()),
     ])
 
+    // The panel starts expanded per session with the guide seated, and the
+    // explorer column inside it lists the workspace root for as long as the
+    // panel is shown; the expand button exists only once collapsed.
     const column = page.locator('[data-rightbar-col]')
-    await page.locator('[data-sidebar-right-expand]').click()
-    await column.locator('[data-files-state="tree"]').waitFor({ state: 'visible' })
-    await column.locator('[data-files-reload]').click()
-    const filesTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('Files', { exact: true }) })
+    await column.locator('[data-sidebar-right-open]').waitFor({ state: 'visible' })
+    const explorer = column.locator('[data-sidebar-right-explorer]')
+    await explorer.locator('[data-files-explorer-state="tree"]').waitFor({ state: 'visible' })
+    await explorer.locator('[data-files-explorer-reload]').click()
+    const guideTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('Start', { exact: true }) })
     const addTab = column.locator('[data-dockkit-add-tab]')
     expect(await column.locator('[data-dockkit-tab]').count()).toBe(1)
-    const defaultTitle = await filesTab.locator('[data-dockkit-tab-title]').innerText()
-    const initialFilesClose = await filesTab.locator('[data-dockkit-tab-close]').count()
-    expect(initialFilesClose).toBe(1)
-    await filesTab.click({ button: 'right' })
-    expect(await page.locator('[data-dockkit-tab-menu]:visible').count()).toBe(1)
-    await page.keyboard.press('Escape')
-    await addTab.waitFor({ state: 'visible' })
-    const initialAdd = await addTab.count()
-    expect(initialAdd).toBe(1)
-    await addTab.click()
-    await column.locator('[data-sidebar-right-guide]').waitFor({ state: 'visible' })
-    await expect.poll(() => column.locator('[data-dockkit-tab]').count()).toBe(2)
-    const guideTab = column.locator('[data-dockkit-tab]').filter({ hasNot: page.getByText('Files', { exact: true }) })
-    const guideClose = await guideTab.locator('[data-dockkit-tab-close]').count()
-    const filesCloseWithGuide = await filesTab.locator('[data-dockkit-tab-close]').count()
-    expect(guideClose).toBe(1)
-    expect(filesCloseWithGuide).toBe(1)
-    await expect.poll(() => addTab.count()).toBe(0)
+    const defaultTitle = await guideTab.locator('[data-dockkit-tab-title]').innerText()
+    const guideCloseAlone = await guideTab.locator('[data-dockkit-tab-close]').count()
+    expect(guideCloseAlone).toBe(0)
     const addWithGuide = await addTab.count()
-    await guideTab.hover()
-    await guideTab.locator('[data-dockkit-tab-close]').click()
-    await column.locator('[data-files-state="tree"]').waitFor({ state: 'visible' })
-    await expect.poll(() => column.locator('[data-sidebar-right-guide]').count()).toBe(0)
-    await expect.poll(() => column.locator('[data-dockkit-tab]').count()).toBe(1)
-    await addTab.waitFor({ state: 'visible' })
-    const restoredFilesClose = await filesTab.locator('[data-dockkit-tab-close]').count()
-    const restoredAdd = await addTab.count()
-    expect(restoredFilesClose).toBe(1)
-    expect(restoredAdd).toBe(1)
+    expect(addWithGuide).toBe(0)
     const preview = column.locator('[data-document-preview]')
     const openFile = async (name: string): Promise<void> => {
-      await filesTab.click()
-      await column.locator('[data-files-entry="file"]').getByRole('button', { name, exact: true }).click()
+      await explorer.locator('[data-files-entry="file"]').getByRole('button', { name, exact: true }).click()
       await expect.poll(async () => (await preview.getAttribute('data-textpreview-url'))?.endsWith(`/${name}`)).toBe(true)
     }
     const viewer = preview.locator('[data-document-viewer-menu]')
     const body = preview.locator('[data-textpreview-body]')
     const sections = ['# Document preview']
+
+    await openFile('smoke.md')
+    const markdownTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('smoke.md', { exact: true }) })
+    const guideCloseWithFile = await guideTab.locator('[data-dockkit-tab-close]').count()
+    const fileCloseWithGuide = await markdownTab.locator('[data-dockkit-tab-close]').count()
+    expect(guideCloseWithFile).toBe(1)
+    expect(fileCloseWithGuide).toBe(1)
     sections.push([
       '## Sidebar tabs', '',
       `- Default tab: ${defaultTitle}`,
-      `- Files close buttons (alone -> with guide -> restored): ${[initialFilesClose, filesCloseWithGuide, restoredFilesClose].join(' -> ')}`,
-      `- Manual guide close buttons: ${guideClose}`,
-      `- Add buttons (Files -> guide -> Files): ${[initialAdd, addWithGuide, restoredAdd].join(' -> ')}`,
+      `- Guide close buttons (alone -> with file): ${guideCloseAlone} -> ${guideCloseWithFile}`,
+      `- Add buttons while the guide sits: ${addWithGuide}`,
+      `- File tab close with guide: ${fileCloseWithGuide}`,
     ].join('\n'))
-
-    await openFile('smoke.md')
     await expect.poll(() => viewer.innerText()).toBe('Markdown')
     await preview.getByRole('heading', { name: 'Markdown smoke', exact: true }).waitFor({ timeout: 15_000 })
     expect(await preview.getByText('Rendered from the workspace.', { exact: true }).isVisible()).toBe(true)
@@ -201,7 +185,6 @@ describe.skipIf(MODE === 'record')('web e2e: document preview through Files', ()
     const tailHeading = await markdownTail.innerText()
     await preview.getByRole('heading', { name: heading, exact: true }).scrollIntoViewIfNeeded()
     await successShot(page, 'markdown')
-    const markdownTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('smoke.md', { exact: true }) })
     const markdownTabId = await markdownTab.getAttribute('data-dockkit-tab')
     expect(markdownTabId).not.toBeNull()
     const tabCount = await column.locator('[data-dockkit-tab]').count()
@@ -295,8 +278,10 @@ describe.skipIf(MODE === 'record')('web e2e: document preview through Files', ()
     const pdfTab = column.locator('[data-dockkit-tab]').filter({ has: page.getByText('smoke.pdf', { exact: true }) })
     const pdfTabId = await pdfTab.getAttribute('data-dockkit-tab')
     expect(pdfTabId).not.toBeNull()
-    await filesTab.click()
-    await column.locator('[data-files-state="tree"]').waitFor({ state: 'visible' })
+    // Leaving through the guide and back proves the pdf pane body restores
+    // its pages; the explorer beside the panes keeps the tree regardless.
+    await guideTab.click()
+    await column.locator('[data-sidebar-right-guide]').waitFor({ state: 'visible' })
     await pdfTab.click()
     await preview.locator('[data-pdf-page="2"]').scrollIntoViewIfNeeded()
     await secondPage.waitFor({ state: 'visible', timeout: 30_000 })

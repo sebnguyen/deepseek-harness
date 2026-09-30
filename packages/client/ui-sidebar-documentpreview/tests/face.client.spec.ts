@@ -39,7 +39,7 @@ function bytesFailure(): RemoteResult<never> {
     error: {
       name: 'RemoteError',
       isDSHRemoteError: true,
-      code: 'workspace-file/outside-workspace',
+      code: 'workspace-file/not-found',
       message: 'The file is outside the caller workspace',
       details: { path: ABSOLUTE_PATH },
     },
@@ -88,7 +88,7 @@ function bench(sessionId = 'other-session' as SessionId) {
   onTestFinished(async () => {
     controller.abort()
     const remaining = pending.splice(0)
-    for (const call of remaining) call.resolve(failure('workspace-file/outside-workspace', { path: PATH }))
+    for (const call of remaining) call.resolve(failure('workspace-file/not-found', { path: PATH }))
     await Promise.all([...remaining.map(call => call.promise), whole.close()])
   })
   // The store's own `forget`, counted: the record's end must forget a tab exactly once.
@@ -136,8 +136,8 @@ describe('textFace', () => {
   it('records a failed read', async () => {
     const { face, settle, tab } = bench()
     face.loadPage(TAB_1, FILE, 1, new AbortController().signal)
-    await settle(failure('workspace-file/outside-workspace', { path: PATH }))
-    expect(tab()?.failure?.code).toBe('workspace-file/outside-workspace')
+    await settle(failure('workspace-file/not-found', { path: PATH }))
+    expect(tab()?.failure?.code).toBe('workspace-file/not-found')
     expect(tab()?.loading).toBe(false)
   })
 
@@ -232,7 +232,7 @@ describe('textFace', () => {
     const { face, settleAll, tab, controller } = bench()
     face.loadAll(TAB_1, FILE, controller.signal)
     await settleAll(bytesFailure())
-    expect(tab()).toMatchObject({ mode: 'bytes-complete', loading: false, failure: { code: 'workspace-file/outside-workspace' } })
+    expect(tab()).toMatchObject({ mode: 'bytes-complete', loading: false, failure: { code: 'workspace-file/not-found' } })
     expect(tab()?.complete).toBeUndefined()
     face.loadAll(TAB_1, FILE, controller.signal)
     expect(tab()).toMatchObject({ loading: true, failure: undefined })
@@ -283,7 +283,7 @@ describe('textFace', () => {
     await settleAll(bytesFailure())
     expect(tab()).toMatchObject({
       mode: 'bytes-complete', loading: false, version: undefined, eof: false,
-      failure: { code: 'workspace-file/outside-workspace' },
+      failure: { code: 'workspace-file/not-found' },
     })
     expect(tab()?.complete).toBeUndefined()
   })

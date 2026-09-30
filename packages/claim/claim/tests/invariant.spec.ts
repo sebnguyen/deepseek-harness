@@ -25,7 +25,7 @@ async function setup(): Promise<Context> {
 }
 
 /** The failure shape the invariant reporter raises for this package. */
-const claimInvariantFailure = expect.objectContaining<Partial<InvariantError>>({
+const claimInvariantFailure: unknown = expect.objectContaining<Partial<InvariantError>>({
   code: 'INVARIANT',
   packageName: '@deepseek-ai/dsh-claim',
 })

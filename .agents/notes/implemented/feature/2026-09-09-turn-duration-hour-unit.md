@@ -16,7 +16,7 @@ The change is confined to the turn formatter. `StatsPills.formatDuration` — th
 
 ## Alternatives considered
 
-**Pair hours with minutes only.** Dropping seconds at the hour boundary matches the `ui-jobs` job-duration format and keeps the label short. It loses the second-level figure from the settled footer, and it makes the live clock look frozen: the label would change once a minute while the turn is still running.
+**Pair hours with minutes only.** Dropping seconds at the hour boundary matches the `ui-activity` background-duration format and keeps the label short. It loses the second-level figure from the settled footer, and it makes the live clock look frozen: the label would change once a minute while the turn is still running.
 
 **Three units while running, two once settled.** Rejected because both readings come from one function by design — the archived decision pins that — so the same turn would report different precision before and after it settles.
 

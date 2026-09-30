@@ -49,7 +49,7 @@ describe('claim service', () => {
   it('refuses a declaration while no turn is open', async () => {
     const { ctx, agent } = await harness()
     expect(() => ctx.claims.declare(agent, { title: 'ship', description: 'x', script: 'exit 0' }))
-      .toThrowError(/open model turn/)
+      .toThrow(/open model turn/)
     expect(ctx.claims.ledger(agent)).toEqual([])
   })
 
@@ -111,23 +111,23 @@ describe('claim service', () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
     expect(() => ctx.claims.declare(agent, { title: '   ', description: 'x', script: 'exit 0' }))
-      .toThrowError(/title/)
+      .toThrow(/title/)
     expect(() => ctx.claims.declare(agent, { title: 'x', description: '   ', script: 'exit 0' }))
-      .toThrowError(/description/)
+      .toThrow(/description/)
   })
 
   it('refuses a title longer than the short-label bound', async () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
     expect(() => ctx.claims.declare(agent, { title: 'x'.repeat(81), description: 'y', script: 'exit 0' }))
-      .toThrowError(/at most 80 characters/)
+      .toThrow(/at most 80 characters/)
   })
 
   it('refuses an empty verifier script', async () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
     expect(() => ctx.claims.declare(agent, { title: 'x', description: 'y', script: '  ' }))
-      .toThrowError(/non-empty string/)
+      .toThrow(/non-empty string/)
   })
 
   it('advances the revision and counts failures per claim as results are recorded', async () => {
@@ -149,7 +149,7 @@ describe('claim service', () => {
     const claim = ctx.claims.declare(agent, { title: 'x', description: 'y', script: 'exit 0' })
     ctx.claims.settle(agent, claim.id, { kind: 'passed' })
     expect(() => ctx.claims.record(agent, claim.id, { outcome: 'fail', evidence: 'late' }))
-      .toThrowError(/already settled/)
+      .toThrow(/already settled/)
   })
 
   it('refuses to record against an unknown claim id', async () => {
@@ -157,14 +157,14 @@ describe('claim service', () => {
     startTurn(1)
     ctx.claims.declare(agent, { title: 'x', description: 'y', script: 'exit 0' })
     expect(() => ctx.claims.record(agent, ClaimId('missing'), { outcome: 'fail', evidence: 'late' }))
-      .toThrowError(/does not exist/)
+      .toThrow(/does not exist/)
   })
 
   it('refuses to abandon a claim whose bound verifier has not run', async () => {
     const { ctx, agent, startTurn } = await harness()
     startTurn(1)
     const claim = ctx.claims.declare(agent, { title: 'x', description: 'y', script: 'exit 1' })
-    expect(() => ctx.claims.abandon(agent, claim.id, 'wrong condition')).toThrowError(/has not run yet/)
+    expect(() => ctx.claims.abandon(agent, claim.id, 'wrong condition')).toThrow(/has not run yet/)
   })
 
   it('abandons once a result exists and settles blocked', async () => {
@@ -187,13 +187,13 @@ describe('claim service', () => {
     const settled = ctx.claims.settle(agent, claim.id, { kind: 'passed' })
     expect(settled.settlement).toEqual({ kind: 'passed' })
     expect(() => ctx.claims.record(agent, claim.id, { outcome: 'fail', evidence: 'late' }))
-      .toThrowError(/already settled/)
+      .toThrow(/already settled/)
   })
 
   it('rejects a claim operation for an agent that is not the live registry instance', async () => {
     const { ctx, agent } = await harness()
     const impostor = { ...agent, id: agent.id }
-    expect(() => ctx.claims.openClaims(impostor)).toThrowError(/not the live registry instance/)
+    expect(() => ctx.claims.openClaims(impostor)).toThrow(/not the live registry instance/)
   })
 
   it('folds a resumed session back to the same ledger', async () => {

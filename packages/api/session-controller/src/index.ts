@@ -15,6 +15,7 @@ import {
   inspectApiSession,
   type ApiSessionAgentResult,
 } from './agent.ts'
+import { readJobOutput } from './job-output.ts'
 import { SessionCommandController } from './commands.ts'
 import { SessionControlController } from './control.ts'
 import { SessionHistoryController } from './history.ts'
@@ -37,6 +38,8 @@ import type {
   SessionFollowRequest,
   SessionForkRequest,
   SessionForkValue,
+  SessionJobOutputRequest,
+  SessionJobOutputValue,
   SessionListRequest,
   SessionListValue,
   SessionOpenWorkspacePathRequest,
@@ -71,6 +74,12 @@ declare module '@deepseek-ai/cordis' {
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Milliseconds between control-stream frames carrying a job's new output
+   * lines (default 250). A deployment paying for the cadence slows it here;
+   * `0` disables output publishing, leaving output to the paged read.
+   */
+  readonly jobOutputPollMs?: number
 }
 
 /** Host integrations replaceable by direct unit tests. */
@@ -100,6 +109,7 @@ export class SessionController extends TypertRemoteService {
 
   static Config: z<Config> = z.object({
     nativeOpen: z.boolean(),
+    jobOutputPollMs: z.number().min(0).default(250),
   })
 
   private readonly agents: ApiSessionAgentController
@@ -127,7 +137,7 @@ export class SessionController extends TypertRemoteService {
       if ('error' in result) throw result.error
       return result.agent
     }), 'session-controller: file-upload Agent resolver')
-    this.controlState = new SessionControlController(ctx)
+    this.controlState = new SessionControlController(ctx, { jobOutputPollMs: config.jobOutputPollMs ?? 250 })
     // Registered before history so reverse-order teardown closes every
     // follower before waiting for already-admitted promotions.
     ctx.effect(() => async () => {
@@ -264,6 +274,17 @@ export class SessionController extends TypertRemoteService {
   @Remote('modelCatalog')
   modelCatalog(): Promise<ModelCatalog> {
     return buildModelCatalog(this.ctx)
+  }
+
+  /**
+   * Read one job's retained output for a cold or back-paged view, which the
+   * pushed frames cannot serve: they carry only what a stream saw live.
+   * @param request - owning Session, job id, and absolute line index to read from.
+   * @returns the retained lines from that index, where to continue, and whether the producer keeps an addressable buffer.
+   */
+  @Remote('jobOutput')
+  jobOutput(request: SessionJobOutputRequest): SessionJobOutputValue {
+    return readJobOutput(this.ctx, request)
   }
 
   /**

@@ -10,7 +10,7 @@ Workspace Files 同时提供文件内容与工作区导航。对所有操作应�
 
 ## Decision
 
-`read`、`readBytes`、`readAll`、`readRelated` 与 `stat` 继承被寻址 Session 的文件系统后端读取权限。工作区根是输入相对路径的基准，而不是读取边界；只要后端允许，就可以读取绝对路径和离开工作区的相对路径。服务仍要求普通文件、拒绝符号链接，并应用文本和字节上限。
+`read`、`readBytes`、`readAll`、`readRelated` 与 `stat` 继承被寻址 Session 的文件系统后端读取权限。工作区根是输入相对路径的基准，而不是读取边界；只要后端允许，就可以读取绝对路径和离开工作区的相对路径。服务仍要求普通文件并应用文本和字节上限，且会跟随末端符号链接到其目标，见[跟随符号链接决策](2026-09-28-workspace-file-symlink-follow.zh.md)。
 
 `list` 与 `changes` 仍限于工作区，因为它们暴露工作区导航和观察，而不是读取一个具名文件。`list` 拒绝根外目录，`changes` 通过后端的工作区包含判定过滤观察。
 

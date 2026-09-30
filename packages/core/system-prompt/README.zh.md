@@ -49,9 +49,9 @@ kind: "package-reference"
 | `includeRuntimeContext` | `true` | 是否在组装中包含有序动态 runtime 上下文 |
 | `personaPrefix` | `''` | 全局 persona 前缀模板，顺序为 `0`，位于第一方指导之前 |
 | `personaSuffix` | `''` | 全局 `deployment:persona-suffix` 模板，顺序为 `10200`，位于第一方指导之后 |
-| `toolOrder` | — | 显式面向模型工具顺序，含一个 `'<unlisted-tools>'` 其余项标记 |
+| `toolOrder` | `write`、`edit`、`read`，然后已挂载的 shell，再按字典序 | 显式面向模型工具顺序，含一个 `'<unlisted-tools>'` 其余项标记 |
 
-生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-system-prompt)是每个受支持字段的穷尽式真源。没有恰好一个其余项或存在重复项的 `toolOrder` 列表会在加载时失败；已列名称没有对应已注册工具会使每次 `assemble()` 被拒绝。
+生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-system-prompt)是每个受支持字段的穷尽式真源。没有恰好一个其余项或存在重复项的 `toolOrder` 列表会在加载时失败；已列名称没有对应已注册工具会使每次 `assemble()` 被拒绝。省略 `toolOrder` 时应用上表中的默认优先顺序：先改变工作区的工具，然后是组合所挂载的 shell（`bash` 或 `pwsh`，两者作为同一族排序，因此各平台无需单独规则），其余工具按字典序排在其后。
 
 ### 贡献提示词段
 
@@ -104,7 +104,7 @@ ctx.systemPrompt.variable('cwd', ({ agent }) => agent?.session.header.cwd)
 
 ### 组装与渲染
 
-组装分两阶段完成求值与渲染：`assemble()` 返回文本已求值但尚未插值的段、有序工具 schema，以及每个已注册变量按当前上下文求得的值；`renderPrompt()` 插值 `{{variable}}` 引用、删除空段并用空行连接——严格规则：未知引用、已注册但无值的引用或格式错误的完整组都会抛出，因为格式错误的提示词比明确失败更糟。`toolOrder` 在 waterfall 分发前规范化收集到的工具（注册顺序只是插件加载产物）；修改列表的 waterfall 监听器对其输出的确定性负责。
+组装分两阶段完成求值与渲染：`assemble()` 返回文本已求值但尚未插值的段、有序工具 schema，以及每个已注册变量按当前上下文求得的值；`renderPrompt()` 插值 `{{variable}}` 引用、删除空段并用空行连接——严格规则：未知引用、已注册但无值的引用或格式错误的完整组都会抛出，因为格式错误的提示词比明确失败更糟。`toolOrder` 在 waterfall 分发前规范化收集到的工具，省略 `toolOrder` 时应用默认优先顺序（两种情况下的注册顺序都只是插件加载产物）；修改列表的 waterfall 监听器对其输出的确定性负责。
 
 ### 作用域
 
@@ -155,7 +155,7 @@ You are an AI agent powered by DeepSeek Harness.
 
 #### 模型看到什么
 
-对于已交付工具，模型会收到[生成工具 schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tools)中对每个 agent 可见的子集；限制与组装拦截完成后，按配置或字典序排列。扩展可以通过同一注册表贡献其他定义。段与 schema 提供方是独立的组装输入。限制不会移除段落注册：工具指导插件通过 `text({ scope })` 与 `ctx.tools.get(name, scope)` 返回空文本或选择适用片段。任意静态段落不会被自动改写。
+对于已交付工具，模型会收到[生成工具 schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tools)中对每个 agent 可见的子集；限制与组装拦截完成后，按配置或默认优先顺序排列。扩展可以通过同一注册表贡献其他定义。段与 schema 提供方是独立的组装输入。限制不会移除段落注册：工具指导插件通过 `text({ scope })` 与 `ctx.tools.get(name, scope)` 返回空文本或选择适用片段。任意静态段落不会被自动改写。
 
 #### Token 影响
 

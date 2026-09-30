@@ -4,8 +4,9 @@
  *
  * The tree is not one resource. A directory listing per level, expanded lazily,
  * is state the type owns — so it lives in a Slot-standard exclusive store
- * (one instance per session), bucketed by tab id because two tabs of this kind
- * in one session expand independently.
+ * (one instance per session), bucketed by the tree's owner: a tab id for tabs
+ * of this kind, which expand independently, or the session id itself for the
+ * explorer column drawn beside the sidebar's panes.
  *
  * Writers run between `start` and `forget`: the owner's `signal` is what ends a
  * bucket's life, and the face stops dispatching once it aborts.
@@ -13,7 +14,11 @@
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceDirectoryEntry } from '@deepseek-ai/dsh-api-workspace-files/types'
+
+/** One tree's key: a tab id for a files tab, the session id for the explorer column. */
+export type TreeKey = TabId | SessionId
 
 /**
  * One directory's contents, as one expanded level of the tree.
@@ -35,7 +40,7 @@ export type LevelState =
   | { readonly kind: 'failed'; readonly failure: RemoteFailure }
 
 /**
- * One tab's tree: its root, the levels it has asked for, and what is open.
+ * One tree: its root, the levels it has asked for, and what is open.
  *
  * Every path here is absolute: the root is the session's working directory as
  * the Host reports it, and a child is the parent joined with the entry name.
@@ -49,94 +54,95 @@ export interface FilesTabState {
   expanded: string[]
 }
 
-/** Every tab's tree, keyed by tab id. */
+/** Every tree, keyed by its owner id. */
 export interface FilesState {
-  byTab: Record<TabId, FilesTabState>
+  byTree: Record<TreeKey, FilesTabState>
 }
 
 /**
- * One tab's bucket, which every writer after `start` relies on: the face only
- * dispatches while the record's signal is live, and `forget` runs on its abort.
+ * One tree's bucket, which every writer after `start` relies on: the face only
+ * dispatches while the owner's signal is live, and `forget` runs on its abort.
  * @param state - the draft.
- * @param tabId - the tab being written.
- * @returns the tab's tree.
+ * @param key - the tree being written.
+ * @returns the tree.
  */
-function bucket(state: FilesState, tabId: TabId): FilesTabState {
-  const tree = state.byTab[tabId]
-  if (tree === undefined) throw new Error(`ui-sidebar-files: no tree for tab "${tabId}"`)
+function bucket(state: FilesState, key: TreeKey): FilesTabState {
+  const tree = state.byTree[key]
+  if (tree === undefined) throw new Error(`ui-sidebar-files: no tree for "${key}"`)
   return tree
 }
 
-/** The tree store's write set; every action names the tab it writes. */
+/** The tree store's write set; every action names the tree it writes. */
 type FilesActions = {
-  start: (draft: FilesState, tabId: TabId, root: string) => void
-  loading: (draft: FilesState, tabId: TabId, path: string) => void
-  loaded: (draft: FilesState, tabId: TabId, path: string, level: DirLevel) => void
-  failed: (draft: FilesState, tabId: TabId, path: string, failure: RemoteFailure) => void
-  toggled: (draft: FilesState, tabId: TabId, path: string) => void
-  reset: (draft: FilesState, tabId: TabId) => void
-  forget: (draft: FilesState, tabId: TabId) => void
+  start: (draft: FilesState, key: TreeKey, root: string) => void
+  loading: (draft: FilesState, key: TreeKey, path: string) => void
+  loaded: (draft: FilesState, key: TreeKey, path: string, level: DirLevel) => void
+  failed: (draft: FilesState, key: TreeKey, path: string, failure: RemoteFailure) => void
+  toggled: (draft: FilesState, key: TreeKey, path: string) => void
+  reset: (draft: FilesState, key: TreeKey) => void
+  forget: (draft: FilesState, key: TreeKey) => void
 }
 
 /**
  * Declare the file tree's store.
  *
- * A factory rather than a shared handle: the registration declares it as an
- * exclusive store, so the framework mints one instance per session.
+ * A factory rather than a shared handle: the registrations declare it as an
+ * exclusive store, so the framework mints one instance per session, shared by
+ * the tab type and the explorer column.
  * @returns the store handle to declare on the registration.
  */
 export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> {
   return defineStore({
-    init: (): FilesState => ({ byTab: {} }),
+    init: (): FilesState => ({ byTree: {} }),
     actions: {
       /**
-       * Seed one tab's tree at its workspace root, with the root expanded.
+       * Seed one tree at its workspace root, with the root expanded.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        * @param root - absolute path of the workspace root.
        */
-      start: (d, tabId: TabId, root: string) => {
-        d.byTab[tabId] = { root, levels: {}, expanded: [root] }
+      start: (d, key: TreeKey, root: string) => {
+        d.byTree[key] = { root, levels: {}, expanded: [root] }
       },
       /**
        * Mark one directory as being listed.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        * @param path - absolute directory path.
        */
-      loading: (d, tabId: TabId, path: string) => {
-        bucket(d, tabId).levels[path] = { kind: 'loading' }
+      loading: (d, key: TreeKey, path: string) => {
+        bucket(d, key).levels[path] = { kind: 'loading' }
       },
       /**
        * Record one directory's contents.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        * @param path - absolute directory path.
        * @param level - the listing to show under it.
        */
-      loaded: (d, tabId: TabId, path: string, level: DirLevel) => {
-        bucket(d, tabId).levels[path] = { kind: 'ready', level }
+      loaded: (d, key: TreeKey, path: string, level: DirLevel) => {
+        bucket(d, key).levels[path] = { kind: 'ready', level }
       },
       /**
        * Record why one directory could not be listed.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        * @param path - absolute directory path.
        * @param failure - the settled Remote failure.
        */
-      failed: (d, tabId: TabId, path: string, failure: RemoteFailure) => {
-        bucket(d, tabId).levels[path] = { kind: 'failed', failure }
+      failed: (d, key: TreeKey, path: string, failure: RemoteFailure) => {
+        bucket(d, key).levels[path] = { kind: 'failed', failure }
       },
       /**
        * Open a collapsed directory, or collapse an open one.
        *
        * A collapsed level keeps what it loaded, so reopening it draws at once.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        * @param path - absolute directory path.
        */
-      toggled: (d, tabId: TabId, path: string) => {
-        const state = bucket(d, tabId)
+      toggled: (d, key: TreeKey, path: string) => {
+        const state = bucket(d, key)
         const at = state.expanded.indexOf(path)
         if (at >= 0) state.expanded.splice(at, 1)
         else state.expanded.push(path)
@@ -147,18 +153,18 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
        * This is the reload gesture's first half: the expanded set says which
        * levels to fetch again.
        * @param d - draft state.
-       * @param tabId - the tab being drawn.
+       * @param key - the tree being drawn.
        */
-      reset: (d, tabId: TabId) => {
-        bucket(d, tabId).levels = {}
+      reset: (d, key: TreeKey) => {
+        bucket(d, key).levels = {}
       },
       /**
-       * Forget one tab's tree, for a tab record that is gone.
+       * Forget one tree whose owner is gone.
        * @param d - draft state.
-       * @param tabId - the tab that went away.
+       * @param key - the tree that went away.
        */
-      forget: (d, tabId: TabId) => {
-        d.byTab = Object.fromEntries(Object.entries(d.byTab).filter(([id]) => id !== tabId))
+      forget: (d, key: TreeKey) => {
+        d.byTree = Object.fromEntries(Object.entries(d.byTree).filter(([id]) => id !== key))
       },
     },
   })

@@ -19,17 +19,17 @@ export interface SidebarRightSeed {
 }
 
 /**
- * Resolve the default page from the registered entry count.
+ * Resolve the default page: the guide, whatever is registered.
+ *
+ * The explorer column owns the session's always-visible file tree, so an
+ * emptied pane returns to the guide's overview rather than to a second tree.
  * @param tabs - current tab registry.
- * @returns the sole entry, or the guide when there are zero or multiple entries.
+ * @returns the guide's kind and title.
  */
 export function defaultSeed(tabs: SidebarRightTabRegistry): SidebarRightSeed {
-  const [only, ...others] = tabs.guide()
-  const single = only !== undefined && others.length === 0
-  const kind = single ? only.kind : GUIDE_KIND
-  const definition = tabs.get(kind)
-  if (definition === undefined) throw new Error(`sidebarRight: default tab kind "${kind}" is not registered`)
-  return { kind, title: definition.title(pageAddress(kind)) }
+  const definition = tabs.get(GUIDE_KIND)
+  if (definition === undefined) throw new Error(`sidebarRight: default tab kind "${GUIDE_KIND}" is not registered`)
+  return { kind: GUIDE_KIND, title: definition.title(pageAddress(GUIDE_KIND)) }
 }
 
 /** The guide tab's kind. */

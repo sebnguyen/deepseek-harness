@@ -74,7 +74,8 @@ function harness() {
     return found.id
   }
   const entries = (): number => instance.getSnapshot().bySession[SESSION]?.history.entries.length ?? 0
-  // A surface starts empty; expanding seeds the default guide ('seed').
+  // A surface starts expanded with the default guide ('seed') seated; `expand`
+  // stays for tests written around it and no-ops.
   const expand = (): void => { instance.actions.setExpanded(SESSION, true) }
   return { controller, adopt, tabs, instance, pin, publish, titles, tabOf, layout, entries, room, expand }
 }
@@ -99,18 +100,20 @@ describe('SidebarRightController — opening', () => {
     expect(titles()).toEqual([])
   })
 
-  it('opens claimed content and reveals the column in one history entry', () => {
-    const { controller, publish, layout, titles, entries } = harness()
+  it('opens claimed content into the open column in one history entry', () => {
+    const { controller, publish, layout, titles, entries, tabOf } = harness()
     publish()
     controller.openResource('dsh-resource://file/session/s-test/notes/readme.txt')
     expect(layout().expanded).toBe(true)
     expect(titles()).toContain('readme.txt')
-    // One intent, one entry: stepping back removes the tab and re-collapses.
+    // One intent, one entry: stepping back removes the tab and keeps the seed.
     expect(entries()).toBe(1)
     publish()
     controller._undo()
-    expect(layout().expanded).toBe(false)
+    expect(layout().expanded).toBe(true)
     expect(titles()).not.toContain('readme.txt')
+    expect(titles()).toContain('seed')
+    expect(layout().tabs[tabOf('seed')]).toBeDefined()
   })
 
   it('focuses the tab already showing the same (kind, contentId) instead of opening a second one', () => {
@@ -161,8 +164,8 @@ describe('SidebarRightController — opening', () => {
     const before = entries()
     controller.openResource('dsh-resource://file/session/s-test/c.txt', { replaceTab: a })
     const pane = findTabPane(layout(), tabOf('c.txt'))
-    // a took slot 0 of the lazily-seeded (still empty) surface; c took a's slot.
-    expect(pane.tabs.indexOf(tabOf('c.txt'))).toBe(0)
+    // a opened beside the seated guide (slot 1); c took a's slot.
+    expect(pane.tabs.indexOf(tabOf('c.txt'))).toBe(1)
     expect(layout().tabs[a]).toBeUndefined()
     expect(entries()).toBe(before + 1)
     publish()
@@ -556,7 +559,7 @@ describe('SidebarRightController — the readable slice', () => {
     publish()
     controller.toggleExpanded()
     publish()
-    expect(controller.isExpanded()).toBe(true)
+    expect(controller.isExpanded()).toBe(false)
     controller.openResource('dsh-resource://file/session/s-test/a.txt')
     publish()
     expect(Object.values(layout().tabs).filter(tab => tab.contentId === 'dsh-resource://file/session/s-test/a.txt')).toHaveLength(1)
@@ -570,8 +573,8 @@ describe('SidebarRightController — binding lifetime', () => {
     publish()
     controller.toggleExpanded()
     publish()
-    expect(controller.isExpanded()).toBe(true)
-    expect(layout().expanded).toBe(true)
+    expect(controller.isExpanded()).toBe(false)
+    expect(layout().expanded).toBe(false)
   })
 
   it('goes back to refusing writes once the seat releases', () => {

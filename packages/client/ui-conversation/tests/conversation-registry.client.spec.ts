@@ -74,7 +74,7 @@ function fakeSessions(ctx: Context): { sessions: ISessions; binding: SessionBind
     current: undefined,
     phase: 'ready',
     subagentsByParent: {},
-    jobsBySession: {},
+    jobsBySession: {}, jobOutputBySession: {},
     currentAddress: undefined,
   })
   const sessions = {

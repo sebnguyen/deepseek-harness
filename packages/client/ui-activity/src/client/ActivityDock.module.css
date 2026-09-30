@@ -1,0 +1,271 @@
+.root {
+  /* The composer stack centers its entries: keep the root at the composer
+     card's width whether the drawer is open or closed, so toggling never
+     shifts the chip horizontally. */
+  width: 100%;
+  max-width: var(--dsh-composer-card-max-width, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.chip {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 28px;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.chip:hover,
+.chip:focus-visible {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.chip svg {
+  transition: transform 120ms ease;
+}
+
+.chipOpen {
+  transform: rotate(180deg);
+}
+
+.chipDot {
+  flex: none;
+}
+
+.count {
+  margin: 0 5px;
+}
+
+/* The clip wrapper collapses through a 0fr/1fr row so opening the drawer
+   lifts the input bar with a smooth height transition; closed rows stay
+   hidden and out of the tab order while mounted. */
+.wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  overflow: hidden;
+  transition: grid-template-rows 180ms ease;
+}
+
+.wrap[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.wrap[aria-hidden='true'] .drawer {
+  visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wrap {
+    transition: none;
+  }
+}
+
+.drawer {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(240px, 3fr);
+  gap: 8px;
+  box-sizing: border-box;
+  /* Review-sized pane: a fixed share of the viewport, not content height. */
+  height: calc(min(60vh, 640px));
+  width: 100%;
+  padding: 8px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-specific-menu);
+}
+
+.tree {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 2px;
+  overflow: auto;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.detail {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 6px;
+  overflow: auto;
+  border-left: 0.5px solid var(--dsw-alias-border-l1);
+  padding-left: 8px;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.treeHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.sectionTitle {
+  margin: 4px 0 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.sectionButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.sectionButton:hover,
+.sectionButton:focus-visible {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.filter {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+}
+
+.filterOn {
+  color: var(--dsw-alias-label-primary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 28px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover,
+.row:focus-visible,
+.rowOpen {
+  background: var(--dsw-alias-fill-l2);
+}
+
+.rowSettled {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rowDot {
+  flex: none;
+}
+
+.side {
+  flex: none;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status,
+.duration {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.status {
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.duration {
+  font-variant-numeric: tabular-nums;
+}
+
+.detailEmpty {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.openSession {
+  align-self: flex-start;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--dsw-alias-fill-l2);
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.openSession:hover:not(:disabled),
+.openSession:focus-visible {
+  color: var(--dsw-alias-label-primary);
+}
+
+.openSession:disabled {
+  cursor: default;
+  opacity: 0.5;
+}

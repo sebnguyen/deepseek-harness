@@ -104,10 +104,11 @@ describe('workspaceFiles.readRelated', () => {
     expect(read).toHaveBeenCalledWith(harness.scope, expected, caller)
   })
 
-  it('rejects a related symlink rather than following it', async () => {
+  it('reads a related symlink through to its target', async () => {
     await writeFile(join(harness.workspace, 'base'), 'base')
     await writeFile(join(harness.workspace, 'target'), 'target')
     await symlink('target', join(harness.workspace, 'link'))
-    expect((await failureOf(harness.endpoint().readRelated(harness.scope, 'base', 'link', signal()))).code).toBe('workspace-file/not-regular-file')
+    const result = await harness.endpoint().readRelated(harness.scope, 'base', 'link', signal())
+    expect(Buffer.from(result.data, 'base64').toString()).toBe('target')
   })
 })

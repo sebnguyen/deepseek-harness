@@ -250,17 +250,27 @@ it('lets a preset producer reach the background-job registry', async () => {
 
     // The full round trip: the output a host-plane producer wrote is collected
     // through a preset-plane control, which is the linkage the realm severed.
-    const collected = await ctx.tools.execute({
-      signal,
-      callId: ToolCallId('shipped-task-output'),
-      name: 'job_output',
-      arguments: { job_id: 'bash-1', wait: true },
-      agent: handle.agent,
-    })
-    expect(collected.isError).toBe(false)
-    expect(collected.content).toEqual([
-      { type: 'text', text: expect.stringContaining('SHIPPED_BACKGROUND_OK') as unknown as string },
-    ])
+    // Reads are snapshots, so this polls until the command's output arrives
+    // instead of asking one read to block on settlement.
+    let collectedText = ''
+    for (let attempt = 0; attempt < 200 && !collectedText.includes('SHIPPED_BACKGROUND_OK'); attempt += 1) {
+      const collected = await ctx.tools.execute({
+        signal,
+        callId: ToolCallId(`shipped-task-output-${attempt}`),
+        name: 'job_output',
+        arguments: { job_id: 'bash-1' },
+        agent: handle.agent,
+      })
+      expect(collected.isError).toBe(false)
+      collectedText += collected.content
+        .filter(block => block.type === 'text')
+        .map(block => block.text)
+        .join('')
+      if (!collectedText.includes('SHIPPED_BACKGROUND_OK')) {
+        await new Promise(resolve => setTimeout(resolve, 25))
+      }
+    }
+    expect(collectedText).toContain('SHIPPED_BACKGROUND_OK')
   } finally {
     await handle.dispose()
   }

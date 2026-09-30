@@ -1,8 +1,10 @@
-// Session-header background jobs driven by a real `ctx.jobs` entry. No model
-// call is involved.
+// Input-dock background activity driven by a real `ctx.jobs` entry. No model
+// call is involved. The scenario asserts the chip, the drawer tree, the job's
+// terminal detail, and the registry-driven settlement into the archive; all
+// locators are aria roles and test ids owned by dsh-client-ui-activity, so the
+// scenario carries no golden.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
@@ -10,16 +12,10 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { JobId } from '@deepseek-ai/dsh-jobs'
-import {
-  assertFixtureInventory, captureStableAria, compareOrRefreshGolden,
-  launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
-} from './scaffold.ts'
+import { launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold } from './scaffold.ts'
 import { newEnglishPage, saveFailureShot } from './support.ts'
 
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
-const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/background-job-list', import.meta.url))
-const RUNNING_EXPECTED = join(SNAPSHOT_DIR, 'running.expected.md')
-const SETTLED_EXPECTED = join(SNAPSHOT_DIR, 'settled.expected.md')
 const MODE = webSnapshotMode()
 const SEED_ID = 'background-job-list-web-e2e'
 // Long enough that the running assertions never race the process exiting on
@@ -42,7 +38,7 @@ async function liveAgent(scaffold: WebScaffold, sessionId: SessionId): Promise<A
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: background job list', () => {
+describe.skipIf(MODE === 'record')('web e2e: background activity drawer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -77,11 +73,11 @@ describe.skipIf(MODE === 'record')('web e2e: background job list', () => {
     await scaffold?.close()
   })
 
-  it('shows a running background job in the session header without a refresh', async () => {
+  it('shows a running background job in the input dock without a refresh', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-background-job-running'))
     // Polling for zero would pass at t=0 before delivery and prove nothing.
-    const trigger = page.getByRole('button', { name: '1 background job running' })
-    expect(await trigger.count()).toBe(0)
+    const chip = page.getByRole('button', { name: '1 background activity running' })
+    expect(await chip.count()).toBe(0)
 
     const started = await scaffold.ctx.tools.execute({
       signal: new AbortController().signal,
@@ -95,32 +91,48 @@ describe.skipIf(MODE === 'record')('web e2e: background job list', () => {
     if (matched === null) throw new Error(`background bash reported no job id: ${reported}`)
     jobId = JobId(matched[0])
 
-    await trigger.waitFor({ timeout: 15_000 })
-    await trigger.click()
-    const row = page.getByRole('list', { name: 'Background jobs' }).getByRole('listitem').first()
+    await chip.waitFor({ timeout: 15_000 })
+    await chip.click()
+    const drawer = page.getByRole('region', { name: 'Background activity' })
+    await drawer.waitFor({ timeout: 10_000 })
+    const row = drawer.getByRole('list', { name: 'Live activity' }).getByRole('listitem').first()
     await row.waitFor({ timeout: 10_000 })
     await expect.poll(() => row.textContent()).toContain(COMMAND)
 
-    const snapshot = await captureStableAria(page, '[class*="menu"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(RUNNING_EXPECTED, snapshot, MODE)
+    // Selecting the live row shows its running status in the detail pane,
+    // and Escape closes the drawer and returns focus to the chip.
+    await row.getByRole('button').click()
+    await drawer.getByText('running', { exact: true }).waitFor({ timeout: 10_000 })
+
+    await page.keyboard.press('Escape')
+    await drawer.waitFor({ state: 'hidden', timeout: 10_000 })
+
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it('flips the open list to the cancelled outcome when the registry settles it', async () => {
+  it('settles the killed job into the archive with its outcome legible', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-background-job-settled'))
     expect(scaffold.ctx.jobs.kill(jobId, agent, 'web e2e cancellation')).toBe('requested')
 
-    const idle = page.getByRole('button', { name: '1 background job', exact: true })
+    const idle = page.getByRole('button', { name: '1 background activity', exact: true })
     await idle.waitFor({ timeout: 20_000 })
+    await idle.click()
 
-    const snapshot = await captureStableAria(page, '[class*="menu"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(SETTLED_EXPECTED, snapshot, MODE)
+    const drawer = page.getByRole('region', { name: 'Background activity' })
+    await drawer.waitFor({ timeout: 10_000 })
+    const archive = drawer.getByRole('button', { name: 'Archive (1)' })
+    await archive.waitFor({ timeout: 10_000 })
+    await archive.click()
+    const row = drawer.getByRole('list', { name: 'Archived activity' }).getByRole('listitem').first()
+    await row.waitFor({ timeout: 10_000 })
+    await expect.poll(() => row.textContent()).toContain(COMMAND)
+
+    // The settled row's status stays legible where it is the only outcome text.
+    await row.getByRole('button').click()
+    await drawer.getByText('cancelled', { exact: true }).waitFor({ timeout: 10_000 })
+
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
-
-  it('keeps its snapshot inventory closed', async () => {
-    await assertFixtureInventory(SNAPSHOT_DIR, ['running.expected.md', 'settled.expected.md'])
-  })
 })

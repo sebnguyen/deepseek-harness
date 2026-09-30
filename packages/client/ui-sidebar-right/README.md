@@ -63,11 +63,11 @@ One `SurfaceState` per session id — the layout, its recorded sequence, and how
 
 Carrying the mint counter in the surface is what makes a recorded sequence replayable: operations embed the ids they create, so replaying from the same initial state reproduces the same tree. Every action records one history entry, however many operations it needed. Expanding, collapsing, and switching presentation are recorded too.
 
-After every action the kit's settle planner keeps the expanded surface populated: a docked pane whose last tab was moved out or floated is merged away, and an emptied root pane receives the default page. A collapsed surface holds no such backfill — a session starts collapsed and empty, and a close that collapses the column leaves it empty — the expansion that would first show an empty layout is what seeds the default page. Explicit closing follows [the default-page and close rules](#the-guide). While expanded there is always at least one tab, and never an empty pane — so there is no separate "close pane" gesture.
+After every action the kit's settle planner keeps the expanded surface populated: a docked pane whose last tab was moved out or floated is merged away, and an emptied root pane receives the default page. A surface starts expanded with that page seated, so a session's column is open the first time it is drawn; the seed is part of the initial state, not a recorded intent. A close that empties the docked surface collapses the column and leaves it empty — the next expansion reseeds it. Explicit closing follows [the default-page and close rules](#the-guide). While expanded there is always at least one tab, and never an empty pane — so there is no separate "close pane" gesture.
 
 The docked surface's last tab carries one more rule, decided in the store's `closeTab` and mirrored to the kit through `canCloseTab`: the guide standing as the only docked tab draws no close control and no menu close item — its chip sits quiet, and with no extension item contributed a secondary press opens no menu — and a programmatic close of it records nothing; any other tab standing alone closes together with the column in one entry — the layout stays empty until the next expansion seeds its current default page. Floating panels take no part in the rule: they render whether or not the column is expanded, and their tabs close freely.
 
-State is memory-only. A reload returns every session to the collapsed default; switching sessions keeps each surface where it was.
+State is memory-only. A reload returns every session to the open default — expanded, default page seated; switching sessions keeps each surface where it was.
 
 <a id="extension-seats"></a>
 ## Extension seats
@@ -79,7 +79,7 @@ A tab type registers in two stages, and the shipped guide type goes through exac
 
 Which type opens a resource follows the editor-resolver convention: the types whose `patterns` match are ranked by `priority` band — `extension` (a type from outside the product, the highest, and the default when none is named), `builtin`, `fallback` (plain viewers anything more specific should beat) — then by the length of the matched pattern, then by registration order; `canOpen` removes a candidate. The bands are string literals so a type in another package needs no runtime import from here. `candidates(address)` returns the ranking, `claim(address, kind?)` the decision; naming a `kind` skips its globs but keeps its `canOpen`.
 
-Two more seats extend what is already there: `sidebar.right.tab.guide` (chain) replaces the guide tab's body without replacing the tab, and `sidebar.right.tab.menu.item` (list) appends content-level actions to a tab's menu after the kit's own layout actions. No seat exists for pane-level actions or for collapsed-state controls yet, because nothing needs one.
+Two more seats extend what is already there: `sidebar.right.tab.guide` (chain) replaces the guide tab's body without replacing the tab, and `sidebar.right.tab.menu.item` (list) appends content-level actions to a tab's menu after the kit's own layout actions. The fifth, `sidebar.right.explorer` (single, session scope), is the panel's persistent left column, drawn beside the docked panes for as long as the panel is shown: one registrant owns the whole column — the shipped `ui-sidebar-files` plants the session's workspace tree there, so files open beside every preview without first opening a page — and with none the outlet stays empty and the panes keep the full panel width. No seat exists for collapsed-state controls yet, because nothing needs one.
 
 <a id="ctxsidebarright"></a>
 ## `ctx.sidebarRight`
@@ -96,7 +96,7 @@ The Tab domain retains navigation, an abort signal, and bound actions per (Sessi
 <a id="the-guide"></a>
 ## The guide
 
-Default pages depend on the number of registered guide entries, not the number of tab types or open tabs. Exactly one entry opens its page directly (Files in the shipped composition); zero or multiple entries open the guide. Explicitly adding a guide still opens the guide, even with one entry. The sole docked guide is the only tab that cannot close; closing any other sole tab also collapses the column. The chip, context menu, and `close` API apply the same rule.
+The default page is the guide, whatever the registered entries — the explorer column carries the session's always-visible tree, so an emptied pane returns to the guide's overview rather than to a second tree. Explicitly opening the guide opens the guide. The sole docked guide is the only tab that cannot close; closing any other sole tab also collapses the column. The chip, context menu, and `close` API apply the same rule.
 
 The guide tab is a muted compass over one entry capsule per `guide` entry the registered types contributed, in `order`, centred in the body; the guide has no words of its own. A capsule shows the entry's glyph — or the guide's quieter cube placeholder when the entry registered none — and its title; while at most four entries are listed, an entry that registered a `description` shows it under the title, and a longer list drops every description. Picking a capsule calls `tab.actions.openTab(entry.kind, { replaceTab: true })`, so the guide gives way to the page it opened. A pane holds at most one guide tab. The strip's add control is drawn only while its pane holds none and opens one there with `openTab('guide', { paneId, revealIfOpened: false })`, so a guide in another pane does not capture the click; opening the guide into a pane that already has one focuses it instead; a guide dragged, dropped, or docked into such a pane merges into it — the arriving guide closes and the pane's own is focused; `duplicateTab` on the guide records nothing. A split, an expanded empty root pane, and the pane a sole tab vacates by dropping on its own edge use the same default-page rule, one tab per new pane; the self-edge drop leaves the dragged tab focused. A plain `openTab('guide')` opens or focuses the guide only within the active or named pane. Splitting an empty pane does nothing and returns no new pane. The product allows two horizontal panes, initially equal, with divider ratios limited to 20%–80%. Insufficient width blocks a new split; with two panes already present, a body drop moves the tab between panes instead of creating a third. At the two-pane limit, split controls are hidden; closing back to one pane restores them.
 
@@ -118,7 +118,7 @@ None; this package neither assembles nor sends a provider request.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Memory-only.** Nothing is persisted; a reload starts every session collapsed.
+- **Memory-only.** Nothing is persisted; a reload starts every session open on the default page.
 - **No surface without a session.** State is keyed by session id, so the hero screen shows nothing on the right.
 - **Hard-coded stacking.** The panel and the float host use fixed z-index values because the client has no z-index token layer yet.
 - **Undo is not exposed.** The recorded sequence is stepped only through the `@internal` service methods; product controls are deliberately absent.

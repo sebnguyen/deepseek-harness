@@ -87,21 +87,21 @@ export interface WorkspaceDirectoryEntry {
   /** Basename inside the listed directory. */
   readonly name: string
   /**
-   * What the child resolves to. A symlink reports the type of its destination,
-   * and `other` covers everything that is neither a regular file nor a
-   * directory; `read` still refuses a symlink, so `file` here is a listing fact,
-   * not a promise that the content is readable.
+   * What the child resolves to: a symbolic link reports its target's type, and
+   * `other` covers everything that is neither a regular file nor a directory,
+   * including a link whose target is missing.
    */
   readonly type: 'file' | 'directory' | 'other'
   /** Byte size, present only for a regular file whose backend reports it. */
   readonly size?: number
 }
 
-/** Direct children of one workspace directory. */
+/** Direct children of one readable directory. */
 export interface WorkspaceDirectoryListing {
   /**
    * The listed directory as a workspace path, relative to the workspace root
-   * and empty for the root itself. A child's path is this value joined with
+   * and empty for the root itself, or its absolute filesystem path when the
+   * directory lies outside that root. A child's path is this value joined with
    * {@link WorkspaceDirectoryEntry.name} by `/`.
    */
   readonly path: string
@@ -144,10 +144,8 @@ export type WorkspaceFileWatchFrame =
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
-    /** No entry exists at that path inside the workspace. */
+    /** No entry exists at that path. */
     'workspace-file/not-found': { readonly path: string }
-    /** The directory listing path resolves outside the session's workspace root. */
-    'workspace-file/outside-workspace': { readonly path: string }
     /** The requested page exceeds the configured byte cap; nothing is returned. */
     'workspace-file/too-large': { readonly path: string; readonly limit: number }
     /** The content read so far is not decodable UTF-8 text, or the page carries NUL bytes. */
@@ -155,12 +153,12 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     /** The path is not a regular file, so it has no text to read. */
     'workspace-file/not-regular-file': {
       readonly path: string
-      readonly kind: 'directory' | 'symlink' | 'other'
+      readonly kind: 'directory' | 'other'
     }
     /** The path is not a directory, so it has no children to list. */
     'workspace-file/not-directory': {
       readonly path: string
-      readonly kind: 'file' | 'symlink' | 'other'
+      readonly kind: 'file' | 'other'
     }
   }
 }

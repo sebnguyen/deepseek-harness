@@ -63,11 +63,11 @@
           supportsDeveloperRole: false
           maxTokensField: max_completion_tokens
           requiresReasoningContentOnAssistantMessages: true
-        # contextWindow: min(DO catalog, 393216) — 384k harness budget on the long-context
+        # contextWindow: min(DO catalog, 524288) — 512k harness budget on the long-context
         # models; minimax-m2.5 and gemma-4-31B-it keep their provider windows.
         models:
           - id: glm-5.3-flash
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -77,7 +77,7 @@
               xhigh: xhigh
               max: max
           - id: glm-5.3
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -97,7 +97,7 @@
               xhigh: xhigh
               max: max
           - id: mimo-v2.5-pro
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -107,7 +107,7 @@
               xhigh: xhigh
               max: max
           - id: kimi-k2.6
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -117,7 +117,7 @@
               xhigh: xhigh
               max: max
           - id: qwen3.8-max
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -131,7 +131,7 @@
             maxTokens: 8192
             reasoningEfforts: false
           - id: deepseek-v4.1-flash
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               low: low
@@ -139,7 +139,7 @@
               xhigh: xhigh
               max: max
           - id: deepseek-v4-flash-0731
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               low: low
@@ -147,7 +147,7 @@
               xhigh: xhigh
               max: max
           - id: deepseek-v4-pro-0813
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none
@@ -157,7 +157,7 @@
               xhigh: xhigh
               max: max
           - id: deepseek-v4-pro
-            contextWindow: 393216
+            contextWindow: 524288
             maxTokens: 32768
             reasoningEfforts:
               off: none

@@ -16,7 +16,7 @@ The session header was already the place where per-session background activity l
 
 Task state reaches the browser as **one whole-snapshot control frame per session**, pushed at every registry commit point that changes what that session can see. The client keeps a last-wins mirror; a header action renders it. There is no RPC, no polling, and no client-side staleness bookkeeping.
 
-This ships the list alone. Per-task streamed output and a human-initiated cancellation are separate phases, and the channel is shaped so neither has to undo it.
+This owns the list itself. Per-task output rides the same channel — a job's lines, the anchor they follow, and the row that opens them are [publishing job output on the control stream](2026-09-29-publishing-job-output-on-the-control-stream.md) — and a human-initiated cancellation remains a separate phase the channel is shaped to carry without undoing anything here.
 
 ### Wire shape
 
@@ -87,17 +87,17 @@ Two replacement points keep it honest. Each control-stream generation clears the
 
 ### The header action
 
-[`@deepseek-ai/dsh-client-ui-jobs`](../../../../packages/client/ui-jobs/README.md) registers one entry in `conversation.session.header.actions`, ordered after the subagent catalog. Its own README owns the presentation contract; the decisions worth recording here are that the control does not render at all until the session has a task, that the live badge is omitted at zero so a history-only session keeps a quiet entry point, and that settled rows stay visible because a failed task's `detail` is the only place its failure is legible.
+The header job popover shipped as [`@deepseek-ai/dsh-client-ui-jobs`](https://github.com/deepseek-ai/deepseek-harness) and retired when [`@deepseek-ai/dsh-client-ui-activity`](../../../../packages/client/ui-activity/README.md) moved the entry point into the input-dock chip and drawer. The decisions it carried survive there unchanged: the control does not render at all until the session has a task, the live badge is omitted at zero so a history-only session keeps a quiet entry point, and settled rows stay visible because a failed task's `detail` is the only place its failure is legible.
 
 A running one-shot background subagent therefore appears both there and in the subagent catalog. The two answer different questions — the catalog navigates into the child's transcript, this list is the only handle a cancellation can ever attach to — and suppressing `kind: 'subagent'` here would leave the cancellation phase with no entry point for exactly those tasks.
 
 ### What this deliberately does not do
 
-**No web path calls `ctx.jobs.read()`.** It consumes the single output cursor, so a browser read would silently take bytes the model's `job_output` will never see. This is an invariant worth a test rather than a convention, because the failure is invisible at the call site.
+**No web path calls `ctx.jobs.read()`.** It consumes the single output cursor, so a browser read would silently take bytes the model's `job_output` will never see. Waiting is gone from that read entirely, and the browser follows output through `readLines`, which serves retained lines and advances no cursor — the same read the frame publisher uses, so its invariant holds in both places. This is an invariant worth a test rather than a convention, because the failure is invisible at the call site.
 
 **No cancellation.** That phase owes a decision the seam does not currently answer: `kill()` marks terminal delivery reported, so a human interrupt written against the `kill()` contract would leave the model believing its task is still running.
 
-**No output watermark on the frame.** The output phase's delta channel is where an anchor field earns its place; one added now would have no reader.
+**The frame carries an output anchor.** An output frame names the absolute line index that follows its lines, and the browser buffer keeps its own `first`/`next`, so a view knows which earlier lines it no longer holds and can read them back by index.
 
 ## Alternatives considered
 

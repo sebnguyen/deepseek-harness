@@ -9,7 +9,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {
-  JobDoneListener, JobId, JobRead, JobSnapshot, JobStart, JobsChangedListener,
+  JobDoneListener, JobId, JobOutputLines, JobRead, JobSnapshot, JobStart, JobsChangedListener,
 } from './types.ts'
 
 export { JobId } from './types.ts'
@@ -19,6 +19,7 @@ export type {
   JobKind,
   JobKindMap,
   JobOutcome,
+  JobOutputLines,
   JobRead,
   JobSnapshot,
   JobStart,
@@ -46,7 +47,7 @@ declare module '@deepseek-ai/cordis' {
  *   is being destroyed for has no reader left.
  * - Owned-job access is fenced by the owner's session id. Ids are
  *   predictable, so authorization — not secrecy — is the boundary.
- * - Settlement is first-wins: one terminal record, released waiters, and one
+ * - Settlement is first-wins: one terminal record and one
  *   round of contained listener notification, even against a late producer
  *   outcome. Completion is announced last, after the record is committed and
  *   every other observer of the settlement has seen it, because a reporter
@@ -75,7 +76,7 @@ export abstract class JobRegistry extends Service {
    * admission before starting and atomically registering work. Any preflight
    * rejection leaves no job id or execution resource. A throwing starter
    * leaves nothing registered; after it returns, registration cannot fail.
-   * Settlement records the outcome, notifies listeners, and releases waiters.
+   * Settlement records the outcome and notifies listeners.
    * @param spec - job identity, owner, and synchronous starter.
    * @returns the registry-issued `<kind>-N` id.
    */
@@ -109,6 +110,17 @@ export abstract class JobRegistry extends Service {
   abstract read(id: JobId, caller?: Agent): JobRead
 
   /**
+   * Read retained output lines by index without consuming the stream or marking
+   * the job reported: an observer following live output is not the model
+   * learning the result. Throws for an unknown or foreign job.
+   * @param id - job to observe.
+   * @param caller - observing agent checked against the owner.
+   * @param from - absolute line index to read from; `0` starts at the first retained line.
+   * @returns the retained lines, or undefined when the producer keeps no addressable buffer.
+   */
+  abstract readLines(id: JobId, caller?: Agent, from?: number): JobOutputLines | undefined
+
+  /**
    * Request cancellation, then mark the job stopping and reported. A producer
    * throw propagates without changing job state. Throws for an unknown or
    * foreign job.
@@ -118,19 +130,6 @@ export abstract class JobRegistry extends Service {
    * @returns `requested` for live work, otherwise `already-finished`.
    */
   abstract kill(id: JobId, caller?: Agent, reason?: string): 'requested' | 'already-finished'
-
-  /**
-   * Wait for settlement or timeout without cancelling the job. Caller abort
-   * rejects only while the job is live; after settlement the terminal
-   * snapshot wins so a notice suppressed for this waiter is still delivered.
-   * Throws for invalid, unknown, or foreign input.
-   * @param id - job to wait for.
-   * @param timeoutMs - positive finite wait bound in milliseconds.
-   * @param caller - waiting agent checked against the owner.
-   * @param signal - optional cancellation of the wait itself.
-   * @returns snapshot at settlement or timeout.
-   */
-  abstract wait(id: JobId, timeoutMs: number, caller?: Agent, signal?: AbortSignal): Promise<JobSnapshot>
 
   /**
    * Register an effect-scoped completion listener. It receives the settlements

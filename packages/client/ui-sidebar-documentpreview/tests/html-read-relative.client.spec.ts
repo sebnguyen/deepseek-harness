@@ -23,7 +23,7 @@ describe('HTML relative file reader', () => {
 
   it('refuses non-relative references and preserves Host permission failures', async () => {
     const readRelated = vi.fn<ReadHtmlRelated>().mockResolvedValue({
-      ok: false, error: new RemoteError('workspace-file/outside-workspace', 'outside workspace', { path: '../x.js' }),
+      ok: false, error: new RemoteError('workspace-file/not-found', 'outside workspace', { path: '../x.js' }),
     })
     const signal = new AbortController().signal
     const read = createReadHtmlRelative(readRelated, ADDRESS, signal)

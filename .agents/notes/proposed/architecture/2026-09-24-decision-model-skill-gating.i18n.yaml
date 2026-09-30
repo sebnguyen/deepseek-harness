@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/proposed/architecture/2026-09-24-decision-model-skill-gating.md
-2026-09-24-decision-model-skill-gating.md: fad54c853c131c92e2fc4a44cd7246489935f2c1
-2026-09-24-decision-model-skill-gating.zh.md: 3893c720e32fd47644b1aca74a015b4de039c4e5
+2026-09-24-decision-model-skill-gating.md: 6c6e6a139353d32de9a58048e5db65cbc6b285cc
+2026-09-24-decision-model-skill-gating.zh.md: 3b1811d8592d3a8cdd069ad008f1633f362fdb2a

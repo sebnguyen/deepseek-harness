@@ -61,7 +61,7 @@ export async function runVerifier(
   binding: Verifier,
   timeoutMs: number,
   signal: AbortSignal,
-  sandboxPolicy?: SandboxExecutionPolicy | undefined,
+  sandboxPolicy?: SandboxExecutionPolicy  ,
 ): Promise<VerifierResult> {
   if (sha256(binding.source) !== binding.digest) {
     return { outcome: 'tampered', evidence: 'the verifier script changed after it was bound' }

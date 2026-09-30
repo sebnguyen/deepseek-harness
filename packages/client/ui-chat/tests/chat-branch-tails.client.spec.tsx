@@ -339,7 +339,9 @@ describe('MessageItem arms', () => {
     )
     const disclosure = ctxView.getByRole('button', { name: /^上下文注入\s*fixture$/ })
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(ctxView.container.querySelector('[data-context-injection-body]')).toBeNull()
+    const collapsedBody = ctxView.container.querySelector('[data-context-injection-body]')
+    expect(collapsedBody).not.toBeNull()
+    expect(collapsedBody?.closest('[hidden="until-found"]')).not.toBeNull()
     expect(ctxView.container.querySelector('svg')).not.toBeNull()
     expect(ctxView.container.querySelector('[data-context-recall-icon]')).toBeNull()
 
@@ -698,7 +700,9 @@ describe('MessageItem arms', () => {
     )
     expect(view.container.querySelector('[data-context-summary]')?.textContent)
       .toBe('bash pnpm test [status: completed]')
-    expect(view.container.querySelector('[data-context-injection-body]')).toBeNull()
+    const collapsedBody = view.container.querySelector('[data-context-injection-body]')
+    expect(collapsedBody).not.toBeNull()
+    expect(collapsedBody?.closest('[hidden="until-found"]')).not.toBeNull()
   })
 
   it('a notice without its account falls back to the opaque body', () => {
@@ -1058,7 +1062,7 @@ describe('small branch tails', () => {
     // The untimed counts pill renders static, so the usage pill is the only button.
     const [usagePill] = [...view.getAllByRole('button')] as [HTMLElement]
     expect(view.getByText('1 轮 1 步').closest('button')).toBeNull()
-    expect(usagePill.textContent).toBe('10 tok')
+    expect(usagePill.textContent).toBe('输入 0·缓存 0·输出 10')
     // Pure output accounting still reaches the usage pill's click-open dialog rows.
     fireEvent.click(usagePill)
     const dialog = view.getByRole('dialog')

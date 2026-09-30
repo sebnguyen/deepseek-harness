@@ -9,7 +9,7 @@ import { en } from '../src/client/locale.ts'
 afterEach(cleanup)
 
 describe('SystemPromptNodeView', () => {
-  it('mounts the opaque context body only while its row is expanded', () => {
+  it('keeps the opaque context body mounted but hidden until its row expands', () => {
     const text = '# Agent rules\n\n- Read first\n- **Act carefully**'
     const node: ChatNode<'system-prompt'> = {
       key: 'request-prompt:1',
@@ -28,18 +28,24 @@ describe('SystemPromptNodeView', () => {
 
     const disclosure = screen.getByRole('button', { name: 'System prompt' })
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
-    expect(container.querySelector('[data-context-text]')).toBeNull()
+    const body = container.querySelector('[data-system-prompt-body]')
+    expect(body).not.toBeNull()
+    expect(body?.closest('[hidden="until-found"]')).not.toBeNull()
+    expect(container.querySelector('[data-context-text]')?.textContent).toBe(text)
+    expect(container.querySelector('[hidden="until-found"] [data-context-text]')).not.toBeNull()
+    expect(screen.queryByRole('heading', { name: 'Agent rules' })).toBeNull()
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('true')
     expect(container.querySelector('[data-system-prompt-body]')).not.toBeNull()
+    expect(container.querySelector('[hidden="until-found"]')).toBeNull()
     expect(container.querySelector('[data-context-text]')?.textContent).toBe(text)
     expect(screen.queryByRole('heading', { name: 'Agent rules' })).toBeNull()
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
+    expect(container.querySelector('[data-system-prompt-body]')).not.toBeNull()
+    expect(container.querySelector('[hidden="until-found"] [data-system-prompt-body]')).not.toBeNull()
   })
 
   it('titles an in-history prompt update as an update of the same row', () => {

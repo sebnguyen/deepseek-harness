@@ -50,6 +50,20 @@ export function useScopeBinding(): StandardSourceBinding {
 }
 
 /**
+ * Render one pinned session area under the given scope binding: context is the
+ * propagation mechanism (React renders child fibers after the parent body
+ * returns), so every scoped outlet and SessionProvider seat inside `children`
+ * reads the named binding as its selection while the ambient scope keeps
+ * following the real one outside.
+ * @param binding - the pinned scope binding.
+ * @param children - the subtree riding it.
+ * @returns the subtree rendered under the override.
+ */
+export function PinnedScopeBinding({ binding, children }: { binding: StandardSourceBinding; children: ReactNode }): ReactNode {
+  return <ScopeBindingContext.Provider value={binding}>{children}</ScopeBindingContext.Provider>
+}
+
+/**
  * Bind one observable source to an identity-stable selector Hook.
  * @param source - observable source.
  * @returns cached selector Hook.

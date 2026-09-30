@@ -280,14 +280,15 @@ function validateToolOrder(toolOrder: string[] | undefined): string[] | undefine
 /**
  * Apply configured tool order, inserting unlisted tools lexicographically at
  * {@link TOOL_ORDER_REST}. Unknown configured names fail; known but restricted
- * names may be absent.
+ * names may be absent. With no order configured, falls back to
+ * {@link DEFAULT_TOOL_PRECEDENCE}.
  */
 function orderTools(tools: ToolSchema[], toolOrder: string[] | undefined, knownNames: ReadonlySet<string>): ToolSchema[] {
   const reserved = tools.find(tool => tool.name === TOOL_ORDER_REST)
   if (reserved !== undefined) {
     throw new Error(`tool provider returned reserved tool name "${TOOL_ORDER_REST}" (reserved for toolOrder's rest entry)`)
   }
-  if (toolOrder === undefined) return tools.sort(compareToolNames)
+  if (toolOrder === undefined) return tools.sort(compareDefaultToolOrder)
   const unknown = toolOrder.filter(name => name !== TOOL_ORDER_REST && !knownNames.has(name))
   if (unknown.length > 0) {
     throw new Error(`toolOrder lists unregistered tool${unknown.length > 1 ? 's' : ''} ${unknown.map(name => `"${name}"`).join(', ')}; known tools: ${[...knownNames].sort().join(', ') || '(none)'}`)
@@ -313,6 +314,33 @@ function compareToolNames(a: ToolSchema, b: ToolSchema): number {
   return compareNames(a.name, b.name)
 }
 
+/**
+ * Model-facing precedence among tools when a deployment configures none: the
+ * tools that change the workspace, then the shell that can change it anyway.
+ * Every other tool follows lexicographically. `bash` and `pwsh` are ranked as
+ * one family, so a composition that mounts either shell — the one-shot and
+ * persistent variants share both names — needs no platform branch and holds one
+ * position on every supported platform. A configured
+ * {@link Config.toolOrder} replaces this rule wholesale.
+ */
+const DEFAULT_TOOL_PRECEDENCE: readonly string[] = ['write', 'edit', 'read', 'bash', 'pwsh']
+
+/**
+ * Precedence rank of a tool name; unranked names share one rank, which leaves
+ * the name comparison to break the tie.
+ * @param name - the registered tool name.
+ * @returns the index in {@link DEFAULT_TOOL_PRECEDENCE}, or its length.
+ */
+function defaultRank(name: string): number {
+  const index = DEFAULT_TOOL_PRECEDENCE.indexOf(name)
+  return index === -1 ? DEFAULT_TOOL_PRECEDENCE.length : index
+}
+
+/** Order tool schemas by {@link DEFAULT_TOOL_PRECEDENCE}, then lexicographically by name. */
+function compareDefaultToolOrder(a: ToolSchema, b: ToolSchema): number {
+  return defaultRank(a.name) - defaultRank(b.name) || compareNames(a.name, b.name)
+}
+
 /** Plugin config: the deployment-authored fragment of the system prompt (see {@link Config.personaPrefix} for its contract). */
 export interface Config {
   /** Include a harness identity opener at order -1000 (default false; text must stay model-neutral). */
@@ -336,7 +364,8 @@ export interface Config {
   /**
    * Model-facing tool names in order, with {@link TOOL_ORDER_REST} exactly once.
    * Invalid fields fail at load and unknown names fail at assembly; known names
-   * hidden in one scope may be absent there. Omitted means lexicographic order.
+   * hidden in one scope may be absent there. Omitted means
+   * {@link DEFAULT_TOOL_PRECEDENCE} order, then lexicographic.
    */
   toolOrder?: string[]
 }

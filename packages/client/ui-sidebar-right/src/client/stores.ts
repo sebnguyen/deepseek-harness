@@ -12,8 +12,10 @@
  *
  * The settle step is this product's rule, not the kit's: an intent never leaves
  * an expanded column with an empty pane — emptied side panes merge away, and an
- * empty root pane seeds the default page. A collapsed column may stand empty;
- * the seed waits for the expansion that would otherwise show nothing.
+ * empty root pane seeds the default page. A surface starts expanded with that
+ * page already seated, so a session's column is open the first time it is
+ * drawn; the seed itself is not a recorded intent, and the sequence starts
+ * after it.
  *
  * A focus that changes nothing — a tab already active in its already-active
  * pane, a pane already active — plans nothing and records nothing, whoever
@@ -105,19 +107,20 @@ function counting(from: number): { mint: Mint; used: () => number } {
 }
 
 /**
- * The surface a session starts with: collapsed, one pane, no tabs. The default
- * page is not seeded here — the settle rule seeds it when the column first
- * expands still empty, so a collapsed column never holds a page nobody asked
- * for, and an open into a fresh surface shows only what it opened.
+ * The surface a session starts with: expanded, one docked pane holding the
+ * default page, so the column is open by default and never shows an empty
+ * docked area. The seated page is not a recorded intent — the history starts
+ * with the user's first one.
+ * @param seed - the registered default page, read once at creation.
  * @returns the initial surface.
  */
-export function createSurface(): SurfaceState {
+export function createSurface(seed: () => SidebarRightSeed): SurfaceState {
   const counter = counting(0)
-  return {
-    layout: createInitialState({ next: counter.mint }),
-    history: EMPTY_HISTORY,
-    minted: counter.used(),
-  }
+  const makeTab = (id: TabId): TabRecord => seedRecord(id, seed)
+  const initial = createInitialState({ next: counter.mint })
+  const opened = replay(initial, planSetExpanded(initial, true))
+  const seeded = replay(opened, planSettle(opened, counter.mint, makeTab))
+  return { layout: seeded, history: EMPTY_HISTORY, minted: counter.used() }
 }
 
 /** The tab showing `kind`'s page in a pane, if any. */
@@ -207,10 +210,11 @@ function advance(surface: SurfaceState, plan: SurfacePlan, seed: () => SidebarRi
 function seat(
   state: SidebarRightState,
   sessionId: string,
+  seed: () => SidebarRightSeed,
   next: (surface: SurfaceState) => SurfaceState,
 ): Record<string, SurfaceState> {
   const existing = state.bySession[sessionId]
-  const updated = next(existing ?? createSurface())
+  const updated = next(existing ?? createSurface(seed))
   return updated === existing ? state.bySession : { ...state.bySession, [sessionId]: updated }
 }
 
@@ -268,23 +272,24 @@ export function createSidebarRightStore(
     init: (): SidebarRightState => ({ bySession: {} }),
     actions: {
       // Materialize a session's surface without changing it, so the first read
-      // after a session switch sees the collapsed empty column rather than nothing.
-      open: (d, sessionId: string) => { d.bySession = seat(d, sessionId, surface => surface) },
+      // after a session switch sees the open column with its default page
+      // rather than nothing.
+      open: (d, sessionId: string) => { d.bySession = seat(d, sessionId, seed, surface => surface) },
       setExpanded: (d, sessionId: string, expanded: boolean) => {
-        d.bySession = seat(d, sessionId, s => advance(s, state => planSetExpanded(state, expanded), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, state => planSetExpanded(state, expanded), seed))
       },
       toggleExpanded: (d, sessionId: string) => {
-        d.bySession = seat(d, sessionId, s => advance(s, state => planSetExpanded(state, !state.expanded), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, state => planSetExpanded(state, !state.expanded), seed))
       },
       // Switching presentation is recorded like any other change, so stepping
       // back through the sequence puts the surface back the way it was drawn.
       setMode: (d, sessionId: string, mode: DockMode) => {
-        d.bySession = seat(d, sessionId, s => advance(s, state => planSetMode(state, mode), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, state => planSetMode(state, mode), seed))
       },
       // `settled` reports the pane the split created, synchronously, because
       // actions return nothing; it is not called when nothing was split.
       splitPane: (d, sessionId: string, paneId?: PaneId, settled?: (paneId: PaneId) => void) => {
-        d.bySession = seat(d, sessionId, (s) => {
+        d.bySession = seat(d, sessionId, seed, (s) => {
           const next = advance(s, (state, mint, makeTab) => dockPaneIds(state).length >= 2
             || getPane(state, paneId ?? activeDockPaneId(state)).tabs.length === 0
             ? []
@@ -303,7 +308,7 @@ export function createSidebarRightStore(
       // closing the tab it replaces. `settled` reports the tab the planner
       // landed on, synchronously, because actions return nothing.
       openContent: (d, sessionId: string, intent, settled) => {
-        d.bySession = seat(d, sessionId, s => advance(s, (state, mint) => {
+        d.bySession = seat(d, sessionId, seed, s => advance(s, (state, mint) => {
           const { kind, contentId, title, replaceTab: replace } = intent
           const ops: LayoutOp[] = [...planSetExpanded(state, true)]
           // A replaced tab lends its pane and slot; one that floats cannot (a
@@ -338,7 +343,7 @@ export function createSidebarRightStore(
       },
       // A page is never copied: the copy would sit beside it in the same pane.
       duplicateTab: (d, sessionId: string, tabId: TabId) => {
-        d.bySession = seat(d, sessionId, s =>
+        d.bySession = seat(d, sessionId, seed, s =>
           advance(s, (state, mint) => pageKind(state, tabId) !== undefined ? [] : planDuplicateTab(state, mint, tabId).ops, seed))
       },
       // A tab already gone — closed twice by a racing callback and the user — is
@@ -349,7 +354,7 @@ export function createSidebarRightStore(
       // together with the column, which stays empty until an expansion seeds
       // the then-current default page.
       closeTab: (d, sessionId: string, tabId: TabId) => {
-        d.bySession = seat(d, sessionId, s => advance(s, (state) => {
+        d.bySession = seat(d, sessionId, seed, s => advance(s, (state) => {
           if (!canCloseTab(s, tabId)) return []
           if (!soleDockedTab(state, tabId)) return [{ type: 'closeTab', tabId }]
           // The collapse also leaves fullscreen: the reopened column shows only
@@ -358,20 +363,20 @@ export function createSidebarRightStore(
         }, seed))
       },
       focusTab: (d, sessionId: string, tabId: TabId) => {
-        d.bySession = seat(d, sessionId, s => advance(s, state => planFocusTab(state, tabId), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, state => planFocusTab(state, tabId), seed))
       },
       focusPane: (d, sessionId: string, paneId: PaneId) => {
-        d.bySession = seat(d, sessionId, s => advance(s, state => planFocusPane(state, paneId), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, state => planFocusPane(state, paneId), seed))
       },
       placeTab: (d, sessionId: string, tabId: TabId, toPaneId: PaneId, index: number) => {
-        d.bySession = seat(d, sessionId, s =>
+        d.bySession = seat(d, sessionId, seed, s =>
           advance(s, state => arriving(state, tabId, toPaneId, () => planPlaceTab(state, tabId, toPaneId, index)), seed))
       },
       // Only a centre release lands in the target pane; an edge release makes a
       // new pane, where nothing can already be — and when the release drags a
       // pane's only tab to that pane's own edge, the default page backfills it.
       dropTab: (d, sessionId: string, tabId: TabId, paneId: PaneId, zone: DockZone) => {
-        d.bySession = seat(d, sessionId, s => advance(s, (state, mint, makeTab) => {
+        d.bySession = seat(d, sessionId, seed, s => advance(s, (state, mint, makeTab) => {
           if (zone === 'top' || zone === 'bottom') return []
           if (zone !== 'center' && dockPaneIds(state).length >= 2) return []
           const plan = (): readonly LayoutOp[] => planDropTab(state, mint, tabId, paneId, zone, makeTab)
@@ -379,13 +384,13 @@ export function createSidebarRightStore(
         }, seed))
       },
       floatTab: (d, sessionId: string, tabId: TabId, rect?: FloatRect) => {
-        d.bySession = seat(d, sessionId, s =>
+        d.bySession = seat(d, sessionId, seed, s =>
           advance(s, (state, mint) => planFloatTab(state, mint, tabId, rect).ops, seed))
       },
       // A floating pane holds one tab; docking it back lands in the active
       // docked pane, and only a page is subject to the merge rule there.
       unfloatPane: (d, sessionId: string, paneId: PaneId) => {
-        d.bySession = seat(d, sessionId, s => advance(s, (state) => {
+        d.bySession = seat(d, sessionId, seed, s => advance(s, (state) => {
           const floated = getPane(state, paneId).tabs[0]
           const plan = (): readonly LayoutOp[] => planUnfloatPane(state, paneId)
           /* v8 ignore next -- a floating pane holds exactly one tab. */
@@ -393,19 +398,19 @@ export function createSidebarRightStore(
         }, seed))
       },
       moveFloat: (d, sessionId: string, paneId: PaneId, x: number, y: number) => {
-        d.bySession = seat(d, sessionId, s => advance(s, () => [{ type: 'moveFloat', paneId, x, y }], seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, () => [{ type: 'moveFloat', paneId, x, y }], seed))
       },
       resizeFloat: (d, sessionId: string, paneId: PaneId, rect: FloatRect) => {
-        d.bySession = seat(d, sessionId, s => advance(s, () => [{ type: 'resizeFloat', paneId, rect }], seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, () => [{ type: 'resizeFloat', paneId, rect }], seed))
       },
       resizeSplit: (d, sessionId: string, splitId: SplitId, sizes: readonly number[]) => {
-        d.bySession = seat(d, sessionId, s => advance(s, () => planResizeSplit(splitId, sizes, 0.2), seed))
+        d.bySession = seat(d, sessionId, seed, s => advance(s, () => planResizeSplit(splitId, sizes, 0.2), seed))
       },
       undo: (d, sessionId: string) => {
-        d.bySession = seat(d, sessionId, s => stepped(s, stepBack))
+        d.bySession = seat(d, sessionId, seed, s => stepped(s, stepBack))
       },
       redo: (d, sessionId: string) => {
-        d.bySession = seat(d, sessionId, s => stepped(s, stepForward))
+        d.bySession = seat(d, sessionId, seed, s => stepped(s, stepForward))
       },
     },
   })

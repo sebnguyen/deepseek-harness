@@ -1,5 +1,5 @@
 ---
-description: "dsh Web 客户端右侧 Sidebar 的文件树 tab 类型：通过网络逐层列出会话工作区根目录，按资源地址把文件打开到 Sidebar。"
+description: "dsh Web 客户端右侧 Sidebar 的工作区文件树：tab 旁边的常驻资源管理器列与 files tab 类型，通过网络逐层列出会话工作区，按资源地址把文件打开到 Sidebar。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-右侧 Sidebar 的导航器 tab 类型：把会话的工作区根目录画成一棵树，逐层经线上列出，并把文件打开到 Sidebar 里。它是从引导页进入的页类型，不认领任何地址；它按地址打开文件，交给 `dsh-resource://file` 的查看器认领：`ui-sidebar-right` 里没有任何东西认识本包。
+右侧 Sidebar 的导航器：把会话的工作区根目录画成一棵树，逐层经线上列出，并把文件打开到 Sidebar 里。它画在两处：面板里 tab 旁常驻的资源管理器列，以及 `files` 页类型。页类型从引导页进入，不认领任何地址；两处画同样的行，都按地址打开文件，交给 `dsh-resource://file` 的查看器认领：`ui-sidebar-right` 里没有任何东西认识本包。
 
 ## 目录
 
@@ -27,8 +27,9 @@ kind: "package-reference"
 - **类型**：`ctx.sidebarRightTabs.register(...)`，kind 为 `files`，id 为 `@deepseek-ai/dsh-client-ui-sidebar-files`，档位 `builtin`，没有 patterns，另有一个打开该类型的引导页入口（order 10，标题与描述取自 `sidebarFiles` 命名空间，图标是共享的文件夹图标）。
 - **正文**：以该 id 为键的 `sidebar.right.pane.tab` slot：strip 下的一行标题行，然后是树。标题行与文档预览（`ui-sidebar-documentpreview`）的相同：根路径，目录部分灰色、最后一段正色，从不省略号截断（比行宽的路径保留末尾、淡出开头），右端是它唯一的控件、重新读取。这一行是复制而非共享，因为插件 bundle 只经平台模块共享运行时代码；待 artifact 与各 slot 的形态定下来后，可以在 `ui-primitives` 放一份供每个 pane 标题行使用。
 - **标签页标题**：以该 id 为键的 `sidebar.right.pane.tab.title` slot：类型标签前的一枚 16px 共享 `FileTypeIcon` 文件夹图标。树本身的行不画这枚图标。
+- **资源管理器列**：sidebar 的 `sidebar.right.explorer` slot：同样的行、更紧凑，标题行带根的末段与重新读取控件。它是面板常驻的导航器，不必先打开 files 页也能打开文件；它的行经 `ctx.sidebarRight.openResource` 打开，树与 tab 类型共用同一份存储，按 session id 而非 tab id 分桶。
 
-`src/client/` 下七个源文件：`definition.tsx`（类型是什么）、`store.ts`（它保存什么）、`face.ts`（它如何列目录，含 Remote 绑定）、`FilesBody.tsx`（它画什么，含排序与失败行两个辅助函数）、`FilesTitle.tsx`（标签页标题）、`locales.ts`（它说什么）、`index.ts`（接线）。
+`src/client/` 下九个源文件：`definition.tsx`（类型是什么）、`store.ts`（它保存什么）、`face.ts`（它如何列目录，含 Remote 绑定）、`Tree.tsx`（共享的行，含排序与失败行两个辅助函数）、`FilesBody.tsx`（tab 的外壳）、`FilesTitle.tsx`（标签页标题）、`ExplorerBody.tsx`（列的外壳）、`locales.ts`（它说什么）、`index.ts`（接线）。
 
 <a id="the-tree"></a>
 ## 树
@@ -38,12 +39,12 @@ kind: "package-reference"
 | 条目类型 | 行 |
 |---|---|
 | `directory` | 切换展开与折叠；该层在首次打开时拉取，折叠期间保留。 |
-| `file` | 经 `useTabInfo().tab.actions.openResource` 打开 `dsh-resource://file/session/<sessionId>/<encoded path relative to the root>`，地址由 `@deepseek-ai/dsh-util-workspace-path` 的 `fileAddressFor` 从条目的绝对路径与树的根生成，落在该 tab 自己的 pane 里。 |
+| `file` | 打开 `dsh-resource://file/session/<sessionId>/<encoded path relative to the root>`，地址由 `@deepseek-ai/dsh-util-workspace-path` 的 `fileAddressFor` 从条目的绝对路径与树的根生成：tab 正文里经 `useTabInfo().tab.actions.openResource`，落在该 tab 自己的 pane 里；资源管理器列里经 `ctx.sidebarRight.openResource`。 |
 | `other` | 灰显且不可点击，从而完整呈现目录内容。 |
 
 被端点条目上限截断的层以一条标记收尾；空层如实说明；失败的层按错误码各显示一行（`workspace-file/not-found`、`outside-workspace`、`not-directory`），其他情况显示传输层自己的消息。重新读取丢弃所有已列出的层并只对展开中的层重新请求；折叠的层在下次打开时重新拉取。没有工作目录的会话只显示一行说明，而不是树。
 
-状态保存在类型自己的存储里，按 tab id 分桶：`root`、`levels`（每个绝对路径的 loading / ready / failed）与 `expanded`。owner 的 `signal` 终结一个桶：中止时忘掉该 tab，其后才结算的列表什么也不写。
+状态保存在类型自己的存储里，按 owner id 分桶：该类型的 tab 用 tab id，资源管理器列用 session id：`root`、`levels`（每个绝对路径的 loading / ready / failed）与 `expanded`。owner 的 `signal` 终结一个桶：中止时忘掉该树，其后才结算的列表什么也不写；列的 signal 随挂载持有，因此折叠面板保留会话的树，离开会话视图才失去它。
 
 <a id="model-experience"></a>
 ## 模型体验
@@ -70,4 +71,4 @@ kind: "package-reference"
 
 </details>
 
-**运行时不变量：** 不发布 companion。树唯一的运行时状态是每 tab 一份的 Slot store，由持有它的正文写入、随 tab 的中止信号忘掉；没有第二个观测源可与之比对。
+**运行时不变量：** 不发布 companion。树唯一的运行时状态是 tab 类型与资源管理器列共用的一份 Slot store，由动作所在树的正文写入、随 owner 的中止信号忘掉；没有第二个观测源可与之比对。

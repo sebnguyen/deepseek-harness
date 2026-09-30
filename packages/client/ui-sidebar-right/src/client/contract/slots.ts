@@ -1,7 +1,7 @@
 /**
  * The right Sidebar's extension seats and its copy namespace.
  *
- * Four seats, each with a different reason to exist:
+ * Five seats, each with a different reason to exist:
  * - `sidebar.right.pane.tab` is how a tab type contributes a body. It is keyed by
  *   the type definition's `id`, so adding a type is a registration, never an
  *   edit here. The key domain stays the open string space because a tab type may
@@ -15,8 +15,12 @@
  * - `sidebar.right.tab.menu.item` extends a tab's actions menu. The kit owns the
  *   actions that are gestures on the layout itself; this seat is for actions that
  *   mean something about the tab's content.
+ * - `sidebar.right.explorer` is the panel's always-visible left column, drawn
+ *   beside the docked panes for as long as the panel is shown. A registrant
+ *   owns the whole column; without one the column disappears and the panes
+ *   keep the full panel width.
  *
- * TYPE HOME RATIONALE: this package declares all four at runtime, and anything
+ * TYPE HOME RATIONALE: this package declares all five at runtime, and anything
  * registering into one already depends on it for the declaration. The types
  * therefore live with their declarer.
  */
@@ -84,6 +88,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * registrant the menu shows only the kit's own layout actions.
      */
     'sidebar.right.tab.menu.item': { kind: 'list'; scope: 'session'; owner: SidebarRightTabMenuOwnerProps }
+    /**
+     * The panel's persistent explorer column, drawn at the panel's left edge
+     * beside the docked panes while the panel is shown. A single registrant
+     * owns the column; without one the column is not drawn.
+     */
+    'sidebar.right.explorer': { kind: 'single'; scope: 'session' }
   }
 }
 

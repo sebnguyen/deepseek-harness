@@ -8,7 +8,7 @@ English | [中文](2026-08-11-background-job-completion-wakes-an-idle-owner.zh.m
 
 `tool-jobs` promised the model "You are notified in-session when a task finishes — do not busy-poll or sleep on one." The promise held only while the model was still working. Completion delivered through `agent.inject()`, which appends to the next-step inbox without reserving a driver, so a task settling after its turn closed left the notice parked until something unrelated woke the agent. The common shape is exactly the one that breaks: the model starts a long command, tells the user it started it, ends its turn, and the command finishes into an inbox nobody will claim. The prompt told the model not to poll, and then nothing arrived.
 
-The gap was recorded as a limitation rather than reasoned about, so the fallback was `job_output(wait: true)` — the blocking wait the same prompt discourages.
+The gap was recorded as a limitation rather than reasoned about; the completion notice is what closes it, because the prompt already discouraged blocking on a job.
 
 This supersedes one fact of the [background-job runtime decision](../architecture/2026-06-20-generic-long-running-tool-runtime.md) — that completion never wakes an idle owner — and adds teardown as a `reported` setter. That note keeps every other task-runtime decision and is updated in place rather than replaced.
 

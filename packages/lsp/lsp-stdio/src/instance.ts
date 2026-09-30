@@ -280,9 +280,9 @@ export class LspInstance {
       return { kind: 'callEdges', root: null, edges: [], resolvedWorkspaceUri: this.spec.workspaceUri }
     }
     // `incomingCalls`/`outgoingCalls` echo the verbatim prepared item, not the normalized symbol.
-    const rawItem = Array.isArray(raw) ? raw[0] : raw
+    const rawItem: unknown = Array.isArray(raw) ? raw[0] : raw
     const edgeMethod = request.operation === 'callers' ? 'callHierarchy/incomingCalls' : 'callHierarchy/outgoingCalls'
-    const edgePayload = await this.sendMapRequest(edgeMethod, { item: rawItem }, signal)
+    const edgePayload: unknown = await this.sendMapRequest(edgeMethod, { item: rawItem }, signal)
     const edges = request.operation === 'callers'
       ? normalizeIncomingCalls(root, edgePayload)
       : normalizeOutgoingCalls(root, edgePayload)

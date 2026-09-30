@@ -561,6 +561,10 @@ Run commands in a persistent bash shell. State, including the current directory 
     "command": {
       "type": "string",
       "description": "The bash command to run. Relative path is preferred in the command."
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
     }
   },
   "required": [
@@ -1888,7 +1892,7 @@ Source: [`packages/jobs/tool-jobs/src/index.ts`](../packages/jobs/tool-jobs/src/
 
 ### `job_output`
 
-Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap.
+Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. The read is a non-blocking snapshot: it never waits for the job, and a run that finishes later reaches you as an in-session notice.
 
 ```json
 {
@@ -1897,14 +1901,6 @@ Read a background job. Stream jobs return only output since the previous read; f
     "job_id": {
       "type": "string",
       "description": "Job id returned by the tool that started the background work."
-    },
-    "wait": {
-      "type": "boolean",
-      "description": "Block until the job reaches a terminal status or the timeout expires. A timed-out wait returns [status: running] and leaves the job alive."
-    },
-    "timeout_ms": {
-      "type": "number",
-      "description": "Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum."
     }
   },
   "required": [

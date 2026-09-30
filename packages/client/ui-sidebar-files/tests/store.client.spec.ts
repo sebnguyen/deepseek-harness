@@ -1,5 +1,5 @@
 /**
- * The tree's write set, one tab at a time.
+ * The tree's write set, one tree at a time.
  *
  * Two facts here are load-bearing for the body: a collapsed level keeps what it
  * loaded (reopening draws at once), and `reset` clears levels while keeping the
@@ -25,7 +25,7 @@ describe('createFilesStore', () => {
     const first = createFilesStore().create()
     const second = createFilesStore().create()
     first.actions.start(TAB, ROOT)
-    expect(second.getSnapshot().byTab[TAB]).toBeUndefined()
+    expect(second.getSnapshot().byTree[TAB]).toBeUndefined()
   })
 
   it('seeds a tab at its root with the root expanded and nothing loaded', () => {
@@ -33,7 +33,7 @@ describe('createFilesStore', () => {
     const { actions } = store
     const getSnapshot = (): ReturnType<typeof store.getSnapshot> => store.getSnapshot()
     actions.start(TAB, ROOT)
-    expect(getSnapshot().byTab[TAB]).toEqual({ root: ROOT, levels: {}, expanded: [ROOT] })
+    expect(getSnapshot().byTree[TAB]).toEqual({ root: ROOT, levels: {}, expanded: [ROOT] })
   })
 
   it('walks one level through loading, ready, and failed', () => {
@@ -42,12 +42,12 @@ describe('createFilesStore', () => {
     const getSnapshot = (): ReturnType<typeof store.getSnapshot> => store.getSnapshot()
     actions.start(TAB, ROOT)
     actions.loading(TAB, ROOT)
-    expect(getSnapshot().byTab[TAB]!.levels[ROOT]).toEqual({ kind: 'loading' })
+    expect(getSnapshot().byTree[TAB]!.levels[ROOT]).toEqual({ kind: 'loading' })
     actions.loaded(TAB, ROOT, LEVEL)
-    expect(getSnapshot().byTab[TAB]!.levels[ROOT]).toEqual({ kind: 'ready', level: LEVEL })
+    expect(getSnapshot().byTree[TAB]!.levels[ROOT]).toEqual({ kind: 'ready', level: LEVEL })
     const failure = new RemoteError('workspace-file/not-found', 'gone', { path: ROOT })
     actions.failed(TAB, ROOT, failure)
-    expect(getSnapshot().byTab[TAB]!.levels[ROOT]).toEqual({ kind: 'failed', failure })
+    expect(getSnapshot().byTree[TAB]!.levels[ROOT]).toEqual({ kind: 'failed', failure })
   })
 
   it('toggles a directory in and out of the expanded set without touching its level', () => {
@@ -58,11 +58,11 @@ describe('createFilesStore', () => {
     actions.start(TAB, ROOT)
     actions.loaded(TAB, child, LEVEL)
     actions.toggled(TAB, child)
-    expect(getSnapshot().byTab[TAB]!.expanded).toEqual([ROOT, child])
+    expect(getSnapshot().byTree[TAB]!.expanded).toEqual([ROOT, child])
     actions.toggled(TAB, child)
-    expect(getSnapshot().byTab[TAB]!.expanded).toEqual([ROOT])
+    expect(getSnapshot().byTree[TAB]!.expanded).toEqual([ROOT])
     // Collapsing keeps the listing, so reopening draws without another fetch.
-    expect(getSnapshot().byTab[TAB]!.levels[child]).toEqual({ kind: 'ready', level: LEVEL })
+    expect(getSnapshot().byTree[TAB]!.levels[child]).toEqual({ kind: 'ready', level: LEVEL })
   })
 
   it('reset drops every level and keeps the expanded set', () => {
@@ -75,12 +75,12 @@ describe('createFilesStore', () => {
     actions.toggled(TAB, child)
     actions.loaded(TAB, child, LEVEL)
     actions.reset(TAB)
-    expect(getSnapshot().byTab[TAB]).toEqual({ root: ROOT, levels: {}, expanded: [ROOT, child] })
+    expect(getSnapshot().byTree[TAB]).toEqual({ root: ROOT, levels: {}, expanded: [ROOT, child] })
   })
 
-  it('refuses to write a level for a tab that was never started', () => {
+  it('refuses to write a level for a tree that was never started', () => {
     const { actions } = createFilesStore().create()
-    expect(() => { actions.loading('tab-nowhere' as TabId, ROOT) }).toThrow('no tree for tab "tab-nowhere"')
+    expect(() => { actions.loading('tab-nowhere' as TabId, ROOT) }).toThrow('no tree for "tab-nowhere"')
   })
 
   it('forget removes exactly the tab that went away', () => {
@@ -90,6 +90,6 @@ describe('createFilesStore', () => {
     actions.start(TAB, ROOT)
     actions.start('tab-2' as TabId, ROOT)
     actions.forget(TAB)
-    expect(Object.keys(getSnapshot().byTab)).toEqual(['tab-2'])
+    expect(Object.keys(getSnapshot().byTree)).toEqual(['tab-2'])
   })
 })

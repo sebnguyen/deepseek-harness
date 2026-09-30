@@ -14,15 +14,14 @@
  * One level has one listing in force: asking for a level again — the reload
  * gesture, a directory reopened after a reset — retires the listing still in
  * flight for it, whose settlement then writes nothing. Cleanup rides the owner's
- * `signal`: a request is not made for a record that already ended, and when the
- * record goes away the bucket and the tab's listing bookkeeping are forgotten,
- * so no later settlement writes to it.
+ * `signal`: a request is not made for an owner that already ended, and when the
+ * owner goes away the bucket and its listing bookkeeping are forgotten, so no
+ * later settlement writes to it.
  */
 import type { ClientRemote, RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { BoundActions } from '@deepseek-ai/dsh-client-store'
-import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { DirLevel, createFilesStore } from './store.ts'
+import type { DirLevel, TreeKey, createFilesStore } from './store.ts'
 
 /**
  * One directory listing, bound to a Remote face.
@@ -74,27 +73,36 @@ export function childPath(parent: string, name: string): string {
 /** The tree's injected business face, as the body receives it. */
 export interface FilesInjected {
   /**
-   * Seed this tab's tree and list its root.
-   * @param tabId - the tab being drawn.
+   * Seed one tree and list its root.
+   * @param key - the tree being drawn.
    * @param root - absolute path of the workspace root.
-   * @param signal - the tab record's lifetime.
+   * @param signal - the owner's lifetime.
    */
-  readonly start: (tabId: TabId, root: string, signal: AbortSignal) => void
+  readonly start: (key: TreeKey, root: string, signal: AbortSignal) => void
   /**
    * List one directory into the store.
-   * @param tabId - the tab being drawn.
+   * @param key - the tree being drawn.
    * @param path - absolute directory path.
-   * @param signal - the tab record's lifetime.
+   * @param signal - the owner's lifetime.
    */
-  readonly load: (tabId: TabId, path: string, signal: AbortSignal) => void
+  readonly load: (key: TreeKey, path: string, signal: AbortSignal) => void
   /**
    * Open or collapse one directory, listing it the first time it opens.
-   * @param tabId - the tab being drawn.
+   * @param key - the tree being drawn.
    * @param path - absolute directory path.
    * @param loaded - whether this level already has state.
-   * @param signal - the tab record's lifetime.
+   * @param signal - the owner's lifetime.
    */
-  readonly toggle: (tabId: TabId, path: string, loaded: boolean, signal: AbortSignal) => void
+  readonly toggle: (key: TreeKey, path: string, loaded: boolean, signal: AbortSignal) => void
+}
+
+/** The explorer column's face: the tree's face plus opening a file into the panes. */
+export interface ExplorerInjected extends FilesInjected {
+  /**
+   * Open one resource address in the sidebar's pane area.
+   * @param address - a `dsh-resource://file` address.
+   */
+  readonly open: (address: string) => void
 }
 
 /**
@@ -109,41 +117,55 @@ export function filesFace(
     sessionId: SessionId,
     actions: BoundActions<ReturnType<typeof createFilesStore>>,
   ): FilesInjected => {
-    /** Per tab, per absolute path: the listing generation a settlement must match; the latest request wins. */
-    const generations = new Map<TabId, Map<string, number>>()
-    const nextGeneration = (tabId: TabId, path: string): number => {
-      const byPath = generations.get(tabId) ?? new Map<string, number>()
-      generations.set(tabId, byPath)
+    /** Per tree, per absolute path: the listing generation a settlement must match; the latest request wins. */
+    const generations = new Map<TreeKey, Map<string, number>>()
+    const nextGeneration = (key: TreeKey, path: string): number => {
+      const byPath = generations.get(key) ?? new Map<string, number>()
+      generations.set(key, byPath)
       const generation = (byPath.get(path) ?? 0) + 1
       byPath.set(path, generation)
       return generation
     }
-    const load = (tabId: TabId, path: string, signal: AbortSignal): void => {
+    const load = (key: TreeKey, path: string, signal: AbortSignal): void => {
       if (signal.aborted) return
-      const generation = nextGeneration(tabId, path)
-      actions.loading(tabId, path)
+      const generation = nextGeneration(key, path)
+      actions.loading(key, path)
       void list(sessionId, path, signal).then((result) => {
-        // A newer listing of this level was asked for since, or the record is
+        // A newer listing of this level was asked for since, or the owner is
         // gone and its bookkeeping with it: nothing left for this one to write.
-        if (generations.get(tabId)?.get(path) !== generation) return
-        if (result.ok) actions.loaded(tabId, path, result.value)
-        else actions.failed(tabId, path, result.error)
+        if (generations.get(key)?.get(path) !== generation) return
+        if (result.ok) actions.loaded(key, path, result.value)
+        else actions.failed(key, path, result.error)
       })
     }
     return {
-      start(tabId, root, signal) {
-        actions.start(tabId, root)
+      start(key, root, signal) {
+        actions.start(key, root)
         signal.addEventListener('abort', () => {
-          generations.delete(tabId)
-          actions.forget(tabId)
+          generations.delete(key)
+          actions.forget(key)
         }, { once: true })
-        load(tabId, root, signal)
+        load(key, root, signal)
       },
       load,
-      toggle(tabId, path, loaded, signal) {
-        actions.toggled(tabId, path)
-        if (!loaded) load(tabId, path, signal)
+      toggle(key, path, loaded, signal) {
+        actions.toggled(key, path)
+        if (!loaded) load(key, path, signal)
       },
     }
   }
+}
+
+/**
+ * Bind the explorer column's face: the tree's face for the session-keyed tree,
+ * plus the opener that lands a clicked file in the sidebar's pane area.
+ * @param list - the bound `workspaceFiles.list` call.
+ * @param open - the sidebar resource opener, aimed at the mounted session.
+ * @returns the Slot `inject` factory: session and bound actions in, face out.
+ */
+export function explorerFace(
+  list: ListWorkspaceDirectory,
+  open: (address: string) => void,
+): (sessionId: SessionId, actions: BoundActions<ReturnType<typeof createFilesStore>>) => ExplorerInjected {
+  return (sessionId, actions) => ({ ...filesFace(list)(sessionId, actions), open })
 }

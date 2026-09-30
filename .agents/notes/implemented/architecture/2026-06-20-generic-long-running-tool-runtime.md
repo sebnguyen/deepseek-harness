@@ -73,7 +73,7 @@ A producer loaded without any controller would let callers start work they canno
 
 `dsh-tool-jobs` registers three kind-independent tools with generic UI cards:
 
-- `job_output(job_id, wait?, timeout_ms?)` reads output and always appends `[status: ...]`. Stream tasks return only output since the previous read; final-output tasks return their result after settlement. Reads are non-blocking unless `wait: true`, whose timeout is defaulted and capped by plugin config. A wait timeout reports the still-running status and does not stop the task.
+- `job_output(job_id)` reads output as a non-blocking snapshot and always appends `[status: ...]`. Stream tasks return only output since the previous read; final-output tasks return their result after settlement. A run that finishes later reaches the owning agent as an in-session notice.
 - `job_list()` returns caller-visible tasks as `<id> [<kind>] <status> — <label>`, or `(no background jobs)`.
 - `job_kill(job_id, reason?)` requests cancellation immediately. The optional logged reason is forwarded to the producer. Terminal tasks report their existing status; a throwing producer cancel fails the call and leaves the task running.
 
@@ -113,9 +113,9 @@ Consumer-owned checks invite inconsistent or missing isolation on each new contr
 
 ### Blocking output or a separate wait tool
 
-Blocking by default would serialize the parent while background work runs. Waiting without reading would add another model call and schema without returning useful information. `job_output(wait: true)` makes blocking explicit and combines it with result delivery.
+Blocking by default would serialize the parent while background work runs. The read blocks in no form at all: a snapshot returns what the job has produced, and settlement reaches the owning agent as an in-session notice, so no parameter, timeout, or separate wait tool is needed.
 
-The wait uses the shared deadline primitives but not the generic tool-timeout policy. A wait timeout is a successful observation that returns `[status: running]`; the generic policy would replace it with a timeout error. No tool-call timeout controls task lifetime after a job id has been returned.
+No tool-call timeout controls task lifetime after a job id has been returned. Why the blocking read was removed — and which signals remain the completion markers — is [snapshot-only job reads](../feature/2026-09-29-snapshot-only-job-reads.md).
 
 ### Runtime-owned output sinks
 

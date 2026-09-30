@@ -98,6 +98,28 @@
   min-height: 0;
 }
 
+/*
+ * The persistent explorer column at the panel's left edge, beside the docked
+ * panes. Its registrant owns the inside; without one the outlet stays empty
+ * and the column yields the whole panel to the panes.
+ */
+.explorer {
+  flex: none;
+  width: 200px;
+  min-width: 0;
+  border-right: 0.5px solid var(--dsw-alias-border-l4);
+}
+
+.explorer:empty {
+  display: none;
+}
+
+.dockArea {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .unavailable {
   margin: 0;
   padding: 12px;

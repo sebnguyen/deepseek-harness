@@ -1,7 +1,7 @@
-/** The `list` endpoint: the same containment gates as `read`, plus the entry cap. */
+/** The `list` endpoint: the same read access as `read`, plus the entry cap. */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { mkdir, symlink, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { mkdir, realpath, symlink, writeFile } from 'node:fs/promises'
+import { dirname, join } from 'node:path'
 import { failureOf, openWorkspace, signal, type Harness } from './harness.ts'
 
 let harness: Harness
@@ -82,22 +82,38 @@ describe('workspaceFiles.list — the entry cap', () => {
   })
 })
 
-describe('workspaceFiles.list — gates', () => {
-  it('rejects an absolute directory outside the workspace', async () => {
-    const failure = await failureOf(endpoint().list(harness.scope, outside, signal()))
-    expect(failure.code).toBe('workspace-file/outside-workspace')
+describe('workspaceFiles.list — read access and gates', () => {
+  it('lists an absolute directory outside the workspace, naming its absolute path', async () => {
+    await mkdir(join(outside, 'inner'))
+    await writeFile(join(outside, 'notes.txt'), 'outside', 'utf8')
+    const listing = await endpoint().list(harness.scope, outside, signal())
+    expect(listing.path).toBe(await realpath(outside))
+    expect(listing.entries).toEqual([
+      { name: 'inner', type: 'directory' },
+      { name: 'notes.txt', type: 'file', size: 7 },
+    ])
   })
 
-  it('rejects a traversal that climbs out of the workspace', async () => {
-    const failure = await failureOf(endpoint().list(harness.scope, '..', signal()))
-    expect(failure.code).toBe('workspace-file/outside-workspace')
+  it('lists the parent directory a relative traversal climbs to', async () => {
+    const listing = await endpoint().list(harness.scope, '..', signal())
+    expect(listing.path).toBe(await realpath(dirname(workspace)))
+    expect(listing.entries.map(entry => entry.name)).toEqual(expect.arrayContaining(['outside', 'workspace']))
   })
 
-  it('rejects a symlinked directory before following it, wherever it points', async () => {
+  it('lists a directory reached through a symlink that stays inside the workspace', async () => {
+    await mkdir(join(workspace, 'real'))
+    await writeFile(join(workspace, 'real', 'a.ts'), '', 'utf8')
+    await symlink(join(workspace, 'real'), join(workspace, 'alias'))
+    const listing = await endpoint().list(harness.scope, 'alias', signal())
+    expect(listing.entries.map(entry => entry.name)).toEqual(['a.ts'])
+  })
+
+  it('lists a symlinked directory whose target is outside the workspace', async () => {
+    await mkdir(join(outside, 'inner'))
     await symlink(outside, join(workspace, 'escape'))
-    const failure = await failureOf(endpoint().list(harness.scope, 'escape', signal()))
-    expect(failure.code).toBe('workspace-file/not-directory')
-    expect(failure.details).toMatchObject({ kind: 'symlink' })
+    const listing = await endpoint().list(harness.scope, 'escape', signal())
+    expect(listing.path).toBe(await realpath(outside))
+    expect(listing.entries.map(entry => entry.name)).toEqual(['inner'])
   })
 
   it('rejects a file, which has no children to list', async () => {

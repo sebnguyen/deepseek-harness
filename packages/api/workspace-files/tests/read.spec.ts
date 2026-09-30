@@ -1,6 +1,6 @@
 /** The `read` endpoint: its four gates and the line window it cuts. */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { FsError } from '@deepseek-ai/dsh-fs'
 import { failureOf, openWorkspace, signal, type Harness } from './harness.ts'
@@ -148,21 +148,24 @@ describe('workspaceFiles.read — read access and file kinds', () => {
     await expect(endpoint().read(harness.scope, join(outside, 'notes.txt'), {}, signal())).rejects.toBe(refusal)
   })
 
-  it('rejects a symlink that points out of the workspace — the case a prefix test cannot see', async () => {
-    await writeFile(join(outside, 'secret.txt'), 'no', 'utf8')
-    // The path itself is inside the workspace and would pass any string
-    // comparison; only lstat (before the follow) or realpath containment catches it.
-    await symlink(join(outside, 'secret.txt'), join(workspace, 'link.txt'))
-    const failure = await failureOf(endpoint().read(harness.scope, 'link.txt', {}, signal()))
-    expect(failure.code).toBe('workspace-file/not-regular-file')
-    expect(failure.details).toMatchObject({ kind: 'symlink' })
-  })
-
-  it('rejects a symlink even when it points back inside the workspace', async () => {
+  it('reads through a symlink to the target and names the target as the absolute path', async () => {
     await writeFile(join(workspace, 'real.txt'), 'fine', 'utf8')
     await symlink(join(workspace, 'real.txt'), join(workspace, 'alias.txt'))
-    const failure = await failureOf(endpoint().read(harness.scope, 'alias.txt', {}, signal()))
-    expect(failure.code).toBe('workspace-file/not-regular-file')
+    const page = await endpoint().read(harness.scope, 'alias.txt', {}, signal())
+    expect(page.text).toBe('fine')
+    expect(page.absolutePath).toBe(await realpath(join(workspace, 'real.txt')))
+  })
+
+  it('reads a symlink whose target is outside the workspace, as an explicit outside path would', async () => {
+    await writeFile(join(outside, 'notes.txt'), 'outside', 'utf8')
+    await symlink(join(outside, 'notes.txt'), join(workspace, 'link.txt'))
+    expect(await endpoint().read(harness.scope, 'link.txt', {}, signal())).toMatchObject({ text: 'outside', eof: true })
+  })
+
+  it('reports a dangling symlink as not found', async () => {
+    await symlink(join(outside, 'missing.txt'), join(workspace, 'dangling.txt'))
+    const failure = await failureOf(endpoint().read(harness.scope, 'dangling.txt', {}, signal()))
+    expect(failure.code).toBe('workspace-file/not-found')
   })
 
   it('rejects a directory, which has no text to return', async () => {
@@ -236,34 +239,32 @@ describe('workspaceFiles.read — gate 4: text only', () => {
   })
 })
 
-describe('workspaceFiles.read — the file changing under its gate', () => {
-  /** Run `mutate` after the path gate has looked, so what follows sees a different filesystem. */
-  function afterGate(mutate: () => Promise<void>): void {
+describe('workspaceFiles.read — the file changing under its probe', () => {
+  /** Run `mutate` after the one stat has looked, so the read sees a different filesystem. */
+  function afterStat(mutate: () => Promise<void>): void {
     const fs = harness.ctx.fs
-    const lstat = fs.lstat.bind(fs)
-    vi.spyOn(fs, 'lstat').mockImplementation(async (path, opts, signal) => {
-      const entry = await lstat(path, opts, signal)
+    const stat = fs.stat.bind(fs)
+    vi.spyOn(fs, 'stat').mockImplementation(async (target, signal) => {
+      const info = await stat(target, signal)
       await mutate()
-      return entry
+      return info
     })
   }
 
-  it('reports a file deleted after the gate as not found, not as an internal failure', async () => {
+  it('reports a file deleted after the probe through the backend as not found', async () => {
     await writeFile(join(workspace, 'fleeting.txt'), 'x', 'utf8')
-    afterGate(() => rm(join(workspace, 'fleeting.txt')))
-    const failure = await failureOf(endpoint().read(harness.scope, 'fleeting.txt', {}, signal()))
-    expect(failure.code).toBe('workspace-file/not-found')
+    afterStat(() => rm(join(workspace, 'fleeting.txt')))
+    await expect(endpoint().read(harness.scope, 'fleeting.txt', {}, signal())).rejects.toMatchObject({ code: 'FS_NOT_FOUND' })
   })
 
-  it('reports a file replaced by a directory after the gate as not a regular file', async () => {
+  it('reports a file replaced by a directory after the probe through the backend as not a regular file', async () => {
     await writeFile(join(workspace, 'fleeting.txt'), 'x', 'utf8')
-    afterGate(async () => {
+    afterStat(async () => {
       await rm(join(workspace, 'fleeting.txt'))
       await mkdir(join(workspace, 'fleeting.txt'))
     })
-    const failure = await failureOf(endpoint().read(harness.scope, 'fleeting.txt', {}, signal()))
-    expect(failure.code).toBe('workspace-file/not-regular-file')
-    expect(failure.details).toMatchObject({ kind: 'directory' })
+    await expect(endpoint().read(harness.scope, 'fleeting.txt', {}, signal()))
+      .rejects.toMatchObject({ code: 'FS_NOT_REGULAR_FILE' })
   })
 
   it('passes any other backend failure through unchanged', async () => {

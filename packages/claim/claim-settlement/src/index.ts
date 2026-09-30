@@ -150,7 +150,7 @@ function renderRepair(verdicts: readonly Verdict[], resolved: ResolvedConfig): s
         ].join('\n')
       /* v8 ignore next 2 -- VerifierOutcome is a closed union covered above */
       default:
-        return `- "${claim.title}" ${result.outcome}.`
+        return `- "${claim.title}" ${String(result.outcome)}.`
     }
   })
   return [

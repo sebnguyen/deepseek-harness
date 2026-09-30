@@ -2,11 +2,10 @@
  * Shared fixture: a real local backend over a temp workspace beside a sibling
  * directory outside it, and a sandbox policy whose only job is naming the root.
  *
- * The real backend, not a mocked `ctx.fs`, because the gates under test are
+ * The real backend, not a mocked `ctx.fs`, because the reads under test are
  * only meaningful against a real filesystem: a symlink that leaves the
  * workspace, a file whose byte size exceeds the cap, and bytes that are not
- * text. A fake provider would let a string-prefix containment check pass this
- * file, which is exactly the defect the gate exists to prevent.
+ * text.
  */
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'

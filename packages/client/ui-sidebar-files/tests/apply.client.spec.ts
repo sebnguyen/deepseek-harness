@@ -15,12 +15,13 @@ import { apply, inject } from '../src/client/index.ts'
 import { apply as hostApply } from '../src/index.ts'
 import { FilesBody } from '../src/client/FilesBody.tsx'
 import { FilesTitle } from '../src/client/FilesTitle.tsx'
+import { ExplorerBody } from '../src/client/ExplorerBody.tsx'
 import { en, zh } from '../src/client/locales.ts'
 
 interface Recorded {
   name: string
-  key: string
-  locale: string
+  key?: string
+  locale?: string
   store: unknown
   inject: unknown
   component: unknown
@@ -49,6 +50,7 @@ async function boot() {
   }
   const workspaceFiles = { list: vi.fn() }
   ctx.provide('sidebarRightTabs', tabs as never)
+  ctx.provide('sidebarRight', { openResource: vi.fn() } as never)
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   ctx.provide('remote', { workspaceFiles } as never)
@@ -63,7 +65,7 @@ describe('ui-sidebar-files apply', () => {
     expect(hostApply).not.toThrow()
   })
 
-  it('registers the type, its dictionaries, and the body and title seats under the type\'s id', async () => {
+  it('registers the type, its dictionaries, and the body, title, and explorer seats', async () => {
     const { tabs, registered, dictionaries } = await boot()
     const definition = tabs.get(FILES_KIND)
     expect(definition?.id).toBe(FILES_ID)
@@ -73,13 +75,17 @@ describe('ui-sidebar-files apply', () => {
       .toEqual([[10, 'guide.title', 'guide.description']])
     expect(dictionaries.get('sidebarFiles')).toEqual({ zh, en })
     // The seat key is the implementation's id, not the kind: an extension may
-    // take the kind over, and the seat must still find this body.
+    // take the kind over, and the seat must still find this body. The explorer
+    // column shares the tree store with the tab type.
     expect(registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
       ['sidebar.right.pane.tab', FILES_ID, 'sidebarFiles', FilesBody],
       ['sidebar.right.pane.tab.title', FILES_ID, undefined, FilesTitle],
+      ['sidebar.right.explorer', undefined, 'sidebarFiles', ExplorerBody],
     ])
     expect(registered[0]?.store).toBeDefined()
+    expect(registered[2]?.store).toBe(registered[0]?.store)
     expect(typeof registered[0]?.inject).toBe('function')
+    expect(typeof registered[2]?.inject).toBe('function')
   })
 
   it('takes every registration back when the plugin is disposed', async () => {

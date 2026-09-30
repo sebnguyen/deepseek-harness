@@ -203,8 +203,16 @@ describe('PTC mode typed values: keyless real-worker contracts', () => {
     `))
     expect(jobId).toBe('bash-1')
 
+    // A read is a non-blocking snapshot, so settlement is polled for rather
+    // than waited on; the completion notice is the agent-facing signal.
     const polled = completion(await runCode(ctx, `
-      return await tools.job_output({ job_id: ${JSON.stringify(jobId)}, wait: true, timeout_ms: 5000 });
+      const id = ${JSON.stringify(jobId)};
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const read = await tools.job_output({ job_id: id });
+        if (String(read.text).includes('background-complete')) return read;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      return await tools.job_output({ job_id: id });
     `))
     if (typeof polled !== 'object' || polled === null || Array.isArray(polled)) throw new Error('invalid job_output completion')
     const taskOutput = polled as Record<string, unknown>
@@ -244,7 +252,13 @@ describe('PTC mode typed values: keyless real-worker contracts', () => {
     `))
     expect(killed).toMatchObject({ outcome: 'cancellation-requested', job: { id: job!.id } })
     const settled = completion(await runCode(ctx, `
-      return await tools.job_output({ job_id: ${JSON.stringify(job!.id)}, wait: true, timeout_ms: 5000 });
+      const id = ${JSON.stringify(job!.id)};
+      for (let attempt = 0; attempt < 200; attempt++) {
+        const read = await tools.job_output({ job_id: id });
+        if (read.job.status === 'killed') return read;
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+      return await tools.job_output({ job_id: id });
     `))
     expect(settled).toMatchObject({ job: { id: job!.id, status: 'killed' } })
   }, 15_000)

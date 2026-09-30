@@ -24,11 +24,26 @@ describe('SystemPrompt tool order', () => {
     expect(TOOL_ORDER_REST).toBe('<unlisted-tools>')
   })
 
-  it('assembles tools in lexicographic name order when no toolOrder is configured', async () => {
+  it('orders unranked tools lexicographically when no toolOrder is configured', async () => {
     const ctx = await mount()
     ctx.systemPrompt.tools(() => ({ schemas: [tool('charlie'), tool('alpha')] }))
     ctx.systemPrompt.tools(() => ({ schemas: [tool('bravo')] }))
     expect(names(await ctx.systemPrompt.assemble())).toEqual(['alpha', 'bravo', 'charlie'])
+  })
+
+  it('leads the default order with the tools that change the workspace, then the shell', async () => {
+    const ctx = await mount()
+    ctx.systemPrompt.tools(() => ({
+      schemas: [tool('todo_write'), tool('bash'), tool('read'), tool('anchor'), tool('write'), tool('edit')],
+    }))
+    expect(names(await ctx.systemPrompt.assemble()))
+      .toEqual(['write', 'edit', 'read', 'bash', 'anchor', 'todo_write'])
+  })
+
+  it('ranks both shells in one position, so a Win32 composition needs no separate rule', async () => {
+    const ctx = await mount()
+    ctx.systemPrompt.tools(() => ({ schemas: [tool('pwsh'), tool('read'), tool('bash'), tool('write')] }))
+    expect(names(await ctx.systemPrompt.assemble())).toEqual(['write', 'read', 'bash', 'pwsh'])
   })
 
   it('assembles the same order regardless of provider registration order', async () => {

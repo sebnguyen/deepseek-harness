@@ -392,15 +392,15 @@ describe('TextPreview — the file\'s metadata', () => {
   })
 
   it('says a metadata-and-read failure once and retries the content read', async () => {
-    const h = harness({ 1: failure('workspace-file/outside-workspace', { path: PATH }) })
-    h.setFailure(new RemoteError('workspace-file/outside-workspace', 'outside', { path: PATH }))
+    const h = harness({ 1: failure('workspace-file/not-found', { path: PATH }) })
+    h.setFailure(new RemoteError('workspace-file/not-found', 'outside', { path: PATH }))
     const view = render(<TextPreview {...h.props()} />)
     await settle()
     // With nothing read the body's failure is the whole story: a metadata bar
     // above it would repeat the same line.
     expect(view.container.querySelector('[data-textpreview-meta-failed]')).toBeNull()
     expect(view.container.querySelector('[data-textpreview-failed]')?.getAttribute('data-textpreview-failed'))
-      .toBe('workspace-file/outside-workspace')
+      .toBe('workspace-file/not-found')
     h.script(1, page(1, ['a'], true))
     click(view.container, '[data-textpreview-retry]')
     await settle()

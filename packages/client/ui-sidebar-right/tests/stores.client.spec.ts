@@ -5,8 +5,8 @@
  * The opens, page uniqueness, and the merge rule are asserted through
  * `ctx.sidebarRight` in service.client.spec.ts; here are the intents only the
  * kit's gestures reach — floating-panel moves and resizes, divider drags — and
- * the sequence's ends, plus the seed's timing: a surface starts empty, and the
- * default page arrives with the expansion that would otherwise show nothing.
+ * the sequence's ends, plus the seed's timing: a surface starts expanded with
+ * the default page already seated, and no history entry before the first one.
  */
 import { describe, expect, it, vi } from 'vitest'
 import type { LayoutState, PaneId, TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
@@ -31,7 +31,8 @@ function harness() {
     if (seeded === undefined) throw new Error('expected the seeded guide')
     return seeded.id
   }
-  // The surface starts empty; expanding seeds the default guide.
+  // The surface starts expanded with the default guide seated; the seed is not
+  // a recorded intent. `expand` stays for the history-driven tests and no-ops.
   const expand = (): void => { instance.actions.setExpanded(SESSION, true) }
   return { instance, actions: instance.actions, surface, layout, entries, guide, expand }
 }
@@ -100,12 +101,15 @@ describe('createSidebarRightStore — the sequence', () => {
     expect(Object.values(layout().tabs)).toHaveLength(1)
   })
 
-  it.each([false, true])('does not split an empty collapsed pane after close=%s', (afterClose) => {
-    const { actions, layout, surface } = harness()
-    if (afterClose) {
-      actions.openContent(SESSION, { kind: 'text', contentId: 'file:a', title: 'a' }, () => {})
-      actions.closeTab(SESSION, Object.values(layout().tabs)[0]!.id)
-    }
+  it('does not split once the column has collapsed empty', () => {
+    const { actions, layout, surface, guide } = harness()
+    // Reach the empty collapsed column: beside one opened tab the seeded
+    // guide is closable, and closing the tab left last closes the column.
+    actions.openContent(SESSION, { kind: 'text', contentId: 'file:a', title: 'a' }, () => {})
+    const text = Object.values(layout().tabs).find(tab => tab.kind === 'text')
+    if (text === undefined) throw new Error('expected the opened tab')
+    actions.closeTab(SESSION, guide())
+    actions.closeTab(SESSION, text.id)
     const before = surface()
     const settled = vi.fn()
     actions.splitPane(SESSION, undefined, settled)
@@ -116,10 +120,14 @@ describe('createSidebarRightStore — the sequence', () => {
   })
 
   it.each(['guide', 'files'])('opens %s in the requested pane and merges a moved duplicate there', (kind) => {
-    const { actions, layout } = harness()
+    const { actions, layout, guide } = harness()
     const address = pageAddress(kind)
     actions.openContent(SESSION, { kind, contentId: address, title: kind }, () => {})
-    const first = Object.values(layout().tabs)[0]!
+    const first = Object.values(layout().tabs).find(tab => tab.contentId === address)
+    if (first === undefined) throw new Error('expected the opened tab')
+    // The seeded guide holds the pane the test expects the opened tab to own
+    // alone; beside the open it is closable.
+    if (kind !== 'guide') actions.closeTab(SESSION, guide())
     const firstPane = layout().activePaneId
     actions.splitPane(SESSION)
     const secondPane = layout().activePaneId
@@ -173,25 +181,22 @@ describe('createSidebarRightStore — the sequence', () => {
     expect(entries()).toBe(splitCount)
   })
 
-  it('materializes a session empty on open without recording, then seeds the guide with the first expansion', () => {
-    const { actions, layout, entries } = harness()
-    expect(layout().expanded).toBe(false)
-    expect(Object.values(layout().tabs)).toHaveLength(0)
-    expect(entries()).toBe(0)
-    // The expansion and the seed it makes visible are one recorded entry.
-    actions.setExpanded(SESSION, true)
+  it('materializes a session open with the default page seated, without recording', () => {
+    const { actions, layout, entries, guide } = harness()
     expect(layout().expanded).toBe(true)
     expect(Object.values(layout().tabs)).toHaveLength(1)
-    expect(entries()).toBe(1)
+    expect(guide()).toBeDefined()
+    expect(entries()).toBe(0)
     // Already expanded: nothing to plan, nothing recorded, the surface kept by reference.
     const before = layout()
     actions.setExpanded(SESSION, true)
     expect(layout()).toBe(before)
-    expect(entries()).toBe(1)
-    // Collapsing keeps the seeded guide; the next expansion has nothing to seed.
+    expect(entries()).toBe(0)
+    // Collapsing keeps the seated guide; the next expansion has nothing to seed.
     actions.setExpanded(SESSION, false)
     actions.setExpanded(SESSION, true)
     expect(Object.values(layout().tabs)).toHaveLength(1)
+    expect(entries()).toBe(2)
   })
 
   it('closes a tab once: a second close of a record already gone records nothing and throws nothing', () => {
@@ -216,9 +221,9 @@ describe('createSidebarRightStore — the sequence', () => {
     expect(surface()).toBe(start)
     actions.toggleExpanded(SESSION)
     actions.undo(SESSION)
-    expect(layout().expanded).toBe(false)
-    actions.redo(SESSION)
     expect(layout().expanded).toBe(true)
+    actions.redo(SESSION)
+    expect(layout().expanded).toBe(false)
   })
 })
 

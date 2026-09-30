@@ -226,7 +226,7 @@ interface SkillBudget {
 
 **One Choice question over the whole catalog.** Rejected because option-label ordering affects the answer and accuracy degrades with the number of options; per-candidate Noul questions keep every judgment binary.
 
-**A version-named successor package.** Rejected on the [package naming rule](../../../../docs/cookbook/adding-a-package.md): a suffix names a version rather than a role, and this repository's public plugin APIs are pre-stable, so the contract changes in place.
+**A version-named successor package.** Rejected on the [package naming rule](../../../../docs/cookbook/adding-a-package.md#name-the-role-that-exists): a suffix names a version rather than a role, and this repository's public plugin APIs are pre-stable, so the contract changes in place.
 
 ## Acceptance criteria
 

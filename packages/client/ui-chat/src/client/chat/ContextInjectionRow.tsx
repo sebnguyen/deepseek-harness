@@ -58,6 +58,7 @@ export function ContextInjectionRow({ content, source, provenance, form, t }: Co
         </>
       )}
       keepContentWhenOpen
+      keepChildrenMounted
       open={open}
       expandable
       expandOnRowClick

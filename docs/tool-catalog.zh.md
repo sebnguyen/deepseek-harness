@@ -563,6 +563,10 @@ pwsh 工具是 Windows 组合中 bash 执行器 seam 的 PowerShell 方言消费
     "command": {
       "type": "string",
       "description": "The bash command to run. Relative path is preferred in the command."
+    },
+    "run_in_background": {
+      "type": "boolean",
+      "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
     }
   },
   "required": [
@@ -1759,7 +1763,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `job_output`
 
-读取后台任务。流式任务只返回自上次读取以来的输出；最终输出任务会在结算后返回结果。每个响应都以 `[status: ...]` 结尾。读取默认不阻塞；设置 `wait: true` 后，最长等待到配置的上限。
+读取后台任务。流式任务只返回自上次读取以来的输出；最终输出任务会在结算后返回结果。每个响应都以 `[status: ...]` 结尾。读取是非阻塞快照：它绝不会等待任务，稍后才结束的运行会以会话内通知送达。
 
 ```json
 {
@@ -1768,14 +1772,6 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     "job_id": {
       "type": "string",
       "description": "Job id returned by the tool that started the background work."
-    },
-    "wait": {
-      "type": "boolean",
-      "description": "Block until the job reaches a terminal status or the timeout expires. A timed-out wait returns [status: running] and leaves the job alive."
-    },
-    "timeout_ms": {
-      "type": "number",
-      "description": "Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum."
     }
   },
   "required": [

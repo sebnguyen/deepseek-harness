@@ -14,7 +14,7 @@ import { act, cleanup, fireEvent } from '@testing-library/react'
 import { makeTranslate, RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
-import { failureLine, orderEntries } from '../src/client/FilesBody.tsx'
+import { failureLine, orderEntries } from '../src/client/Tree.tsx'
 import type { DirLevel } from '../src/client/store.ts'
 import { zh } from '../src/client/locales.ts'
 import { mountBody, ROOT, SESSION, TAB } from './mount.client.tsx'
@@ -178,7 +178,7 @@ describe('FilesBody', () => {
     act(() => { fireEvent.click(view.container.querySelector('[data-files-reload]')!) })
     expect(script.list.mock.calls.map(call => call[1])).toEqual([ROOT, child])
     expect(script.list).toHaveBeenCalledWith(SESSION, ROOT, controller.signal)
-    const state = instance.getSnapshot().byTab[TAB]!
+    const state = instance.getSnapshot().byTree[TAB]!
     expect(state.expanded).toEqual([ROOT, child])
     expect(state.levels).toEqual({ [ROOT]: { kind: 'loading' }, [child]: { kind: 'loading' } })
     expect(view.container.querySelector('[data-files-reload]')?.getAttribute('aria-label')).toBe(zh.reload)
@@ -188,7 +188,7 @@ describe('FilesBody', () => {
     const { view, script, controller, instance } = mountBody()
     await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
     act(() => { controller.abort() })
-    expect(instance.getSnapshot().byTab[TAB]).toBeUndefined()
+    expect(instance.getSnapshot().byTree[TAB]).toBeUndefined()
     expect(view.container.querySelector('[data-files-state="tree"]')).toBeNull()
     expect(script.list).toHaveBeenCalledTimes(1)
   })
@@ -219,8 +219,6 @@ describe('failureLine', () => {
 
   it('names each directory failure', () => {
     expect(failureLine(t, new RemoteError('workspace-file/not-found', 'x', { path: 'p' }))).toBe(zh['error.notFound'])
-    expect(failureLine(t, new RemoteError('workspace-file/outside-workspace', 'x', { path: 'p' })))
-      .toBe(zh['error.outsideWorkspace'])
     expect(failureLine(t, new RemoteError('workspace-file/not-directory', 'x', { path: 'p', kind: 'file' })))
       .toBe(zh['error.notDirectory'])
   })

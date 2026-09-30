@@ -70,7 +70,7 @@ function withRenderTimeout<T>(promise: Promise<T>): Promise<T> {
     const timer = setTimeout(() => { reject(new Error(`mermaid render exceeded ${RENDER_TIMEOUT_MS}ms`)) }, RENDER_TIMEOUT_MS)
     promise.then(
       (value) => { clearTimeout(timer); resolve(value) },
-      (error: unknown) => { clearTimeout(timer); reject(error) },
+      (error: unknown) => { clearTimeout(timer); reject(error instanceof Error ? error : new Error(String(error))) },
     )
   })
 }

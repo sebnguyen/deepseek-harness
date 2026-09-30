@@ -111,6 +111,8 @@ export const SERVICE_PAGE: Record<string, string> = {
   subprocess: 'subprocess.md',
   systemPrompt: 'system-prompt.md',
   jobs: 'jobs.md',
+  claims: 'claim.md',
+  searxngRuntime: 'web.md',
   sessionTelemetry: 'session-telemetry.md',
   agentTeams: 'agent-team.md',
   tokenMeter: 'token-meter.md',
@@ -147,6 +149,7 @@ export const SERVICE_PAGE: Record<string, string> = {
  * to a model as `cordis_runtime_inspect what:"client"`).
  */
 export const SERVICE_WALK_EXEMPTIONS: Record<string, string> = {
+  decision: 'Context-merge-only seam for decision-model skill admission — packages/context/skill-context/README.md owns the API',
   appReady: 'not a service: launcher-provided successful-startup signal — packages/boot/cmdline/README.md owns the launcher contract',
   appExit: 'not a service: launcher-provided bounded process-exit callback — packages/boot/cmdline/README.md owns the launcher contract',
   cmdlineArgs: 'not a service: launcher-provided immutable app argument accessor — packages/boot/cmdline/README.md owns the launcher contract',
@@ -247,6 +250,7 @@ export const EVENT_WALK_EXEMPTIONS: Record<string, string> = {
 export const LINK_MAP: Readonly<Record<string, string>> = {
   Claim: 'claim.md',
   ClaimError: 'claim.md',
+  ClaimId: 'claim.md',
   ClaimSettlement: 'claim.md',
   DeclareClaimRequest: 'claim.md',
   Verifier: 'claim.md',
@@ -354,6 +358,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   SessionRenameValue: 'session.md',
   SessionRespondReceipt: 'session.md',
   SessionRespondRequest: 'session.md',
+  SessionJobOutputRequest: 'session.md',
+  SessionJobOutputValue: 'session.md',
   SessionSearchValue: 'session.md',
   SessionSelectModelRequest: 'session.md',
   SessionSelectModelValue: 'session.md',
@@ -433,9 +439,12 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   CommandResult: 'commands.md',
   CommandSubmitAttachment: 'commands.md',
   CommandSurface: 'commands.md',
+  LspMapRequest: 'lsp.md',
+  LspMapResult: 'lsp.md',
   LspProvider: 'lsp.md',
   LspQueryRequest: 'lsp.md',
   LspQueryResult: 'lsp.md',
+  LspRoute: 'lsp.md',
   LlmAdapter: 'llm-streaming.md',
   PreparedLlmCall: 'llm-streaming.md',
   PreparedDeepSeekLlmApiExtensions: 'llm-streaming.md',
@@ -539,6 +548,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   ToolProviderResult: 'system-prompt.md',
   JobDoneListener: 'jobs.md',
   JobId: 'jobs.md',
+  JobOutputLines: 'jobs.md',
   JobRead: 'jobs.md',
   JobSnapshot: 'jobs.md',
   JobStart: 'jobs.md',
@@ -688,6 +698,7 @@ export const FOUNDATION_TYPE_NAMES: ReadonlySet<string> = new Set([
   'ReadonlyMap',
   'Request',
   'Response',
+  'Set',
   'Uint8Array',
 ])
 

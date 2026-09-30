@@ -23,6 +23,7 @@ function titleSources() {
     phase: 'ready',
     subagentsByParent: {},
     jobsBySession: {},
+    jobOutputBySession: {},
     currentAddress: undefined,
   })
   const panelInfo = createSnapshotStore<PanelInfo>({ activePanelId: null })

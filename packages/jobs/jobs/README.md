@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-jobs` lets tools keep long-running work active while an agent continues. Each job receives a stable `<kind>-N` id, and its owning agent can read output, wait with a timeout, or request cancellation. Ownership is scoped to the agent session, so other agents cannot inspect or stop the job; completion arrives as an in-session notice without polling. Background jobs can start only when the deployment supplies job execution.
+`dsh-jobs` lets tools keep long-running work active while an agent continues. Each job receives a stable `<kind>-N` id, and its owning agent can read output or request cancellation. Ownership is scoped to the agent session, so other agents cannot inspect or stop the job; completion arrives as an in-session notice without polling. Background jobs can start only when the deployment supplies job execution.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Use this package when you are composing a background-job capability or writing a
 
 ### What a background job gives you
 
-A producer registers work with a kind and a one-line label; the registry returns a `<kind>-N` id such as `bash-1`. Anyone who owns the job can read output, list jobs, wait up to a timeout for settlement, and request cancellation — each call returns a fresh snapshot of the job's status, from `running` and `stopping` to the terminal `completed`, `killed`, or `failed`. When a job settles, the owning agent is notified through the completion listener that `dsh-tool-jobs` turns into an in-session notice, so no polling is needed. A producer may attach an optional byte cap so each complete model-facing output read or completion notice stays bounded.
+A producer registers work with a kind and a one-line label; the registry returns a `<kind>-N` id such as `bash-1`. Anyone who owns the job can read output, list jobs, observe retained output lines without consuming them, and request cancellation — each call returns a fresh snapshot of the job's status, from `running` and `stopping` to the terminal `completed`, `killed`, or `failed`. When a job settles, the owning agent is notified through the completion listener that `dsh-tool-jobs` turns into an in-session notice, so no polling is needed. A producer may attach an optional byte cap so each complete model-facing output read or completion notice stays bounded.
 
 ### The ownership boundary
 
@@ -67,7 +67,7 @@ This section explains the design decisions behind the contract and points at the
 - **Contract and implementation are separate packages.** `JobRegistry` is an abstract Cordis service; loading the class directly throws, so a misconfigured composition fails at load instead of registering an empty `ctx.jobs`.
 - **One registry per process, owner-relative answers.** One instance serves every composition in the process, so registrations and deliveries are relative to the registering scope: a controller or listener registered from an unscoped context serves every owner; one registered under an agent composition's scope serves exactly the agents composed under it.
 - **Access is fenced by the owner's session id.** Ids are predictable, so authorization — not secrecy — is the boundary.
-- **Settlement is first-wins, and completion is announced last.** One terminal record, released waiters, and one round of contained listener notification; completion is announced after the record is committed and every other observer has seen it, because a reporter may open a model turn synchronously.
+- **Settlement is first-wins, and completion is announced last.** One terminal record and one round of contained listener notification; completion is announced after the record is committed and every other observer has seen it, because a reporter may open a model turn synchronously.
 - **Registrations outlive producer and controller fibers.** Owner and service disposal cancel live work and await compliant producers; a throwing teardown cancel force-fails only the record.
 
 ### Source map
@@ -81,7 +81,7 @@ This section explains the design decisions behind the contract and points at the
 
 ### Service operations
 
-Every operation is a thin projection over the registered jobs: `get` and `list` return non-consuming snapshots, `read` advances the single stream cursor, `kill` invokes producer cancellation before changing status, `wait` blocks up to a timeout, and `start()` preflights access, validation, and admission before invoking the producer's `run()` once while refusing any owner no attached controller serves; listeners observe terminal records and visible-set changes at owner granularity, and `attachController` scopes controller availability to its effect lifetime. Exact signatures and behavior live in the JSDoc on [`src/index.ts`](src/index.ts) and the generated [`ctx.jobs` Cordis surface](../../../docs/subsystems/jobs.md).
+Every operation is a thin projection over the registered jobs: `get` and `list` return non-consuming snapshots, `read` advances the single stream cursor, `readLines` serves retained lines by absolute index for an observer that must not consume that cursor, `kill` invokes producer cancellation before changing status, and `start()` preflights access, validation, and admission before invoking the producer's `run()` once while refusing any owner no attached controller serves; listeners observe terminal records and visible-set changes at owner granularity, and `attachController` scopes controller availability to its effect lifetime. Exact signatures and behavior live in the JSDoc on [`src/index.ts`](src/index.ts) and the generated [`ctx.jobs` Cordis surface](../../../docs/subsystems/jobs.md).
 
 </details>
 

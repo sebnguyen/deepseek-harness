@@ -130,9 +130,11 @@ async function ensureExpanded(page: Page, column: Locator): Promise<void> {
 async function resetSidebar(page: Page): Promise<Locator> {
   await page.reload({ waitUntil: 'load' })
   const column = page.locator('[data-rightbar-col]')
-  await expandOf(page).waitFor({ timeout: 15_000 })
-  await ensureExpanded(page, column)
-  await expect.poll(async () => await tabTitles(column)).toEqual(['Files'])
+  // The surface starts expanded, but a collapse persisted from an earlier case
+  // may still hold; the way back in then is the header's expand button.
+  await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 15_000 })
+    .catch(() => ensureExpanded(page, column))
+  await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
   await width(column)
   return column
 }
@@ -323,55 +325,53 @@ describe('web e2e: shipped right Sidebar', () => {
       expect(answered).toBe(true)
     })
 
-    it('starts collapsed behind a header button and squeezes the conversation when opened', async () => {
+    it('opens expanded by default, squeezes the conversation, and returns through the header button', async () => {
       onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-right'))
       const frame = page.locator('[class*="frame"]').first()
       const column = page.locator('[data-rightbar-col]')
       const conversation = page.locator('[class*="centerCol"]').first()
-      const expand = expandOf(page)
 
-      // Collapsed default: no track, the panel sits off the frame's edge, and
-      // the only way in is the header button — on the same row as the other
-      // header utilities, at its far right.
-      await expand.waitFor({ timeout: 15_000 })
-      expect(await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
-      expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+      // Expanded default: the settled session's surface starts open with its
+      // seeded guide, so the frame holds the panel's track without any click
+      // and the header's expand button has nothing to do — it only exists
+      // while collapsed.
+      await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 15_000 })
+      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
+      expect(await expandOf(page).count()).toBe(0)
+      const squeezed = await width(conversation)
+      const panelWidth = await width(column)
+      expect(panelWidth).toBeGreaterThan(0)
+
+      // Collapsing hands the track back to the conversation, and the way back
+      // in arrives in the header: on the same row as the other header
+      // utilities, at its far right.
+      await column.locator('[data-sidebar-right-toggle]').click()
+      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
+      await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+      expect(await width(conversation)).toBe(squeezed + panelWidth)
       const utilities = page.locator('[class*="headerUtilities"]')
+      const expand = expandOf(page)
+      await expand.waitFor({ timeout: 15_000 })
       const expandBox = await expand.boundingBox()
       const rowBox = await utilities.boundingBox()
       if (expandBox === null || rowBox === null) throw new Error('header utilities are not rendered')
       expect(Math.round(expandBox.y + expandBox.height / 2)).toBe(Math.round(rowBox.y + rowBox.height / 2))
       // Its own corner seat, past the utilities' right edge — not a utility.
       expect(expandBox.x).toBeGreaterThan(rowBox.x + rowBox.width)
-      const conversationBoxBefore = await conversation.boundingBox()
-      if (conversationBoxBefore === null) throw new Error('conversation is not rendered')
-      // How far the utilities' right edge sits from the conversation's own.
-      const gapBefore = (conversationBoxBefore.x + conversationBoxBefore.width) - (rowBox.x + rowBox.width)
-      const centerBefore = await width(conversation)
       await shot(page, '02a-collapsed-header-button')
 
-      // Opening squeezes by default: the column takes a track of the panel's
-      // width, the conversation gives up exactly that much room, and the header
-      // button leaves with the panel's arrival.
+      // The header button squeezes the conversation back by exactly the track,
+      // and leaves with the panel's arrival.
       await expand.click()
-      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
-      const panelWidth = await width(column)
-      expect(panelWidth).toBeGreaterThan(0)
-      expect(await width(conversation)).toBe(centerBefore - panelWidth)
-      await expect.poll(async () => await expand.count()).toBe(0)
-      // The corner seat collapses with its button, so the utilities' right edge
-      // moves out toward the conversation's own.
-      const utilitiesAfter = await utilities.boundingBox()
-      const conversationAfter = await conversation.boundingBox()
-      if (utilitiesAfter === null || conversationAfter === null) throw new Error('header is not rendered')
-      const gapAfter = (conversationAfter.x + conversationAfter.width) - (utilitiesAfter.x + utilitiesAfter.width)
-      expect(gapAfter).toBeLessThan(gapBefore)
+      expect(await width(conversation)).toBe(squeezed)
+      expect(await width(column)).toBe(panelWidth)
+      await expect.poll(async () => await expandOf(page).count()).toBe(0)
 
-      // The panel is in the column, not over it, and carries the seeded tab —
-      // whose body arrives through the Files type's keyed registration, not from
-      // any dispatch inside the seat. Its two controls sit at the end of the
-      // top-right pane's strip: the panel has no header row of its own.
+      // The panel is in the column, not over it, and carries the seeded guide —
+      // whose body arrives through the guide type's keyed registration, not
+      // from any dispatch inside the seat. Its two controls sit at the end of
+      // the top-right pane's strip: the panel has no header row of its own.
       expect(await column.locator('[data-sidebar-right-panel="push"]').count()).toBe(1)
       const chrome = column.locator('[data-dockkit-strip-chrome]')
       expect(await chrome.count()).toBe(1)
@@ -379,7 +379,7 @@ describe('web e2e: shipped right Sidebar', () => {
       expect(await chrome.locator('[data-sidebar-right-toggle]').count()).toBe(1)
 
       // One centre line across the strip: chip text, split, and the two panel
-      // controls all sit at the same height. The add control joins the check below.
+      // controls all sit at the same height.
       const centreY = async (selector: string): Promise<number> => {
         const box = await column.locator(selector).first().boundingBox()
         if (box === null) throw new Error(`${selector} is not rendered`)
@@ -390,27 +390,29 @@ describe('web e2e: shipped right Sidebar', () => {
         expect(await centreY(selector), selector).toBe(textLine)
       }
 
-      // A manual guide is closable beside Files and suppresses another add
-      // control in its pane until it is closed.
+      // The file tree no longer rides a tab: the explorer column at the panel's
+      // left edge draws it, with the rows' old data attributes, a root name, and
+      // a reload button of its own.
+      const explorer = column.locator('[data-sidebar-right-explorer]')
+      await explorer.locator('[data-files-explorer-state="tree"]').waitFor({ state: 'visible' })
+      expect(await explorer.locator('[data-files-explorer-reload]').count()).toBe(1)
+      expect(await explorer.locator('[data-files-entry="file"]').count()).toBeGreaterThan(0)
+
+      // The seeded guide standing alone draws no close control and suppresses
+      // the add control in its pane.
       const addTab = column.locator('[data-dockkit-add-tab]')
-      const filesTab = column.locator('[data-dockkit-tab]').filter({ hasText: 'Files' })
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files'])
-      await column.locator('[data-files-state="tree"]').waitFor({ state: 'visible' })
-      expect(await filesTab.locator('[data-dockkit-tab-close]').count()).toBe(1)
-      await expect.poll(async () => await addTab.count()).toBe(1)
-      expect(await centreY('[data-dockkit-add-tab]')).toBe(textLine)
-      await addTab.click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', 'Start'])
-      await expect.poll(async () => await column.locator('[data-sidebar-right-guide]').count()).toBe(1)
-      await expect.poll(async () => await addTab.count()).toBe(0)
-      expect(await filesTab.locator('[data-dockkit-tab-close]').count()).toBe(1)
       const guideTab = column.locator('[data-dockkit-tab]').filter({ hasText: 'Start' })
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
+      expect(await guideTab.locator('[data-dockkit-tab-close]').count()).toBe(0)
+      await expect.poll(async () => await addTab.count()).toBe(0)
+
+      // The explorer's rows reach the pane area the way the produced chip does:
+      // clicking the sample's row opens it beside the guide, which then earns
+      // its close control while the add control stays suppressed.
+      await explorer.locator('[data-files-entry="file"]').filter({ hasText: SAMPLE_NAME }).click()
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
       expect(await guideTab.locator('[data-dockkit-tab-close]').count()).toBe(1)
-      // Back to the seeded shape the cases below start from.
-      await guideTab.hover()
-      await guideTab.locator('[data-dockkit-tab-close]').click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files'])
-      await expect.poll(async () => await addTab.count()).toBe(1)
+      await expect.poll(async () => await addTab.count()).toBe(0)
       await shot(page, '02-squeezed-panel')
 
       expect(tripwire.pageErrors).toEqual([])
@@ -725,12 +727,12 @@ describe('web e2e: shipped right Sidebar', () => {
       // text type claims the address.
       const chip = page.getByRole('button', { name: `Open ${SAMPLE_NAME}` })
       await chip.click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
 
       // Opening the same content again focuses rather than duplicating.
       await panes.first().locator('[data-dockkit-tab]').first().click()
       await chip.click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
 
       // The body arrives through the text type's keyed registration, and its
       // content came over the wire from the real file.
@@ -751,7 +753,8 @@ describe('web e2e: shipped right Sidebar', () => {
       // button that always fails.
       expect(await page.getByRole('button', { name: /folder/i }).count()).toBe(0)
 
-      // Split, then dock-drag: the kit's gestures drive the store's actions.
+      // Split seeds the second pane with the guide; dock-drag the sample into
+      // it: the kit's gestures drive the store's actions.
       await panes.first().locator('[data-dockkit-split-button]').click()
       await expect.poll(async () => await panes.count()).toBe(2)
       await dragTo(
@@ -760,24 +763,25 @@ describe('web e2e: shipped right Sidebar', () => {
         await pointIn(panes.nth(1), 0.5, 0.94),
       )
       await expect.poll(async () => await panes.count()).toBe(2)
+      await expect.poll(async () => await tabTitles(panes.nth(1))).toEqual(['Start', SAMPLE_NAME])
 
-      const splitFiles = panes.nth(1).locator('[data-dockkit-tab]').filter({ hasText: 'Files' })
-      expect(await splitFiles.locator('[data-dockkit-tab-close]').count()).toBe(1)
-      await dragTo(page, splitFiles, await pointIn(panes.first(), 0.5, 0.5))
-      await expect.poll(async () => await tabTitles(panes.nth(1))).toEqual([SAMPLE_NAME])
-
-      // Neither pane holds a guide, so both offer an add control.
+      // Both panes hold a guide now, so neither offers an add control; the
+      // sample's chip stays closable in its new pane.
+      const splitSample = panes.nth(1).locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME })
+      expect(await splitSample.locator('[data-dockkit-tab-close]').count()).toBe(1)
       const filePane = panes.filter({ has: page.locator('[data-dockkit-tab-title]', { hasText: SAMPLE_NAME }) })
-      await expect.poll(async () => await filePane.locator('[data-dockkit-add-tab]').count()).toBe(1)
-      expect(await column.locator('[data-dockkit-add-tab]').count()).toBe(2)
+      await expect.poll(async () => await filePane.locator('[data-dockkit-add-tab]').count()).toBe(0)
+      expect(await column.locator('[data-dockkit-add-tab]').count()).toBe(0)
 
       // Floating leaves the column entirely, and survives collapsing it. The
-      // pane the tab was alone in goes with it: an emptied pane never stays.
-      const tab = column.locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME }).first()
-      await floatByDrag(page, tab)
+      // pane a floated tab was alone in goes with it: an emptied pane never
+      // stays — float the guide the split seeded in the first pane.
+      const seededGuide = panes.first().locator('[data-dockkit-tab]').filter({ hasText: 'Start' })
+      await floatByDrag(page, seededGuide)
       await expect.poll(async () => await floats.count()).toBe(1)
       expect(await column.locator('[data-dockkit-float]').count()).toBe(0)
       await expect.poll(async () => await panes.count()).toBe(1)
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
       await shot(page, '04-split-and-float')
 
       await column.locator('[data-sidebar-right-toggle]').click()
@@ -822,11 +826,13 @@ describe('web e2e: shipped right Sidebar', () => {
         const before = await records()
 
         // The real New Session action selects a distinct blank Session; its
-        // collapsed surface must not inherit the settled Session's tabs.
+        // fresh surface must not inherit the settled Session's tabs — only its
+        // own seeded guide, expanded like every new surface.
         await fx.getByRole('button', { name: 'New session', exact: true }).last().click()
         await expect.poll(async () => await settled.getAttribute('aria-selected')).toBe('false')
-        await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
-        expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+        await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
+        expect(await column.locator('[data-sidebar-right-open]').count()).toBe(1)
+        await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
         expect(await column.locator('[data-textpreview-state="text"]').count()).toBe(0)
 
         await settled.click()
@@ -857,7 +863,7 @@ describe('web e2e: shipped right Sidebar', () => {
       const first = panes.first()
       const strip = first.locator('[data-dockkit-strip]')
       await page.getByRole('button', { name: `Open ${SAMPLE_NAME}` }).click()
-      await expect.poll(async () => await tabTitles(first)).toEqual(['Files', SAMPLE_NAME])
+      await expect.poll(async () => await tabTitles(first)).toEqual(['Start', SAMPLE_NAME])
       const order = await tabTitles(first)
       // The insertion index is measured against chip midpoints, not strip width.
       await dragTo(page, first.locator('[data-dockkit-tab]').last(),
@@ -901,7 +907,9 @@ describe('web e2e: shipped right Sidebar', () => {
       expect(await panes.count()).toBe(2)
       expect(await splitButtons.count()).toBe(0)
 
-      // 5. A manual guide and the document float while Files stays docked.
+      // 5. The document floats, then a seeded guide floats while the other
+      //    guide stays docked; floating the guide empties its pane, which
+      //    merges away.
       const floatOne = panes.last().locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME })
       await floatByDrag(page, floatOne)
       await expect.poll(async () => await floats.count()).toBe(1)
@@ -910,11 +918,10 @@ describe('web e2e: shipped right Sidebar', () => {
       await dragElement(page, floats.first().locator('[data-dockkit-float-grip]'), { x: box.x + 140, y: box.y + 90 })
       await expect.poll(async () => (await floats.first().boundingBox())?.x ?? box.x).not.toBe(box.x)
 
-      await panes.last().locator('[data-dockkit-add-tab]').click()
-      await expect.poll(async () => await tabTitles(panes.last())).toEqual(['Files', 'Start'])
       const second = panes.last().locator('[data-dockkit-tab]').filter({ hasText: 'Start' })
       await floatByDrag(page, second)
       await expect.poll(async () => await floats.count()).toBe(2)
+      await expect.poll(async () => await panes.count()).toBe(1)
 
       // 6. Dock one back: the docked tree takes it, the other float stays. Dock
       //    the TOPMOST float — floats render bottom-to-top, so the newest one
@@ -930,28 +937,31 @@ describe('web e2e: shipped right Sidebar', () => {
       onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-right-settle'))
       const column = await resetSidebar(page)
       const panes = column.locator('[data-dockkit-pane]')
-      expect(await column.locator('[data-dockkit-tab-close]').count()).toBe(1)
+      // The seeded guide standing alone draws no close control.
+      expect(await column.locator('[data-dockkit-tab-close]').count()).toBe(0)
       await page.getByRole('button', { name: `Open ${SAMPLE_NAME}` }).click()
-      await expect.poll(async () => await tabTitles(panes.first())).toEqual(['Files', SAMPLE_NAME])
+      await expect.poll(async () => await tabTitles(panes.first())).toEqual(['Start', SAMPLE_NAME])
       await panes.first().locator('[data-dockkit-split-button]').click()
       await expect.poll(async () => await panes.count()).toBe(2)
 
-      // Closing a pane's last tab drops the pane: there is no separate
-      // "close pane" gesture, and none is needed.
-      await panes.nth(1).locator('[data-dockkit-tab]').first().hover()
-      await panes.nth(1).locator('[data-dockkit-tab-close]').first().click()
+      // Closing a pane's last closable tab drops the pane: there is no separate
+      // "close pane" gesture, and none is needed. The split seeded the second
+      // pane with the guide; give it the sample too, then close both there —
+      // the guide first, which beside content is closable.
+      await dragTo(
+        page,
+        panes.first().locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME }).first(),
+        await pointIn(panes.nth(1), 0.5, 0.5),
+      )
+      await expect.poll(async () => await tabTitles(panes.nth(1))).toEqual(['Start', SAMPLE_NAME])
+      const splitGuide = panes.nth(1).locator('[data-dockkit-tab]').filter({ hasText: 'Start' })
+      await splitGuide.hover()
+      await splitGuide.locator('[data-dockkit-tab-close]').click()
+      await expect.poll(async () => await tabTitles(panes.nth(1))).toEqual([SAMPLE_NAME])
+      const splitSample = panes.nth(1).locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME })
+      await splitSample.hover()
+      await splitSample.locator('[data-dockkit-tab-close]').click()
       await expect.poll(async () => await panes.count()).toBe(1)
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', SAMPLE_NAME])
-
-      // Leave a guide as the sole docked tab.
-      const files = column.locator('[data-dockkit-tab]').filter({ hasText: 'Files' })
-      await files.hover()
-      await files.locator('[data-dockkit-tab-close]').click()
-      await column.locator('[data-dockkit-add-tab]').click()
-      await expect.poll(async () => await tabTitles(column)).toEqual([SAMPLE_NAME, 'Start'])
-      const sample = column.locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME })
-      await sample.hover()
-      await sample.locator('[data-dockkit-tab-close]').click()
       await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
 
       // The guide standing as the docked surface's only tab draws no close
@@ -966,7 +976,8 @@ describe('web e2e: shipped right Sidebar', () => {
       // Any other tab standing alone closes together with the column. Open the
       // sample file, close the guide (an ordinary close with two tabs), then
       // close the file: the column collapses in the same gesture, and the
-      // settle rule reseeds the current default, so reopening shows Files.
+      // settle rule reseeds the current default, so reopening shows the guide,
+      // with the tree living in the explorer column rather than a tab.
       await page.getByRole('button', { name: `Open ${SAMPLE_NAME}` }).click()
       await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
       await column.locator('[data-dockkit-tab]').first().hover()
@@ -976,8 +987,8 @@ describe('web e2e: shipped right Sidebar', () => {
       await column.locator('[data-dockkit-tab-close]').first().click()
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
       await expandOf(page).click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files'])
-      expect(await column.locator('[data-files-state="tree"]').count()).toBe(1)
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
+      expect(await column.locator('[data-sidebar-right-explorer] [data-files-explorer-state="tree"]').count()).toBe(1)
 
       expect(tripwire.pageErrors).toEqual([])
       expect(tripwire.warnings).toEqual([])
@@ -991,10 +1002,12 @@ describe('web e2e: shipped right Sidebar', () => {
       const column = page.locator('[data-rightbar-col]')
       await column.waitFor({ state: 'attached', timeout: 15_000 })
       // The surface is view state, not durable session data: a reload zeroes it
-      // back to the collapsed default. Expected behaviour, not a defect.
-      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
-      await expect.poll(async () => await expandOf(page).count()).toBe(1)
-      expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+      // back to the expanded default — open panel, seeded guide, and no header
+      // expand button. Expected behaviour, not a defect.
+      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
+      await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
+      expect(await expandOf(page).count()).toBe(0)
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
     })
 
     it('opens a context menu on right-click that the strip cannot clip', async () => {
@@ -1002,13 +1015,15 @@ describe('web e2e: shipped right Sidebar', () => {
       const column = page.locator('[data-rightbar-col]')
 
       await ensureExpanded(page, column)
-      await expect.poll(async () => await column.locator('[data-dockkit-tab]').count()).toBeGreaterThan(0)
-      await column.locator('[data-dockkit-add-tab]').click()
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Files', 'Start'])
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
+      // The seeded guide standing alone opens no menu; open the sample so the
+      // chip under test is a closable one.
+      await page.getByRole('button', { name: `Open ${SAMPLE_NAME}` }).click()
+      await expect.poll(async () => await tabTitles(column)).toEqual(['Start', SAMPLE_NAME])
       // No "more" control on the chip: the chip carries its close, and the menu
       // is the secondary press.
       expect(await column.locator('[data-dockkit-tab-more]').count()).toBe(0)
-      await column.locator('[data-dockkit-tab]').filter({ hasText: 'Start' }).click({ button: 'right' })
+      await column.locator('[data-dockkit-tab]').filter({ hasText: SAMPLE_NAME }).click({ button: 'right' })
       const menu = page.locator('[data-dockkit-tab-menu]')
       await expect.poll(async () => await menu.count()).toBe(1)
 
@@ -1045,21 +1060,22 @@ describe('web e2e: shipped right Sidebar', () => {
         await zhPage.waitForSelector('[class*="frame"]', { timeout: 30_000 })
         // A fresh page opens the workspace on a blank session's hero, which has
         // no session header and so no expand button. The settled session is the
-        // second row of the tree; pick it the way a user would.
+        // second row of the tree; pick it the way a user would. Its surface
+        // opens expanded by default, the seeded guide chip already carrying
+        // the Chinese title.
         await zhPage.getByRole('treeitem', { name: /Show the right sidebar\./u }).first().click()
         const column = zhPage.locator('[data-rightbar-col]')
-        await expandOf(zhPage).waitFor({ timeout: 20_000 })
-        await expandOf(zhPage).click()
-        await expect.poll(async () => await tabTitles(column)).toEqual(['文件'])
-        await column.locator('[data-dockkit-add-tab]').click()
+        await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 20_000 })
+        await expect.poll(async () => await tabTitles(column)).toEqual(['开始'])
 
         const guide = column.locator('[data-sidebar-right-guide]')
         await expect.poll(async () => await guide.count()).toBe(1)
+        // The explorer column renders too, reload button and all.
+        expect(await column.locator('[data-sidebar-right-explorer] [data-files-explorer-reload]').count()).toBe(1)
         // Wait for the track, not just the panel: the copy is only legible once
         // the column has the width, and a screenshot taken mid-transition reads
         // as a layout defect that is not there.
         expect(await width(column)).toBeGreaterThan(300)
-        await expect.poll(async () => await tabTitles(column)).toEqual(['文件', '开始'])
         await expect.poll(async () => await guide.locator('[data-sidebar-right-guide-entry="files"]').innerText())
           .toBe('工作区文件\n浏览会话工作区的文件')
         await shot(zhPage, '05-guide-copy-zh')

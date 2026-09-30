@@ -31,7 +31,7 @@ function mount() {
   const instance = createFilesStore().create()
   const script = scriptedList()
   const face = filesFace(script.list)(SESSION, instance.actions)
-  return { ...script, face, snapshot: () => instance.getSnapshot().byTab[TAB] }
+  return { ...script, face, snapshot: () => instance.getSnapshot().byTree[TAB] }
 }
 
 describe('filesFace', () => {

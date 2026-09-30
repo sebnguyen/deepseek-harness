@@ -54,7 +54,12 @@ import css from './SidebarRight.module.css'
 type Store = PropsStore<ReturnType<typeof createSidebarRightStore>>
 
 /** The child seats this component renders. */
-type Children = PropsRenderSlots<'sidebar.right.pane.tab' | 'sidebar.right.pane.tab.title' | 'sidebar.right.tab.menu.item'>
+type Children = PropsRenderSlots<
+  | 'sidebar.right.pane.tab'
+  | 'sidebar.right.pane.tab.title'
+  | 'sidebar.right.tab.menu.item'
+  | 'sidebar.right.explorer'
+>
 
 /** What the panel reports to the frame: drawn or not, and whether it wants a track. */
 export interface SidebarRightPresentation {
@@ -303,23 +308,28 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
       aria-hidden={!expanded || undefined}
     >
       <div className={css.panelBody}>
-        <DockSurface
-          state={surface.layout}
-          canSplit={canSplit(surface.layout) && dockPaneIds(surface.layout).length < 2}
-          hideSplitWhenBlocked
-          dropZones="horizontal"
-          minPaneFraction={0.2}
-          canAddTab={paneId => guideIn(surface.layout, paneId) === undefined}
-          canCloseTab={tabId => canCloseTab(surface, tabId)}
-          intents={intentsFor(sessionId, actions, openTab)}
-          labels={dockLabels(t)}
-          renderTab={bodiesFor(panel)}
-          renderTabTitle={titlesFor(panel)}
-          renderTabMenuItems={(tab, dismiss) =>
-            renderSlot('sidebar.right.tab.menu.item', { tab, dismiss })}
-          chrome={<PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />}
-          onRoom={reportRoom}
-        />
+        <div className={css.explorer} data-sidebar-right-explorer>
+          {renderSlot('sidebar.right.explorer', {})}
+        </div>
+        <div className={css.dockArea}>
+          <DockSurface
+            state={surface.layout}
+            canSplit={canSplit(surface.layout) && dockPaneIds(surface.layout).length < 2}
+            hideSplitWhenBlocked
+            dropZones="horizontal"
+            minPaneFraction={0.2}
+            canAddTab={paneId => guideIn(surface.layout, paneId) === undefined}
+            canCloseTab={tabId => canCloseTab(surface, tabId)}
+            intents={intentsFor(sessionId, actions, openTab)}
+            labels={dockLabels(t)}
+            renderTab={bodiesFor(panel)}
+            renderTabTitle={titlesFor(panel)}
+            renderTabMenuItems={(tab, dismiss) =>
+              renderSlot('sidebar.right.tab.menu.item', { tab, dismiss })}
+            chrome={<PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />}
+            onRoom={reportRoom}
+          />
+        </div>
       </div>
     </div>
   )

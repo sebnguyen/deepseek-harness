@@ -161,7 +161,14 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await settled
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
 
-    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(0)
+    const viewport = page.viewportSize()
+    if (viewport === null) throw new Error('expected a fixed viewport')
+    const normalWidth = Math.round(viewport.width * 0.45)
+    const normalColumns = [280, viewport.width - 280 - normalWidth, normalWidth]
+
+    // The panel starts expanded per session, so the right track holds the
+    // normal width from the first settled draw.
+    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
     await compareOrRefreshGolden(HANDLES_EXPECTED, await handleSnapshot(page), MODE)
 
@@ -181,18 +188,18 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     acknowledgeReloadConnectionLoss(tripwire, warningStart)
     await appFrame(page).waitFor({ timeout: 30_000 })
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
-    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(0)
+    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
 
     await page.getByRole('button', { name: /^(?:New session|新.*会话)$/ }).last().click()
     await page.getByText('Into the Unknown', { exact: false }).waitFor({ timeout: 15_000 })
-    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(0)
+    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
 
     const original = page.locator('[role="treeitem"][aria-selected]').filter({ hasText: 'Reply with the single word' }).first()
     await original.click()
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
-    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(0)
+    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
 
     const ungrouped = page.getByText('Ungrouped', { exact: true })
@@ -204,15 +211,11 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await expect.poll(() => seeded.count()).toBe(1)
     await seeded.click()
     await page.getByText('DONE', { exact: true }).waitFor({ timeout: 15_000 })
-    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(0)
+    await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
 
-    const viewport = page.viewportSize()
-    if (viewport === null) throw new Error('expected a fixed viewport')
     const column = page.locator('[data-rightbar-col]')
     const panel = column.locator('[data-sidebar-right-panel]')
     const panes = column.locator('[data-dockkit-pane]')
-    const normalWidth = Math.round(viewport.width * 0.45)
-    const normalColumns = [280, viewport.width - 280 - normalWidth, normalWidth]
     const checkpoints: string[] = ['# Recorded-session Sidebar states']
     const checkpoint = async (label: string): Promise<void> => {
       checkpoints.push(`## ${label}\n\n\`\`\`json\n${JSON.stringify(await sidebarSnapshot(page), null, 2)}\n\`\`\``)
@@ -223,7 +226,11 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
       await page.getByText(reply, { exact: true }).waitFor({ timeout: 15_000 })
     }
     const open = async (): Promise<void> => {
-      await page.locator('[data-sidebar-right-expand]').click()
+      // The panel starts expanded per session; the way in exists only after
+      // an explicit or capacity collapse.
+      if (await page.locator('[data-sidebar-right-expand]').count() > 0) {
+        await page.locator('[data-sidebar-right-expand]').click()
+      }
       await expect.poll(() => column.locator('[data-sidebar-right-open]').count()).toBe(1)
       await expect.poll(() => columns(page)).toEqual(normalColumns)
       // The panel's slide completes independently of the frame's grid tracks.
@@ -248,18 +255,17 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await expect.poll(() => sidebarSnapshot(page), { timeout: 5_000 })
       .toMatchObject({ mode: 'push', panelContentWidth: normalWidth, panelOuterWidth: normalWidth + 1, resizeHandleWidth: 8 })
     await expect.poll(async () => ({
-      filesVisible: await column.locator('[data-files-state="tree"]').isVisible(),
+      filesVisible: await column.locator('[data-sidebar-right-explorer] [data-files-explorer-state="tree"]').isVisible(),
       errors: tripwire.pageErrors,
     })).toEqual({ filesVisible: true, errors: [] })
-    await column.locator('[data-dockkit-add-tab]').click()
+    // The guide-only pane draws no add control; splitting seats the guide
+    // again in the new pane.
     const split = column.locator('[data-dockkit-split-button]').first()
     await expect.poll(() => split.isDisabled()).toBe(false)
     await split.click()
     await expect.poll(() => panes.count()).toBe(2)
-    await panes.first().locator('[data-dockkit-tab]').filter({ hasText: 'Files' }).click()
-    await expect.poll(() => panes.first().locator('[data-files-state="tree"]').count()).toBe(1)
     const retainedA = await paneSnapshot(page)
-    expect(retainedA.map(pane => pane.tabs.map(tab => tab.title))).toEqual([['Files', 'Start'], ['Files']])
+    expect(retainedA.map(pane => pane.tabs.map(tab => tab.title))).toEqual([['Start'], ['Start']])
     await checkpoint('A normal: two panes')
 
     await column.locator('[data-sidebar-right-mode="fullscreen"]').click()
@@ -275,10 +281,10 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     expect((await sidebarSnapshot(page)).columnTransition).toBe('none')
     await checkpoint('A closed with manual fullscreen retained')
     await select(seeded, 'DONE')
-    await expect.poll(() => detailsTrack(page)).toBe(0)
+    await expect.poll(() => detailsTrack(page)).toBe(normalWidth)
     await open()
     expect(await panel.getAttribute('data-sidebar-right-panel')).toBe('push')
-    await column.locator('[data-files-state="tree"]').waitFor({ timeout: 15_000 })
+    await column.locator('[data-sidebar-right-explorer] [data-files-explorer-state="tree"]').waitFor({ timeout: 15_000 })
     const workspaceDirectory = column.locator('[data-files-entry="directory"] > button').filter({ hasText: /^workspace$/ })
     await workspaceDirectory.waitFor({ timeout: 15_000 })
     await workspaceDirectory.click()
@@ -287,7 +293,7 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await column.locator('[data-files-row="loading"]').waitFor({ state: 'hidden', timeout: 15_000 })
     expect(await column.locator('[data-files-row="failed"]').count()).toBe(0)
     const retainedB = await paneSnapshot(page)
-    expect(retainedB.map(pane => pane.tabs.map(tab => tab.title))).toEqual([['Files']])
+    expect(retainedB.map(pane => pane.tabs.map(tab => tab.title))).toEqual([['Start']])
     await close()
     await checkpoint('B closed: independent pane and expanded workspace directory')
 
@@ -309,7 +315,7 @@ describe.skipIf(MODE === 'record')('web e2e: details panel follows the current S
     await open()
     await expect.poll(() => workspaceDirectory.getAttribute('aria-expanded')).toBe('true')
     expect(await paneSnapshot(page)).toEqual(retainedB)
-    await checkpoint('B restored: normal mode and Files directory state')
+    await checkpoint('B restored: normal mode and explorer directory state')
     await close()
     await select(original, 'LIGHTHOUSE')
     await expect.poll(() => columns(page)).toEqual(normalColumns)

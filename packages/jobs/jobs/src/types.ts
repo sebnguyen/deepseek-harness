@@ -88,6 +88,33 @@ export interface JobHooks {
    * job has one consuming cursor.
    */
   readOutput?(): string
+  /**
+   * Read retained output lines by index, without advancing the consuming
+   * cursor. A producer with an addressable buffer answers this so an observer
+   * can follow output — a status line, a browser view — without taking the
+   * bytes {@link readOutput} still owes the model. Absence marks a job whose
+   * output exists only as a consuming stream.
+   * @param from - absolute line index to read from; `0` starts at the command's first retained line.
+   * @returns the retained lines from `from` and the index to request next.
+   */
+  readLines?(from: number): JobOutputLines
+}
+
+/**
+ * Retained output lines served without consuming the model's stream. Indices
+ * are absolute over the work's own line stream and stay valid as the producer
+ * drops old lines, so a caller's cursor never re-reads a shifted line.
+ */
+export interface JobOutputLines {
+  /** Retained lines starting at the requested index, in order. */
+  lines: readonly string[]
+  /** Index to pass next; the absolute index one past the last retained line. */
+  next: number
+  /**
+   * True when lines the caller asked for were dropped before they could be
+   * read, so the returned `lines` do not continue the caller's own buffer.
+   */
+  truncated: boolean
 }
 
 /**
@@ -118,11 +145,11 @@ export interface JobSnapshot {
   /** Epoch ms when the job settled; absent while `running`/`stopping`. */
   finishedAt?: number
   /**
-   * True when a kill, read, wait, or teardown cancel has reported or committed
-   * to report the terminal state. Completion reporters suppress redundant
-   * notices when set. Teardown claims it because the owner or service being
-   * destroyed leaves no reader: a reporter that opens a turn on notice would
-   * otherwise spend a model request per teardown layer.
+   * True when a kill, read, or teardown cancel has reported or committed to
+   * report the terminal state. Completion reporters suppress redundant notices
+   * when set. Teardown claims it because the owner or service being destroyed
+   * leaves no reader: a reporter that opens a turn on notice would otherwise
+   * spend a model request per teardown layer.
    */
   reported: boolean
 }

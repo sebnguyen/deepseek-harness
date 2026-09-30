@@ -29,7 +29,7 @@ function producer(label = 'sleep 60') {
   return { spec, reads, settle: (outcome: JobOutcome) => { settle(outcome) } }
 }
 
-async function harness(withJobs: boolean): Promise<{
+async function harness(withJobs: boolean, options: { jobOutputPollMs?: number } = {}): Promise<{
   ctx: Context
   session: Session
   agent: Agent
@@ -60,7 +60,7 @@ async function harness(withJobs: boolean): Promise<{
     whenIdle: () => Promise.resolve(),
   }
   ctx.agents.register(agent)
-  const control = new SessionControlController(ctx)
+  const control = new SessionControlController(ctx, { jobOutputPollMs: options.jobOutputPollMs ?? 250 })
   await new Promise(resolve => setTimeout(resolve, 0))
   return { ctx, session, agent, control }
 }
@@ -113,6 +113,73 @@ describe('Session control jobs baseline', () => {
     })
   })
 })
+
+/** A producer whose retained window the test grows and advances. */
+function outputProducer(lines: string[]) {
+  let settle!: (outcome: JobOutcome) => void
+  const state = { lines, first: 0 }
+  const spec = {
+    kind: 'bash' as const,
+    label: 'tail',
+    run: () => ({
+      cancel: () => {},
+      done: new Promise<JobOutcome>((resolve) => { settle = resolve }),
+      // `first` is the absolute index of the oldest retained line: a cursor
+      // below it is told lines were dropped rather than being served a shift.
+      readLines: (from: number) => ({
+        lines: state.lines.slice(Math.max(from - state.first, 0)),
+        next: state.first + state.lines.length,
+        truncated: from < state.first,
+      }),
+    }),
+  }
+  return {
+    spec,
+    lines: state.lines,
+    dropTo: (kept: string[], first: number) => { state.lines = kept; state.first = first },
+    settle: (outcome: JobOutcome) => { settle(outcome) },
+  }
+}
+
+/** Resolve the next jobOutput frame; never settles while publishing is silent. */
+async function nextOutputFrame(
+  control: SessionControlController,
+  abort: AbortController,
+): Promise<Extract<SessionControlFrame, { type: 'jobOutput' }>> {
+  for await (const frame of control.control(abort.signal)) {
+    if (frame.type === 'jobOutput') return frame
+  }
+  throw new Error('control stream ended before an output frame')
+}
+
+/** Collect `count` output frames, aborting the stream once they arrive. */
+async function outputFrames(
+  iterable: AsyncIterable<SessionControlFrame>,
+  count: number,
+  abort: AbortController,
+): Promise<Extract<SessionControlFrame, { type: 'jobOutput' }>[]> {
+  const frames: Extract<SessionControlFrame, { type: 'jobOutput' }>[] = []
+  for await (const frame of iterable) {
+    if (frame.type !== 'jobOutput') continue
+    frames.push(frame)
+    if (frames.length >= count) abort.abort()
+  }
+  return frames
+}
+
+/** The stray output frame when one arrives inside the window, otherwise undefined. */
+async function strayFrame(
+  control: SessionControlController,
+  window = 120,
+): Promise<Extract<SessionControlFrame, { type: 'jobOutput' }> | undefined> {
+  const abort = new AbortController()
+  const result = await Promise.race([
+    nextOutputFrame(control, abort),
+    new Promise<undefined>(resolve => setTimeout(() => { resolve(undefined) }, window)),
+  ])
+  abort.abort()
+  return result
+}
 
 describe('Session control jobs updates', () => {
   it('publishes existing unowned jobs when a Session attaches after the stream opens', async () => {
@@ -234,4 +301,64 @@ describe('Session control jobs updates', () => {
     expect(task.reads.count).toBe(0)
   })
 
+})
+
+describe('Session control job output', () => {
+  it('publishes live output lines with an advancing cursor and then goes quiet', async () => {
+    const { ctx, agent, control } = await harness(true, { jobOutputPollMs: 10 })
+    const task = outputProducer(['one'])
+    const id = ctx.jobs.start({ ...task.spec, owner: agent })
+
+    const abort = new AbortController()
+    const frames = outputFrames(control.control(abort.signal), 2, abort)
+    // The line the job produced before the stream attached still arrives: no
+    // publishing runs while nothing is attached, so no cursor moved.
+    for (let attempt = 0; attempt < 400 && task.lines.length < 2; attempt += 1) {
+      if (attempt === 2) task.lines.push('two')
+      await new Promise(resolve => setTimeout(resolve, 5))
+    }
+
+    const seen = await frames
+    expect(seen[0]).toMatchObject({ sessionId: agent.id, jobId: id, lines: ['one'], next: 1, truncated: false })
+    expect(seen[1]).toMatchObject({ lines: ['two'], next: 2, truncated: false })
+    expect(await strayFrame(control)).toBeUndefined()
+
+    task.settle({ status: 'completed' })
+    abort.abort()
+  })
+
+  it('bounds a burst across frames, loses no line, and reports a dropped-line gap', async () => {
+    const { ctx, agent, control } = await harness(true, { jobOutputPollMs: 10 })
+    const burst = Array.from({ length: 250 }, (_, index) => `line-${String(index)}`)
+    const task = outputProducer(burst)
+    const id = ctx.jobs.start({ ...task.spec, owner: agent })
+
+    const abort = new AbortController()
+    const frames = outputFrames(control.control(abort.signal), 3, abort)
+    // Evict the tail of the burst before the next tick can read it, leaving a
+    // retained window that starts past the cursor.
+    setTimeout(() => { task.dropTo(['line-300', 'line-301'], 300) }, 40)
+
+    const seen = await frames
+    expect(seen[0]?.lines).toHaveLength(200)
+    expect(seen[1]?.lines).toHaveLength(50)
+    // Bounded frames still deliver the burst exactly once, in order.
+    expect([...seen[0]!.lines, ...seen[1]!.lines]).toEqual(burst)
+    expect(seen[0]!.next).toBe(200)
+    expect(seen[1]!.next).toBe(250)
+    expect(seen[2]).toMatchObject({ jobId: id, lines: ['line-300', 'line-301'], next: 302, truncated: true })
+
+    task.settle({ status: 'completed' })
+    abort.abort()
+  })
+
+  it('stays silent when a deployment disables output publishing', async () => {
+    const { ctx, agent, control } = await harness(true, { jobOutputPollMs: 0 })
+    const task = outputProducer(['never sent'])
+    ctx.jobs.start({ ...task.spec, owner: agent })
+
+    expect(await strayFrame(control)).toBeUndefined()
+
+    task.settle({ status: 'completed' })
+  })
 })

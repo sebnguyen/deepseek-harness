@@ -30,7 +30,6 @@ export const zh = {
   reload: '重新读取',
   'entry.other': '这不是文件或目录，没法打开。',
   'error.notFound': '这个目录不在了。可能已被移动或删除。',
-  'error.outsideWorkspace': '这个目录在工作区之外，侧栏不会读取它。',
   'error.notDirectory': '这不是一个目录。',
   'error.unavailable': '读取失败：{message}',
 } satisfies Record<string, string>
@@ -50,7 +49,6 @@ export const en = {
   reload: 'Reload',
   'entry.other': 'Not a file or a directory, so it cannot be opened.',
   'error.notFound': 'That directory is gone. It may have been moved or deleted.',
-  'error.outsideWorkspace': 'That directory is outside the workspace, so the sidebar will not read it.',
   'error.notDirectory': 'That is not a directory.',
   'error.unavailable': 'Read failed: {message}',
 } satisfies Record<SidebarFilesKey, string>

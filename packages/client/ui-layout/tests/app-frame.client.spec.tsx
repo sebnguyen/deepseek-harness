@@ -66,7 +66,7 @@ function mountFrame(windowWidth = frameWidth) {
   const slotCalls: { key: string; props: object; options: RenderOpts | undefined }[] = []
   const renderSlot: AppFrameProps['renderSlot'] = (key, owner, options) => {
     slotCalls.push({ key, props: owner, options })
-    return <div data-testid={`${key}-content`} data-entry-key={options?.entryKey} />
+    return <div data-testid={`${key}-content`} data-entry-key={(owner as { entryKey?: string }).entryKey ?? options?.entryKey} />
   }
   const useSessions: AppFrameProps['useSessions'] = sel => sel({
     ids: selectedSession === undefined ? [] : [selectedSession],
@@ -78,6 +78,7 @@ function mountFrame(windowWidth = frameWidth) {
     },
     current: selectedSession,
     phase: 'ready',
+    jobOutputBySession: {},
     subagentsByParent: {},
     jobsBySession: {},
     currentAddress: undefined,

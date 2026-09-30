@@ -2498,11 +2498,10 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         return { ok: false, error: { code: 'gateway/bad-request', message: 'path is required', details: {} } }
       }
       const relative = workspaceFilePath(path)
+      // The synthetic tree holds only paths under its own root, so a path
+      // outside it names no entry here.
       if (relative === undefined) {
-        return {
-          ok: false,
-          error: { code: 'workspace-file/outside-workspace', message: `${path} is outside the workspace`, details: { path } },
-        }
+        return { ok: false, error: { code: 'workspace-file/not-found', message: `no entry at ${path}`, details: { path } } }
       }
       const entries = workspaceFileTree.get(relative)
       if (entries === undefined) {

@@ -330,6 +330,25 @@ export interface SessionAreaProps {
  */
 export type SessionProviderComponent = (props: SessionAreaProps) => ReactNode
 
+/** Props of the standard-kit PinnedSessionProvider seat. */
+export interface PinnedSessionAreaProps {
+  /** Session whose binding the enclosed subtree rides, whatever the current selection is. */
+  sessionId: string
+  /** Body rendered while the named session resolves no binding (removed, or never listed). */
+  empty?: (() => ReactNode) | undefined
+  /** Session subtree bound to the named session. */
+  children: ReactNode
+}
+
+/**
+ * Framework-wired pinned session area component: like SessionProvider but bound
+ * to the named session instead of the current selection, so several session
+ * subtrees (a carousel's eager neighbor panes) stay mounted side by side.
+ * The renderer injects it on every entry whenever a `session` scope adapter is
+ * installed, regardless of the entry's own children scopes.
+ */
+export type PinnedSessionProviderComponent = (props: PinnedSessionAreaProps) => ReactNode
+
 /**
  * Child-slot render share: `renderSlot` statically narrowed to the entry's
  * declared children keys. Delegation is plain props passing (hand
@@ -361,10 +380,15 @@ export type PropsRenderSlots<S extends keyof SlotMap & string> = {
    * @returns rendered node(s).
    */
   renderSlotChain: <K extends ChainKeysOf<S>>(key: K, owner: OwnerOf<K>, opts?: ChainRenderOpts) => ReactNode
-}) & ('session' extends ScopeOf<S>
+}) & {
   // The SessionProvider seat rides the same source as renderSlot: declaring
   // a session-scope child is what makes a session area exist, so the seat
   // derives from the children key set's scopes (renderer injects the value).
+  // The pinned twin binds the same subtree to a named session instead of the
+  // current selection, and rides any entry whenever the scope adapter renders
+  // areas; absent only where no adapter is installed, hence optional.
+  PinnedSessionProvider?: PinnedSessionProviderComponent | undefined
+} & ('session' extends ScopeOf<S>
   ? { SessionProvider: SessionProviderComponent }
   : object)
 

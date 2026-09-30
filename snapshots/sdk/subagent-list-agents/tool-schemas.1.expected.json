@@ -224,21 +224,13 @@
     },
     {
       "name": "job_output",
-      "description": "Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap.",
+      "description": "Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. The read is a non-blocking snapshot: it never waits for the job, and a run that finishes later reaches you as an in-session notice.",
       "parameters": {
         "type": "object",
         "properties": {
           "job_id": {
             "type": "string",
             "description": "Job id returned by the tool that started the background work."
-          },
-          "wait": {
-            "type": "boolean",
-            "description": "Block until the job reaches a terminal status or the timeout expires. A timed-out wait returns [status: running] and leaves the job alive."
-          },
-          "timeout_ms": {
-            "type": "number",
-            "description": "Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum."
           }
         },
         "required": [

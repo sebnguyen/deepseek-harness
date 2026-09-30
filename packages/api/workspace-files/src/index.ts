@@ -1,14 +1,14 @@
 /**
- * Workspace file service: read-only file previews, workspace directory
- * listings, and the filesystem-observation change feed, exposed as
- * `workspaceFiles`.
+ * Workspace file service: read-only file previews, directory listings, and the
+ * filesystem-observation change feed, exposed as `workspaceFiles`.
  *
- * File reads follow the composed filesystem's read access, including paths
- * outside the workspace. The selected Session header supplies the base for
- * relative paths, with the sandbox policy root as its no-cwd fallback, not a
- * read-containment restriction. Directory listings and change observations
- * remain workspace-scoped. File-kind checks and configured read caps apply to
- * every preview; this service exposes no mutations.
+ * File reads and directory listings follow the composed filesystem's read
+ * access, including a directory outside the workspace and a final symbolic
+ * link, which resolves to its target. The selected Session header supplies the
+ * base for relative paths, with the sandbox policy root as its no-cwd fallback,
+ * not a read-containment restriction. Change observations remain
+ * workspace-scoped. File-kind checks and configured read caps apply to every
+ * preview; this service exposes no mutations.
  *
  * A page is cut from `streamText`, which decodes and rejects non-UTF-8 as it
  * goes, so the file is read only up to the first character past the page and
@@ -23,7 +23,7 @@ import { posix, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-fs'
-import type { FsDirEntry, FsInfo, FsPathInfo, FsTarget } from '@deepseek-ai/dsh-fs'
+import type { FsDirEntry, FsInfo, FsTarget } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -327,26 +327,27 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
-   * List the direct children of one directory inside the Session's workspace.
+   * List the direct children of one directory readable by the filesystem backend.
    * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
-   * @param path - workspace path, absolute or relative to the workspace root.
+   * @param path - absolute path or path relative to the workspace root; a directory outside it is allowed.
    * @param signal - caller cancellation.
    * @returns the directory's children in the backend's stable name order, bounded by the entry cap.
    */
   @Remote
   async list(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceDirectoryListing> {
-    const { root, workspaceRoot, entry } = await this.inspect(workspaceFileScope, path, signal)
-    if (entry.type !== 'directory') {
+    const { workspaceRoot } = workspaceFileScope
+    const target = await this.resolveTarget(workspaceRoot, path, signal)
+    const info = await this.statTarget(target, path, signal)
+    if (info.type !== 'directory') {
       throw new RemoteError(
         'workspace-file/not-directory',
-        `"${path}" is a ${entry.type}`,
-        { path, kind: entry.type },
+        `"${path}" is a ${info.type}`,
+        { path, kind: info.type },
       )
     }
-    const target = await this.confine(root, workspaceRoot, path, signal)
     const children = await this.ctx.fs.listDir(target, signal)
     return {
-      path: workspacePathOf(this.ctx.fs.fileUrl(root), this.ctx.fs.fileUrl(target)),
+      path: await this.listingPath(workspaceRoot, target, signal),
       entries: children.slice(0, this.config.maxEntries).map(directoryEntry),
       truncated: children.length > this.config.maxEntries,
     }
@@ -393,53 +394,43 @@ export class WorkspaceFiles extends TypertRemoteService {
     return { offset, length }
   }
   /**
-   * Inspect the requested path itself before resolution follows its final
-   * component. Directory containment is checked separately by `list`.
+   * Resolve the requested path against the Session workspace root, following
+   * every component: a final symbolic link resolves to its target, whose
+   * absolute path the result names.
    */
-  private async inspect(
-    workspaceFileScope: WorkspaceFileScope,
-    path: string,
-    signal: AbortSignal,
-  ): Promise<{ root: FsTarget; workspaceRoot: string; entry: FsPathInfo }> {
+  private async resolveTarget(workspaceRoot: string, path: string, signal: AbortSignal): Promise<FsTarget> {
     if (path.length === 0) throw new RemoteError('gateway/bad-request', 'path is required', {})
-    const { workspaceRoot } = workspaceFileScope
-    const root = await this.ctx.fs.resolve(workspaceRoot, { signal })
-    // Gate on the path itself before anything follows it.
-    const entry = await this.ctx.fs.lstat(path, { cwd: workspaceRoot }, signal)
-    if (entry === undefined) {
-      throw new RemoteError('workspace-file/not-found', `no entry at "${path}"`, { path })
-    }
-    return { root, workspaceRoot, entry }
+    return this.ctx.fs.resolve(path, { cwd: workspaceRoot, signal })
   }
 
-  /** Resolve an inspected path and refuse it unless the workspace contains it. */
-  private async confine(root: FsTarget, workspaceRoot: string, path: string, signal: AbortSignal): Promise<FsTarget> {
-    const target = await this.ctx.fs.resolve(path, { cwd: workspaceRoot, signal })
-    if (!this.ctx.fs.contains(root, target)) {
-      throw new RemoteError('workspace-file/outside-workspace', `"${path}" is outside the workspace`, { path })
+  /** One stat of a resolved target, refusing an absent one. */
+  private async statTarget(target: FsTarget, path: string, signal: AbortSignal): Promise<FsInfo> {
+    const info = await this.ctx.fs.stat(target, signal)
+    if (info === undefined) {
+      throw new RemoteError('workspace-file/not-found', `no entry at "${path}"`, { path })
     }
-    return target
+    return info
   }
 
   /**
-   * All gates for a regular file, ending in the one stat that names its version
-   * and size. The stat re-checks what `lstat` saw: the file may have gone or
-   * changed kind in between.
+   * The listed directory's workspace path: relative to the workspace root and
+   * empty for the root itself, or the directory's absolute filesystem path when
+   * it lies outside that root.
    */
+  private async listingPath(workspaceRoot: string, target: FsTarget, signal: AbortSignal): Promise<string> {
+    const root = await this.ctx.fs.resolve(workspaceRoot, { signal })
+    if (!this.ctx.fs.contains(root, target)) return this.ctx.fs.processPath(target)
+    return workspacePathOf(this.ctx.fs.fileUrl(root), this.ctx.fs.fileUrl(target))
+  }
+
+  /** All gates for a regular file, ending in the one stat that names its version and size. */
   private async locateFile(
     workspaceFileScope: WorkspaceFileScope,
     path: string,
     signal: AbortSignal,
   ): Promise<{ target: FsTarget; info: FsInfo }> {
-    const { workspaceRoot, entry } = await this.inspect(workspaceFileScope, path, signal)
-    if (entry.type !== 'file') {
-      throw new RemoteError('workspace-file/not-regular-file', `"${path}" is a ${entry.type}`, { path, kind: entry.type })
-    }
-    const target = await this.ctx.fs.resolve(path, { cwd: workspaceRoot, signal })
-    const info = await this.ctx.fs.stat(target, signal)
-    if (info === undefined) {
-      throw new RemoteError('workspace-file/not-found', `no entry at "${path}"`, { path })
-    }
+    const target = await this.resolveTarget(workspaceFileScope.workspaceRoot, path, signal)
+    const info = await this.statTarget(target, path, signal)
     if (info.type !== 'file') {
       throw new RemoteError('workspace-file/not-regular-file', `"${path}" is a ${info.type}`, { path, kind: info.type })
     }

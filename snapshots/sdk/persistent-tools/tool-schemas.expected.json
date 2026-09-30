@@ -30,6 +30,10 @@
           "command": {
             "type": "string",
             "description": "The bash command to run. Relative path is preferred in the command."
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
           }
         },
         "required": [

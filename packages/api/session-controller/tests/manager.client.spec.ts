@@ -9,7 +9,7 @@ import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionControlFrame } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-session-title/client'
-import { SessionManager } from '../src/client/sessions/manager.ts'
+import { JOB_OUTPUT_BUFFER_LINES, SessionManager } from '../src/client/sessions/manager.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 import { entries, plainTurn } from './event-script.client.ts'
 
@@ -980,5 +980,96 @@ describe('background-job mirror', () => {
     // The notifier batches on a microtask; the frame itself is already applied.
     await Promise.resolve()
     expect(seen).toHaveBeenCalled()
+  })
+})
+
+describe('background-job output mirror', () => {
+  const tasksFrame = (
+    sessionId: SessionId,
+    jobs: unknown[],
+  ): Extract<SessionControlFrame, { type: 'jobs' }> => ({
+    type: 'jobs', sessionId, jobs: jobs as never,
+  })
+  const outputFrame = (
+    sessionId: SessionId,
+    jobId: string,
+    lines: string[],
+    next: number,
+  ): SessionControlFrame => ({
+    type: 'jobOutput', sessionId, jobId: jobId as never, lines, next, truncated: false,
+  })
+  const bufferOf = (manager: ReturnType<typeof makeManager>, sessionId: SessionId, jobId: string) =>
+    manager.getListSnapshot().jobOutputBySession[sessionId]?.[jobId as never]
+
+  it('appends a job output frame under its session with absolute indices', () => {
+    const manager = makeManager()
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['one', 'two'], 2))
+    expect(bufferOf(manager, S1, 'bash-1')).toEqual({ lines: ['one', 'two'], first: 0, next: 2 })
+
+    // A contiguous frame extends the same buffer instead of replacing it.
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['three'], 3))
+    expect(bufferOf(manager, S1, 'bash-1')).toEqual({ lines: ['one', 'two', 'three'], first: 0, next: 3 })
+  })
+
+  it('re-anchors instead of splicing when the producer reported a gap', () => {
+    const manager = makeManager()
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['one'], 1))
+    // Line 2 was dropped before it could be sent, so line 3 does not continue
+    // the buffer the view already holds.
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['three'], 4))
+    expect(bufferOf(manager, S1, 'bash-1')).toEqual({ lines: ['three'], first: 3, next: 4 })
+  })
+
+  it('bounds one job buffer and keeps the newest lines', () => {
+    const manager = makeManager()
+    const burst = Array.from({ length: JOB_OUTPUT_BUFFER_LINES + 100 }, (_, index) => `line-${String(index)}`)
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', burst, burst.length))
+
+    const held = bufferOf(manager, S1, 'bash-1')
+    expect(held?.lines).toHaveLength(JOB_OUTPUT_BUFFER_LINES)
+    // The oldest lines left the browser buffer, and `first` says so, which is
+    // what sends a view to the paged read for them.
+    expect(held?.first).toBe(100)
+    expect(held?.next).toBe(burst.length)
+    expect(held?.lines[0]).toBe('line-100')
+  })
+
+  it('drops a buffer with its job and clears buffers on a new generation', () => {
+    const manager = makeManager()
+    manager.handleControlFrame(tasksFrame(S1, [{ id: 'bash-1', kind: 'bash', label: 'x', status: 'running', startedAt: 1 }]))
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['one'], 1))
+    expect(bufferOf(manager, S1, 'bash-1')).toBeDefined()
+
+    // The job left the visible set, so its lines go with it.
+    manager.handleControlFrame(tasksFrame(S1, []))
+    expect(manager.getListSnapshot().jobOutputBySession[S1]).toBeUndefined()
+
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['again'], 1))
+    manager.handleControlFrame({
+      type: 'baseline',
+      value: { queues: {}, jobs: {}, projections: {} },
+    })
+    expect(manager.getListSnapshot().jobOutputBySession).toEqual({})
+  })
+
+  it('re-renders only jobOutput readers when lines stream: sibling mirrors keep identity', () => {
+    const manager = makeManager()
+    manager.handleControlFrame(tasksFrame(S1, [{ id: 'bash-1', kind: 'bash', label: 'x', status: 'running', startedAt: 1 }]))
+    const before = manager.getListSnapshot()
+    // A line burst mutates only the buffer map: the list snapshot rebuilds,
+    // but the catalog and jobs projections must keep their references so
+    // subscribers selecting them (dock chip, workspace rows) do not re-render
+    // beside the history fold while a session opens.
+    manager.handleControlFrame(outputFrame(S1, 'bash-1', ['one'], 1))
+    const after = manager.getListSnapshot()
+    expect(after.jobsBySession).toBe(before.jobsBySession)
+    expect(after.subagentsByParent).toBe(before.subagentsByParent)
+    expect(after.jobOutputBySession).not.toBe(before.jobOutputBySession)
+
+    // A jobs frame mints only the jobs projection.
+    manager.handleControlFrame(tasksFrame(S1, [{ id: 'bash-1', kind: 'bash', label: 'x', status: 'completed', startedAt: 1, finishedAt: 2 }]))
+    const third = manager.getListSnapshot()
+    expect(third.jobsBySession).not.toBe(after.jobsBySession)
+    expect(third.jobOutputBySession).toBe(after.jobOutputBySession)
   })
 })

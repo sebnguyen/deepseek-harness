@@ -14,6 +14,7 @@ import type {
   SessionControlFrame,
   SessionFollowFrame,
   SessionFollowRequest,
+  SessionJobOutputValue,
   SessionPage,
   SessionPageRequest,
   SessionProjectionBaseline,
@@ -148,6 +149,8 @@ export class FakeApiClient {
   onCancel: (payload: unknown) => Promise<RemoteResult<{ accepted: true }>> = () => Promise.resolve(ok({ accepted: true as const }))
   onOpenWorkspacePath: (payload: unknown) => Promise<RemoteResult<{ opened: true }>> =
     () => Promise.resolve(ok({ opened: true as const }))
+  onJobOutput: (payload: unknown) => Promise<RemoteResult<SessionJobOutputValue>> =
+    () => Promise.resolve(ok({ lines: [], next: 0, truncated: false, addressable: true }))
 
   private readonly followConns = new Map<SessionId, ValueStreamConn<SessionFollowFrame>[]>()
   private readonly controlConns: ValueStreamConn<SessionControlFrame>[] = []
@@ -237,6 +240,7 @@ export class FakeApiClient {
           this.onOpenWorkspacePath(payload),
         ),
         page: request => this.page(request),
+        jobOutput: payload => this.record('session.jobOutput', payload, this.onJobOutput(payload)),
         follow: (request, signal) => this.openFollow(request, signal),
         control: signal => this.openControl(signal),
       },

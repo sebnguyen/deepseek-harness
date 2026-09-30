@@ -47,6 +47,9 @@ kind: "package-reference"
 | `timeoutMs` | `300,000` | 单条命令的墙钟上限；超时关闭 shell |
 | `maxOutputChars` | `16,000` | 保留的命令输出字符上限；固定诊断信息在其后追加 |
 | `description` | `Run commands in a persistent bash shell. State, including the current directory and exported environment variables, persists across calls for this agent.` | 面向模型的环境约定；部署方可描述自己的环境 |
+| `enableRunInBackground` | `true` | 暴露 `run_in_background`；被禁用时调用同样被拒绝 |
+| `backgroundAfterMs` | `10,000` | 前台命令在被移交为后台任务之前可运行的毫秒数；`0` 关闭提升 |
+| `contentionAfterMs` | `1,000` | 前台命令在被等待其 shell 的调用移交之前可运行的毫秒数；`0` 表示只保留 `backgroundAfterMs` |
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-tool-bash-persistent)是每个受支持字段及其 JSDoc 的穷尽式真源。
 
@@ -54,9 +57,13 @@ kind: "package-reference"
 
 命令共享每个 agent 一个 shell，因此状态一直保留到 `exit`、超时或重置——每一种都会关闭 shell 并告诉 agent 下一次调用从工作区的新目录与环境开始。结果排除私有完成标记；每条完成的命令都追加 `[Command finished with exit code N]`，而在报告该状态前就退出的 shell 改为追加 `[shell exited: code N]`、`[shell killed by signal: SIG]` 或 `[shell exited]`，然后重置。长输出保留最早的已保留前缀并附裁剪通知；若 terminal 已经丢弃该前缀，结果会明确说明，而不是把尾部当作完整输出呈现。
 
+带 `run_in_background` 的调用立即返回 `started background job <id>`，并在自己的 shell 中运行该命令：该命令从工作区开始，而不是沿用本 shell 的状态；它没有超时，并让本 shell 继续留给下一次调用。它的输出用 `job_output` 读取，其完成以会话内通知而非结果的形式送达 agent。
+
+超过 `backgroundAfterMs` 的前台命令以同样的方式被移交为后台任务：调用返回相同的确认文本而不是命令输出，命令在它本来就有的 shell 中继续运行，而该 shell 归任务所有——agent 的下一次 `bash` 调用从新的 shell 开始。没有任何东西被重启，也没有输出丢失，因为任务观察的正是这个已经在运行的命令。当一条命令运行期间有第二条 `bash` 调用到达时，这个门槛会降到 `contentionAfterMs`：正是这个等待中的调用告诉持有者它的 shell 被需要，确认文本随之说明「shell 被需要」而不是指出一个时长。门槛只是被压低而不是被取消，因此在门槛内结束的命令仍把自身的输出返回给自身的调用方。提升需要 `backgroundAfterMs` 小于 `timeoutMs`；等于或大于时，结束命令的是命令截止时间。
+
 ### 可能出什么问题
 
-没有拥有者 agent 会话的调用会以 `bash requires an owning agent session` 失败，没有 PTY 后端的组合会激活该工具，但首次调用以 `no PTY backend registered for "shell"` 失败。交互式前台子进程（例如 REPL）只有在后端证明其 stdin 等待时才提前返回部分输出；否则调用一直运行到 `timeoutMs`，随后关闭不确定的 shell 并报告重置。取消也会重置并丢弃结果，即使完整状态标记已经可观察。
+没有拥有者 agent 会话的调用会以 `bash requires an owning agent session` 失败，没有 PTY 后端的组合会激活该工具，但首次调用以 `no PTY backend registered for "shell"` 失败。交互式前台子进程（例如 REPL）只有在后端证明其 stdin 等待时才提前返回部分输出；否则调用一直运行到 `timeoutMs`，随后关闭不确定的 shell 并报告重置。取消也会重置并丢弃结果，即使完整状态标记已经可观察。带 `run_in_background` 的调用在部署设置 `enableRunInBackground: false`、或组合未挂载 `ctx.jobs` 时会被拒绝，而不是静默地在前台运行；`ctx.jobs.start` 被拒绝时本 shell 保持原样。后台命令自己的 shell 在其任务完成时释放，因此它的输出只通过该任务保留的读取继续存在。被拒绝的提升——所有者任务上限已满，或组合未挂载 `ctx.jobs`——不会结束命令：它在 agent 自己的 shell 中继续运行，调用正常返回其输出。
 
 -----
 
@@ -126,7 +133,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-命令共享每个 agent 一个 shell，因此 cwd、导出的变量、已激活的环境、函数与后台任务都会跨调用保留。结果排除私有完成标记。当 shell 在没有打印完成标记的情况下再次读取 stdin——`exec`、中断，或提供方证明其 stdin 等待的交互式前台子进程之后——调用返回捕获的部分输出，它可能以后端自己的提示符文本结尾。每条完成的命令都追加 `[Command finished with exit code N]`；在报告该状态前就退出的 shell 改为追加 `[shell exited: code N]`、`[shell killed by signal: SIG]`，或后端两者都未提供时的 `[shell exited]`，然后重置并告诉模型下一次调用从全新状态开始。长输出保留最早的已保留前缀并附裁剪通知。若 PTY 已经丢弃该前缀，结果会明确说明，而不是把尾部当作完整输出呈现。超时返回有界部分输出并追加 `[Command timed out or OOM]`、关闭不确定的 shell 并报告重置。
+命令共享每个 agent 一个 shell，因此 cwd、导出的变量、已激活的环境、函数与后台任务都会跨调用保留。结果排除私有完成标记。当 shell 在没有打印完成标记的情况下再次读取 stdin——`exec`、中断，或提供方证明其 stdin 等待的交互式前台子进程之后——调用返回捕获的部分输出，它可能以后端自己的提示符文本结尾。每条完成的命令都追加 `[Command finished with exit code N]`；在报告该状态前就退出的 shell 改为追加 `[shell exited: code N]`、`[shell killed by signal: SIG]`，或后端两者都未提供时的 `[shell exited]`，然后重置并告诉模型下一次调用从全新状态开始。长输出保留最早的已保留前缀并附裁剪通知。若 PTY 已经丢弃该前缀，结果会明确说明，而不是把尾部当作完整输出呈现。超时返回有界部分输出并追加 `[Command timed out or OOM]`、关闭不确定的 shell 并报告重置。带 `run_in_background` 的调用则返回 `started background job <id>`，并在自己的 shell 中运行该命令，因此该命令既不继承也不改变本 shell 的状态，模型用 `job_output` 读取其输出。超过 `backgroundAfterMs` 的前台命令返回相同的确认文本并在任务中继续，同时附带 shell 已替换的说明，因此模型知道自己的 shell 改变了，而不会把它读成失败。
 
 #### Token 影响
 

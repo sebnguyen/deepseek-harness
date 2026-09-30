@@ -70,7 +70,7 @@ A registered component receives inputs assembled at its binding site. Components
 | localized `t` function | the registration's `locale` namespace | `PropsLocale<N>` |
 | selected chain value | the registration's `select` result | `matched` through `ComposedProps` |
 
-`SessionProvider` is also present in `PropsRenderSlots` when an entry declares a strict Session child. It binds that subtree to the current Session identity and remounts the body when the identity changes.
+`SessionProvider` is also present in `PropsRenderSlots` when an entry declares a strict Session child. It binds that subtree to the current Session identity and remounts the body when the identity changes. The `PinnedSessionProvider` seat is present on every entry whenever a `session` scope adapter is installed: it binds the same subtree to a named session resolved through the adapter, so several session subtrees (the carousel's keep-alive panes) mount side by side while the current subtrees keep following the selection.
 
 Components never receive `ctx`. Parent-owned point-in-time values enter through the owner argument to `renderSlot`; shared view state uses a declared store; services and model objects stay in the `apply` closure and are projected into callbacks or observable sources.
 
@@ -167,7 +167,8 @@ root
 │     ├─ sidebar.right.pane.tab
 │     │  └─ sidebar.right.tab.guide
 │     ├─ sidebar.right.pane.tab.title
-│     └─ sidebar.right.tab.menu.item
+│     ├─ sidebar.right.tab.menu.item
+│     └─ sidebar.right.explorer
 └─ shell.overlay
 ```
 

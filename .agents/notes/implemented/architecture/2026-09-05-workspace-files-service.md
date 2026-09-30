@@ -56,12 +56,13 @@ Two path vocabularies leave the service, and each method uses exactly one. `read
 
 `read`, `readBytes`, `readAll`, `readRelated`, and `stat` share regular-file checks and then rely on the filesystem backend's read authority. `list` shares path inspection but also checks workspace containment, while `changes` filters observations to the workspace root. The service applies the following checks:
 
-1. **The path itself.** `lstat` inspects the path before anything follows it: a missing path is `not-found`, and a symlink — wherever it points, including back inside the workspace — is `not-regular-file` (kind `symlink`) for the file methods and `not-directory` for `list`. An empty path is a `gateway/bad-request`.
-2. **Workspace containment for `list`.** The directory resolves to a target and `ctx.fs.contains(root, target)` decides, where `root` is the `WorkspaceFileScope.workspaceRoot` resolved from the selected Session header. A `..` traversal or an absolute directory outside the root is `outside-workspace`. `changes` applies the same backend containment predicate to observed targets.
-3. **The caps.** A page or window above `maxBytes`, or a `read` asking for more than `maxLines`, is refused, never shortened, because a silently cut page reads as the whole page; a listing above `maxEntries` is cut and says so. Complete and related-file reads are refused above `maxFileBytes`.
-4. **Text.** For `read` only: content that is not UTF-8 up to the end of the page, a NUL byte in the backend's 8 KiB opening sample, or a NUL byte anywhere in the page is `not-text`; bytes past the page are not inspected.
+1. **The path.** Resolution follows the path's final component, so a symbolic link resolves to its target: a path with no entry, including a link whose target is missing, is `not-found`. The [symlink-follow decision](2026-09-28-workspace-file-symlink-follow.md) supersedes this note's original refusal of a final link. An empty path is a `gateway/bad-request`.
+2. **The resolved kind.** File methods require a regular file and otherwise throw `not-regular-file`; `list` requires a directory and otherwise throws `not-directory`.
+3. **Workspace containment for `list`.** The directory resolves to a target and `ctx.fs.contains(root, target)` decides, where `root` is the `WorkspaceFileScope.workspaceRoot` resolved from the selected Session header. A `..` traversal, an absolute directory outside the root, or a link whose target lies outside it is `outside-workspace`. `changes` applies the same backend containment predicate to observed targets.
+4. **The caps.** A page or window above `maxBytes`, or a `read` asking for more than `maxLines`, is refused, never shortened, because a silently cut page reads as the whole page; a listing above `maxEntries` is cut and says so. Complete and related-file reads are refused above `maxFileBytes`.
+5. **Text.** For `read` only: content that is not UTF-8 up to the end of the page, a NUL byte in the backend's 8 KiB opening sample, or a NUL byte anywhere in the page is `not-text`; bytes past the page are not inspected.
 
-After path inspection the file methods `stat` the resolved target once more, because the file may have gone or changed kind before the read: a vanished file is `not-found` and a replaced one `not-regular-file` with the new kind. For `list`, an outside entry whose type already disqualifies it reports its kind before its position.
+For `list`, an outside entry whose kind already disqualifies it reports its kind before its position. A file that goes or changes kind after the kind check is reported by the backend, which stats again before it reads.
 
 ### Failures
 
@@ -73,8 +74,8 @@ Each failure is one `RemoteError` code with typed details, declared beside the t
 | `workspace-file/outside-workspace` | a `list` target is not inside the workspace root | `{ path }` |
 | `workspace-file/too-large` | a page's text or byte window exceeds `maxBytes`, or a complete read exceeds `maxFileBytes` | `{ path, limit }` |
 | `workspace-file/not-text` | invalid UTF-8 up to the page's end, or a NUL byte in the sample or the page (`read` only) | `{ path }` |
-| `workspace-file/not-regular-file` | `read`, `readBytes`, `readAll`, `readRelated`, or `stat` on something that is not a regular file | `{ path, kind: 'directory' \| 'symlink' \| 'other' }` |
-| `workspace-file/not-directory` | `list` on something that is not a directory | `{ path, kind: 'file' \| 'symlink' \| 'other' }` |
+| `workspace-file/not-regular-file` | `read`, `readBytes`, `readAll`, `readRelated`, or `stat` on something that is not a regular file | `{ path, kind: 'directory' \| 'other' }` |
+| `workspace-file/not-directory` | `list` on something that is not a directory | `{ path, kind: 'file' \| 'other' }` |
 | `workspace-file/unsupported-address` | Client-minted: a resource address this provider cannot serve | `{ address }` |
 | `workspace-file/unknown-workspace` | Client-minted: an `absolute` address, which carries no Session | `{ address }` |
 | `gateway/bad-request` | an empty path, or an `offset`, `limit`, or `length` that is not an integer in range | `{}` |

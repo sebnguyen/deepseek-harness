@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useLayoutEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { IconChevronDownOutline14 } from './icons/index.tsx'
 import css from './DisclosureRow.module.css'
@@ -16,6 +16,11 @@ export interface DisclosureRowProps {
   previewChevron?: boolean | undefined
   /** Keeps `collapsedContent` inline while open. */
   keepContentWhenOpen?: boolean | undefined
+  /**
+   * Keeps `children` mounted while closed, visually hidden, so their text
+   * stays in the document for search and screen readers.
+   */
+  keepChildrenMounted?: boolean | undefined
   collapsedContent?: ReactNode
   children?: ReactNode
   className?: string | undefined
@@ -39,6 +44,7 @@ export function DisclosureRow({
   expandOnRowClick = false,
   previewChevron = expandable,
   keepContentWhenOpen = false,
+  keepChildrenMounted = false,
   collapsedContent,
   children,
   className,
@@ -98,7 +104,31 @@ export function DisclosureRow({
         <span className={clsx(css.title, titleClassName)}>{title}</span>
         {(keepContentWhenOpen || !open) && collapsedContent}
       </div>
-      {open && children}
+      {open
+        ? children
+        : keepChildrenMounted
+          ? (
+            <UntilFoundShell>
+              {children}
+            </UntilFoundShell>
+          )
+          : null}
+    </div>
+  )
+}
+
+/**
+ * `hidden="until-found"` is an enumerated attribute; React's boolean `hidden`
+ * prop would drop the value, so the shell writes it on the element itself.
+ */
+function UntilFoundShell({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    ref.current?.setAttribute('hidden', 'until-found')
+  }, [])
+  return (
+    <div ref={ref} hidden>
+      {children}
     </div>
   )
 }

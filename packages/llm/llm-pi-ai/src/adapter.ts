@@ -415,7 +415,7 @@ export class PiAiAdapter extends LlmAdapter {
               provider: options.provider,
               model: options.model,
               ...options.purpose === undefined ? {} : { purpose: options.purpose },
-              payload: serialized ?? String(payload),
+              payload: serialized,
               ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
             })
             // Returning nothing keeps pi-ai's payload unchanged.

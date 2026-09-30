@@ -62,10 +62,18 @@ async function handlePresentOpen(ctx: Context, request: Request): Promise<Respon
     if (!isPresentedFile(file)) return new Response('Presented file not found in this Session result.', { status: 404 })
     request.signal.throwIfAborted()
     const { fs, workspaceFiles } = ctx
-    const { absolutePath: path } = await workspaceFiles.stat({
+    const scope = {
       sessionId: id as SessionId,
       workspaceRoot: session.cwd ?? ctx.sandboxPolicy.workspaceRoot,
-    }, file.path, request.signal)
+    }
+    // The declared path itself must be a regular file: the opener hands this path
+    // to the Host desktop, so a link planted at the declared path would open its
+    // target instead of the file the Session declared.
+    const entry = await fs.lstat(file.path, { cwd: scope.workspaceRoot }, request.signal)
+    if (entry === undefined || entry.type !== 'file') {
+      return new Response('Presented file is not a regular file.', { status: 404 })
+    }
+    const { absolutePath: path } = await workspaceFiles.stat(scope, file.path, request.signal)
     const mapped = fs.processPathFromHostPath(path)
     if (mapped === undefined || fs.processPath(await fs.resolve(mapped, { signal: request.signal })) !== path) {
       return new Response('Presented file has no verified Host path.', { status: 422 })

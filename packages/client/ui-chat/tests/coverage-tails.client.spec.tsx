@@ -27,7 +27,9 @@ describe('tails', () => {
       />,
     )
     expect(view.getByText('思考')).toBeTruthy()
-    expect(view.getByText('thinking hard')).toBeTruthy()
+    // Keep-mounted Think bodies stay in the document, hidden until find.
+    const hiddenBody = view.container.querySelector('[hidden="until-found"]')
+    expect(hiddenBody?.textContent).toContain('thinking hard')
     expect(view.getByText(/未知内容块/)).toBeTruthy()
     const stopped = render(
       <AssistantMarkdown

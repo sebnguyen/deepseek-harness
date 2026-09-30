@@ -33,6 +33,7 @@ export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProp
       open={open}
       expandable
       expandOnRowClick
+      keepChildrenMounted
       onToggle={() => { setOpen(value => !value) }}
     >
       <div className={css.body} data-system-prompt-body>

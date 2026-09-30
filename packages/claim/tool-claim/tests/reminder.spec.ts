@@ -60,7 +60,7 @@ describe('claim declaration reminder', () => {
     expect(later.kind === 'enter' && later.messages).toHaveLength(0)
     const gone = stubAgent('agent-2')
     const decision = await listener(
-      { agent: gone, messages: [], turn: 1, step: 1, signal: new AbortController().signal } as never,
+      { agent: gone, messages: [], turn: 1, step: 1, signal: new AbortController().signal },
       () => Promise.resolve({ kind: 'enter', messages: [] }),
     )
     expect(decision.kind === 'enter' && decision.messages).toHaveLength(0)

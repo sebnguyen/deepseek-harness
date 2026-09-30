@@ -150,6 +150,7 @@ kind: "package-reference"
 - **模型命令内的原始 ESC 字符不受支持**——PSReadLine 会在执行前消费它们。包装器会转义它需要的控制字节（`[char]27` 构造的 OSC 标记、正文的反引号转义）。
 - **模型重定义 `prompt` 函数会移除就绪标记**——shell 随后在静默层级而非标记快路径上结算。
 - **命令期间没有交互 stdin**——读取输入的前台命令会一直阻塞到命令超时，随后重置 shell。
+- **没有后台任务、提升与可寻址的输出读取**——持久化 bash 工具可用 `run_in_background` 启动任务、把超过 `backgroundAfterMs` 的前台命令移交为任务，并向观察者提供保留的输出行。本孪生包不具备这些能力，因此长时间的 `pwsh` 命令会一直占用其 shell 直到命令超时。镜像这些能力需要一台 Windows 主机来验证。
 - **Windows 上 SIGTSTP/SIGHUP 不可用**（后端拒绝）；SIGINT 以控制台级 Ctrl-C 输入写入投递，在提示词处会取消待处理行而不是向进程发信号。
 - **在 Windows ACL 沙箱的只读模式下，pwsh 以 ConstrainedLanguage 启动**，可能拒绝引导的 `[Console]::` 编码固定与 prompt 标记。命令仍可通过可打印提示词与静默层级结算，但非 ASCII 输出可能跟随宿主代码页。
 - **BEL 结尾的 OSC 标记目前只是就绪信号**——通向模型的 BEL 事件通道仍被推迟，与当前实现保持一致。

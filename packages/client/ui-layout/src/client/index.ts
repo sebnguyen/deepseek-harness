@@ -60,8 +60,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar': { kind: 'single'; scope: 'root'; owner: SidebarOwnerProps }
     /**
-     * Central panel selected by sidebar entry id. The reserved `conversation`
-     * key hosts the Conversation; other keys receive no Session binding.
+     * Central panel selected by sidebar entry id, rendered once by the frame
+     * with the selected key as the render options' entry key. The reserved
+     * `conversation` key hosts the Conversation; other keys receive no
+     * Session binding. Declared here because the panel registry this key
+     * feeds (`ctx.layout` retention) is layout-owned; the frame seat only
+     * wraps the render.
      */
     'main': { kind: 'keyed'; scope: 'root' }
     /**

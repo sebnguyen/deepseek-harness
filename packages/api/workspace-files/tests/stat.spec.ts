@@ -43,14 +43,14 @@ describe('workspaceFiles.stat', () => {
     await expect(harness.endpoint().stat(harness.scope, 'notes.txt', controller.signal)).rejects.toThrow()
   })
 
-  it('resolves the workspace root and then the file under the caller\'s signal', async () => {
+  it('resolves the file under the caller\'s signal', async () => {
     await writeFile(join(harness.workspace, 'notes.txt'), 'hello\n', 'utf8')
     const fs = harness.ctx.fs
     const original = fs.resolve.bind(fs)
     const spy = vi.spyOn(fs, 'resolve').mockImplementation((path, opts) => original(path, opts))
     const controller = new AbortController()
     await harness.endpoint().stat(harness.scope, 'notes.txt', controller.signal)
-    expect(spy.mock.calls.map(([, opts]) => opts?.signal)).toEqual([controller.signal, controller.signal])
+    expect(spy.mock.calls.map(([, opts]) => opts?.signal)).toEqual([controller.signal])
     spy.mockRestore()
   })
 
@@ -61,17 +61,16 @@ describe('workspaceFiles.stat', () => {
     expect(result).toEqual({ absolutePath: result.absolutePath, version: 'v-sizeless' })
   })
 
-  it('accepts outside files and refuses symlinks, directories, missing and empty paths', async () => {
+  it('accepts outside files and a symlink to one, and refuses directories, missing and empty paths', async () => {
     await writeFile(join(harness.outside, 'secret.txt'), 'no', 'utf8')
     await symlink(join(harness.outside, 'secret.txt'), join(harness.workspace, 'link.txt'))
+    await symlink(join(harness.workspace, 'missing.txt'), join(harness.workspace, 'dangling.txt'))
     await mkdir(join(harness.workspace, 'src'))
     const endpoint = harness.endpoint()
-    expect(await failureOf(endpoint.stat(harness.scope, 'link.txt', signal()))).toMatchObject({
-      code: 'workspace-file/not-regular-file',
-      details: { kind: 'symlink' },
-    })
+    expect(await endpoint.stat(harness.scope, 'link.txt', signal())).toMatchObject({ bytes: 2 })
     expect((await failureOf(endpoint.stat(harness.scope, 'src', signal()))).details).toMatchObject({ kind: 'directory' })
     expect(await endpoint.stat(harness.scope, join(harness.outside, 'secret.txt'), signal())).toMatchObject({ bytes: 2 })
+    expect((await failureOf(endpoint.stat(harness.scope, 'dangling.txt', signal()))).code).toBe('workspace-file/not-found')
     expect((await failureOf(endpoint.stat(harness.scope, 'nope.txt', signal()))).code).toBe('workspace-file/not-found')
     expect((await failureOf(endpoint.stat(harness.scope, '', signal()))).code).toBe('gateway/bad-request')
   })

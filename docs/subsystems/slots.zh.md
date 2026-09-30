@@ -70,7 +70,7 @@ Slot 声明固定两个相互独立的维度。
 | 本地化 `t` 函数 | 注册项的 `locale` namespace | `PropsLocale<N>` |
 | chain 选中的值 | 注册项的 `select` 结果 | 通过 `ComposedProps` 提供的 `matched` |
 
-当 entry 声明 strict Session child 时，`PropsRenderSlots` 还会提供 `SessionProvider`。它把子树绑定到当前 Session identity，并在 identity 改变时重新挂载 body。
+当 entry 声明 strict Session child 时，`PropsRenderSlots` 还会提供 `SessionProvider`。它把子树绑定到当前 Session identity，并在 identity 改变时重新挂载 body。 只要安装了 `session` scope adapter，每个 entry 还会得到 `PinnedSessionProvider`：它把同一子树绑定到经 adapter 解析的命名 session，使多个 session 子树（轮播的保留挂载窗格）并排挂载，当前子树继续跟随选择。
 
 组件绝不会收到 `ctx`。父组件在某次渲染时已经知道的值通过 `renderSlot` 的 owner 参数进入；共享视图状态使用声明的 store；service 与 model object 留在 `apply` closure 中，只向组件投影 callback 或 observable source。
 

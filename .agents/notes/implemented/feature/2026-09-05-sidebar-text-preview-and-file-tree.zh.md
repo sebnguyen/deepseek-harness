@@ -16,7 +16,7 @@ Sidebar 随包交付三个 tab 类型：**引导页**（`ui-sidebar-right`）、
 
 ### 引导页
 
-[默认页与关闭保护](2026-09-08-sidebar-default-pages.zh.md)取代本节的默认引导选择；引导页注册、替换和唯一性保持不变。
+[默认打开与资源管理器列决策](2026-09-30-sidebar-default-open-explorer.zh.md)——[默认页](../../archived/feature/2026-09-08-sidebar-default-pages.zh.md)已归档——取代本节的默认引导选择；引导页注册、替换和唯一性保持不变。
 
 引导页是 pane 承载内容之前显示的东西。它的注册定义是 `{ id: '@deepseek-ai/dsh-client-ui-sidebar-right/guide', kind: 'guide', priority: 'builtin', title }`，没有 `patterns`：引导页不查看任何东西，所以经 `openTab` 按 kind 打开，并记在页地址 `sidebar://guide` 之下——那是注册表自己的记账，调用方从不拼它。tab 标题是 `开始` / `Start`，在 pane 播种时捕获进布局记录，于是之后切换语言只重标类型，不改已开着的 tab。
 
@@ -24,7 +24,7 @@ Sidebar 随包交付三个 tab 类型：**引导页**（`ui-sidebar-right`）、
 
 体同时也是替换接缝。它渲染 `sidebar.right.tab.guide` 链，并以随包交付的引导页作为链的 fallback，于是注册了自己入口的产品接管整个体，而没有入口、或每个入口都拒绝时，随包交付的引导页照常绘制。因为随包交付的引导页是 fallback 而不是链上的一个入口，所以永远恰有一个体，也不可能被意外投掉。
 
-一个 pane 最多持有一个引导页，停靠层把这条作为产品行为强制执行：有引导页时 tab 条的添加控件隐藏，往这样的 pane 打开引导页只是聚焦它，引导页永不复制，被拖拽、落下或回坞进已有引导页的 pane 的引导页并入它（来者关闭）。展开且为空的根 pane 会填入当前默认页。折叠的布局可以保持为空，展开时才选择并创建默认页。
+一个 pane 最多持有一个引导页，停靠层把这条作为产品行为强制执行：有引导页时 tab 条的添加控件隐藏，往这样的 pane 打开引导页只是聚焦它，引导页永不复制，被拖拽、落下或回坞进已有引导页的 pane 的引导页并入它（来者关闭）。展开且为空的根 pane 会填入当前默认页；初始停靠面以展开且已坐上它的状态开始（[默认打开与资源管理器列决策](2026-09-30-sidebar-default-open-explorer.zh.md)）。关闭最后一个 tab 后收起的布局保持为空，直到下次展开。
 
 ### 文本预览
 
@@ -52,7 +52,7 @@ store 是 Slot 标准件：每会话一个独占实例，按 tab id 分桶，持
 
 根是 Host 在会话列表里上报的会话工作目录（`useSessions().byId[sessionId].cwd`），标签由 `dsh-util-workspace-path` 的 `workspaceTitleOf` 给出——路径最后一个非空段——路径只有分隔符时用根串本身作标签。没有工作目录的会话只显示一行（`noWorkspace`），不发请求。没有根选择器，也不能往上浏览：Host 的 `list` 拒绝会话工作区根之外的路径，所以客户端能列的那一个目录就是它显示的目录。
 
-树不是一个资源，这决定了它的状态住在哪。逐层懒加载的目录列表是类型自己拥有的视图状态，所以它住在 Slot 标准的独占 store（每会话一实例）里、按 tab id 分桶：`{ root, levels, expanded }`，`levels` 以绝对路径为键取 `loading | ready | failed`，`expanded` 是当前展开的绝对路径集合，含根。资源有一个地址和一个当前值；一棵为每个展开层钉一个资源的树，会让资源模型背上「读者展开了哪些目录」，而那是类型的事。`useResource` 留给只有一个地址的内容。
+树不是一个资源，这决定了它的状态住在哪。逐层懒加载的目录列表是类型自己拥有的视图状态，所以它住在 Slot 标准的独占 store（每会话一实例）里、按 owner id 分桶：该类型的 tab 用 tab id，[默认打开与资源管理器列决策](2026-09-30-sidebar-default-open-explorer.zh.md)种在停靠格旁边的常驻资源管理器列用 session id：`{ root, levels, expanded }`，`levels` 以绝对路径为键取 `loading | ready | failed`，`expanded` 是当前展开的绝对路径集合，含根。资源有一个地址和一个当前值；一棵为每个展开层钉一个资源的树，会让资源模型背上「读者展开了哪些目录」，而那是类型的事。`useResource` 留给只有一个地址的内容。列注册进 `sidebar.right.explorer`，生命周期信号随挂载持有，行经 `ctx.sidebarRight.openResource` 打开；tab 类型保留按 tab 分桶的桶、经自己的 pane 打开；两处画 `Tree.tsx` 的同一批行。
 
 face 是树唯一的异步半边。`start(tabId, root, signal)` 以根展开态播种桶并列出根；`toggle(tabId, path, loaded, signal)` 翻转展开集合并只在第一次列出该层；`load(tabId, path, signal)` 标 `loading`，调 `remote.workspaceFiles.list(sessionId, absolutePath, signal)`，写 `ready` 或 `failed`。适配层保留列表的 `entries` 与 `truncated`、丢弃其工作区相对 `path`：树里每个键都是绝对路径，子键 = 父路径以 `/` 拼上条目名。折叠保留该层，再展开直接从内存画不再请求；失败的层同样保留、再展开不重试——重试靠重新读取。owner 的 `signal` 终结一个桶：abort 时忘掉该 tab，其后才结算的列表什么也不写，已挂载的体也不会给 signal 已触发的桶重新播种。
 

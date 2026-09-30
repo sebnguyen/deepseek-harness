@@ -97,17 +97,17 @@ describe('TemperatureSlider', () => {
   it('disables while locked or unresolved, but stays draggable during selectModel', () => {
     const locked = createSnapshotStore<ModelDirectoryState>(state())
     render(<TemperatureSlider locked available directory={locked} load={vi.fn()} select={vi.fn()} t={t} />)
-    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByRole('slider').hasAttribute('disabled')).toBe(true)
 
     cleanup()
     const pending = createSnapshotStore<ModelDirectoryState>(state({ current: null }))
     render(<TemperatureSlider locked={false} available directory={pending} load={vi.fn()} select={vi.fn()} t={t} />)
-    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(true)
+    expect(screen.getByRole('slider').hasAttribute('disabled')).toBe(true)
 
     cleanup()
     const selecting = createSnapshotStore<ModelDirectoryState>(state({ status: 'selecting' }))
     render(<TemperatureSlider locked={false} available directory={selecting} load={vi.fn()} select={vi.fn()} t={t} />)
-    expect((screen.getByRole('slider') as HTMLInputElement).disabled).toBe(false)
+    expect(screen.getByRole('slider').hasAttribute('disabled')).toBe(false)
   })
 
   it('updates immediately on change and commits after the drag settles', async () => {

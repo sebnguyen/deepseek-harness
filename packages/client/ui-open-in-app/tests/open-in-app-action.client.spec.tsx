@@ -35,7 +35,7 @@ function bench(over: {
     current: SESSION,
     phase: 'ready',
     subagentsByParent: {},
-    jobsBySession: {},
+    jobsBySession: {}, jobOutputBySession: {},
     currentAddress: undefined,
   } as unknown as SessionListState
   const apps = createSnapshotStore<readonly string[] | null>(over.apps ?? null)

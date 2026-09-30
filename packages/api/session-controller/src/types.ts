@@ -193,6 +193,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
       readonly existingCwd?: string
     }
     'session/agent-busy': { readonly reason: string }
+    'session/job-not-found': { readonly sessionId: SessionId; readonly jobId: JobId }
     'session/invalid-time-zone': { readonly value: string }
     'session/workspace-attach-failed': { readonly sessionId: SessionId; readonly workspaceId: string }
     'agent-preset/conflict': {
@@ -550,6 +551,43 @@ export interface SessionJob {
   readonly finishedAt?: number
 }
 
+/** One contiguous run of a job's output lines on the control stream. */
+export interface SessionJobOutput {
+  readonly sessionId: SessionId
+  readonly jobId: JobId
+  /** Line text in order; each line is sent to a stream exactly once. */
+  readonly lines: readonly string[]
+  /** Absolute line index one past the last line here, for correlating frames. */
+  readonly next: number
+  /**
+   * True when the producer dropped lines this frame could not carry, so the
+   * consumer's earlier lines no longer continue into this frame.
+   */
+  readonly truncated: boolean
+}
+
+/** Request for one page of a job's retained output. */
+export interface SessionJobOutputRequest {
+  readonly sessionId: SessionId
+  readonly jobId: JobId
+  /** Absolute line index to read from; omitted starts at the oldest retained line. */
+  readonly from?: number
+}
+
+/** One page of a job's retained output. */
+export interface SessionJobOutputValue {
+  readonly lines: readonly string[]
+  /** Absolute line index to request next. */
+  readonly next: number
+  /** True when lines before this page were dropped before they could be read. */
+  readonly truncated: boolean
+  /**
+   * False when the producer keeps no addressable buffer, so this job's output
+   * exists only as the model's consuming stream.
+   */
+  readonly addressable: boolean
+}
+
 /** Complete live control baseline emitted once per control stream generation. */
 export interface SessionControlBaseline {
   readonly queues: Readonly<Record<SessionId, readonly SessionQueuedItem[]>>
@@ -570,6 +608,7 @@ export type SessionControlFrame =
   | { readonly type: 'baseline'; readonly value: SessionControlBaseline }
   | { readonly type: 'queue'; readonly sessionId: SessionId; readonly items: readonly SessionQueuedItem[] }
   | { readonly type: 'jobs'; readonly sessionId: SessionId; readonly jobs: readonly SessionJob[] }
+  | ({ readonly type: 'jobOutput' } & SessionJobOutput)
   | ({ readonly type: 'projection' } & SessionProjectionUpdate)
 
 declare module '@deepseek-ai/cordis' {

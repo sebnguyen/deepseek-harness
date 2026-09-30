@@ -59,6 +59,7 @@ function sessionState(
     phase,
     subagentsByParent: {},
     jobsBySession: {},
+    jobOutputBySession: {},
     currentAddress: undefined,
   }
 }

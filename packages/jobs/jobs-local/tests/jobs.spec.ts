@@ -103,14 +103,6 @@ async function attachControllerIn(ctx: Context): Promise<void> {
 /** Let the settlement continuation (a `done.then`) run. */
 const tick = () => new Promise<void>(r => setTimeout(r, 0))
 
-/** Inspect the internal resolver registry to pin bounded retention while a job stays live. */
-function waitResolverCount(ctx: Context, id: JobId): number {
-  const service = ctx.jobs as unknown as { store: Map<JobId, { waitResolvers: Set<() => void> }> }
-  const job = service.store.get(id)
-  if (job === undefined) throw new Error(`missing test job ${id}`)
-  return job.waitResolvers.size
-}
-
 describe('LocalJobRegistry.start', () => {
   it('preserves the SessionId brand on public owner snapshots', () => {
     expectTypeOf<JobSnapshot['ownerSession']>().toEqualTypeOf<SessionId | undefined>()
@@ -446,119 +438,9 @@ describe('LocalJobRegistry.kill', () => {
   })
 })
 
-describe('LocalJobRegistry.wait', () => {
-  it('resolves with the terminal snapshot when the job settles, marked reported', async () => {
-    const ctx = await harness()
-    const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
-    const p = producer()
-    const id = ctx.jobs.start(p.spec)
-
-    const wait = ctx.jobs.wait(id, 5_000)
-    p.settle({ status: 'completed', detail: 'exit code: 0' })
-    expect(await wait).toMatchObject({ status: 'completed', reported: true })
-    // A waiting reader claims delivery before completion listeners inspect the snapshot.
-    expect(seen[0]).toMatchObject({ id, reported: true })
-  })
-
-  it('returns the live snapshot on timeout without marking reported', async () => {
-    const ctx = await harness()
-    const id = ctx.jobs.start(producer().spec)
-    expect(await ctx.jobs.wait(id, 5)).toMatchObject({ status: 'running', reported: false })
-  })
-
-  it('unregisters timed-out and aborted wait resolvers while the job remains live', async () => {
-    const ctx = await harness()
-    const id = ctx.jobs.start(producer().spec)
-
-    for (let index = 0; index < 3; index += 1) {
-      const wait = ctx.jobs.wait(id, 5)
-      expect(waitResolverCount(ctx, id)).toBe(1)
-      await expect(wait).resolves.toMatchObject({ status: 'running' })
-      expect(waitResolverCount(ctx, id)).toBe(0)
-    }
-
-    const controller = new AbortController()
-    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
-    expect(waitResolverCount(ctx, id)).toBe(1)
-    controller.abort()
-    await expect(wait).rejects.toThrow('wait aborted')
-    expect(waitResolverCount(ctx, id)).toBe(0)
-    expect(ctx.jobs.get(id).status).toBe('running')
-  })
-
-  it('returns immediately for an already-finished job', async () => {
-    const ctx = await harness()
-    const p = producer()
-    const id = ctx.jobs.start(p.spec)
-    p.settle({ status: 'completed' })
-    await tick()
-    expect(await ctx.jobs.wait(id, 5_000)).toMatchObject({ status: 'completed', reported: true })
-  })
-
-  it('rejects a non-positive or non-finite timeout', async () => {
-    const ctx = await harness()
-    const id = ctx.jobs.start(producer().spec)
-    await expect(ctx.jobs.wait(id, 0)).rejects.toThrow('invalid wait timeout')
-    await expect(ctx.jobs.wait(id, Number.NaN)).rejects.toThrow('invalid wait timeout')
-  })
-
-  it('an aborted signal rejects the wait only — the job stays alive', async () => {
-    const ctx = await harness()
-    const id = ctx.jobs.start(producer().spec)
-
-    const controller = new AbortController()
-    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
-    controller.abort()
-    await expect(wait).rejects.toThrow('wait aborted')
-    expect(ctx.jobs.list()[0]).toMatchObject({ status: 'running' })
-
-    const preAborted = new AbortController()
-    preAborted.abort()
-    await expect(ctx.jobs.wait(id, 5_000, undefined, preAborted.signal)).rejects.toThrow('wait aborted')
-  })
-
-  it('an abort racing settlement in the same tick does not swallow the notice', async () => {
-    const ctx = await harness()
-    const seen: JobSnapshot[] = []
-    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
-    const p = producer()
-    const id = ctx.jobs.start(p.spec)
-
-    const controller = new AbortController()
-    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
-    // Settlement is queued first, so abort must remove the waiter synchronously;
-    // otherwise settlement suppresses the notice for a reader that receives nothing.
-    p.settle({ status: 'completed', detail: 'exit code: 0' })
-    controller.abort()
-    await expect(wait).rejects.toThrow('wait aborted')
-    expect(seen).toHaveLength(1)
-    expect(seen[0]).toMatchObject({ id, status: 'completed', reported: false })
-  })
-
-  it('an abort landing after settlement still delivers the terminal snapshot it owes', async () => {
-    const ctx = await harness()
-    const controller = new AbortController()
-    const seen: JobSnapshot[] = []
-    // The listener aborts after settlement released this waiter but before its
-    // resolve microtask runs. Releasing waiters ahead of the announcement is
-    // what makes that abort harmless; this is the guard on that ordering.
-    ctx.jobs.onJobDone((snapshot) => {
-      seen.push(snapshot)
-      controller.abort()
-    })
-    const p = producer()
-    const id = ctx.jobs.start(p.spec)
-
-    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
-    p.settle({ status: 'completed', detail: 'exit code: 0' })
-    await expect(wait).resolves.toMatchObject({ status: 'completed', reported: true })
-    expect(seen[0]).toMatchObject({ id, reported: true }) // suppression stays honest: the wait delivered
-  })
-})
 
 describe('LocalJobRegistry owner isolation', () => {
-  it('fences read/kill/wait to the owning session and keeps unowned jobs open', async () => {
+  it('fences read/kill to the owning session and keeps unowned jobs open', async () => {
     const ctx = await harness()
     const owner = stubAgent(ctx, 'owner')
     ctx.agents.register(owner)
@@ -574,7 +456,6 @@ describe('LocalJobRegistry owner isolation', () => {
     // A different session and a no-agent caller are rejected.
     expect(() => ctx.jobs.read(owned, other)).toThrow(`job ${owned} belongs to another session`)
     expect(() => ctx.jobs.kill(owned, other)).toThrow('belongs to another session')
-    await expect(ctx.jobs.wait(owned, 10, other)).rejects.toThrow('belongs to another session')
     expect(() => ctx.jobs.read(owned)).toThrow('belongs to another session')
   })
 
@@ -1134,5 +1015,100 @@ describe('LocalJobRegistry teardown change notifications', () => {
     await fiber.dispose()
     // stopping (teardown cancel), settlement, then the final empty set.
     expect(seen).toEqual([undefined, undefined, undefined])
+  })
+})
+
+describe('LocalJobRegistry.readLines', () => {
+  it('serves retained lines from an absolute index without consuming the stream', async () => {
+    const ctx = await harness()
+    const consumer = stubAgent(ctx, 'line-reader')
+    ctx.agents.register(consumer)
+    const lines = ['one', 'two', 'three']
+    let emitted = 0
+    const p = producer({
+      owner: consumer,
+      // The consuming stream the model owns; observation must not touch it.
+      readOutput: () => {
+        const delta = lines.slice(emitted).join('\n')
+        emitted = lines.length
+        return delta
+      },
+      readLines: (from: number) => ({
+        lines: lines.slice(from), next: lines.length, truncated: false,
+      }),
+    })
+    const id = ctx.jobs.start(p.spec)
+
+    const first = ctx.jobs.readLines(id, consumer)
+    expect(first).toEqual({ lines: ['one', 'two', 'three'], next: 3, truncated: false })
+    // Observation is repeatable: the same cursor yields the same page.
+    expect(ctx.jobs.readLines(id, consumer)).toEqual(first)
+    // A later cursor sees only what followed it, and an observation between
+    // them still left the model's own stream whole.
+    expect(ctx.jobs.readLines(id, consumer, 2)).toEqual({ lines: ['three'], next: 3, truncated: false })
+    expect(ctx.jobs.read(id, consumer).text).toBe('one\ntwo\nthree')
+    // Owner disposal drains live jobs, so settle before releasing the scope.
+    p.settle({ status: 'completed' })
+    await tick()
+    await disposeAgentScope(consumer)
+  })
+
+  it('reports dropped lines instead of silently shifting a cursor', async () => {
+    const ctx = await harness()
+    const owner = stubAgent(ctx, 'line-dropper')
+    ctx.agents.register(owner)
+    const p = producer({
+      owner,
+      // Lines 0-3 were dropped before this observer could read them.
+      readLines: (from: number) => from < 4
+        ? { lines: ['four'], next: 10, truncated: true }
+        : { lines: ['four'], next: 10, truncated: false },
+    })
+    const id = ctx.jobs.start(p.spec)
+    // A cursor pointing before the first retained line is told so; one that
+    // lands on it is not.
+    expect(ctx.jobs.readLines(id, owner, 2)?.truncated).toBe(true)
+    expect(ctx.jobs.readLines(id, owner, 4)?.truncated).toBe(false)
+    p.settle({ status: 'completed' })
+    await tick()
+    await disposeAgentScope(owner)
+  })
+
+  it('leaves the completion notice owed and refuses a foreign observer', async () => {
+    const ctx = await harness()
+    const owner = stubAgent(ctx, 'line-owner')
+    ctx.agents.register(owner)
+    const foreign = stubAgent(ctx, 'line-foreign')
+    ctx.agents.register(foreign)
+    const p = producer({ owner, readLines: () => ({ lines: ['x'], next: 1, truncated: false }) })
+    const id = ctx.jobs.start(p.spec)
+
+    ctx.jobs.readLines(id, owner)
+    // Observing live output is not the model learning the result.
+    expect(ctx.jobs.get(id, owner).reported).toBe(false)
+
+    p.settle({ status: 'completed' })
+    await tick()
+    ctx.jobs.readLines(id, owner)
+    expect(ctx.jobs.get(id, owner).reported).toBe(false)
+    // A terminal consuming read is what marks it reported.
+    ctx.jobs.read(id, owner)
+    expect(ctx.jobs.get(id, owner).reported).toBe(true)
+
+    expect(() => ctx.jobs.readLines(id, foreign)).toThrow()
+    await disposeAgentScope(owner)
+    await disposeAgentScope(foreign)
+  })
+
+  it('returns undefined when the producer keeps no addressable buffer', async () => {
+    const ctx = await harness()
+    const owner = stubAgent(ctx, 'line-nobuffer')
+    ctx.agents.register(owner)
+    const p = producer({ owner })
+    const id = ctx.jobs.start(p.spec)
+    expect(ctx.jobs.readLines(id, owner)).toBeUndefined()
+    p.settle({ status: 'completed' })
+    await tick()
+    await disposeAgentScope(owner)
   })
 })

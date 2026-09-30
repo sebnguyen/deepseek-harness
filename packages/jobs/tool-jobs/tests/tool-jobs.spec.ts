@@ -119,15 +119,6 @@ describe('tool-jobs setup', () => {
     expect(() => ctx.jobs.start(producer().spec)).toThrow('no job controller serves this agent')
   })
 
-  it('rejects a config whose default wait exceeds the cap', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(ToolRuntime)
-    await ctx.plugin(LocalJobRegistry)
-    await expect(ctx.plugin(ToolTasks, { waitTimeoutMs: 100, maxWaitTimeoutMs: 50 }))
-      .rejects.toThrow('waitTimeoutMs (100) exceeds maxWaitTimeoutMs (50)')
-  })
-
   it('defaults delivery to wakeup and rejects an unknown lane', () => {
     expect(ToolTasks.Config({}).completionDelivery).toBe('wakeup')
     expect(ToolTasks.Config({}).maxConsecutiveWakes).toBe(3)
@@ -319,22 +310,26 @@ describe('job_output', () => {
     }
   })
 
-  it('wait: true blocks until settlement and reports the terminal state', async () => {
+  it('reads a non-blocking snapshot and never waits for settlement', async () => {
     const { ctx } = await setup()
     const p = producer({ kind: 'subagent', label: 'research' })
     ctx.jobs.start(p.spec)
 
-    const pending = call(ctx, 'job_output', { job_id: 'subagent-1', wait: true })
+    // A live job answers with its own state instead of blocking the step, and
+    // the settled read returns the final output that was not there before.
+    expect(text(await call(ctx, 'job_output', { job_id: 'subagent-1' })))
+      .toBe('(no new output)\n[status: running]')
     p.settle({ status: 'completed', output: 'done deal' })
-    expect(text(await pending)).toBe('done deal\n[status: completed]')
+    expect(text(await call(ctx, 'job_output', { job_id: 'subagent-1' })))
+      .toBe('done deal\n[status: completed]')
   })
 
-  it('wait: true times out against the configured cap and leaves the job alive', async () => {
-    const { ctx } = await setup({ waitTimeoutMs: 10, maxWaitTimeoutMs: 20 })
+  it('reads a snapshot without a wait or timeout parameter', async () => {
+    const { ctx } = await setup()
     ctx.jobs.start(producer().spec)
 
-    // A model-supplied timeout far above the cap is clamped: this returns
-    // promptly (≤ the 20ms cap), not after ten minutes.
+    // The schema no longer advertises a blocking read, so a caller that still
+    // sends the removed parameters gets the same snapshot as any other read.
     const result = await call(ctx, 'job_output', { job_id: 'bash-1', wait: true, timeout_ms: 600_000 })
     expect(text(result)).toBe('(no new output)\n[status: running]')
   })
@@ -814,17 +809,20 @@ describe('completion notices', () => {
     expect(inject).not.toHaveBeenCalled()
   })
 
-  it('suppresses the notice when a wait returned the terminal state', async () => {
+  it('still delivers the notice after a live read, because the notice is the completion signal', async () => {
     const { ctx } = await setup()
     const inject = vi.fn()
     const owner = fakeAgent(ctx, 'sess-1', { inject })
     const p = producer({ owner, kind: 'subagent' })
     ctx.jobs.start(p.spec)
 
-    const pending = call(ctx, 'job_output', { job_id: 'subagent-1', wait: true }, owner)
+    // A running read is a snapshot, not a claim on the completion. Suppressing
+    // the notice here would leave the model never learning the job finished.
+    expect(text(await call(ctx, 'job_output', { job_id: 'subagent-1' }, owner)))
+      .toContain('[status: running]')
     p.settle({ status: 'completed', output: 'answer' })
-    expect(text(await pending)).toContain('answer')
-    expect(inject).not.toHaveBeenCalled()
+    await tick()
+    expect(inject).toHaveBeenCalled()
   })
 
   it('drops the notice for unowned jobs without throwing', async () => {

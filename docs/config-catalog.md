@@ -44,10 +44,12 @@ export interface Config {
   provider: string
   /** Provider-owned model id. */
   model: string
+  /** Sampling temperature in [0, 1]; the deployment default matched to the provider's accepted range. */
+  temperature?: number
 }
 ```
 
-Source: [`packages/core/agent-default-model/src/index.ts:41`](../packages/core/agent-default-model/src/index.ts)
+Source: [`packages/core/agent-default-model/src/index.ts:44`](../packages/core/agent-default-model/src/index.ts)
 
 <a id="deepseek-aidsh-agent-instructions"></a>
 
@@ -210,10 +212,16 @@ Requires: `agentDefaultModel` · `agents` · `attachments` · `fileUploads` · `
 export interface Config {
   /** Override platform desktop-opener detection. */
   readonly nativeOpen?: boolean
+  /**
+   * Milliseconds between control-stream frames carrying a job's new output
+   * lines (default 250). A deployment paying for the cadence slows it here;
+   * `0` disables output publishing, leaving output to the paged read.
+   */
+  readonly jobOutputPollMs?: number
 }
 ```
 
-Source: [`packages/api/session-controller/src/index.ts:71`](../packages/api/session-controller/src/index.ts)
+Source: [`packages/api/session-controller/src/index.ts:74`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -1029,7 +1037,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/jobs/jobs-local/src/index.ts:31`](../packages/jobs/jobs-local/src/index.ts)
+Source: [`packages/jobs/jobs-local/src/index.ts:27`](../packages/jobs/jobs-local/src/index.ts)
 
 <a id="deepseek-aidsh-knowledge-notes"></a>
 
@@ -1132,7 +1140,7 @@ export interface DeepSeekCatalogModel {
 
 Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · [`SystemPromptUpdate`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/llm/llm-deepseek/src/index.ts:141`](../packages/llm/llm-deepseek/src/index.ts)
+Source: [`packages/llm/llm-deepseek/src/index.ts:144`](../packages/llm/llm-deepseek/src/index.ts)
 
 <a id="deepseek-aidsh-llm-pi-ai"></a>
 
@@ -2225,6 +2233,34 @@ export interface Config {
 
 Source: [`packages/skill/skill/src/index.ts:278`](../packages/skill/skill/src/index.ts)
 
+<a id="deepseek-aidsh-skill-context"></a>
+
+## `@deepseek-ai/dsh-skill-context`
+
+Requires: `agents` · `skills`
+
+```ts config-catalog
+/** Plugin configuration. Every field is a deployment choice validated at load. */
+export interface Config {
+  /** Whether the pre-step judgment runs. Defaults to `true`. */
+  enabled?: boolean
+  /** Where judgments come from. `none` keeps the service without an evaluator. */
+  provider?: 'typesafe' | 'none'
+  /** Probability above which a candidate is admitted, in `(0, 1)`. Defaults to `0.5`. */
+  threshold?: number
+  /** Maximum skills admitted per step. Defaults to `3`. */
+  topK?: number
+  /** Pinned model identifier; an alias would retune a threshold without notice. */
+  model?: string
+  /** Evaluation endpoint. */
+  endpoint?: string
+  /** Per-call timeout in milliseconds. Defaults to `10000`. */
+  timeoutMs?: number
+}
+```
+
+Source: [`packages/context/skill-context/src/index.ts:30`](../packages/context/skill-context/src/index.ts)
+
 <a id="deepseek-aidsh-skill-filesystem"></a>
 
 ## `@deepseek-ai/dsh-skill-filesystem`
@@ -2649,13 +2685,14 @@ export interface Config {
   /**
    * Model-facing tool names in order, with {@link TOOL_ORDER_REST} exactly once.
    * Invalid fields fail at load and unknown names fail at assembly; known names
-   * hidden in one scope may be absent there. Omitted means lexicographic order.
+   * hidden in one scope may be absent there. Omitted means
+   * {@link DEFAULT_TOOL_PRECEDENCE} order, then lexicographic.
    */
   toolOrder?: string[]
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:309`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:345`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2787,10 +2824,26 @@ export interface Config {
   maxOutputChars?: number
   /** Model-facing tool description; deployments may describe their environment. */
   description?: string
+  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
+  enableRunInBackground?: boolean
+  /**
+   * Milliseconds a foreground command may run before it is retired into a
+   * background job instead of holding the shell (default 10000). `0` disables
+   * promotion, leaving `timeoutMs` as the only bound.
+   */
+  backgroundAfterMs?: number
+  /**
+   * Milliseconds a foreground command may run before a call waiting for its
+   * shell retires it instead (default 1000). Contention lowers
+   * `backgroundAfterMs` to this bar rather than removing it, so a command that
+   * finishes inside the bar still serves its own caller. `0` leaves only the
+   * threshold.
+   */
+  contentionAfterMs?: number
 }
 ```
 
-Source: [`packages/shell/tool-bash-persistent/src/index.ts:435`](../packages/shell/tool-bash-persistent/src/index.ts)
+Source: [`packages/shell/tool-bash-persistent/src/index.ts:797`](../packages/shell/tool-bash-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-claim"></a>
 
@@ -2890,12 +2943,8 @@ Source: [`packages/goal/tool-goal/src/index.ts:25`](../packages/goal/tool-goal/s
 Requires: `tools` · `jobs` · `systemPrompt`
 
 ```ts config-catalog
-/** Configures bounded `job_output` waits and completion-notice delivery. */
+/** Configures completion-notice delivery. */
 export interface Config {
-  /** Wait duration applied when `job_output` sets `wait` without `timeout_ms` (default 30s). */
-  waitTimeoutMs?: number
-  /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 10min). */
-  maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */
   completionDelivery?: CompletionDelivery
   /**
@@ -3560,6 +3609,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-locale` ([`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts))
 - `@deepseek-ai/dsh-client-modules` — requires `loader` ([`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts))
 - `@deepseek-ai/dsh-client-resources` ([`packages/client/resources/src/index.ts`](../packages/client/resources/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-activity` ([`packages/client/ui-activity/src/index.ts`](../packages/client/ui-activity/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-agent-preset` ([`packages/client/ui-agent-preset/src/index.ts`](../packages/client/ui-agent-preset/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-approval` ([`packages/client/ui-approval/src/index.ts`](../packages/client/ui-approval/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-attachment` ([`packages/client/ui-attachment/src/index.ts`](../packages/client/ui-attachment/src/index.ts))
@@ -3574,7 +3624,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-jobs` ([`packages/client/ui-jobs/src/index.ts`](../packages/client/ui-jobs/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))

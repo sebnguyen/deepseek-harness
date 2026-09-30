@@ -50,6 +50,7 @@
   margin-top: -3.5px;
   border: none;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--dsw-alias-brand-primary);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--dsw-alias-bg-base) 40%, transparent);
 }
@@ -72,6 +73,7 @@
   height: 10px;
   border: none;
   border-radius: 50%;
+  corner-shape: round;
   background: var(--dsw-alias-brand-primary);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--dsw-alias-bg-base) 40%, transparent);
 }

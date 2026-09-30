@@ -96,8 +96,8 @@ describe('SystemPrompt', () => {
       environment = { model: 'model-a', cwd: 'C:/bob/project', platform: 'win32', source: 'C:/bob/dsh', url: 'http://127.0.0.1:4080' }
       const second = renderPrompt(await ctx.systemPrompt.assemble())
       const [belowOverlay, aboveOverlay] = [
-        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name as PromptSectionOrderName) < 500),
-        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name as PromptSectionOrderName) > 90),
+        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name) < 500),
+        reusable.filter(name => ctx.systemPrompt.getSectionOrder(name) > 90),
       ] as [string[], string[]]
       const prefix = ['Model model-a.', ...belowOverlay, CORE_GUIDANCE, ...aboveOverlay].join('\n\n') + '\n\n'
       expect(first).toBe(prefix + '/alice/dsh\n\nhttp://127.0.0.1:3080\n\nIn /alice/project on darwin.')

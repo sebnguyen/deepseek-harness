@@ -109,6 +109,7 @@ const install: InvariantInstaller = Object.assign((ctx: Context, fail: Invariant
   const seed = (session: Session): ClaimTrace => {
     const state = emptyClaimFoldState()
     const trace: ClaimTrace = { openTurn: null, openClaims: new Set() }
+    // oxlint-disable-next-line typescript/no-deprecated -- seeding fold for attached sessions predates the async event-read migration
     for (const event of session.snapshotEvents()) track(state, trace, event, fail)
     states.set(session, state)
     traces.set(session, trace)
