@@ -164,7 +164,7 @@ type Driver = (id: string, name: string, args: Record<string, unknown>) => Promi
 async function collect(run: Driver, needle: string): Promise<string> {
   let seen = ''
   for (let attempt = 0; attempt < 400 && !seen.includes(needle); attempt += 1) {
-    seen += text(await run(`read-${attempt}`, 'job_output', { job_id: 'bash-1' }))
+    seen += text(await run(`read-${attempt}`, 'job_output', { job_id: 'bash-1', timeout_ms: 50 }))
     if (!seen.includes(needle)) await new Promise(resolve => setTimeout(resolve, 25))
   }
   return seen
@@ -223,6 +223,9 @@ suite('persistent Bash promotion', () => {
     const promoted = text(await h.bash('long', 'sleep 3; printf PROMOTED_OK'))
     expect(promoted).toContain('was moved to the background as job bash-1')
     expect(promoted).toContain('next bash call starts from the workspace')
+    // The acknowledgement lets the agent end an idle turn instead of polling.
+    expect(promoted).toContain('end your turn here')
+    expect(promoted).toContain('delivered to you automatically as a new turn')
 
     // The command kept running: the job serves its output after the handoff.
     expect(await collect(h.run, 'PROMOTED_OK')).toContain('PROMOTED_OK')

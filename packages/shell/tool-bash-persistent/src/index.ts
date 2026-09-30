@@ -415,6 +415,7 @@ function promoteInFlight(
     `${cause}, so it was moved to the background as job ${jobId}.`,
     SHELL_RESET_MESSAGE,
     'Read its output with job_output.',
+    'If no pending task remains that you can act on right now, end your turn here; the completion is delivered to you automatically as a new turn.',
   ].join('\n')
 }
 

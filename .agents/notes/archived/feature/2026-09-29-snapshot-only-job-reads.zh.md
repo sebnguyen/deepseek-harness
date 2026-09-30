@@ -1,6 +1,7 @@
 # Agent Note: 仅快照的任务读取
 
 Status: implemented
+Archived: 2026-09-30
 
 [English](2026-09-29-snapshot-only-job-reads.md) | 中文
 

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-tool-jobs` to inspect and control background commands, PTY work, and subagents through `job_output`, `job_list`, and `job_kill`. Reads are non-blocking snapshots, list results identify each job's kind and status, and cancellation settles only after the work stops. When owned work finishes, the agent receives an in-session notice: busy agents receive it in their next step, while idle agents may be woken by a bounded follow-up turn. Configuration controls completion delivery and consecutive wakeups. Stream output is consumed by one reader, and pending notices do not survive owner disposal.
+Use `dsh-tool-jobs` to inspect and control background commands, PTY work, and subagents through `job_output`, `job_list`, and `job_kill`. Reads block until the job settles or a configured timeout, list results identify each job's kind and status, and cancellation settles only after the work stops. When owned work finishes, the agent receives an in-session notice: busy agents receive it in their next step, while idle agents may be woken by a bounded follow-up turn. Configuration controls wait limits, completion delivery, and consecutive wakeups. Stream output is consumed by one reader, and pending notices do not survive owner disposal.
 
 ## Table of Contents
 
@@ -29,7 +29,7 @@ Load this plugin in any composition where the agent should start, observe, and s
 
 ### The three tools
 
-- `job_output(job_id)` — Read a job's output as a non-blocking snapshot. Stream jobs return only the output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`; a run that finishes later reaches the agent as an in-session notice.
+- `job_output(job_id, timeout_ms?)` — Read a job's output, blocking until the job settles or the timeout expires. Stream jobs return only the output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. `timeout_ms` defaults to `waitTimeoutMs` (10s) and is clamped by `maxWaitTimeoutMs` (60s); a timed-out read returns the live state and leaves the job alive.
 - `job_list()` — List your background jobs with their ids, kinds, and statuses, one per line: `<id> [<kind>] <status> — <label>`.
 - `job_kill(job_id, reason?)` — Request cancellation of a running job immediately; the job settles as `killed` once its work actually stops. A terminal job returns its current snapshot, and the optional reason is recorded and forwarded to the job.
 
@@ -37,13 +37,13 @@ The three tools return `{ text, job }`, `PublicJobSnapshot[]`, and `{ outcome: '
 
 ### Completion notices
 
-When a job finishes, the owning agent receives `background job <id> (<kind>: <label>) finished [status: ...]. Read its output with job_output.` as an in-session message. A busy agent has the notice injected into its next step — the turn cannot close while the inbox holds it, so several jobs settling together cost one step rather than one turn each. An idle agent is instead woken with a follow-up turn, because an unclaimed notice is a completion the model never learns about. A kill or a terminal read marks the completion reported and suppresses the redundant notice, as does the teardown cancel that drains an owner or the service.
+When a job finishes, the owning agent receives `background job <id> (<kind>: <label>) finished [status: ...]. Read its output with job_output.` as an in-session message. A busy agent has the notice injected into its next step — the turn cannot close while the inbox holds it, so several jobs settling together cost one step rather than one turn each. An idle agent is instead woken with a follow-up turn, because an unclaimed notice is a completion the model never learns about. A kill or a terminal read/wait marks the completion reported and suppresses the redundant notice, as does the teardown cancel that drains an owner or the service.
 
 Waking is bounded: each owner may be woken `maxConsecutiveWakes` times before further notices degrade to injection, and claiming any user-authored message restores the budget. The bound exists because the chain is self-exciting — a woken turn may start the background job whose completion wakes it again. `completionDelivery: quiet` keeps even idle owners on the injection lane, which deterministic transcripts need.
 
 ### Minimal configuration
 
-Loading the plugin with no config is the common path.
+Loading the plugin with no config is the common path; a `waitTimeoutMs` above `maxWaitTimeoutMs` fails at load.
 
 ```yaml
 - name: '@deepseek-ai/dsh-tool-jobs'
@@ -51,6 +51,8 @@ Loading the plugin with no config is the common path.
 
 | Field | Default | Meaning |
 |---|---|---|
+| `waitTimeoutMs` | `10,000` | Wait applied when a read omits `timeout_ms` |
+| `maxWaitTimeoutMs` | `60,000` | Cap for model-supplied timeouts; larger values clamp down to it |
 | `completionDelivery` | `wakeup` | `wakeup` opens a turn on an idle owner; `quiet` leaves the notice pending |
 | `maxConsecutiveWakes` | `3` | Turns one owner may open by wake before notices degrade to injection |
 
@@ -58,7 +60,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### What can go wrong
 
-An agent whose composition loads no `tool-jobs` cannot start background work: this plugin's controller is what arms producers' `ctx.jobs.start()`. A completion notice pending on an idle owner does not survive that owner's disposal.
+An agent whose composition loads no `tool-jobs` cannot start background work: this plugin's controller is what arms producers' `ctx.jobs.start()`. A model-supplied timeout longer than `maxWaitTimeoutMs` is clamped down to the cap, and a timed-out read returns `[status: running]` and leaves the job alive rather than failing. A completion notice pending on an idle owner does not survive that owner's disposal.
 
 -----
 
@@ -122,7 +124,7 @@ Every request in this plugin's registration scope contains this guidance. Agent-
 ##### Background-job guidance
 
 ```markdown
-Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job's work. Before giving a final answer, read every still-relevant job with job_output, and job_kill jobs that stopped mattering.
+Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job's work. Before giving a final answer, collect every still-relevant job with job_output (every read blocks until the job settles or its timeout — 10s by default, capped at 60s — and a timed-out read returns the live state for the notice to follow), and job_kill jobs that stopped mattering.
 ```
 
 #### Token effect

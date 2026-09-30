@@ -410,7 +410,7 @@ describe('tool-terminal task integration', () => {
     const started = await call(ctx, 'terminal_send', { sessionId: 'pty-1', text: 'build', run_in_background: true }, agent)
     expect(text(started)).toBe('started background job pty-send-1')
     expect(started).toMatchObject({ isError: false, value: { kind: 'background', jobId: 'pty-send-1' } })
-    const output = await call(ctx, 'job_output', { job_id: 'pty-send-1', wait: true }, agent)
+    const output = await call(ctx, 'job_output', { job_id: 'pty-send-1' }, agent)
     expect(text(output)).toContain('live output')
     expect(text(output)).toContain('[status: completed, wait: stdin_read]')
   })
@@ -425,7 +425,7 @@ describe('tool-terminal task integration', () => {
     stub.sessions[0]!.delta = '界'.repeat(100)
     stub.sessions[0]!.deltaTruncated = true
     await call(ctx, 'terminal_send', { sessionId: 'pty-1', text: 'background', run_in_background: true }, agent)
-    const background = await call(ctx, 'job_output', { job_id: 'pty-send-1', wait: true }, agent)
+    const background = await call(ctx, 'job_output', { job_id: 'pty-send-1' }, agent)
     expect(Buffer.byteLength(text(background))).toBeLessThanOrEqual(64)
     expect(text(background)).toContain('[status: completed')
     expect(text(background).match(/\[output truncated\]/g)).toHaveLength(1)
@@ -482,7 +482,7 @@ describe('tool-terminal task integration', () => {
     await call(ctx, 'terminal_open', { type: 'stub' }, agent)
     stub.sessions[0]!.statusValue = { kind: 'exited', exitCode: null, signal: null }
     await call(ctx, 'terminal_send', { sessionId: 'pty-1', text: 'exit', run_in_background: true }, agent)
-    const output = await call(ctx, 'job_output', { job_id: 'pty-send-1', wait: true }, agent)
+    const output = await call(ctx, 'job_output', { job_id: 'pty-send-1' }, agent)
     expect(text(output)).toContain('session exited: unknown')
   })
 })

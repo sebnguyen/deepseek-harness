@@ -143,7 +143,7 @@ describe.skipIf(!hasPwsh)('pwsh tool over the real pwsh executor', () => {
     const deadline = Date.now() + 10_000
     let output = ''
     while (Date.now() < deadline) {
-      const read = await call('job_output', { job_id: jobId })
+      const read = await call('job_output', { job_id: jobId, timeout_ms: 50 })
       output += text(read)
       if (output.includes('bg-done') && output.includes('[status: completed, exit code: 0]')) break
       await new Promise(resolve => setTimeout(resolve, 50))

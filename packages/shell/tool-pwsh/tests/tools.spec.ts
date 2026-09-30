@@ -765,7 +765,7 @@ describe('background execution through the job runtime', () => {
     expect(text(killed)).toBe('requested cancellation of job pwsh-1')
     // The cancel reached the process handle; the task settles as killed with
     // the signal detail mapped by processOutcome.
-    const final = await call(ctx, 'job_output', { job_id: 'pwsh-1', wait: true })
+    const final = await call(ctx, 'job_output', { job_id: 'pwsh-1' })
     expect(text(final)).toContain('[status: killed, signal: SIGTERM]')
   })
 
@@ -781,7 +781,7 @@ describe('background execution through the job runtime', () => {
 
     const killed = await call(ctx, 'job_kill', { job_id: 'pwsh-1' }, agent)
     expect(killed.isError).toBe(false)
-    await call(ctx, 'job_output', { job_id: 'pwsh-1', wait: true }, agent) // await settlement — no orphan
+    await call(ctx, 'job_output', { job_id: 'pwsh-1' }, agent) // await settlement — no orphan
   })
 
   it('fails loud when the job runtime is not loaded', async () => {

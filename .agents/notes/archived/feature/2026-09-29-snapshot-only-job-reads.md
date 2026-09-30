@@ -1,6 +1,7 @@
 # Agent Note: snapshot-only job reads
 
 Status: implemented
+Archived: 2026-09-30
 
 English | [中文](2026-09-29-snapshot-only-job-reads.zh.md)
 

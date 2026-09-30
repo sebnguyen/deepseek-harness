@@ -48,7 +48,7 @@ try {
       signal: new AbortController().signal,
       callId: ToolCallId('loader-bg-read'),
       name: 'job_output',
-      arguments: { job_id: jobId },
+      arguments: { job_id: jobId, timeout_ms: 50 },
     })
     backgroundText += read.content.filter(block => block.type === 'text').map(block => block.text).join('')
     if (backgroundText.includes('loader-bg-ok') && backgroundText.includes('[status: completed')) break

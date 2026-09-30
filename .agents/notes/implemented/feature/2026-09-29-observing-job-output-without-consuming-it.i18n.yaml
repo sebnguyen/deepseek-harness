@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-29-observing-job-output-without-consuming-it.md
-2026-09-29-observing-job-output-without-consuming-it.md: bd162a8ffa4779111d22deb6c52192eedf66aa5c
-2026-09-29-observing-job-output-without-consuming-it.zh.md: a38f698d359f8980b0440a7878c798e86e7ccde9
+2026-09-29-observing-job-output-without-consuming-it.md: 5ccb5547e7dd80b25a503c84de2d67d21c1281c7
+2026-09-29-observing-job-output-without-consuming-it.zh.md: a29bee8f65b2697efa2388b5f9a5b27879b65873

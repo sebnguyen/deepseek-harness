@@ -74,6 +74,12 @@ export const CORE_RULE_CLOSE_THE_DECISION_SECTION = 'harness:core-rule:close-the
 export const CORE_RULE_CLOSE_THE_DECISION_TEXT =
   'Core Rule: Close The Decision - Evidence that already settles a question stops paying, so choose and move; a stated assumption costs one clause, an unstated one costs a hidden error. When two readings both fit, take the plain one rather than the clever reading, and state the choice with its reason. Ask when the answer lives with the user, and decide when it lives in the repository. Example: the config could be read as a default or an override, the plain reading is a default, so proceed on that reading and note the assumption instead of asking.'
 
+export const CORE_RULE_CLOSE_THE_IDLE_TURN_SECTION = 'harness:core-rule:close-the-idle-turn'
+
+/** @remarks Model-visible verbatim; snapshots pin this text. */
+export const CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT =
+  'Core Rule: Close The Idle Turn - Background work calls back to the session when it settles, and each callback opens its own turn, so a turn held open waiting on it earns nothing and invites polling. A command promoted past the shell timeout, a background job, and a delegated subagent all deliver their result as an in-session notice; none needs you watching. When nothing pending remains that you can act on now, finish the reply and end the turn, and the notice arrives as a new turn with the work done. A check or reply you still owe is pending work, not waiting. Example: a build exceeded the timeout and became a background job with nothing else actionable, so end the turn on a one-line status; the completion notice starts the next turn.'
+
 /** Built-in core rule sections in prompt order (prove-it included; text is conditional on tool availability). */
 export const CORE_RULE_SECTIONS: ReadonlyArray<{ readonly name: string; readonly text: string }> = [
   { name: CORE_RULE_CONCISE_SECTION, text: CORE_RULE_CONCISE_TEXT },
@@ -86,6 +92,7 @@ export const CORE_RULE_SECTIONS: ReadonlyArray<{ readonly name: string; readonly
   { name: CORE_RULE_BATCH_SECTION, text: CORE_RULE_BATCH_TEXT },
   { name: CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_SECTION, text: CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT },
   { name: CORE_RULE_CLOSE_THE_DECISION_SECTION, text: CORE_RULE_CLOSE_THE_DECISION_TEXT },
+  { name: CORE_RULE_CLOSE_THE_IDLE_TURN_SECTION, text: CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT },
 ]
 
 /** Section names registered by default core guidance (for tests and oracles). */

@@ -1037,7 +1037,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/jobs/jobs-local/src/index.ts:27`](../packages/jobs/jobs-local/src/index.ts)
+Source: [`packages/jobs/jobs-local/src/index.ts:31`](../packages/jobs/jobs-local/src/index.ts)
 
 <a id="deepseek-aidsh-knowledge-notes"></a>
 
@@ -2668,7 +2668,7 @@ export interface Config {
   includeHarnessIdentity?: boolean
   /** Include the core personality section at order 10 (default true). */
   includeCorePersonalityGuidance?: boolean
-  /** Include all core rule sections at orders 20 through 90 (default true). */
+  /** Include all core rule sections at orders 20 through 120 (default true). */
   includeCoreRulesGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean
@@ -2692,7 +2692,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:345`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:348`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2843,7 +2843,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/tool-bash-persistent/src/index.ts:797`](../packages/shell/tool-bash-persistent/src/index.ts)
+Source: [`packages/shell/tool-bash-persistent/src/index.ts:798`](../packages/shell/tool-bash-persistent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-claim"></a>
 
@@ -2883,7 +2883,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/fs/tool-fs/src/index.ts:25`](../packages/fs/tool-fs/src/index.ts)
+Source: [`packages/fs/tool-fs/src/index.ts:27`](../packages/fs/tool-fs/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs-search"></a>
 
@@ -2943,8 +2943,12 @@ Source: [`packages/goal/tool-goal/src/index.ts:25`](../packages/goal/tool-goal/s
 Requires: `tools` · `jobs` · `systemPrompt`
 
 ```ts config-catalog
-/** Configures completion-notice delivery. */
+/** Configures bounded `job_output` waits and completion-notice delivery. */
 export interface Config {
+  /** Wait duration applied when a `job_output` read omits `timeout_ms` (default 10s). */
+  waitTimeoutMs?: number
+  /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 60s). */
+  maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */
   completionDelivery?: CompletionDelivery
   /**
@@ -3136,7 +3140,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/fs/tool-str-replace-editor/src/index.ts:505`](../packages/fs/tool-str-replace-editor/src/index.ts)
+Source: [`packages/fs/tool-str-replace-editor/src/index.ts:527`](../packages/fs/tool-str-replace-editor/src/index.ts)
 
 <a id="deepseek-aidsh-tool-subagent"></a>
 

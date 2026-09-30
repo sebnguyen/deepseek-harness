@@ -15,10 +15,14 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { AnonymousEntries, ScopedLayers, scopeOf } from '@deepseek-ai/dsh-scope'
 import type { ScopeLayer } from '@deepseek-ai/dsh-scope'
 import { JobRegistry, JobId } from '@deepseek-ai/dsh-jobs'
+import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type {
   JobDoneListener, JobKind, JobOutcome, JobOutputLines, JobRead, JobSnapshot, JobStart,
   JobStatus, JobsChangedListener,
 } from '@deepseek-ai/dsh-jobs'
+
+/** Timeout code that distinguishes a bounded wait from caller cancellation. */
+export const TASK_WAIT_TIMEOUT = 'TASK_WAIT_TIMEOUT'
 
 /** Default maximum number of active jobs in one exact-owner bucket. */
 const DEFAULT_MAX_CONCURRENT_TASKS_PER_OWNER = 10
@@ -54,6 +58,10 @@ interface TrackedTask {
   settled: Promise<void>
   /** Resolver for {@link settled}, called by the first effective settlement. */
   markSettled: () => void
+  /** Live waits; settlement with a waiter marks the job reported. */
+  waiters: number
+  /** Removable resolvers for live waits; timeout/abort unregister before the job settles. */
+  waitResolvers: Set<() => void>
 }
 
 /** True for the three terminal {@link JobStatus} values. */
@@ -165,6 +173,8 @@ export class LocalJobRegistry extends JobRegistry {
       reported: false,
       settled,
       markSettled,
+      waiters: 0,
+      waitResolvers: new Set(),
     }
     this.store.set(id, job)
 
@@ -226,6 +236,57 @@ export class LocalJobRegistry extends JobRegistry {
     job.reported = true
     this.notifyChanged(job.owner)
     return 'requested'
+  }
+
+  async wait(id: JobId, timeoutMs: number, caller?: Agent, signal?: AbortSignal): Promise<JobSnapshot> {
+    const job = this.expect(id)
+    this.assertAccess(job, caller)
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new Error(`invalid wait timeout: expected a positive number of milliseconds, got ${JSON.stringify(timeoutMs)}`)
+    }
+    if (!isTerminal(job.status)) {
+      if (signal?.aborted) throw new Error('wait aborted')
+      // Abort removes the waiter synchronously so same-tick settlement cannot
+      // suppress a notice for a wait that will reject.
+      job.waiters += 1
+      let counted = true
+      const uncount = (): void => {
+        if (!counted) return
+        counted = false
+        job.waiters -= 1
+      }
+      try {
+        // The scoped deadline distinguishes a successful wait timeout from
+        // caller cancellation and clears its timer on every exit.
+        using d = deadline(signal, timeoutMs, TASK_WAIT_TIMEOUT)
+        await new Promise<void>((resolve, reject) => {
+          const onSettled = (): void => {
+            job.waitResolvers.delete(onSettled)
+            d.signal.removeEventListener('abort', onAbort)
+            resolve()
+          }
+          const onAbort = (): void => {
+            job.waitResolvers.delete(onSettled)
+            // A settled job cannot reach here: settlement releases every waiter
+            // before it announces completion, and each released waiter detaches
+            // this listener in the same synchronous span, so nothing that reacts
+            // to a settlement can abort a wait the settlement already owed.
+            if (timeoutOf(d.signal, TASK_WAIT_TIMEOUT) !== undefined) {
+              resolve()
+            } else {
+              uncount()
+              reject(new Error('wait aborted'))
+            }
+          }
+          job.waitResolvers.add(onSettled)
+          d.signal.addEventListener('abort', onAbort, { once: true })
+        })
+      } finally {
+        uncount()
+      }
+    }
+    if (isTerminal(job.status)) job.reported = true
+    return this.snapshot(job)
   }
 
   onJobDone(listener: JobDoneListener): () => void {
@@ -356,9 +417,10 @@ export class LocalJobRegistry extends JobRegistry {
   }
 
   /**
-   * Record the first terminal outcome, then announce completion. First-wins
-   * preserves a teardown force-failure against late producer settlement.
-   * Completion is announced last because a reporter may open a model turn
+   * Record the first terminal outcome, release waiters, then announce
+   * completion. First-wins preserves a teardown force-failure against late
+   * producer settlement. Pending waits mark the job reported before listeners
+   * run. Completion is announced last because a reporter may open a model turn
    * synchronously: every other observer of this settlement must already have
    * seen the committed record.
    */
@@ -368,8 +430,12 @@ export class LocalJobRegistry extends JobRegistry {
     job.detail = outcome.detail
     job.output = outcome.output
     job.finishedAt = Date.now()
-    job.markSettled()
+    if (job.waiters > 0) job.reported = true
     const snapshot = this.snapshot(job)
+    const waitResolvers = [...job.waitResolvers]
+    job.waitResolvers.clear()
+    for (const resolveWait of waitResolvers) resolveWait()
+    job.markSettled()
     this.notifyChanged(job.owner)
     if (this.listenersClosed) return
     for (const listener of this.listenersFor(job.owner)) {

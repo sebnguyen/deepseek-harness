@@ -27,7 +27,7 @@ Absence is meaningful, not a degradation: a producer whose output exists only as
 
 ## Consequences
 
-The model's own path stays [snapshot-only job reads](2026-09-29-snapshot-only-job-reads.md), which removed its blocking wait; this read is the observer's path beside it.
+The model's own path is the plain snapshot beside the bounded blocking read of [bounded job_output waits](2026-09-30-bounded-job-output-wait.md); this read is the observer's path beside both.
 
 The registry's `readLines` is the second non-consuming surface beside `get`/`list` snapshots, and the only one carrying bulk text; a caller that polls it must hold its own cursor, which is why the return value carries `next` rather than a page ordinal.
 

@@ -32,7 +32,7 @@ The producer releases the background session when the job settles. Completion re
 
 A background command does not inherit the agent's shell state, and the tool's parameter description says so. Output survives the settlement-time session release through the producer's retained buffer, bounded by the terminal scrollback at the last refresh; a sliding scrollback window re-anchors rather than replaying consumed text. The shipped `standard` preset swap from one-shot to persistent bash keeps the preset-plane-to-host-registry linkage: the background scenario in `apps/web/tests/shipped-composition.e2e.ts` passes unchanged.
 
-Companion changes: [promoting a running command to a job](2026-09-29-promoting-a-running-command-to-a-job.md) hands an in-flight foreground command to this same job machinery, and [snapshot-only job reads](2026-09-29-snapshot-only-job-reads.md) removed the blocking read now that in-session notices are the completion signal.
+Companion changes: [promoting a running command to a job](2026-09-29-promoting-a-running-command-to-a-job.md) hands an in-flight foreground command to this same job machinery, and [bounded job_output waits](2026-09-30-bounded-job-output-wait.md) bounds every blocking `job_output` read while in-session notices remain the completion signal for timed-out reads.
 
 ## Testing
 

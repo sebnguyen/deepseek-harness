@@ -201,7 +201,7 @@ suite('persistent Bash background commands', () => {
     expect(later).toContain('line-two')
     expect(later).not.toContain('line-one')
 
-    const collected = text(await run('read', 'job_output', { job_id: 'bash-1' }))
+    const collected = text(await run('read', 'job_output', { job_id: 'bash-1', timeout_ms: 50 }))
     expect(collected).toContain('line-one')
     expect(collected).toContain('line-two')
 

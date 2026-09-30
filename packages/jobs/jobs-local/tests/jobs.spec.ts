@@ -103,6 +103,14 @@ async function attachControllerIn(ctx: Context): Promise<void> {
 /** Let the settlement continuation (a `done.then`) run. */
 const tick = () => new Promise<void>(r => setTimeout(r, 0))
 
+/** Inspect the internal resolver registry to pin bounded retention while a job stays live. */
+function waitResolverCount(ctx: Context, id: JobId): number {
+  const service = ctx.jobs as unknown as { store: Map<JobId, { waitResolvers: Set<() => void> }> }
+  const job = service.store.get(id)
+  if (job === undefined) throw new Error(`missing test job ${id}`)
+  return job.waitResolvers.size
+}
+
 describe('LocalJobRegistry.start', () => {
   it('preserves the SessionId brand on public owner snapshots', () => {
     expectTypeOf<JobSnapshot['ownerSession']>().toEqualTypeOf<SessionId | undefined>()
@@ -438,9 +446,120 @@ describe('LocalJobRegistry.kill', () => {
   })
 })
 
+describe('LocalJobRegistry.wait', () => {
+  it('resolves with the terminal snapshot when the job settles, marked reported', async () => {
+    const ctx = await harness()
+    const seen: JobSnapshot[] = []
+    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    const p = producer()
+    const id = ctx.jobs.start(p.spec)
+
+    const wait = ctx.jobs.wait(id, 5_000)
+    p.settle({ status: 'completed', detail: 'exit code: 0' })
+    expect(await wait).toMatchObject({ status: 'completed', reported: true })
+    // A waiting reader claims delivery before completion listeners inspect the snapshot.
+    expect(seen[0]).toMatchObject({ id, reported: true })
+  })
+
+  it('returns the live snapshot on timeout without marking reported', async () => {
+    const ctx = await harness()
+    const id = ctx.jobs.start(producer().spec)
+    expect(await ctx.jobs.wait(id, 5)).toMatchObject({ status: 'running', reported: false })
+  })
+
+  it('unregisters timed-out and aborted wait resolvers while the job remains live', async () => {
+    const ctx = await harness()
+    const id = ctx.jobs.start(producer().spec)
+
+    for (let index = 0; index < 3; index += 1) {
+      const wait = ctx.jobs.wait(id, 5)
+      expect(waitResolverCount(ctx, id)).toBe(1)
+      await expect(wait).resolves.toMatchObject({ status: 'running' })
+      expect(waitResolverCount(ctx, id)).toBe(0)
+    }
+
+    const controller = new AbortController()
+    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
+    expect(waitResolverCount(ctx, id)).toBe(1)
+    controller.abort()
+    await expect(wait).rejects.toThrow('wait aborted')
+    expect(waitResolverCount(ctx, id)).toBe(0)
+    expect(ctx.jobs.get(id).status).toBe('running')
+  })
+
+  it('returns immediately for an already-finished job', async () => {
+    const ctx = await harness()
+    const p = producer()
+    const id = ctx.jobs.start(p.spec)
+    p.settle({ status: 'completed' })
+    await tick()
+    expect(await ctx.jobs.wait(id, 5_000)).toMatchObject({ status: 'completed', reported: true })
+  })
+
+  it('rejects a non-positive or non-finite timeout', async () => {
+    const ctx = await harness()
+    const id = ctx.jobs.start(producer().spec)
+    await expect(ctx.jobs.wait(id, 0)).rejects.toThrow('invalid wait timeout')
+    await expect(ctx.jobs.wait(id, Number.NaN)).rejects.toThrow('invalid wait timeout')
+  })
+
+  it('an aborted signal rejects the wait only — the job stays alive', async () => {
+    const ctx = await harness()
+    const id = ctx.jobs.start(producer().spec)
+
+    const controller = new AbortController()
+    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
+    controller.abort()
+    await expect(wait).rejects.toThrow('wait aborted')
+    expect(ctx.jobs.list()[0]).toMatchObject({ status: 'running' })
+
+    const preAborted = new AbortController()
+    preAborted.abort()
+    await expect(ctx.jobs.wait(id, 5_000, undefined, preAborted.signal)).rejects.toThrow('wait aborted')
+  })
+
+  it('an abort racing settlement in the same tick does not swallow the notice', async () => {
+    const ctx = await harness()
+    const seen: JobSnapshot[] = []
+    ctx.jobs.onJobDone(snapshot => void seen.push(snapshot))
+    const p = producer()
+    const id = ctx.jobs.start(p.spec)
+
+    const controller = new AbortController()
+    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
+    // Settlement is queued first, so abort must remove the waiter synchronously;
+    // otherwise settlement suppresses the notice for a reader that receives nothing.
+    p.settle({ status: 'completed', detail: 'exit code: 0' })
+    controller.abort()
+    await expect(wait).rejects.toThrow('wait aborted')
+    expect(seen).toHaveLength(1)
+    expect(seen[0]).toMatchObject({ id, status: 'completed', reported: false })
+  })
+
+  it('an abort landing after settlement still delivers the terminal snapshot it owes', async () => {
+    const ctx = await harness()
+    const controller = new AbortController()
+    const seen: JobSnapshot[] = []
+    // The listener aborts after settlement released this waiter but before its
+    // resolve microtask runs. Releasing waiters ahead of the announcement is
+    // what makes that abort harmless; this is the guard on that ordering.
+    ctx.jobs.onJobDone((snapshot) => {
+      seen.push(snapshot)
+      controller.abort()
+    })
+    const p = producer()
+    const id = ctx.jobs.start(p.spec)
+
+    const wait = ctx.jobs.wait(id, 5_000, undefined, controller.signal)
+    p.settle({ status: 'completed', detail: 'exit code: 0' })
+    await expect(wait).resolves.toMatchObject({ status: 'completed', reported: true })
+    expect(seen[0]).toMatchObject({ id, reported: true }) // suppression stays honest: the wait delivered
+  })
+})
+
 
 describe('LocalJobRegistry owner isolation', () => {
-  it('fences read/kill to the owning session and keeps unowned jobs open', async () => {
+  it('fences read/kill/wait to the owning session and keeps unowned jobs open', async () => {
     const ctx = await harness()
     const owner = stubAgent(ctx, 'owner')
     ctx.agents.register(owner)
@@ -456,6 +575,7 @@ describe('LocalJobRegistry owner isolation', () => {
     // A different session and a no-agent caller are rejected.
     expect(() => ctx.jobs.read(owned, other)).toThrow(`job ${owned} belongs to another session`)
     expect(() => ctx.jobs.kill(owned, other)).toThrow('belongs to another session')
+    await expect(ctx.jobs.wait(owned, 10, other)).rejects.toThrow('belongs to another session')
     expect(() => ctx.jobs.read(owned)).toThrow('belongs to another session')
   })
 

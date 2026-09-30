@@ -32,6 +32,8 @@ export {
   CORE_RULE_BATCH_TEXT,
   CORE_RULE_CLOSE_THE_DECISION_SECTION,
   CORE_RULE_CLOSE_THE_DECISION_TEXT,
+  CORE_RULE_CLOSE_THE_IDLE_TURN_SECTION,
+  CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT,
   CORE_RULE_CONCISE_SECTION,
   CORE_RULE_CONCISE_TEXT,
   CORE_RULE_CONTEXT_OVER_INFERENCE_SECTION,
@@ -173,6 +175,7 @@ const SECTION_ORDERS = {
   CORE_RULE_BATCH: 90,
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING: 100,
   CORE_RULE_CLOSE_THE_DECISION: 110,
+  CORE_RULE_CLOSE_THE_IDLE_TURN: 120,
   PLAN_POLICY: 500,
   TEAM_POLICY: 600,
   PTC_ONLY: 800,
@@ -228,6 +231,7 @@ const CORE_RULE_ORDER_BY_SECTION: Record<string, PromptSectionOrderName> = {
   'harness:core-rule:batch': 'CORE_RULE_BATCH',
   'harness:core-rule:diagnose-before-switching': 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING',
   'harness:core-rule:close-the-decision': 'CORE_RULE_CLOSE_THE_DECISION',
+  'harness:core-rule:close-the-idle-turn': 'CORE_RULE_CLOSE_THE_IDLE_TURN',
 }
 
 const CONTEXT_ORDERS = {
@@ -346,7 +350,7 @@ export interface Config {
   includeHarnessIdentity?: boolean
   /** Include the core personality section at order 10 (default true). */
   includeCorePersonalityGuidance?: boolean
-  /** Include all core rule sections at orders 20 through 90 (default true). */
+  /** Include all core rule sections at orders 20 through 120 (default true). */
   includeCoreRulesGuidance?: boolean
   /** Include dynamic runtime-context snapshots in model history (default true). */
   includeRuntimeContext?: boolean

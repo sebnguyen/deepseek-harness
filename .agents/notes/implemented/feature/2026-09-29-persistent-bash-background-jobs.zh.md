@@ -32,7 +32,7 @@ Status: implemented
 
 后台命令不继承 agent 的 shell 状态，工具的参数描述已说明这一点。输出通过生产方的保留缓冲在完成时的会话释放之后继续存在，其上界是最后一次刷新时的 terminal 回滚；回滚窗口滑动时重新锚定，而不是重放已消费的文本。从一次性 bash 换到持久化 bash 的已交付 `standard` preset 保持了 preset 平面到宿主注册表的连接：`apps/web/tests/shipped-composition.e2e.ts` 中的后台场景未经修改即通过。
 
-配套改动：[把运行中的命令提升为任务](2026-09-29-promoting-a-running-command-to-a-job.zh.md) 把仍在运行的前台命令交给同一套任务机制，[仅快照的任务读取](2026-09-29-snapshot-only-job-reads.zh.md) 则移除了阻塞式读取——既然会话内通知已经是完成信号。
+配套改动：[把运行中的命令提升为任务](2026-09-29-promoting-a-running-command-to-a-job.zh.md) 把仍在运行的前台命令交给同一套任务机制，[有界的 job_output 等待](2026-09-30-bounded-job-output-wait.zh.md) 则把每次阻塞的 `job_output` 读取限定在界限内，会话内通知仍是超时读取的完成信号。
 
 ## 验证
 

@@ -27,8 +27,12 @@ export const inject = ['tools', 'jobs', 'systemPrompt']
  */
 export type CompletionDelivery = 'quiet' | 'wakeup'
 
-/** Configures completion-notice delivery. */
+/** Configures bounded `job_output` waits and completion-notice delivery. */
 export interface Config {
+  /** Wait duration applied when a `job_output` read omits `timeout_ms` (default 10s). */
+  waitTimeoutMs?: number
+  /** Hard cap on any single wait; a larger model-supplied `timeout_ms` is clamped down to it (default 60s). */
+  maxWaitTimeoutMs?: number
   /** Whether a completion opens a turn on an idle owner (default `wakeup`). */
   completionDelivery?: CompletionDelivery
   /**
@@ -41,6 +45,8 @@ export interface Config {
 }
 
 export const Config: z<Config> = z.object({
+  waitTimeoutMs: z.number().min(1).default(10_000),
+  maxWaitTimeoutMs: z.number().min(1).default(60_000),
   completionDelivery: z.union(['quiet', 'wakeup'] as const).default('wakeup'),
   maxConsecutiveWakes: z.number().min(1).default(3),
 })
@@ -196,6 +202,8 @@ function presentTaskCall(title: string, kind: 'read' | 'execute', rawInput?: str
 }
 
 export function apply(ctx: Context, config: Config): void {
+  const waitDefault = config.waitTimeoutMs ?? 10_000
+  const waitCap = config.maxWaitTimeoutMs ?? 60_000
   const delivery = config.completionDelivery ?? 'wakeup'
   const wakeBudget = config.maxConsecutiveWakes ?? 3
 
@@ -203,6 +211,9 @@ export function apply(ctx: Context, config: Config): void {
   // human input. Keyed by the exact Agent, so a same-session replacement
   // starts with a full budget.
   const spentWakes = new WeakMap<Agent, number>()
+  if (waitDefault > waitCap) {
+    throw new Error(`tool-jobs: waitTimeoutMs (${waitDefault}) exceeds maxWaitTimeoutMs (${waitCap})`)
+  }
   // A budget is a count of turns. `Infinity` would leave the runaway chain this
   // field exists to bound unbounded, and a fraction never names a turn at all.
   if (!Number.isSafeInteger(wakeBudget)) {
@@ -251,7 +262,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.systemPrompt.section({
     name: 'tool:jobs',
     order: ctx.systemPrompt.getSectionOrder('TOOL_JOBS'),
-    text: 'Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job\'s work. Before giving a final answer, read every still-relevant job with job_output, and job_kill jobs that stopped mattering.',
+    text: 'Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job\'s work. Before giving a final answer, collect every still-relevant job with job_output (every read blocks until the job settles or its timeout — 10s by default, capped at 60s — and a timed-out read returns the live state for the notice to follow), and job_kill jobs that stopped mattering.',
   })
 
   // Use the exact lifecycle owner; reusable ids could resolve to a replacement.
@@ -289,12 +300,16 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.tools.register(defineTool({
     name: 'job_output',
-    description: 'Read a background job. Stream jobs return only output since the previous read; '
-      + 'final-output jobs return their result after settlement. Every response ends with '
-      + '`[status: ...]`. The read is a non-blocking snapshot: it never waits for the job, and a '
-      + 'run that finishes later reaches you as an in-session notice.',
+    description: 'Read a background job, blocking until the job settles or the timeout expires. '
+      + 'Stream jobs return only output since the previous read; final-output jobs return their '
+      + 'result after settlement. Every response ends with `[status: ...]`. `timeout_ms` defaults '
+      + 'to the configured wait (10s) and is capped by the configured maximum (60s); a timed-out '
+      + 'read returns [status: running] and leaves the job alive.',
+    // A timed-out read returns job state rather than a TOOL_TIMEOUT error, so
+    // this tool owns its deadline instead of using ToolDefinition.timeoutMs.
     parameters: {
       job_id: { type: 'string', required: true, description: 'Job id returned by the tool that started the background work.' },
+      timeout_ms: { type: 'number', description: 'Max time to wait for settlement in milliseconds before returning the current state. Defaults to the configured wait timeout; capped by the configured maximum.' },
     },
     finalizeContent: finalizeTaskContent,
     output: {
@@ -312,12 +327,12 @@ export function apply(ctx: Context, config: Config): void {
         return [{ type: 'text', text: `${body}${separator}${statusLine(value.job)}` }]
       },
     },
-    execute(args, exec) {
+    async execute(args, exec) {
       const id = validateJobId(args.job_id)
+      const timeout = Math.min(args.timeout_ms ?? waitDefault, waitCap)
+      await ctx.jobs.wait(id, timeout, exec.agent, exec.signal)
       const read = ctx.jobs.read(id, exec.agent)
-      // The contract returns a promise and the read is synchronous now that
-      // nothing blocks, so the result is wrapped rather than awaited.
-      return Promise.resolve({ text: read.text, job: publicJob(read.snapshot) })
+      return { text: read.text, job: publicJob(read.snapshot) }
     },
     presentCall: args => presentTaskCall(`Read output from background job ${args.job_id}`, 'read', args.job_id),
   }))

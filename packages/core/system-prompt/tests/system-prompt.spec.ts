@@ -6,6 +6,7 @@ import SystemPrompt, {
   CORE_PERSONALITY_TEXT,
   CORE_RULE_BATCH_TEXT,
   CORE_RULE_CLOSE_THE_DECISION_TEXT,
+  CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT,
   CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT,
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT,
   CORE_RULE_PROVE_IT_SECTION,
@@ -28,6 +29,7 @@ const SECTION_ORDER_NAMES = [
   'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH',
   'CORE_RULE_ASK_USER', 'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING',
   'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
+  'CORE_RULE_CLOSE_THE_IDLE_TURN',
   'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_READ',
   'TOOL_WRITE', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
   'TOOL_PWSH', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
@@ -41,6 +43,7 @@ const BUILT_IN_ORDER_EXCLUDED = new Set<PromptSectionOrderName>([
   'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH', 'CORE_RULE_ASK_USER',
   'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING', 'CORE_RULE_PROVE_IT',
   'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
+  'CORE_RULE_CLOSE_THE_IDLE_TURN',
   'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
 ])
 const CONTEXT_ORDER_NAMES = [
@@ -174,7 +177,7 @@ describe('SystemPrompt', () => {
       expect(renderPrompt(assembly)).toBe(`You are a helpful software engineer assistant.\n\n${coreGuidanceParagraphs({ rules: false }).join('\n\n')}`)
     })
 
-    it('states the discovery, batching, failure-recovery, and decision-closure core rules in the default assembly', async () => {
+    it('states the discovery, batching, failure-recovery, decision-closure, and idle-turn core rules in the default assembly', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
       const prompt = renderPrompt(await ctx.systemPrompt.assemble())
@@ -182,10 +185,14 @@ describe('SystemPrompt', () => {
       expect(prompt).toContain(CORE_RULE_BATCH_TEXT)
       expect(prompt).toContain(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)
       expect(prompt).toContain(CORE_RULE_CLOSE_THE_DECISION_TEXT)
+      expect(prompt).toContain(CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT)
       expect(CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT).toContain('list the candidates, outline the structure, search for definitions and usages, then read only the files you need')
-      // The two newer rules close the behavioral block, in registration order.
+      // The newer rules close the behavioral block, in registration order.
       expect(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_BATCH_TEXT))
       expect(prompt.indexOf(CORE_RULE_CLOSE_THE_DECISION_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT))
+      expect(prompt.indexOf(CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT)).toBeGreaterThan(prompt.indexOf(CORE_RULE_CLOSE_THE_DECISION_TEXT))
+      // The idle-turn rule names the callback that lets a turn end on pending work.
+      expect(CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT).toContain('the notice arrives as a new turn with the work done')
     })
 
     it('omits prove-it core rule text until claim tools are registered', async () => {
@@ -783,6 +790,7 @@ describe('SystemPrompt', () => {
       'harness:core-rule:batch': 585,
       'harness:core-rule:diagnose-before-switching': 619,
       'harness:core-rule:close-the-decision': 549,
+      'harness:core-rule:close-the-idle-turn': 744,
     }
     const SECTIONS = [
       { name: 'harness:core-personality', text: CORE_PERSONALITY_TEXT },
@@ -800,7 +808,7 @@ describe('SystemPrompt', () => {
     it('keeps the recorded ceilings complete and the aggregate within its total', () => {
       expect(Object.keys(CEILINGS).sort()).toEqual(SECTIONS.map(section => section.name).sort())
       const total = SECTIONS.reduce((sum, section) => sum + section.text.length, 0)
-      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(7578)
+      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(8322)
     })
   })
 })

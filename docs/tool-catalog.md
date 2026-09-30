@@ -1954,7 +1954,7 @@ Source: [`packages/jobs/tool-jobs/src/index.ts`](../packages/jobs/tool-jobs/src/
 
 ### `job_output`
 
-Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. The read is a non-blocking snapshot: it never waits for the job, and a run that finishes later reaches you as an in-session notice.
+Read a background job, blocking until the job settles or the timeout expires. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. `timeout_ms` defaults to the configured wait (10s) and is capped by the configured maximum (60s); a timed-out read returns [status: running] and leaves the job alive.
 
 ```json
 {
@@ -1963,6 +1963,10 @@ Read a background job. Stream jobs return only output since the previous read; f
     "job_id": {
       "type": "string",
       "description": "Job id returned by the tool that started the background work."
+    },
+    "timeout_ms": {
+      "type": "number",
+      "description": "Max time to wait for settlement in milliseconds before returning the current state. Defaults to the configured wait timeout; capped by the configured maximum."
     }
   },
   "required": [

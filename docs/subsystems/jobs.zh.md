@@ -154,7 +154,7 @@ interface JobRead {
 
 ## 服务行为
 
-抽象的 [`JobRegistry`](../../packages/jobs/jobs/src/index.ts) Service Definition 规定原子 `start`、限定调用方作用域的 `get` 和 `list`、`read`、非消费式 `readLines`、`kill`、故障隔离的 `onJobDone` 与 `onJobsChanged` 监听器，以及 `attachController`；[`LocalJobRegistry`](../../packages/jobs/jobs-local/src/index.ts) 是其进程局部 Service Provider。授权会比较拥有者会话；拥有者清理与准入会使用确切的已注册 `Agent` 实例。本地 Service Provider 的 `maxConcurrentJobsPerOwner` 配置必须是正的安全整数，默认值为 `10`；它按确切 owner 统计 `running` 与 `stopping` 记录，所有无 owner 任务共享一个服务级桶，并在生产方终止结算后释放容量。Service Definition 约定见 [`dsh-jobs`](../../packages/jobs/jobs/README.zh.md)，注册表生命周期与准入策略见 [`dsh-jobs-local`](../../packages/jobs/jobs-local/README.zh.md)，面向模型的 Consumer 见 [`dsh-tool-jobs`](../../packages/jobs/tool-jobs/README.zh.md)。
+抽象的 [`JobRegistry`](../../packages/jobs/jobs/src/index.ts) Service Definition 规定原子 `start`、限定调用方作用域的 `get` 和 `list`、`read`、非消费式 `readLines`、有界 `wait`、`kill`、故障隔离的 `onJobDone` 与 `onJobsChanged` 监听器，以及 `attachController`；[`LocalJobRegistry`](../../packages/jobs/jobs-local/src/index.ts) 是其进程局部 Service Provider。授权会比较拥有者会话；拥有者清理与准入会使用确切的已注册 `Agent` 实例。本地 Service Provider 的 `maxConcurrentJobsPerOwner` 配置必须是正的安全整数，默认值为 `10`；它按确切 owner 统计 `running` 与 `stopping` 记录，所有无 owner 任务共享一个服务级桶，并在生产方终止结算后释放容量。Service Definition 约定见 [`dsh-jobs`](../../packages/jobs/jobs/README.zh.md)，注册表生命周期与准入策略见 [`dsh-jobs-local`](../../packages/jobs/jobs-local/README.zh.md)，面向模型的 Consumer 见 [`dsh-tool-jobs`](../../packages/jobs/tool-jobs/README.zh.md)。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -174,7 +174,7 @@ Implementations must honor these semantics:
 
 - Registrations outlive producer and controller fibers. Owner and service disposal cancel live work and await compliant producers; a throwing teardown cancel force-fails only the record. Teardown cancellation also marks the record reported, because a record its owner is being destroyed for has no reader left.
 - Owned-job access is fenced by the owner's session id. Ids are predictable, so authorization — not secrecy — is the boundary.
-- Settlement is first-wins: one terminal record and one round of contained listener notification, even against a late producer outcome. Completion is announced last, after the record is committed and every other observer of the settlement has seen it, because a reporter may open a model turn synchronously.
+- Settlement is first-wins: one terminal record, released waiters, and one round of contained listener notification, even against a late producer outcome. Completion is announced last, after the record is committed and every other observer of the settlement has seen it, because a reporter may open a model turn synchronously.
 - start refuses work while no attached job controller serves the spec's owner, so a producer cannot start work that owner cannot collect or stop. One registry serves every composition in the process, so this question — and completion-listener delivery — is owner-relative rather than process-wide: registrations made from an unscoped context serve every owner, and registrations made under an agent composition's scope serve exactly the agents composed under it.
 
 ```ts cordis-catalog
@@ -183,7 +183,7 @@ Implementations must honor these semantics:
  * admission before starting and atomically registering work. Any preflight
  * rejection leaves no job id or execution resource. A throwing starter
  * leaves nothing registered; after it returns, registration cannot fail.
- * Settlement records the outcome and notifies listeners.
+ * Settlement records the outcome, notifies listeners, and releases waiters.
  * @param spec - job identity, owner, and synchronous starter.
  * @returns the registry-issued `<kind>-N` id.
  */
@@ -237,6 +237,19 @@ abstract readLines(id: JobId, caller?: Agent, from?: number): JobOutputLines | u
  * @returns `requested` for live work, otherwise `already-finished`.
  */
 abstract kill(id: JobId, caller?: Agent, reason?: string): 'requested' | 'already-finished'
+
+/**
+ * Wait for settlement or timeout without cancelling the job. Caller abort
+ * rejects only while the job is live; after settlement the terminal
+ * snapshot wins so a notice suppressed for this waiter is still delivered.
+ * Throws for invalid, unknown, or foreign input.
+ * @param id - job to wait for.
+ * @param timeoutMs - positive finite wait bound in milliseconds.
+ * @param caller - waiting agent checked against the owner.
+ * @param signal - optional cancellation of the wait itself.
+ * @returns snapshot at settlement or timeout.
+ */
+abstract wait(id: JobId, timeoutMs: number, caller?: Agent, signal?: AbortSignal): Promise<JobSnapshot>
 
 /**
  * Register an effect-scoped completion listener. It receives the settlements

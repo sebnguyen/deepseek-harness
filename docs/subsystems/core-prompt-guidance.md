@@ -29,6 +29,7 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 90 | `CORE_RULE_BATCH` | `harness:core-rule:batch` | `dsh-system-prompt` |
 | 100 | `CORE_RULE_DIAGNOSE_BEFORE_SWITCHING` | `harness:core-rule:diagnose-before-switching` | `dsh-system-prompt` |
 | 110 | `CORE_RULE_CLOSE_THE_DECISION` | `harness:core-rule:close-the-decision` | `dsh-system-prompt` |
+| 120 | `CORE_RULE_CLOSE_THE_IDLE_TURN` | `harness:core-rule:close-the-idle-turn` | `dsh-system-prompt` |
 | 500 | `PLAN_POLICY` | `plan:policy` | `dsh-plan-mode`, non-empty only in plan mode |
 | 600 | `TEAM_POLICY` | `team:policy` | `dsh-experimental-tool-agent-team`, when the agent is on a team |
 | 800 | `PTC_ONLY` | (tools plugin) | `dsh-tools`, when tool presentation is `ptc` |
@@ -121,6 +122,12 @@ The rule is deliberately two-sided and both halves are load-bearing: a version t
 Core Rule: Close The Decision - Evidence that already settles a question stops paying, so choose and move; a stated assumption costs one clause, an unstated one costs a hidden error. When two readings both fit, take the plain one rather than the clever reading, and state the choice with its reason. Ask when the answer lives with the user, and decide when it lives in the repository. Example: the config could be read as a default or an override, the plain reading is a default, so proceed on that reading and note the assumption instead of asking.
 
 This rule covers committing to a choice, which the older rules do not: Think Concise governs what the reasoning stream is spent on and Answer Structurally governs the reply, while neither requires settling on one reading. Stating the choice and its reason is also what makes a shallow reading visible instead of hidden in an unstated assumption.
+
+### Core Rule: Close The Idle Turn
+
+Core Rule: Close The Idle Turn - Background work calls back to the session when it settles, and each callback opens its own turn, so a turn held open waiting on it earns nothing and invites polling. A command promoted past the shell timeout, a background job, and a delegated subagent all deliver their result as an in-session notice; none needs you watching. When nothing pending remains that you can act on now, finish the reply and end the turn, and the notice arrives as a new turn with the work done. A check or reply you still owe is pending work, not waiting. Example: a build exceeded the timeout and became a background job with nothing else actionable, so end the turn on a one-line status; the completion notice starts the next turn.
+
+The rule terminates the wait that background promotion, jobs, and subagents open: their results arrive as notices without the model polling, so an open turn held for them only delays the notice's own turn. It does not license ending a turn on an obligation the model itself can still act on; Prove It still requires claim checks to run inside the turn, and the closing clause keeps that boundary by naming an owed check or reply as pending work rather than waiting.
 
 ## Tool advice (`Advice:`)
 

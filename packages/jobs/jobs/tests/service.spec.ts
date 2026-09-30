@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { JobId, JobRegistry } from '@deepseek-ai/dsh-jobs'
 import type {
   JobDoneListener, JobRead, JobSnapshot, JobStart, JobsChangedListener,
@@ -48,6 +49,10 @@ class StubJobRegistry extends JobRegistry {
     return undefined
   }
 
+  wait(id: JobId, _timeoutMs: number, _caller?: Agent, _signal?: AbortSignal): Promise<JobSnapshot> {
+    return Promise.resolve(this.snapshotOf(id))
+  }
+
   onJobDone(_listener: JobDoneListener): () => void {
     return () => {}
   }
@@ -73,6 +78,7 @@ describe('JobRegistry seam', () => {
     expect(ctx.jobs.get(id).status).toBe('running')
     expect(ctx.jobs.read(id).text).toBe('')
     expect(ctx.jobs.kill(id)).toBe('requested')
+    await expect(ctx.jobs.wait(id, 5)).resolves.toMatchObject({ id })
     const detachListener = ctx.jobs.onJobDone(() => {})
     detachListener()
     const detachChanges = ctx.jobs.onJobsChanged(() => {})

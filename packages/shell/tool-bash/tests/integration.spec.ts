@@ -187,7 +187,7 @@ describe('bash tool through the agent loop', () => {
         run_in_background: true,
       }),
       textResponse('Started it in the background.'),
-      toolCallResponse('call-2', 'job_output', { job_id: 'bash-1' }),
+      toolCallResponse('call-2', 'job_output', { job_id: 'bash-1', timeout_ms: 100 }),
       textResponse('Background job finished.'),
     ])
     const ctx = await harness(adapter)

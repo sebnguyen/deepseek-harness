@@ -19,7 +19,7 @@ const testToolSignal = new AbortController().signal
 const agentRegistryDisposers = new WeakMap<Agent, () => void>()
 const agentScopeFibers = new WeakMap<Agent, { dispose: () => Promise<void> }>()
 
-async function setup(config: ToolTasks.Config = {}) {
+async function setup(config: ToolTasks.Config = { waitTimeoutMs: 25, maxWaitTimeoutMs: 50 }) {
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
@@ -122,8 +122,19 @@ describe('tool-jobs setup', () => {
   it('defaults delivery to wakeup and rejects an unknown lane', () => {
     expect(ToolTasks.Config({}).completionDelivery).toBe('wakeup')
     expect(ToolTasks.Config({}).maxConsecutiveWakes).toBe(3)
+    expect(ToolTasks.Config({}).waitTimeoutMs).toBe(10_000)
+    expect(ToolTasks.Config({}).maxWaitTimeoutMs).toBe(60_000)
     expect(() => ToolTasks.Config({ completionDelivery: 'loud' as never })).toThrow()
     expect(() => ToolTasks.Config({ maxConsecutiveWakes: 0 })).toThrow()
+  })
+
+  it('rejects a config whose default wait exceeds the cap', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(LocalJobRegistry)
+    await expect(ctx.plugin(ToolTasks, { waitTimeoutMs: 100, maxWaitTimeoutMs: 50 }))
+      .rejects.toThrow('waitTimeoutMs (100) exceeds maxWaitTimeoutMs (50)')
   })
 
   it('rejects a wake budget that cannot bound anything', async () => {
@@ -310,7 +321,7 @@ describe('job_output', () => {
     }
   })
 
-  it('reads a non-blocking snapshot and never waits for settlement', async () => {
+  it('every read blocks until the bound and returns the live state', async () => {
     const { ctx } = await setup()
     const p = producer({ kind: 'subagent', label: 'research' })
     ctx.jobs.start(p.spec)
@@ -324,13 +335,30 @@ describe('job_output', () => {
       .toBe('done deal\n[status: completed]')
   })
 
-  it('reads a snapshot without a wait or timeout parameter', async () => {
+  it('requires job_id and offers an optional timeout_ms in its schema', async () => {
     const { ctx } = await setup()
+    const schema = ctx.tools.get('job_output')!.parameters as { properties: object; required: string[] }
+    expect(Object.keys(schema.properties).sort()).toEqual(['job_id', 'timeout_ms'])
+    expect(schema.required).toEqual(['job_id'])
+  })
+
+  it('blocks until settlement and reports the terminal state', async () => {
+    const { ctx } = await setup()
+    const p = producer({ kind: 'subagent', label: 'research' })
+    ctx.jobs.start(p.spec)
+
+    const pending = call(ctx, 'job_output', { job_id: 'subagent-1' })
+    p.settle({ status: 'completed', output: 'done deal' })
+    expect(text(await pending)).toBe('done deal\n[status: completed]')
+  })
+
+  it('clamps a model-supplied timeout above the cap down to the cap', async () => {
+    const { ctx } = await setup({ waitTimeoutMs: 10, maxWaitTimeoutMs: 20 })
     ctx.jobs.start(producer().spec)
 
-    // The schema no longer advertises a blocking read, so a caller that still
-    // sends the removed parameters gets the same snapshot as any other read.
-    const result = await call(ctx, 'job_output', { job_id: 'bash-1', wait: true, timeout_ms: 600_000 })
+    // A model-supplied timeout far above the cap is clamped: this returns
+    // promptly (≤ the 20ms cap), not after the model's number.
+    const result = await call(ctx, 'job_output', { job_id: 'bash-1', timeout_ms: 600_000 })
     expect(text(result)).toBe('(no new output)\n[status: running]')
   })
 
@@ -823,6 +851,19 @@ describe('completion notices', () => {
     p.settle({ status: 'completed', output: 'answer' })
     await tick()
     expect(inject).toHaveBeenCalled()
+  })
+
+  it('suppresses the notice when a wait returned the terminal state', async () => {
+    const { ctx } = await setup()
+    const inject = vi.fn()
+    const owner = fakeAgent(ctx, 'sess-1', { inject })
+    const p = producer({ owner, kind: 'subagent' })
+    ctx.jobs.start(p.spec)
+
+    const pending = call(ctx, 'job_output', { job_id: 'subagent-1' }, owner)
+    p.settle({ status: 'completed', output: 'answer' })
+    expect(text(await pending)).toContain('answer')
+    expect(inject).not.toHaveBeenCalled()
   })
 
   it('drops the notice for unowned jobs without throwing', async () => {

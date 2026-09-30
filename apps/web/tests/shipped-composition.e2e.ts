@@ -258,7 +258,7 @@ it('lets a preset producer reach the background-job registry', async () => {
         signal,
         callId: ToolCallId(`shipped-task-output-${attempt}`),
         name: 'job_output',
-        arguments: { job_id: 'bash-1' },
+        arguments: { job_id: 'bash-1', timeout_ms: 100 },
         agent: handle.agent,
       })
       expect(collected.isError).toBe(false)
