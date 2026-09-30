@@ -594,6 +594,67 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'claims',
+    summary: 'Claim service (`ctx.claims`) backed exclusively by the owning session log.',
+    description: 'Claim service (`ctx.claims`) backed exclusively by the owning session log.',
+    methods: [
+      {
+        signature: 'turnClaims(agent: Agent): readonly Claim[]',
+        description: 'Read every claim of the open turn, pending or settled, in declaration order.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'the open turn\'s claims; empty when that turn declared none.',
+        throws: ['{@link ClaimError} when no model turn is open or the agent is not live.'],
+      },
+      {
+        signature: 'openClaims(agent: Agent): readonly Claim[]',
+        description: 'Read every currently-pending claim of the open turn, in declaration order.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'the open turn\'s pending claims; empty when that turn declared none or settled every claim.',
+        throws: ['{@link ClaimError} when no model turn is open or the agent is not live.'],
+      },
+      {
+        signature: 'ledger(agent: Agent): readonly Claim[]',
+        description: 'Read every claim this session declared, in turn order.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }],
+        returns: 'the turn-ordered ledger, empty before the first declaration.',
+      },
+      {
+        signature: 'failures(agent: Agent, id: ClaimId): number',
+        description: 'Count recorded failures for one claim.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'id', description: 'the claim to count for.' }],
+        returns: 'how many recorded results on that claim carry outcome `fail`.',
+      },
+      {
+        signature: 'declare(agent: Agent, request: DeclareClaimRequest): Claim',
+        description: 'Declare one claim in the currently open turn. A turn may declare any number of claims; each is immutable and settles independently.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'request', description: 'the claim\'s title, description, and bound verifier script.' }],
+        returns: 'the freshly declared claim.',
+        throws: ['{@link ClaimError} when no turn is open or the request is invalid.'],
+      },
+      {
+        signature: 'record(agent: Agent, id: ClaimId, result: VerifierResult): Claim',
+        description: 'Record one verifier execution against a claim.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'id', description: 'the claim to record against.' }, { name: 'result', description: 'the execution outcome and its bounded evidence.' }],
+        returns: 'the advanced claim.',
+        throws: ['{@link ClaimError} when the claim is unknown, not in the open turn, or settled.'],
+      },
+      {
+        signature: 'settle(agent: Agent, id: ClaimId, settlement: ClaimSettlement): Claim',
+        description: 'Close one claim with a terminal settlement.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'id', description: 'the claim to settle.' }, { name: 'settlement', description: 'the terminal settlement to commit.' }],
+        returns: 'the settled claim.',
+        throws: ['{@link ClaimError} when the claim is unknown, not in the open turn, or settled.'],
+      },
+      {
+        signature: 'abandon(agent: Agent, id: ClaimId, message: string): Claim',
+        description: 'Abandon one claim as the model conceding it named the wrong condition. Refused while the bound verifier has not yet run, so a claim cannot be opened and closed without facing its check at least once.',
+        parameters: [{ name: 'agent', description: 'owning live agent.' }, { name: 'id', description: 'the claim to abandon.' }, { name: 'message', description: 'non-empty explanation recorded with the abandonment.' }],
+        returns: 'the settled claim.',
+        throws: ['{@link ClaimError} when the claim is unknown, not in the open turn, settled, or its check has not run.'],
+      },
+    ],
+  },
+  {
     key: 'clientModules',
     summary: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows.',
     description: 'The web plugin table service: incremental `dsh.client` scan + wire composition + bundle route + index injection rows. Construction runs the activation scan synchronously — a malformed declaration or missing bundle among the already-loaded entries aggregates into one loud throw (FAILED fiber; the boot activation audit reports it).',
@@ -1141,11 +1202,11 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   {
     key: 'jobs',
     summary: 'Abstract background job registry.',
-    description: 'Abstract background job registry. Subclass, implement the abstract methods, and load the subclass as a plugin — it registers as `ctx.jobs` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- Registrations outlive producer and controller fibers. Owner and service disposal cancel live work and await compliant producers; a throwing teardown cancel force-fails only the record. Teardown cancellation also marks the record reported, because a record its owner is being destroyed for has no reader left.\n- Owned-job access is fenced by the owner\'s session id. Ids are predictable, so authorization — not secrecy — is the boundary.\n- Settlement is first-wins: one terminal record, released waiters, and one round of contained listener notification, even against a late producer outcome. Completion is announced last, after the record is committed and every other observer of the settlement has seen it, because a reporter may open a model turn synchronously.\n- start refuses work while no attached job controller serves the spec\'s owner, so a producer cannot start work that owner cannot collect or stop. One registry serves every composition in the process, so this question — and completion-listener delivery — is owner-relative rather than process-wide: registrations made from an unscoped context serve every owner, and registrations made under an agent composition\'s scope serve exactly the agents composed under it.',
+    description: 'Abstract background job registry. Subclass, implement the abstract methods, and load the subclass as a plugin — it registers as `ctx.jobs` (one implementation per context; loading a second throws, which is cordis\' standard duplicate-service behavior).\n\nImplementations must honor these semantics:\n\n- Registrations outlive producer and controller fibers. Owner and service disposal cancel live work and await compliant producers; a throwing teardown cancel force-fails only the record. Teardown cancellation also marks the record reported, because a record its owner is being destroyed for has no reader left.\n- Owned-job access is fenced by the owner\'s session id. Ids are predictable, so authorization — not secrecy — is the boundary.\n- Settlement is first-wins: one terminal record and one round of contained listener notification, even against a late producer outcome. Completion is announced last, after the record is committed and every other observer of the settlement has seen it, because a reporter may open a model turn synchronously.\n- start refuses work while no attached job controller serves the spec\'s owner, so a producer cannot start work that owner cannot collect or stop. One registry serves every composition in the process, so this question — and completion-listener delivery — is owner-relative rather than process-wide: registrations made from an unscoped context serve every owner, and registrations made under an agent composition\'s scope serve exactly the agents composed under it.',
     methods: [
       {
         signature: 'abstract start(spec: JobStart): JobId',
-        description: 'Preflight access, validation, owner cleanup, and implementation-owned admission before starting and atomically registering work. Any preflight rejection leaves no job id or execution resource. A throwing starter leaves nothing registered; after it returns, registration cannot fail. Settlement records the outcome, notifies listeners, and releases waiters.',
+        description: 'Preflight access, validation, owner cleanup, and implementation-owned admission before starting and atomically registering work. Any preflight rejection leaves no job id or execution resource. A throwing starter leaves nothing registered; after it returns, registration cannot fail. Settlement records the outcome and notifies listeners.',
         parameters: [{ name: 'spec', description: 'job identity, owner, and synchronous starter.' }],
         returns: 'the registry-issued `<kind>-N` id.',
       },
@@ -1168,16 +1229,16 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'output text and the post-read snapshot.',
       },
       {
+        signature: 'abstract readLines(id: JobId, caller?: Agent, from?: number): JobOutputLines | undefined',
+        description: 'Read retained output lines by index without consuming the stream or marking the job reported: an observer following live output is not the model learning the result. Throws for an unknown or foreign job.',
+        parameters: [{ name: 'id', description: 'job to observe.' }, { name: 'caller', description: 'observing agent checked against the owner.' }, { name: 'from', description: 'absolute line index to read from; `0` starts at the first retained line.' }],
+        returns: 'the retained lines, or undefined when the producer keeps no addressable buffer.',
+      },
+      {
         signature: 'abstract kill(id: JobId, caller?: Agent, reason?: string): \'requested\' | \'already-finished\'',
         description: 'Request cancellation, then mark the job stopping and reported. A producer throw propagates without changing job state. Throws for an unknown or foreign job.',
         parameters: [{ name: 'id', description: 'job to cancel.' }, { name: 'caller', description: 'killing agent checked against the owner.' }, { name: 'reason', description: 'logged reason forwarded to the producer.' }],
         returns: '`requested` for live work, otherwise `already-finished`.',
-      },
-      {
-        signature: 'abstract wait(id: JobId, timeoutMs: number, caller?: Agent, signal?: AbortSignal): Promise<JobSnapshot>',
-        description: 'Wait for settlement or timeout without cancelling the job. Caller abort rejects only while the job is live; after settlement the terminal snapshot wins so a notice suppressed for this waiter is still delivered. Throws for invalid, unknown, or foreign input.',
-        parameters: [{ name: 'id', description: 'job to wait for.' }, { name: 'timeoutMs', description: 'positive finite wait bound in milliseconds.' }, { name: 'caller', description: 'waiting agent checked against the owner.' }, { name: 'signal', description: 'optional cancellation of the wait itself.' }],
-        returns: 'snapshot at settlement or timeout.',
       },
       {
         signature: 'abstract onJobDone(listener: JobDoneListener): () => void',
@@ -1314,6 +1375,18 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'request', description: 'the normalized query.' }, { name: 'signal', description: 'optional cancellation forwarded to the selected provider.' }],
         returns: 'the normalized, closed-union result.',
       },
+      {
+        signature: 'mapQuery(request: LspMapRequest, signal?: AbortSignal): Promise<LspMapResult>',
+        description: 'Select a provider by the file\'s extension and run one structural/relationship query. Selection is per-query and order-independent, sharing the extension table with navigation queries; no match throws `LspError` `LSP_UNAVAILABLE`.',
+        parameters: [{ name: 'request', description: 'the normalized map query.' }, { name: 'signal', description: 'optional cancellation forwarded to the selected provider.' }],
+        returns: 'the normalized, closed-union map result.',
+      },
+      {
+        signature: 'listRoutes(): readonly LspRoute[]',
+        description: 'List every currently registered extension → language route. For introspection only (e.g. describing live coverage in prompt guidance) — `query()` remains the seam\'s actual lookup, and this snapshot is not ordered by registration or priority.',
+        parameters: [],
+        returns: 'the routes sorted by extension.',
+      },
     ],
   },
   {
@@ -1441,6 +1514,19 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'searxngRuntime',
+    summary: 'The web seam\'s managed SearXNG container service.',
+    description: 'The web seam\'s managed SearXNG container service. Registered as `ctx.searxngRuntime` (one instance per context, the Cordis `Service` guarantee); `SearxngSearchProvider` is its sole consumer.',
+    methods: [
+      {
+        signature: 'async ready(signal?: AbortSignal): Promise<string>',
+        description: 'Resolve the running instance\'s base URL, starting the managed container on the first call. Concurrent callers share one in-flight startup.',
+        parameters: [{ name: 'signal', description: 'optional cancellation forwarded to startup\'s docker commands and readiness poll; has no effect once already running.' }],
+        returns: 'the container\'s `http://127.0.0.1:<port>` base URL.',
+      },
+    ],
+  },
+  {
     key: 'sessionController',
     summary: 'Host service backing the generated `ctx.remote.session` namespace.',
     description: 'Host service backing the generated `ctx.remote.session` namespace.',
@@ -1486,6 +1572,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         description: 'Describe every currently routable model for Host-generation selectors.',
         parameters: [],
         returns: 'provider-grouped models, the deployment default, and isolated provider failures.',
+      },
+      {
+        signature: '@Remote(\'jobOutput\') jobOutput(request: SessionJobOutputRequest): SessionJobOutputValue',
+        description: 'Read one job\'s retained output for a cold or back-paged view, which the pushed frames cannot serve: they carry only what a stream saw live.',
+        parameters: [{ name: 'request', description: 'owning Session, job id, and absolute line index to read from.' }],
+        returns: 'the retained lines from that index, where to continue, and whether the producer keeps an addressable buffer.',
       },
       {
         signature: '@Remote canOpenWorkspacePath(): boolean',
@@ -2408,6 +2500,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Registry service for the prompt inputs assembled before each model step.',
     methods: [
       {
+        signature: 'collectRegisteredToolNames(context: AssembleContext): Set<string>',
+        description: 'Tool names visible to one assembly from registered tool providers (pre-restriction universe).',
+        parameters: [{ name: 'context', description: 'the assembly context passed to section providers.' }],
+        returns: 'every name reported by providers for this assembly.',
+      },
+      {
         signature: 'section(section: PromptSection): () => void',
         description: 'Register an ordered prompt section in the calling context\'s scope. A scoped section shadows a global section with the same name; duplicates within one layer and non-finite orders throw. Registration and disposal emit `system-prompt/change`.',
         parameters: [{ name: 'section', description: 'the section to register.' }],
@@ -2953,8 +3051,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: '@Remote async list(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceDirectoryListing>',
-        description: 'List the direct children of one directory inside the Session\'s workspace.',
-        parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'path', description: 'workspace path, absolute or relative to the workspace root.' }, { name: 'signal', description: 'caller cancellation.' }],
+        description: 'List the direct children of one directory readable by the filesystem backend.',
+        parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'path', description: 'absolute path or path relative to the workspace root; a directory outside it is allowed.' }, { name: 'signal', description: 'caller cancellation.' }],
         returns: 'the directory\'s children in the backend\'s stable name order, bounded by the entry cap.',
       },
       {
@@ -3283,28 +3381,20 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [{ name: 'inspection', description: 'committed canonical prefix, including the feedback as its last event.' }],
   },
   {
-    name: 'fs/edit-intent',
-    mode: 'waterfall',
-    signature: '\'fs/edit-intent\'(target: FsTarget, actor: object | undefined, next: () => { version: FsVersion } | undefined | Promise<{ version: FsVersion } | undefined>): Promise<{ version: FsVersion } | undefined>',
-    summary: 'Single-slot decision for the next FileSystem.editText.',
-    description: 'Single-slot decision for the next FileSystem.editText. Calling `next()` yields an unconditional edit; the first returned guard wins.',
-    parameters: [{ name: 'target', description: 'the resolved target about to be edited.' }, { name: 'actor', description: 'the opaque tool-execution context the decider keys off.' }],
-  },
-  {
     name: 'fs/observed',
     mode: 'emit',
     signature: '\'fs/observed\'(target: FsTarget, observation: FsObservation, actor: object | undefined): void',
-    summary: 'Record an authoritative positive or negative observation.',
-    description: 'Record an authoritative positive or negative observation. Listeners must be synchronous recorders: throws fail the tool call and returned promises are not awaited.',
-    parameters: [{ name: 'target', description: 'the target whose presence or absence was observed.' }, { name: 'observation', description: 'present with its version, or confirmed absent.' }, { name: 'actor', description: 'the observing tool-execution context; undefined records nothing useful.' }],
+    summary: 'Authoritative presence/absence observation for FsTarget.',
+    description: 'Authoritative presence/absence observation for FsTarget. Emitted after a successful read or mutation, or after a confirmed-absent probe.',
+    parameters: [{ name: 'target', description: 'the observed target.' }, { name: 'observation', description: 'present at a version, or confirmed absent.' }, { name: 'actor', description: 'the opaque tool-execution context the recorder keys off.' }],
   },
   {
     name: 'fs/write-intent',
     mode: 'waterfall',
-    signature: '\'fs/write-intent\'(target: FsTarget, actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>',
+    signature: '\'fs/write-intent\'(target: FsTarget, mode: \'content\' | \'program\', actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>',
     summary: 'Single-slot decision for the next FileSystem.writeText.',
     description: 'Single-slot decision for the next FileSystem.writeText. Calling `next()` yields the bare provider\'s unconditional write; the first listener that returns an intent owns the decision rather than composing with peers.',
-    parameters: [{ name: 'target', description: 'the resolved target about to be written.' }, { name: 'actor', description: 'the opaque tool-execution context the decider keys off.' }],
+    parameters: [{ name: 'target', description: 'the resolved target about to be written.' }, { name: 'mode', description: '`content` for whole-file writes, `program` for edits-only sed runs.' }, { name: 'actor', description: 'the opaque tool-execution context the decider keys off.' }],
   },
   {
     name: 'goal/activation-changed',
@@ -3696,7 +3786,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AssembleContext',
-    declaration: 'export interface AssembleContext {\n    scope?: ScopeKey;\n    signal?: AbortSignal;\n}',
+    declaration: 'export interface AssembleContext {\n    scope?: ScopeKey;\n    signal?: AbortSignal;\n    registeredToolNames?: ReadonlySet<string>;\n}',
   },
   {
     name: 'AssembledContext',
@@ -3809,6 +3899,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'BrandedNumber',
     declaration: 'export type BrandedNumber<B extends string> = number & {\n    readonly [BRAND]: B;\n};',
+  },
+  {
+    name: 'Claim',
+    declaration: 'export interface Claim {\n    readonly id: ClaimId;\n    readonly turn: number;\n    readonly revision: number;\n    readonly title: string;\n    readonly description: string;\n    readonly verifier: Verifier;\n    readonly results: readonly VerifierResult[];\n    readonly settlement: ClaimSettlement;\n}',
+  },
+  {
+    name: 'ClaimBlockCode',
+    declaration: 'export type ClaimBlockCode = \'abandoned\' | \'repair-budget-exhausted\' | \'verifier-unavailable\';',
+  },
+  {
+    name: 'ClaimId',
+    declaration: 'export type ClaimId = Branded<\'ClaimId\'>;',
+  },
+  {
+    name: 'ClaimSettlement',
+    declaration: 'export type ClaimSettlement = {\n    readonly kind: \'pending\';\n} | {\n    readonly kind: \'passed\';\n} | {\n    readonly kind: \'tampered\';\n} | {\n    readonly kind: \'blocked\';\n    readonly code: ClaimBlockCode;\n    readonly message: string;\n};',
   },
   {
     name: 'ClientArtifactBaseline',
@@ -4061,6 +4167,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'CredentialRef',
     declaration: 'export type CredentialRef = Branded<\'CredentialRef\'>;',
+  },
+  {
+    name: 'DeclareClaimRequest',
+    declaration: 'export interface DeclareClaimRequest {\n    readonly title: string;\n    readonly description: string;\n    readonly script: string;\n}',
   },
   {
     name: 'DeepSeekLlmApiExtensionMap',
@@ -4424,7 +4534,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'JobHooks',
-    declaration: 'export interface JobHooks {\n    cancel(reason?: string): void;\n    done: Promise<JobOutcome>;\n    readOutput?(): string;\n}',
+    declaration: 'export interface JobHooks {\n    cancel(reason?: string): void;\n    done: Promise<JobOutcome>;\n    readOutput?(): string;\n    readLines?(from: number): JobOutputLines;\n}',
   },
   {
     name: 'JobId',
@@ -4441,6 +4551,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'JobOutcome',
     declaration: 'export interface JobOutcome {\n    status: \'completed\' | \'killed\' | \'failed\';\n    detail?: string;\n    output?: string;\n}',
+  },
+  {
+    name: 'JobOutputLines',
+    declaration: 'export interface JobOutputLines {\n    lines: readonly string[];\n    next: number;\n    truncated: boolean;\n}',
   },
   {
     name: 'JobRead',
@@ -4567,12 +4681,32 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export class LlmRuntime extends TypertRemoteService {\n    constructor(ctx: Context);\n    registerAdapter(providers: string[], adapter: LlmAdapter): AdapterRegistrationHandle;\n    @Remote\n    listProviders(): LlmProviderInfo[];\n    registerConfigurableProviders(entries: readonly LlmConfigurableProvider[]): DirectoryRegistrationHandle;\n    @Remote\n    listConfigurableProviders(): LlmConfigurableProvider[];\n    registerModelDiscovery(settingsNs: string, discover: (request: LlmModelDiscoveryRequest, signal?: AbortSignal) => Promise<readonly LlmDiscoveredModel[]>): () => void;\n    async discoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal?: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    @Remote(\'discoverModels\')\n    async remoteDiscoverModels(settingsNs: string, request: LlmModelDiscoveryRequest, signal: AbortSignal): Promise<LlmDiscoveredModel[]>;\n    providerRetryPolicy(provider: string): ResolvedRetryPolicy;\n    imageRequestPricing(provider: string, model: string): LlmImageRequestPricing | undefined;\n    fileRequestText(ref: FileAttachmentRef): string;\n    async listModels(provider: string): Promise<LlmModelInfo[]>;\n    async resolveModelInfo(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo>;\n    async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<LlmCallConfig>;\n    async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<PreparedLlmCall>;\n    stream(options: GenerateOptions) /* …truncated — full shape in source */',
   },
   {
+    name: 'LspCallEdge',
+    declaration: 'export interface LspCallEdge {\n    readonly from: LspSymbol;\n    readonly to: LspSymbol;\n    readonly sites: readonly LspRange[];\n}',
+  },
+  {
+    name: 'LspDocumentSymbol',
+    declaration: 'export interface LspDocumentSymbol {\n    readonly name: string;\n    readonly kind: SymbolKindLabel;\n    readonly detail?: string;\n    readonly deprecated?: boolean;\n    readonly range: LspRange;\n    readonly selectionRange: LspRange;\n    readonly children: readonly LspDocumentSymbol[];\n}',
+  },
+  {
     name: 'LspHover',
     declaration: 'export interface LspHover {\n    readonly contents: string;\n    readonly range?: LspRange;\n}',
   },
   {
     name: 'LspLocation',
     declaration: 'export interface LspLocation {\n    readonly uri: string;\n    readonly range: LspRange;\n}',
+  },
+  {
+    name: 'LspMapProviderQuery',
+    declaration: 'export type LspMapProviderQuery = LspMapRequest & {\n    readonly languageId: string;\n};',
+  },
+  {
+    name: 'LspMapRequest',
+    declaration: 'export type LspMapRequest = {\n    readonly operation: \'documentSymbols\';\n    readonly filePath: string;\n    readonly workspaceRoot: string;\n} | {\n    readonly operation: \'callers\' | \'callees\';\n    readonly filePath: string;\n    readonly workspaceRoot: string;\n    readonly position: LspPosition;\n};',
+  },
+  {
+    name: 'LspMapResult',
+    declaration: 'export type LspMapResult = {\n    readonly kind: \'symbolTree\';\n    readonly symbols: readonly LspDocumentSymbol[];\n} | {\n    readonly kind: \'callEdges\';\n    readonly root: LspSymbol | null;\n    readonly edges: readonly LspCallEdge[];\n    readonly resolvedWorkspaceUri: string;\n};',
   },
   {
     name: 'LspOperation',
@@ -4584,7 +4718,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'LspProvider',
-    declaration: 'export interface LspProvider {\n    readonly id: LspProviderId;\n    readonly extensionToLanguage: Readonly<Record<string, string>>;\n    query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>;\n}',
+    declaration: 'export interface LspProvider {\n    readonly id: LspProviderId;\n    readonly extensionToLanguage: Readonly<Record<string, string>>;\n    query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>;\n    mapQuery(request: LspMapProviderQuery, signal?: AbortSignal): Promise<LspMapResult>;\n}',
   },
   {
     name: 'LspProviderId',
@@ -4605,6 +4739,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LspRange',
     declaration: 'export interface LspRange {\n    readonly start: LspPosition;\n    readonly end: LspPosition;\n}',
+  },
+  {
+    name: 'LspRoute',
+    declaration: 'export interface LspRoute {\n    readonly extension: string;\n    readonly languageId: string;\n}',
+  },
+  {
+    name: 'LspSymbol',
+    declaration: 'export interface LspSymbol {\n    readonly name: string;\n    readonly kind: SymbolKindLabel;\n    readonly detail?: string;\n    readonly deprecated?: boolean;\n    readonly uri: string;\n    readonly range: LspRange;\n    readonly selectionRange: LspRange;\n}',
   },
   {
     name: 'ManualCompactAgentContext',
@@ -4923,6 +5065,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type RequestRunOutcome = \'approved\' | \'completed\' | \'rejected\' | \'cancelled\' | \'failed\';',
   },
   {
+    name: 'RequestWireRecord',
+    declaration: 'export interface RequestWireRecord {\n    provider: string;\n    model: string;\n    purpose?: \'compaction\' | \'session-title\';\n    representation?: RequestWireRepresentation;\n    payload: string;\n}',
+  },
+  {
+    name: 'RequestWireRepresentation',
+    declaration: 'export type RequestWireRepresentation = \'none\' | \'file\' | \'base64\';',
+  },
+  {
     name: 'ResolvedAlwaysRetryPolicy',
     declaration: 'export interface ResolvedAlwaysRetryPolicy extends ResolvedRetryBackoff {\n    readonly mode: \'always\';\n}',
   },
@@ -5088,7 +5238,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionControlFrame',
-    declaration: 'export type SessionControlFrame = {\n    readonly type: \'baseline\';\n    readonly value: SessionControlBaseline;\n} | {\n    readonly type: \'queue\';\n    readonly sessionId: SessionId;\n    readonly items: readonly SessionQueuedItem[];\n} | {\n    readonly type: \'jobs\';\n    readonly sessionId: SessionId;\n    readonly jobs: readonly SessionJob[];\n} | ({\n    readonly type: \'projection\';\n} & SessionProjectionUpdate);',
+    declaration: 'export type SessionControlFrame = {\n    readonly type: \'baseline\';\n    readonly value: SessionControlBaseline;\n} | {\n    readonly type: \'queue\';\n    readonly sessionId: SessionId;\n    readonly items: readonly SessionQueuedItem[];\n} | {\n    readonly type: \'jobs\';\n    readonly sessionId: SessionId;\n    readonly jobs: readonly SessionJob[];\n} | ({\n    readonly type: \'jobOutput\';\n} & SessionJobOutput) | ({\n    readonly type: \'projection\';\n} & SessionProjectionUpdate);',
   },
   {
     name: 'SessionCreateRequest',
@@ -5108,7 +5258,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionEventMap',
-    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'system/message\': {\n        turn: number;\n        step: number;\n        message: SystemMessage;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        stream: AssistantStreamRecord[];\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'assistant/attempt\': {\n        turn: number;\n        step: number;\n        stream: AssistantStreamRecord[];\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'session/end-seed\': {\n        inherited?: true;\n    };\n}',
+    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'system/message\': {\n        turn: number;\n        step: number;\n        message: SystemMessage;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        stream: AssistantStreamRecord[];\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'assistant/attempt\': {\n        turn: number;\n        step: number;\n        stream: AssistantStreamRecord[];\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'request/wire\': RequestWireRecord;\n    \'session/end-seed\': {\n        inherited?: true;\n    };\n}',
   },
   {
     name: 'SessionEventMetadataFilter',
@@ -5241,6 +5391,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionJob',
     declaration: 'export interface SessionJob {\n    readonly id: JobId;\n    readonly kind: string;\n    readonly label: string;\n    readonly status: \'running\' | \'stopping\' | \'completed\' | \'killed\' | \'failed\';\n    readonly detail?: string;\n    readonly startedAt: number;\n    readonly finishedAt?: number;\n}',
+  },
+  {
+    name: 'SessionJobOutput',
+    declaration: 'export interface SessionJobOutput {\n    readonly sessionId: SessionId;\n    readonly jobId: JobId;\n    readonly lines: readonly string[];\n    readonly next: number;\n    readonly truncated: boolean;\n}',
+  },
+  {
+    name: 'SessionJobOutputRequest',
+    declaration: 'export interface SessionJobOutputRequest {\n    readonly sessionId: SessionId;\n    readonly jobId: JobId;\n    readonly from?: number;\n}',
+  },
+  {
+    name: 'SessionJobOutputValue',
+    declaration: 'export interface SessionJobOutputValue {\n    readonly lines: readonly string[];\n    readonly next: number;\n    readonly truncated: boolean;\n    readonly addressable: boolean;\n}',
   },
   {
     name: 'SessionLineageNode',
@@ -5867,12 +6029,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SurfaceOp = \'append\' | {\n    op: \'replace\';\n    startSeq: SessionSeq;\n    endSeq: SessionSeq;\n};',
   },
   {
+    name: 'SymbolKindLabel',
+    declaration: 'export type SymbolKindLabel = \'file\' | \'module\' | \'namespace\' | \'package\' | \'class\' | \'method\' | \'property\' | \'field\' | \'constructor\' | \'enum\' | \'interface\' | \'function\' | \'variable\' | \'constant\' | \'string\' | \'number\' | \'boolean\' | \'array\' | \'object\' | \'key\' | \'null\' | \'enumMember\' | \'struct\' | \'event\' | \'operator\' | \'typeParameter\';',
+  },
+  {
     name: 'SystemMessage',
     declaration: 'export interface SystemMessage extends Message {\n    readonly role: \'system\';\n    readonly source: MessageSourceMap[\'plugin\'];\n}',
   },
   {
     name: 'SystemPrompt',
-    declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
+    declaration: 'export class SystemPrompt extends Service {\n    static Config: z<Config>;\n    constructor(ctx: Context, config: Config);\n    collectRegisteredToolNames(context: AssembleContext): Set<string>;\n    section(section: PromptSection): () => void;\n    getSectionOrder(name: PromptSectionOrderName): number;\n    getContextOrder(name: PromptContextOrderName): number;\n    context(context: PromptContext): () => void;\n    suppressRuntimeContext(): () => void;\n    tools(provider: (context: AssembleContext) => ToolProviderResult): () => void;\n    variable(name: string, provider: (context: AssembleContext) => string | undefined): () => void;\n    async assemble(context: AssembleContext = {}): Promise<PromptAssembly>;\n}',
   },
   {
     name: 'SystemPromptUpdate',
@@ -6253,6 +6419,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'VerifiedWebhookDelivery',
     declaration: 'export interface VerifiedWebhookDelivery<K extends string = string> {\n    readonly kind: K;\n    readonly source: WebhookSourceId;\n    readonly deliveryId: WebhookDeliveryId;\n    readonly event: WebhookEventOf<K>;\n    readonly receivedAt: number;\n}',
+  },
+  {
+    name: 'Verifier',
+    declaration: 'export interface Verifier {\n    readonly source: string;\n    readonly digest: string;\n}',
+  },
+  {
+    name: 'VerifierOutcome',
+    declaration: 'export type VerifierOutcome = \'pass\' | \'fail\' | \'inconclusive\' | \'tampered\';',
+  },
+  {
+    name: 'VerifierResult',
+    declaration: 'export interface VerifierResult {\n    readonly outcome: VerifierOutcome;\n    readonly evidence: string;\n}',
   },
   {
     name: 'WebBootBatch',

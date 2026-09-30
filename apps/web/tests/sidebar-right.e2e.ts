@@ -391,7 +391,7 @@ describe('web e2e: shipped right Sidebar', () => {
       }
 
       // The file tree no longer rides a tab: the explorer column at the panel's
-      // left edge draws it, with the rows' old data attributes, a root name, and
+      // right edge draws it, with the rows' old data attributes, a root name, and
       // a reload button of its own.
       const explorer = column.locator('[data-sidebar-right-explorer]')
       await explorer.locator('[data-files-explorer-state="tree"]').waitFor({ state: 'visible' })

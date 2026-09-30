@@ -15,7 +15,7 @@
  * - `sidebar.right.tab.menu.item` extends a tab's actions menu. The kit owns the
  *   actions that are gestures on the layout itself; this seat is for actions that
  *   mean something about the tab's content.
- * - `sidebar.right.explorer` is the panel's always-visible left column, drawn
+ * - `sidebar.right.explorer` is the panel's always-visible right column, drawn
  *   beside the docked panes for as long as the panel is shown. A registrant
  *   owns the whole column; without one the column disappears and the panes
  *   keep the full panel width.
@@ -89,7 +89,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.right.tab.menu.item': { kind: 'list'; scope: 'session'; owner: SidebarRightTabMenuOwnerProps }
     /**
-     * The panel's persistent explorer column, drawn at the panel's left edge
+     * The panel's persistent explorer column, drawn at the panel's right edge
      * beside the docked panes while the panel is shown. A single registrant
      * owns the column; without one the column is not drawn.
      */

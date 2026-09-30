@@ -196,6 +196,24 @@ registerProvider(provider: LspProvider): () => void
  * @returns the normalized, closed-union result.
  */
 query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>
+
+/**
+ * Select a provider by the file's extension and run one structural/relationship query. Selection is
+ * per-query and order-independent, sharing the extension table with navigation queries; no match
+ * throws `LspError` `LSP_UNAVAILABLE`.
+ * @param request - the normalized map query.
+ * @param signal - optional cancellation forwarded to the selected provider.
+ * @returns the normalized, closed-union map result.
+ */
+mapQuery(request: LspMapRequest, signal?: AbortSignal): Promise<LspMapResult>
+
+/**
+ * List every currently registered extension → language route. For introspection only (e.g.
+ * describing live coverage in prompt guidance) — `query()` remains the seam's actual lookup, and
+ * this snapshot is not ordered by registration or priority.
+ * @returns the routes sorted by extension.
+ */
+listRoutes(): readonly LspRoute[]
 ```
 
 Source: [`packages/lsp/lsp/src/types.ts`](../../packages/lsp/lsp/src/types.ts)

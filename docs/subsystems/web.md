@@ -146,6 +146,25 @@ The HTTP provider resolves each actual request, rejects non-public answers inclu
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
 
+<a id="ctxsearxngruntime--searxngruntime"></a>
+
+### `ctx.searxngRuntime` — `SearxngRuntime`
+
+The web seam's managed SearXNG container service. Registered as `ctx.searxngRuntime` (one instance per context, the Cordis `Service` guarantee); `SearxngSearchProvider` is its sole consumer.
+
+```ts cordis-catalog
+/**
+ * Resolve the running instance's base URL, starting the managed container on
+ * the first call. Concurrent callers share one in-flight startup.
+ * @param signal - optional cancellation forwarded to startup's docker
+ *   commands and readiness poll; has no effect once already running.
+ * @returns the container's `http://127.0.0.1:<port>` base URL.
+ */
+async ready(signal?: AbortSignal): Promise<string>
+```
+
+Source: [`packages/web/web-search-searxng/src/runtime.ts`](../../packages/web/web-search-searxng/src/runtime.ts)
+
 <a id="ctxweb--webruntime"></a>
 
 ### `ctx.web` — `WebRuntime`

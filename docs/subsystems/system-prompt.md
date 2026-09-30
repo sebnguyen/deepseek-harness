@@ -101,6 +101,13 @@ Registry service for the prompt inputs assembled before each model step.
 
 ```ts cordis-catalog
 /**
+ * Tool names visible to one assembly from registered tool providers (pre-restriction universe).
+ * @param context - the assembly context passed to section providers.
+ * @returns every name reported by providers for this assembly.
+ */
+collectRegisteredToolNames(context: AssembleContext): Set<string>
+
+/**
  * Register an ordered prompt section in the calling context's scope. A scoped
  * section shadows a global section with the same name; duplicates within one
  * layer and non-finite orders throw. Registration and disposal emit

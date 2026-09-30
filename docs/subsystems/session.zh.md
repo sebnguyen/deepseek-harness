@@ -759,6 +759,14 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
 @Remote('modelCatalog') modelCatalog(): Promise<ModelCatalog>
 
 /**
+ * Read one job's retained output for a cold or back-paged view, which the
+ * pushed frames cannot serve: they carry only what a stream saw live.
+ * @param request - owning Session, job id, and absolute line index to read from.
+ * @returns the retained lines from that index, where to continue, and whether the producer keeps an addressable buffer.
+ */
+@Remote('jobOutput') jobOutput(request: SessionJobOutputRequest): SessionJobOutputValue
+
+/**
  * Report whether this deployment can hand a Session workspace path to a native desktop.
  * @returns true when the matching open operation is available.
  */

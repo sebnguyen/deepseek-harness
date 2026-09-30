@@ -99,7 +99,7 @@
 }
 
 /*
- * The persistent explorer column at the panel's left edge, beside the docked
+ * The persistent explorer column at the panel's right edge, beside the docked
  * panes. Its registrant owns the inside; without one the outlet stays empty
  * and the column yields the whole panel to the panes.
  */
@@ -107,7 +107,7 @@
   flex: none;
   width: 200px;
   min-width: 0;
-  border-right: 0.5px solid var(--dsw-alias-border-l4);
+  border-left: 0.5px solid var(--dsw-alias-border-l4);
 }
 
 .explorer:empty {

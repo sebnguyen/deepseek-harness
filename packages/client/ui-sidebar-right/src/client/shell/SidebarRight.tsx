@@ -308,9 +308,6 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
       aria-hidden={!expanded || undefined}
     >
       <div className={css.panelBody}>
-        <div className={css.explorer} data-sidebar-right-explorer>
-          {renderSlot('sidebar.right.explorer', {})}
-        </div>
         <div className={css.dockArea}>
           <DockSurface
             state={surface.layout}
@@ -329,6 +326,9 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
             chrome={<PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />}
             onRoom={reportRoom}
           />
+        </div>
+        <div className={css.explorer} data-sidebar-right-explorer>
+          {renderSlot('sidebar.right.explorer', {})}
         </div>
       </div>
     </div>

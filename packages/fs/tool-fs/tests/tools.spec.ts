@@ -1082,14 +1082,15 @@ describe('scope-aware filesystem guidance', () => {
   it.each(Array.from({ length: 4 }, (_, mask) => mask))('preserves exact text for visible tools (mask %i)', async (mask) => {
     const { ctx } = await setup()
     const { key, scope } = await guidanceScope(ctx)
-    const names = ['read', 'write'] as const
+    // Registration order: the unified write tool registers first.
+    const names = ['write', 'read'] as const
     const allow = names.filter((_, index) => (mask & (1 << index)) !== 0)
     const baseline = withPersona(...names.map(name => originalGuidance[name]))
     expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
     const release = scope.ctx.tools.restrict({ allow })
     try {
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
-      expect(assembly.tools.map(tool => tool.name)).toEqual([...allow].sort())
+      expect(assembly.tools.map(tool => tool.name)).toEqual([...allow])
       const expected = withPersona(...allow.map(name => originalGuidance[name]))
       expect(renderPrompt(assembly)).toBe(expected)
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
@@ -1112,8 +1113,8 @@ describe('scope-aware filesystem guidance', () => {
       expect(text(denied)).toContain('unknown tool "write"')
       scope.ctx.tools.register(write)
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
-      expect(assembly.tools.map(tool => tool.name)).toEqual(['read', 'write'])
-      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.read, originalGuidance.write))
+      expect(assembly.tools.map(tool => tool.name)).toEqual(['write', 'read'])
+      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.write, originalGuidance.read))
     } finally {
       await scope.dispose()
     }

@@ -458,39 +458,19 @@ Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
 
 ### `fs/*` events
 
-<a id="fsedit-intent--waterfall"></a>
-
-#### `fs/edit-intent` — waterfall
-
-Single-slot decision for the next FileSystem.editText. Calling `next()` yields an unconditional edit; the first returned guard wins.
-
-```ts cordis-catalog
-/**
- * Single-slot decision for the next {@link FileSystem.editText}. Calling
- * `next()` yields an unconditional edit; the first returned guard wins.
- * @param target - the resolved target about to be edited.
- * @param actor - the opaque tool-execution context the decider keys off.
- * @mode waterfall
- */
-'fs/edit-intent'(target: FsTarget, actor: object | undefined, next: () => { version: FsVersion } | undefined | Promise<{ version: FsVersion } | undefined>): Promise<{ version: FsVersion } | undefined>
-```
-
-Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
-
 <a id="fsobserved--emit"></a>
 
 #### `fs/observed` — emit
 
-Record an authoritative positive or negative observation. Listeners must be synchronous recorders: throws fail the tool call and returned promises are not awaited.
+Authoritative presence/absence observation for FsTarget. Emitted after a successful read or mutation, or after a confirmed-absent probe.
 
 ```ts cordis-catalog
 /**
- * Record an authoritative positive or negative observation. Listeners must
- * be synchronous recorders: throws fail the tool call and returned promises
- * are not awaited.
- * @param target - the target whose presence or absence was observed.
- * @param observation - present with its version, or confirmed absent.
- * @param actor - the observing tool-execution context; undefined records nothing useful.
+ * Authoritative presence/absence observation for {@link FsTarget}. Emitted
+ * after a successful read or mutation, or after a confirmed-absent probe.
+ * @param target - the observed target.
+ * @param observation - present at a version, or confirmed absent.
+ * @param actor - the opaque tool-execution context the recorder keys off.
  * @mode emit
  */
 'fs/observed'(target: FsTarget, observation: FsObservation, actor: object | undefined): void
@@ -510,10 +490,11 @@ Single-slot decision for the next FileSystem.writeText. Calling `next()` yields 
  * `next()` yields the bare provider's unconditional write; the first listener
  * that returns an intent owns the decision rather than composing with peers.
  * @param target - the resolved target about to be written.
+ * @param mode - `content` for whole-file writes, `program` for edits-only sed runs.
  * @param actor - the opaque tool-execution context the decider keys off.
  * @mode waterfall
  */
-'fs/write-intent'(target: FsTarget, actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>
+'fs/write-intent'(target: FsTarget, mode: 'content' | 'program', actor: object | undefined, next: () => FsWriteIntent | undefined | Promise<FsWriteIntent | undefined>): Promise<FsWriteIntent | undefined>
 ```
 
 Source: [`packages/fs/fs/src/index.ts`](../../packages/fs/fs/src/index.ts)
