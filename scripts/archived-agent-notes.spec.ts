@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   extendArchiveManifest,
-  gitBlobHash,
   parseArchiveManifest,
   renderArchiveManifest,
   validateArchiveArtifacts,
@@ -12,14 +11,8 @@ import { isArchivedAgentNotePath } from './repo-files.ts'
 
 function fixture(): Map<string, Buffer> {
   const base = '2026-07-26-example'
-  const source = Buffer.from(`# Agent Note: Example\n\nStatus: implemented\nArchived: 2026-07-26\n\nEnglish | [中文](${base}.zh.md)\n\n## Problem\n\nExample.\n`)
-  const zh = Buffer.from(`# Agent Note: 示例\n\nStatus: implemented\nArchived: 2026-07-26\n\n[English](${base}.md) | 中文\n\n## 问题\n\n示例。\n`)
-  const meta = Buffer.from(`${base}.md: ${gitBlobHash(source)}\n${base}.zh.md: ${gitBlobHash(zh)}\n`)
-  return new Map([
-    [`process/${base}.md`, source],
-    [`process/${base}.zh.md`, zh],
-    [`process/${base}.i18n.yaml`, meta],
-  ])
+  const source = Buffer.from('# Agent Note: Example\n\nStatus: implemented\nArchived: 2026-07-26\n\n## Problem\n\nExample.\n')
+  return new Map([[`process/${base}.md`, source]])
 }
 
 describe('archived Agent Notes', () => {
@@ -29,26 +22,36 @@ describe('archived Agent Notes', () => {
     expect(isArchivedAgentNotePath('.agents/notes/implemented/process/example.md')).toBe(false)
   })
 
-  it('accepts one complete implemented triplet with matching archive metadata', () => {
+  it('accepts one sealed English note with valid archive metadata', () => {
     expect(validateArchiveArtifacts(fixture())).toEqual([])
   })
 
-  it('rejects incomplete triplets and invalid archive headers', () => {
+  it('rejects non-English artifact shapes in the archive', () => {
     const artifacts = fixture()
-    artifacts.delete('process/2026-07-26-example.i18n.yaml')
+    artifacts.set('process/2026-07-26-example.zh.md', Buffer.from('zh'))
+    artifacts.set('process/2026-07-26-example.i18n.yaml', Buffer.from('meta'))
+    const joined = validateArchiveArtifacts(artifacts).join('\n')
+    expect(joined).toMatch(/process\/2026-07-26-example\.zh\.md: expected \{kind\}\/yyyy-mm-dd-topic\.md/)
+    expect(joined).toMatch(/process\/2026-07-26-example\.i18n\.yaml: expected \{kind\}\/yyyy-mm-dd-topic\.md/)
+  })
+
+  it('rejects invalid archive headers', () => {
+    const artifacts = fixture()
     artifacts.set(
       'process/2026-07-26-example.md',
       Buffer.from('# Agent Note: Example\n\nStatus: proposed\nArchived: yesterday\n'),
     )
-    expect(validateArchiveArtifacts(artifacts).join('\n')).toMatch(/incomplete archived triplet/)
+    const joined = validateArchiveArtifacts(artifacts).join('\n')
+    expect(joined).toMatch(/line 3 must be `Status: implemented`/)
+    expect(joined).toMatch(/line 4 must be `Archived: YYYY-MM-DD`/)
   })
 
-  it('extends the manifest without permitting a sealed change or removal', () => {
+  it('extends the manifest, carries surviving seals, and drops pruned ones', () => {
     const artifacts = fixture()
     const empty: ArchiveManifest = { version: 1, files: {} }
     const first = extendArchiveManifest(empty, artifacts)
     expect(first.errors).toEqual([])
-    expect(first.added).toHaveLength(3)
+    expect(first.added).toHaveLength(1)
 
     const sealed: ArchiveManifest = { version: 1, files: first.files }
     const changed = new Map(artifacts)
@@ -56,13 +59,13 @@ describe('archived Agent Notes', () => {
     expect(extendArchiveManifest(sealed, changed).errors).toEqual([
       'process/2026-07-26-example.md: sealed content hash changed',
     ])
-    changed.delete('process/2026-07-26-example.zh.md')
-    expect(extendArchiveManifest(sealed, changed).errors).toContain(
-      'process/2026-07-26-example.zh.md: sealed artifact is missing',
-    )
+    const pruned = extendArchiveManifest(sealed, new Map())
+    expect(pruned.errors).toEqual([])
+    expect(pruned.added).toEqual([])
+    expect(pruned.files).toEqual({})
   })
 
-  it('rejects replacing manifest seals alongside changed archive content', () => {
+  it('rejects changed seal hashes but permits repository-wide prunes in the extension check', () => {
     const artifacts = fixture()
     const initial = extendArchiveManifest({ version: 1, files: {} }, artifacts)
     const baseline: ArchiveManifest = { version: 1, files: initial.files }
@@ -72,17 +75,10 @@ describe('archived Agent Notes', () => {
     const replacement = extendArchiveManifest({ version: 1, files: {} }, changedArtifacts)
     const current: ArchiveManifest = { version: 1, files: replacement.files }
 
-    expect(extendArchiveManifest(current, changedArtifacts).errors).toEqual([])
     expect(validateArchiveManifestExtension(baseline, current)).toEqual([
       `${path}: sealed manifest hash changed`,
     ])
-    const removed: ArchiveManifest = {
-      version: 1,
-      files: Object.fromEntries(Object.entries(current.files).filter(([candidate]) => candidate !== path)),
-    }
-    expect(validateArchiveManifestExtension(baseline, removed)).toContain(
-      `${path}: sealed manifest entry is missing`,
-    )
+    expect(validateArchiveManifestExtension(baseline, { version: 1, files: {} })).toEqual([])
   })
 
   it('round-trips the deterministic manifest schema', () => {

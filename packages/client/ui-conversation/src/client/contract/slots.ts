@@ -186,6 +186,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'conversation.input.model': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
     /** Sampling-temperature slider inside the composer tool row. */
     'conversation.input.temperature': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
+    /** Step-pace slider inside the composer tool row. */
+    'conversation.input.stepPace': { kind: 'single'; scope: 'session'; owner: InputControlOwnerProps }
   }
 
   interface GlobalStandardProps {
@@ -343,6 +345,7 @@ export type ComposerBarProps =
     | 'conversation.input.left' | 'conversation.input.plan'
     | 'conversation.input.right' | 'conversation.input.model'
     | 'conversation.input.temperature'
+    | 'conversation.input.stepPace'
     | 'conversation.composer.dock'
   >
   & InjectFace<ComposerBarInjected>

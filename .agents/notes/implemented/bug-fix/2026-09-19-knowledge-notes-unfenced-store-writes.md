@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-19-knowledge-notes-unfenced-store-writes.zh.md)
-
 ## Problem
 
 `@deepseek-ai/dsh-knowledge-notes` wrote note JSON through `ctx.fs.writeText`. Under `SandboxedFileSystem`, note paths under `<dshHome>/knowledge/notes` sit outside the workspace root, so `upsert_note` failed in `read-only` and `workspace-write` even though notes are harness-owned state, not model-controlled workspace mutation.

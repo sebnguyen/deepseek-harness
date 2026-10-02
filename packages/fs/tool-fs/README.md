@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-tool-fs
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 Use `dsh-tool-fs` to let a model read UTF-8 files with line numbers, read supported images, and create, replace, or sed-style patch files in one atomic commit. Results are capped, and failures provide stable error codes and recovery instructions. The tool-owned gate already refuses unread whole-file overwrites unless the call passes `overwrite: true` and keeps every commit at an observed or fresh version; add `dsh-fs-observation-policy` for the stricter deployments where even programs require a prior read. Image reads require durable attachment storage and an image-capable routed model. Choose the sibling discovery package for glob or grep searches.

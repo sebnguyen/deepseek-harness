@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-09-turn-duration-hour-unit.md
-2026-09-09-turn-duration-hour-unit.md: 3808449e6a864ed83232f230f4311eaf63f3ee64
-2026-09-09-turn-duration-hour-unit.zh.md: 41453d1e7d5b305fdda8a6b289976cfea109cb0c

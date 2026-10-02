@@ -21,6 +21,7 @@ import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { RemoteError, remoteErrorOf } from '@deepseek-ai/dsh-typert-protocol'
+import { MAX_STEP_PACE_MS } from './step-pace.ts'
 import type { Workspace } from '@deepseek-ai/dsh-workspace'
 import {
   ApiSessionAgentController,
@@ -47,6 +48,8 @@ import type {
   SessionRenameValue,
   SessionSelectModelRequest,
   SessionSelectModelValue,
+  SessionSetStepPaceRequest,
+  SessionSetStepPaceValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
   SessionRequestId,
@@ -168,6 +171,24 @@ export class SessionCommandController {
         )
       }
     })
+  }
+
+  /**
+   * Persist one Session's minimum interval between model request dispatches.
+   * @param request - Session identity and selected pace in whole milliseconds.
+   * @returns the installed pace.
+   */
+  async setStepPace(request: SessionSetStepPaceRequest): Promise<SessionSetStepPaceValue> {
+    if (!Number.isSafeInteger(request.ms) || request.ms < 0 || request.ms > MAX_STEP_PACE_MS) {
+      throw new RemoteError(
+        'gateway/bad-request',
+        `step pace must be a whole number of milliseconds between 0 and ${MAX_STEP_PACE_MS}`,
+        {},
+      )
+    }
+    const agent = await this.resolveAgent(request.sessionId)
+    agent.session.append('step-pace', { ms: request.ms })
+    return { ms: request.ms }
   }
 
   /**

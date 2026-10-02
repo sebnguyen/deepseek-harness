@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-29-promoting-a-running-command-to-a-job.zh.md)
-
 ## Problem
 
 A persistent shell is the agent's only shell, and one command occupies it. A foreground command that runs long therefore costs twice: every later `bash` call queues behind it inside the tool's per-owner serialization, and the per-command deadline (`timeoutMs`) eventually closes the shell and destroys the work, because the deadline's only available action was to reset. The agent cannot hand a command it already started to `ctx.jobs` — `run_in_background` decides before the command exists — and it cannot kill and restart the work without losing it.

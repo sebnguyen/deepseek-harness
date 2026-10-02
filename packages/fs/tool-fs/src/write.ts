@@ -298,7 +298,7 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
 }
 
 function formatOutcomeLine(value: WriteToolResult): string {
-  if (value.committed === false) {
+  if (!value.committed) {
     return `Dry run — no commit. ${value.outcomes.length} entr${value.outcomes.length === 1 ? 'y' : 'ies'} would apply.`
   }
   if (value.outcomes.length === 0) {

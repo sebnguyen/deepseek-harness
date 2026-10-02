@@ -20,6 +20,24 @@ describe('SessionController facade', () => {
     expect(SessionController.inject).not.toContain('tools')
   })
 
+  it('setStepPace persists a validated Session pace and rejects out-of-bounds values', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    const controller = createSessionTestController(ctx, defaults)
+    const session = ctx.sessions.create()
+    const agent = { id: session.id, session, status: 'idle', ctx } as Agent
+    ctx.agents.register(agent)
+
+    expect(await controller.setStepPace({ sessionId: session.id, ms: 2500 }))
+      .toEqual({ ms: 2500 })
+    expect(session.snapshotEvents().at(-1)).toMatchObject({ type: 'step-pace', data: { ms: 2500 } })
+    for (const ms of [-1, 0.5, 10_001]) {
+      await expect(controller.setStepPace({ sessionId: session.id, ms }))
+        .rejects.toThrow('step pace must be a whole number of milliseconds')
+    }
+  })
+
   it('owns Host service methods and publishes Agent lifecycle projections', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

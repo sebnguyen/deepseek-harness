@@ -1,7 +1,5 @@
 # Background Task Runtime
 
-English | [中文](jobs.zh.md)
-
 Types shared by long-running producers, `ctx.jobs`, and job controls. The [runtime Agent Note](../../.agents/notes/implemented/architecture/2026-06-20-generic-long-running-tool-runtime.md) owns the design; this page records the exact fields and variants from [`packages/jobs/jobs/src/types.ts`](../../packages/jobs/jobs/src/types.ts).
 
 ## Ids and status
@@ -80,6 +78,16 @@ interface JobHooks {
    * job has one consuming cursor.
    */
   readOutput?(): string
+  /**
+   * Read retained output lines by index, without advancing the consuming
+   * cursor. A producer with an addressable buffer answers this so an observer
+   * can follow output — a status line, a browser view — without taking the
+   * bytes {@link readOutput} still owes the model. Absence marks a job whose
+   * output exists only as a consuming stream.
+   * @param from - absolute line index to read from; `0` starts at the command's first retained line.
+   * @returns the retained lines from `from` and the index to request next.
+   */
+  readLines?(from: number): JobOutputLines
 }
 ```
 

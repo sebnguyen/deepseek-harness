@@ -17,7 +17,8 @@ import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client
 import { TestRemote } from '@deepseek-ai/dsh-client-test-runtime'
 import type { ModelSelection, ModelSelectionProjection } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { CommandContribution, PopupSelectSpec, SelectOption } from '@deepseek-ai/dsh-client-ui-commands/client'
-import type { ModelSelectInjected } from '../src/client/slots.ts'
+import type { ModelSelectInjected, StepPaceInjected } from '../src/client/slots.ts'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { apply, inject } from '../src/client/index.ts'
 import { zh } from '../src/client/locales.ts'
 
@@ -70,6 +71,7 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
   let defaultSelection: ModelSelection = { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
   let selected = defaultSelection
   const calls = { models: 0, select: 0 }
+  const paces = new Map<SessionId, number>()
   const projections = new Map<SessionId, SnapshotStore<ModelSelectionProjection | undefined>>()
   // Whether the Host reports an adapter for the current route; the composer
   // block follows this, never catalog membership.
@@ -99,6 +101,16 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       projections.get(payload.sessionId)?.set({ lastUsed: null, next: selected })
       return Promise.resolve({ ok: true as const, value: { selected } })
     },
+    setStepPace: (payload: { sessionId: SessionId; ms: number }) => {
+      if (!Number.isSafeInteger(payload.ms) || payload.ms < 0 || payload.ms > 10_000) {
+        return Promise.resolve({
+          ok: false as const,
+          error: new RemoteError('gateway/bad-request', 'step pace must be a whole number of milliseconds', {}),
+        })
+      }
+      paces.set(payload.sessionId, payload.ms)
+      return Promise.resolve({ ok: true as const, value: { ms: payload.ms } })
+    },
   }
   const remote = Object.assign(new TestRemote(ctx), { session: sessionRemote })
   ctx.reflect.provide('remote.session', sessionRemote)
@@ -116,12 +128,12 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
     },
   })
   const seats = new Map<string, {
-    inject: ((sessionId: SessionId) => ModelSelectInjected) | undefined
+    inject: ((sessionId: SessionId) => unknown) | undefined
     locale: string | undefined
   }>()
   ctx.provide('slots', {
     inject(_name: string, callback: () => () => void) { return callback() },
-    register(options: { name: string; locale?: string; inject?: (sessionId: SessionId) => ModelSelectInjected }) {
+    register(options: { name: string; locale?: string; inject?: (sessionId: SessionId) => unknown }) {
       seats.set(options.name, { inject: options.inject, locale: options.locale })
       return () => { seats.delete(options.name) }
     },
@@ -171,8 +183,19 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
       if (ui.kind !== 'popupSelect') throw new Error('expected the popupSelect kind')
       return ui
     },
-    seat: () => seats.get('conversation.input.model')!,
-    temperatureSeat: () => seats.get('conversation.input.temperature')!,
+    seat: () => seats.get('conversation.input.model')! as {
+      inject: ((sessionId: SessionId) => ModelSelectInjected) | undefined
+      locale: string | undefined
+    },
+    temperatureSeat: () => seats.get('conversation.input.temperature')! as {
+      inject: ((sessionId: SessionId) => ModelSelectInjected) | undefined
+      locale: string | undefined
+    },
+    paceSeat: () => seats.get('conversation.input.stepPace')! as {
+      inject: ((sessionId: SessionId) => StepPaceInjected) | undefined
+      locale: string | undefined
+    },
+    paceOf: (key: string) => paces.get(sid(key)),
     hostCurrent: () => selected,
     setHostCurrent: (selection: ModelSelection) => { defaultSelection = selection },
     setProjected: (id: SessionId, value: ModelSelectionProjection) => { projections.get(id)?.set(value) },
@@ -185,6 +208,24 @@ async function bench(locale: 'zh' | 'en' = 'zh') {
 const projection = (id: string) => ({ sessionId: sid(id) })
 
 describe('ui-model-selection dual entry', () => {
+  it('registers and drives the composer step-pace seat over the shared directory', async () => {
+    const b = await bench()
+    expect(b.paceSeat().inject).toBeTypeOf('function')
+    expect(b.paceSeat().locale).toBe('model')
+    b.mint('s1')
+    const face = b.paceSeat().inject!(sid('s1'))
+    expect(await face.setPace(2500)).toBe(true)
+    expect(b.paceOf('s1')).toBe(2500)
+    expect(await face.setPace(-1)).toBe(false)
+    // Addressed subagent sessions never reach the wire.
+    b.mint('child')
+    b.address(sid('child'))
+    const child = b.paceSeat().inject!(sid('child'))
+    expect(child.available).toBe(false)
+    expect(await child.setPace(1000)).toBe(false)
+    expect(b.paceOf('child')).toBeUndefined()
+  })
+
   it('registers the /model contribution and the composer model seat', async () => {
     const b = await bench()
     expect(b.contribution().name).toBe('model')

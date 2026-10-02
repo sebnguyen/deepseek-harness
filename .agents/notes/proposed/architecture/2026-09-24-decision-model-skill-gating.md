@@ -2,8 +2,6 @@
 
 Status: proposed
 
-English | [中文](2026-09-24-decision-model-skill-gating.zh.md)
-
 ## Problem
 
 `dsh-tool-skill` publishes every model-invocable skill as one durable catalog and hands the model a `skill` loader tool, so selection is the model's own relevance judgment. That signal fails in both directions: expanding a library from a known-good set to 202 skills cut pass rates by up to 21%, with most of the loss attributed to invoking the wrong skill rather than to the enlarged context ([skill shadowing](https://arxiv.org/html/2605.24050v1)), and models also fail to recognize that a specialized skill is needed at all.
@@ -65,7 +63,7 @@ The load-bearing types and the listener, at the level slice 1 to slice 4 build a
 
 **The seam.** The Service Definition owns the key and the vocabulary, so no Consumer imports provider types and the provider never sees harness prompt text.
 
-```ts
+```ts ignore-check
 // packages/context/skill-context/src/decision.ts
 import { Service, type Context } from '@deepseek-ai/cordis'
 
@@ -113,7 +111,7 @@ export class DecisionService extends Service {
 
 **The provider.** Every deployment-varying choice is a validated `Config` field, and the model identifier is pinned rather than aliased so a version move cannot silently retune a threshold.
 
-```ts
+```ts ignore-check
 // packages/context/skill-context/src/typesafe.ts
 export interface Config {
   /** Pinned model identifier; an alias would reprice and retune without notice. */
@@ -144,7 +142,7 @@ function toBody(request: DecisionRequest): unknown {
 
 **The live set.** The session is the source of truth, and the derived window is where it is read: a compaction `replace` deletes shadowed nodes from the derivation, so the read needs no cache and no event-log scan.
 
-```ts
+```ts ignore-check
 // packages/context/skill-context/src/live-set.ts
 import type { Session } from '@deepseek-ai/dsh-session'
 
@@ -167,7 +165,7 @@ export function liveSkillNames(session: Session): Set<string> {
 
 **The listener.** One judgment per step, add-only emission, and an unchanged judgment emits nothing, so the per-step call is idempotent rather than merely affordable.
 
-```ts
+```ts ignore-check
 // packages/context/skill-context/src/index.ts
 export const name = 'skill-context'
 export const inject = ['agents', 'skills', 'decision']
@@ -203,7 +201,7 @@ ctx.on('agent/pre-step', async ({ agent, signal }, next): Promise<PreStepDecisio
 
 **The capacity read.** Context capacity belongs to the resolved route, so it enters as a capability rather than a constant; slice 4 binds the resolved model's context window and `ctx.tokenMeter` to it, and a candidate admitted with no remaining room is counted rather than emitted.
 
-```ts
+```ts ignore-check
 /** Remaining tokens this step may spend on injected skill bodies. */
 interface SkillBudget {
   /**

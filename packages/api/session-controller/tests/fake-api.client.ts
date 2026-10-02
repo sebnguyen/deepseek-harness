@@ -228,6 +228,7 @@ export class FakeApiClient {
           payload,
           this.onSelectModel(payload),
         ),
+        setStepPace: payload => Promise.resolve(ok({ ms: payload.ms })),
         rename: payload => this.record('session.rename', payload, this.onRename(payload)),
         fork: payload => this.record('session.fork', payload, this.onFork(payload)),
         prompt: payload => this.record('session.prompt', payload, this.onPrompt(payload)),

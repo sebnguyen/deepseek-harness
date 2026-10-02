@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-tool-lsp-map
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 `dsh-tool-lsp-map` lets a model build a folder-scale symbol map in one `symbols` call: pipe a `glob` result into `files`, and the tool runs one `documentSymbol` map query per file, flattening each outline into a condensed, path-anchored line. The output is ASCII-only (no glyphs), abridges each symbol kind to a pinned abbreviation, and can optionally append one-hop `in:`/`out:` caller/callee counts. Caps cascade `filesPerBatch` → `symbolsPerFile` → `maxResultChars`, each with an explicit omission marker, so a map of a very large folder stays bounded. The package requires a configured LSP provider that advertises `documentSymbolProvider`, and a session workspace root. It composes with `dsh-tool-lsp`'s `callers`/`callees` operations, which return the precise call sites this tool only counts.
@@ -17,6 +15,7 @@ English | [中文](README.zh.md)
 - [Understand the implementation](#understand-the-implementation)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
 -----
 
@@ -78,3 +77,13 @@ Token and KV-cache effects are proportional to the rendered text, bounded by `ma
 - **Serialized map queries.** `dsh-lsp-stdio` serves `documentSymbol`/call-hierarchy through one per-workspace queue; a folder scan is latency-bound on that queue until parallel fan-out lands.
 - **Hotspots are expensive.** Each kept symbol costs two call-hierarchy round-trips; on a 200-symbol file that is 400 extra requests, so `hotspots` defaults off.
 - **`deprecated`/`detail` are not surfaced** in the condensed layout (kept out to preserve density); `detail` disambiguation lives in `dsh-tool-lsp`'s edge output instead.
+
+<a id="dev-note"></a>
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+The condensed layout is the wire-facing output contract; change it together with the `symbols` tool schema and the snapshot expected outputs that pin it.
+
+</details>

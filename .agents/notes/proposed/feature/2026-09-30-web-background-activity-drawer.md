@@ -2,8 +2,6 @@
 
 Status: proposed
 
-English | [中文](2026-09-30-web-background-activity-drawer.zh.md)
-
 ## Problem
 
 The Web client answers "what is running in the background?" across four disconnected surfaces. The transcript's `run_in_background` and delegation cards record the start of a background task and never update again. The session header's job popover, since replaced by this note's chip and drawer, listed live jobs with an output tail but closed on any outside click. The header's subagent catalog ([dsh-client-ui-subagent](../../../../packages/client/ui-subagent/README.md)) navigates the durable descendant tree but shows only running/inactive activity. The left sidebar chip counts running subagents and says nothing about jobs. Each surface uses its own vocabulary and lifetime, none correlates an agent with the background processes that agent owns, and none can stay open while the user reads or writes in the conversation: watching a long build means pinning a popover over the header.

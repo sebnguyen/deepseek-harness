@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-21-standard-code-discovery-flow.zh.md)
-
 ## Problem
 
 The ordered code-discovery flow — glob, then outline, then grep, then read — reached the model only from `@deepseek-ai/dsh-tool-lsp-map`. That package registered the `tool:discovery` prompt section and suppressed it unless the `glob`, `lsp`, and `read` tools were all mounted. No shipped bundle mounts `dsh-tool-lsp-map`: only the `do-standard` example overlay and one snapshot fixture do. The comparable cross-tool advice, `harness:tool-batching`, is owned by `@deepseek-ai/dsh-system-prompt` and emitted in every profile, and that guidance already names `lsp` unconditionally. The flow was therefore absent from every shipped deployment.

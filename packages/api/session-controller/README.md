@@ -4,8 +4,6 @@ kind: "package-reference"
 ---
 # Session Controller
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 `@deepseek-ai/dsh-api-session-controller` owns the Host `ctx.sessionController` service and the generated Client `session`, `skills`, and `fileReferences` Remote namespaces. It serves Session lifecycle and history, the Host-generation model catalog, workspace-path opening, user-invocable skill discovery, and Agent-scoped file references. Use it through API Gateway when a Client needs operations addressed by a Session.
@@ -62,7 +60,7 @@ None, as invoked Agent commands own any model-visible effect.
 
 #### KV Cache effect
 
-No direct effect; model requests remain owned by the Agent and LLM packages.
+No direct effect; model requests remain owned by the Agent and LLM packages. The Session-local step pace (`session.setStepPace`, durable `step-pace` events folded by the `stepPace` projection) never changes request bytes: the Host pacer only sleeps in `agent/pre-step` for the unspent remainder of the selected interval since the previous `step/start`, trading wall-clock latency for the provider disk cache's seconds-long prefix persistence. A null or 0 selection disables pacing, and turn cancellation cuts the wait short.
 
 ## Known Limitations and Deferred Work
 

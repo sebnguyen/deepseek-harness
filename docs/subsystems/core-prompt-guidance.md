@@ -1,7 +1,5 @@
 # Core prompt guidance
 
-English | [中文](core-prompt-guidance.zh.md)
-
 First-party behavioral guidance for the model-facing system prompt: section order, labels, verbatim text, and how it replaces the former `harness:tool-batching` and `harness:tool-discovery` blocks. Assembly mechanics live in [system-prompt.md](system-prompt.md); registration and config fields live in the [system-prompt package README](../../packages/core/system-prompt/README.md).
 
 Source of truth for order names: [`packages/core/system-prompt/src/index.ts`](../../packages/core/system-prompt/src/index.ts).

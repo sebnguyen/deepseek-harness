@@ -1574,6 +1574,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the normalized selection installed for the Session.',
       },
       {
+        signature: '@Remote(\'setStepPace\') setStepPace(request: SessionSetStepPaceRequest): Promise<SessionSetStepPaceValue>',
+        description: 'Persist one Session-local minimum interval between model request dispatches.',
+        parameters: [{ name: 'request', description: 'Session identity and selected pace in whole milliseconds.' }],
+        returns: 'the installed pace.',
+      },
+      {
         signature: '@Remote(\'modelCatalog\') modelCatalog(): Promise<ModelCatalog>',
         description: 'Describe every currently routable model for Host-generation selectors.',
         parameters: [],
@@ -5601,6 +5607,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SessionSeqCursor',
     declaration: 'export type SessionSeqCursor = SessionSeq | -1;',
+  },
+  {
+    name: 'SessionSetStepPaceRequest',
+    declaration: 'export interface SessionSetStepPaceRequest {\n    readonly sessionId: SessionId;\n    readonly ms: number;\n}',
+  },
+  {
+    name: 'SessionSetStepPaceValue',
+    declaration: 'export interface SessionSetStepPaceValue {\n    readonly ms: number;\n}',
   },
   {
     name: 'SessionStartSource',

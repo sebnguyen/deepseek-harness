@@ -25,15 +25,16 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconDataOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
-import type { ModelSelectInjected } from './slots.ts'
+import type { ModelSelectInjected, StepPaceInjected } from './slots.ts'
 import { ModelSelect } from './ModelSelect.tsx'
 import { TemperatureSlider } from './TemperatureSlider.tsx'
+import { StepPaceSlider } from './StepPaceSlider.tsx'
 import { en, zh, type ModelKey } from './locales.ts'
 
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
 export { ModelDirectoryResolver } from './service.ts'
-export type { ModelSelectInjected } from './slots.ts'
+export type { ModelSelectInjected, StepPaceInjected } from './slots.ts'
 export type { ModelKey } from './locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -215,5 +216,23 @@ export function apply(ctx: ClientContext): void {
         }
       },
     }, TemperatureSlider))
+
+    // Entry 4: the composer step-pace slider over the SAME directory, reusing
+    // the model seat's injected face with the pace verb.
+    scope.slots.inject('conversation.input.stepPace', () => scope.slots.register({
+      name: 'conversation.input.stepPace',
+      locale: NS,
+      inject: (sessionId): StepPaceInjected => {
+        const directory = models.directoryFor(sessionId)
+        const available = sessions.subagentAddress(sessionId) === undefined
+        return {
+          available,
+          directory: directory.store,
+          setPace: (ms: number) => available
+            ? directory.setPace(ms).then(() => true, () => false)
+            : Promise.resolve(false),
+        }
+      },
+    }, StepPaceSlider))
   })
 }

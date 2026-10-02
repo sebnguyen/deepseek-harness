@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-08-25-electron-desktop-packaging-and-updates.zh.md)
-
 Profile mutation and recovery follow the [in-place profile decision](2026-09-09-desktop-in-place-profile.md).
 
 ## Problem

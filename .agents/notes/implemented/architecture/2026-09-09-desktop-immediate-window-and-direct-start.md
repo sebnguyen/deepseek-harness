@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-09-desktop-immediate-window-and-direct-start.zh.md)
-
 Profile mutation and recovery follow the [in-place profile decision](2026-09-09-desktop-in-place-profile.md).
 
 ## Problem

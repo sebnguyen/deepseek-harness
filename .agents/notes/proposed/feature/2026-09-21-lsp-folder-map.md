@@ -1,6 +1,6 @@
 # Agent Note: LSP folder map — symbol + call-hierarchy mapping
 
-Status: proposed (sketch — code-change plan, not yet implemented)
+Status: proposed
 
 ## Problem
 
@@ -19,13 +19,17 @@ api/workspace-controller/directory-picker.ts: [ :14 (func) pick in:1 out:0 ; :31
 - Caps cascade `filesPerBatch → symbolsPerFile → bytesPerBatch`; overflow shows `… +N more symbols` per file; the complete structured result spills to a formatted file (reuse `tool-fs-search` spill).
 - Exact call edges are lazy, full-word ("callers of … / callees of …"), pulled one hop on a named symbol.
 
+## Proposal
+
+Extend the LSP seam with a parallel map family (`documentSymbols`, `callers`, `callees`) carried by every provider through `lsp-stdio`, add lazy `callers`/`callees` operations to the existing `lsp` tool, and ship a new `@deepseek-ai/dsh-tool-lsp-map` package registering the batch `symbols` tool plus its `TOOL_LSP_MAP` system-prompt section.
+
 ## Change surface
 
 ### 1. `packages/lsp/lsp` — seam data structures
 
 **`src/types.ts`** — a *parallel* operation family (the nav union stays closed at four):
 
-```ts
+```ts ignore-check
 export type LspMapOperation = 'documentSymbols' | 'callers' | 'callees'
 
 /** 26 SymbolKind values, normalized to readable labels (no numeric enum crosses the seam). */
@@ -74,7 +78,7 @@ export type LspMapResult =
 
 **`src/types.ts` — provider + service additions** (the new method ripples to every provider, exactly like a new nav operation does today):
 
-```ts
+```ts ignore-check
 export interface LspProvider {
   // …existing fields…
   mapQuery(request: LspMapProviderQuery, signal?: AbortSignal): Promise<LspMapResult>
@@ -92,7 +96,7 @@ export interface LspService {
 
 **`src/protocol.ts`** — wire shapes + server capabilities:
 
-```ts
+```ts ignore-check
 export interface WireDocumentSymbol {
   readonly name: string
   readonly detail?: string
@@ -128,7 +132,7 @@ export interface WireServerCapabilities {
 
 **`src/translate.ts`** — normalizers (pure, fake-stdio-pinned like the existing ones):
 
-```ts
+```ts ignore-check
 export function mapRequestMethod(operation: LspMapOperation): string
 // 'documentSymbols' → 'textDocument/documentSymbol'
 // 'callers'/'callees' → 'textDocument/prepareCallHierarchy'
@@ -142,14 +146,14 @@ function symbolKindLabel(kind: number): SymbolKindLabel                         
 
 **`src/instance.ts`** — the two round-trips `callers`/`callees` need (prepare → incoming/outgoing), which today's single-request `sendRequest`/`normalize` cannot express:
 
-```ts
+```ts ignore-check
 private async runMapQuery(request: LspMapProviderQuery, source: HostSource, signal?: AbortSignal): Promise<LspMapResult>
 // documentSymbols: one request; callers/callees: prepare then callHierarchy/incomingCalls|outgoingCalls on the item.
 ```
 
 Advertise the features (a well-behaved server returns nothing otherwise):
 
-```ts
+```ts ignore-check
 const CLIENT_CAPABILITIES = {
   // …existing…
   workspace: { workspaceFolders: true, configuration: true, symbol: {} },
@@ -165,7 +169,7 @@ const CLIENT_CAPABILITIES = {
 
 Add `callers`/`callees` to the `lsp` tool (same `file:line` ergonomics). **`src/index.ts`**:
 
-```ts
+```ts ignore-check
 export const MAP_OPERATIONS: readonly LspMapOperation[] = ['callers', 'callees']   // documentSymbols lives in the batch tool
 
 export function parseMapArgs(args: LspToolArgs): LspMapRequest   // reuses one-based→zero-based conversion
@@ -176,7 +180,7 @@ export function renderCallEdges(value: LspMapResult & { kind: 'callEdges' }): st
 
 **`src/render.ts`** — full-word, one-hop rendering (the "callers of … / callees of …" tree from the format contract):
 
-```ts
+```ts ignore-check
 export function formatCallEdges(root: LspSymbol, edges: readonly LspCallEdge[], workspaceUri: string, maxResultChars: number): string
 ```
 
@@ -186,7 +190,7 @@ Injects `tools`, `lsp`, `systemPrompt`; reads `spillStore` via `ctx.get()`. Owns
 
 **`src/index.ts`**:
 
-```ts
+```ts ignore-check
 export const name = 'tool-lsp-map'
 export const inject = ['tools', 'lsp', 'systemPrompt']
 
@@ -204,7 +208,7 @@ export function applySymbolsTool(ctx: Context, caps: ResolvedConfig): void
 
 **`src/symbols.ts`** — the batch tool + composition + format:
 
-```ts
+```ts ignore-check
 export interface SymbolLine {
   readonly name: string
   readonly kind: SymbolKindLabel
@@ -231,7 +235,7 @@ export function renderSymbols(args: SymbolsInput, value: FileOutline[]): object 
 
 **`src/kind.ts`** — the pinned abbreviations (model-visible table, snapshot-locked):
 
-```ts
+```ts ignore-check
 export const KIND_ABBREV: Readonly<Record<SymbolKindLabel, string>> = {
   'class': 'class', 'interface': 'iface', 'method': 'method', 'function': 'func',
   'enum': 'enum', 'constructor': 'ctor', 'variable': 'var', 'constant': 'const',
@@ -243,7 +247,7 @@ export const SYMBOL_KEEP: ReadonlySet<SymbolKindLabel>   // map-worthy vs collap
 
 **`src/present.ts`** — replay-safe UI card (the `read`-tool `presentResult` pattern):
 
-```ts
+```ts ignore-check
 export interface SymbolMapView { card: 'map'; path: string; symbols: readonly SymbolLine[] }
 export function presentSymbolsResult(_args: SymbolsInput, result: ToolResult): SymbolMapView | undefined
 export function presentSymbolsCall(args: SymbolsInput): GenericCallView
@@ -300,6 +304,18 @@ lsp(callers|callees, file:line)  →  one hop of precise call sites (the thing g
 4. `tool-lsp-map` `symbols` tool + format + spill + `map` card + snapshot.
 5. (optional) parallelism fan-out — the serialized per-workspace queue is the batch bottleneck.
 
+## Alternatives considered
+
+**Discovery stays grep/glob/read only.** Lost: a folder-scale outline is exactly what text search cannot produce; agents re-read files to rediscover structure on every session.
+
+**Raw `documentSymbol`/`callHierarchy` JSON passthrough.** Lost: unbounded protocol dumps blow the context budget; the pinned ASCII line-per-file layout with cascading caps is the compression that makes a folder map one call.
+
+**Counts eager in `symbols` by default.** Lost in that variant: `in:`/`out:` costs two call-hierarchy round-trips per symbol over the serialized per-workspace queue; hotspots stay opt-in so the default batch costs only documentSymbols.
+
+## Acceptance criteria
+
+`symbols` over a glob result renders one ASCII line per file in the pinned `path: [ :line (abbrev) name in:n out:m ; … ]` form with the legend in the tool description; overflow spills to a formatted file; `lsp` `callers`/`callees` return one hop of exact call sites; every format snapshot is pinned keyless.
+
 ## Tests
 
 Per-package behavior tests; a REAL-composition test (test `cordis.yml` through the Loader) for the two product-visible tools; keyless recorded-session snapshots for both new model-facing formats; e2e against a real TS/Go server gated on provider availability. Coverage gate is `test:coverage` per the repo standard.
@@ -313,6 +329,7 @@ Per-package behavior tests; a REAL-composition test (test `cordis.yml` through t
 
 ## Risks
 
+- The sketches inside this note are fenced `ts ignore-check`; they bind nothing until the PR split lands them as source.
 - Call-graph fan-out is O(edges); every eager edge we materialize feeds the compression budget we are trying to save.
 - Single-letter or glyph tokens (`↑`, `i:`) fragment under BPE — the format stays ASCII-words (`in:`/`out:`) and is snapshot-pinned.
 - `documentSymbols` across N files hits the provider's serialized per-workspace queue; `filesPerBatch` absorbs it until PR 5.

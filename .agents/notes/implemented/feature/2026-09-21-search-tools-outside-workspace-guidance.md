@@ -26,7 +26,7 @@ The canonical routing text finally makes the preference a hard rule instead of a
 
 ## Consequences
 
-The grep/glob schema text and the grep system-prompt section cost a few dozen more tokens per request where the tools are mounted, and the pinning surfaces — `docs/tool-catalog.md`, `docs/tool-catalog.zh.md`, the recorded-session snapshots, and `originalSearchGuidance` in `packages/fs/tool-fs-search/tests/tools.spec.ts` — must move together with any future wording change. Empty `grep` results now carry one extra clause that also lands in session logs.
+The grep/glob schema text and the grep system-prompt section cost a few dozen more tokens per request where the tools are mounted, and the pinning surfaces — `docs/tool-catalog.md`, the recorded-session snapshots, and `originalSearchGuidance` in `packages/fs/tool-fs-search/tests/tools.spec.ts` — must move together with any future wording change. Empty `grep` results now carry one extra clause that also lands in session logs.
 
 ## Testing
 

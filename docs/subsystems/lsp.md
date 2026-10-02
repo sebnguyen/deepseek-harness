@@ -1,7 +1,5 @@
 # LSP navigation
 
-English | [中文](lsp.zh.md)
-
 The LSP seam — a [capability seam](../glossary.md#capability-seam) exposing semantic code navigation on one `ctx.lsp` service, split across packages: Service Definition ([dsh-lsp](../../packages/lsp/lsp), `ctx.lsp` + the provider registry), a generic Service Provider ([dsh-lsp-stdio](../../packages/lsp/lsp-stdio), a configured stdio language-server host), and Consumer ([dsh-tool-lsp](../../packages/lsp/tool-lsp), the `lsp` tool schema). LSP is **one optional capability**, not part of the agent-loop spine — so its vocabulary lives here, not in [core.md](core.md). A provider swap does not change how the model asks for navigation.
 
 Source: [`packages/lsp/lsp/src/types.ts`](../../packages/lsp/lsp/src/types.ts)
@@ -134,6 +132,14 @@ interface LspProvider {
    * @returns the normalized, closed-union result.
    */
   query(request: LspProviderQuery, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Run one structural/relationship query. The seam has already selected this provider and derived
+   * `languageId`.
+   * @param request - the resolved map query (caller request + derived language id).
+   * @param signal - optional cancellation; the provider stops its own work when it aborts.
+   * @returns the normalized, closed-union map result.
+   */
+  mapQuery(request: LspMapProviderQuery, signal?: AbortSignal): Promise<LspMapResult>
 }
 ```
 
@@ -159,6 +165,22 @@ interface LspService {
    * @returns the normalized, closed-union result.
    */
   query(request: LspQueryRequest, signal?: AbortSignal): Promise<LspQueryResult>
+  /**
+   * Select a provider by the file's extension and run one structural/relationship query. Selection is
+   * per-query and order-independent, sharing the extension table with navigation queries; no match
+   * throws `LspError` `LSP_UNAVAILABLE`.
+   * @param request - the normalized map query.
+   * @param signal - optional cancellation forwarded to the selected provider.
+   * @returns the normalized, closed-union map result.
+   */
+  mapQuery(request: LspMapRequest, signal?: AbortSignal): Promise<LspMapResult>
+  /**
+   * List every currently registered extension → language route. For introspection only (e.g.
+   * describing live coverage in prompt guidance) — `query()` remains the seam's actual lookup, and
+   * this snapshot is not ordered by registration or priority.
+   * @returns the routes sorted by extension.
+   */
+  listRoutes(): readonly LspRoute[]
 }
 ```
 

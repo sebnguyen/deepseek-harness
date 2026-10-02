@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-29-observing-job-output-without-consuming-it.zh.md)
-
 ## Problem
 
 A job's output was reachable one way: `JobRegistry.read` advanced a single consuming cursor, or `readOutput` produced a delta. That cursor belongs to the model — `job_output` is what turns job output into a tool result — so anything else that wanted to follow a running job's output would have taken bytes the model was still owed. A browser view, a status line, or a live tail could therefore only be built by stealing the model's stream, or by waiting for settlement and reading the retained copy afterwards.

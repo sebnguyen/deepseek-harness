@@ -2,8 +2,6 @@
 
 Status: proposed
 
-English | [中文](2026-09-08-desktop-uninstall-preserve-dsh-home.zh.md)
-
 ## Problem
 
 Users need Desktop uninstallation to remove its application files and external application state while retaining the complete Harness home. Removing an application directory does not account for browser storage, cached installers, or native updater state. Browser storage also contains unsent drafts and UI preferences, so removing it changes more than disk cache usage.

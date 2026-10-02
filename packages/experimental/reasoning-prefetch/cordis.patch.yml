@@ -1,0 +1,10 @@
+# Experimental reasoning-prefetch profile layer. Stack after dsh-base (or any
+# profile that runs an agent loop, an fs provider, and a reasoning-capable
+# adapter): it inserts the prefetch row about an attempt second after the
+# loop's own rows, and activation stays opt-in because the row itself only
+# exists where this layer is stacked. The row carries no config here; user
+# layers address `id: reasoning-prefetch` to set budgets per deployment.
+
+- insert:
+    - id: reasoning-prefetch
+      name: '@deepseek-ai/dsh-experimental-reasoning-prefetch'

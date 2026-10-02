@@ -5,8 +5,6 @@ kind: "package-group"
 
 # packages/experimental
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The experimental group contains prototype capabilities whose contracts can change and carry no support promise. Packages are private by default; the five Agent Teams packages are published opt-in exceptions under their existing `@deepseek-ai/dsh-experimental-*` names. The group also holds the private cross-realm Inspector, CPython subprocess backend, and browser-worker preview packages. Released products outside this group must not depend on experimental packages.
@@ -30,6 +28,7 @@ The experimental group contains prototype capabilities whose contracts can chang
 | [`client-ui-agent-team`](client-ui-agent-team/README.md) | Team roster, task board, and teammate navigation for Web | — |
 | [`code-runtime-python`](code-runtime-python/README.md) | CPython subprocess backend for the code-execution seam | `ctx.codeRuntime` |
 | [`inspector`](inspector/README.md) | Cross-realm CDP hub for Host debugging, Client Runtime inspection, network capture, and Cordis trees | `ctx.inspector` |
+| [`reasoning-prefetch`](reasoning-prefetch/README.md) | Opt-in speculative prefetch of files a reasoning stream names, staged as next-step context | registers `agent/assistant-stream` and `agent/pre-step` listeners |
 | [`tool-agent-team`](tool-agent-team/README.md) | Nine tools that let the model create, message, and coordinate teammates | registers scoped tools on `ctx.tools` |
 | [`webworker-packer`](webworker-packer/README.md) | Builds the gzip-compressed VFS image consumed by the browser worker preview | library and CLI — no ctx key |
 | [`webworker-runtime`](webworker-runtime/README.md) | Runs the harness plugin tree inside a dedicated browser worker | library and worker entry — no ctx key |

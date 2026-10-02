@@ -20,7 +20,8 @@
     "src/list.ts",
     "src/media-references.ts",
     "src/model-selection-projection.ts",
-    "src/skill-catalog.ts"
+    "src/skill-catalog.ts",
+    "src/step-pace.ts"
   ],
   "references": [
     { "path": "../../../vendor/cordis" },

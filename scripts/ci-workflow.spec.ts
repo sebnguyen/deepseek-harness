@@ -83,17 +83,9 @@ describe('CI workflow', () => {
         name: 'Use runner-owned temporary storage',
         run: [
           'echo "TMPDIR=${{ runner.temp }}" >> "$GITHUB_ENV"',
-          ...(jobName === 'node-24-consumers'
-            ? ['echo "PLAYWRIGHT_BROWSERS_PATH=${RUNNER_TEMP%/*}/ms-playwright" >> "$GITHUB_ENV"']
-            : []),
           '',
         ].join('\n'),
       })
-      if (jobName === 'node-24-consumers') {
-        const browserCache: unknown = job.steps.find(step => isRecord(step) && isRecord(step.with)
-          && step.with.path === '${{ env.PLAYWRIGHT_BROWSERS_PATH }}')
-        expect(browserCache).toMatchObject({ uses: 'actions/cache/restore@v4' })
-      }
       const store: unknown = job.steps.find(step => isRecord(step) && step.name === 'Configure pnpm store path')
       expect(store).toMatchObject({
         run: [
@@ -1079,7 +1071,7 @@ describe('Documentation site publication', () => {
 })
 
 describe('Git hooks', () => {
-  it('leaves frozen Agent Note sidecars to the archive verifier', () => {
+  it('runs no translation pairing enforcement in commit hooks', () => {
     const lefthook = loadWorkflow('lefthook.yml')
 
     for (const hookName of ['pre-commit', 'pre-merge-commit']) {
@@ -1088,10 +1080,11 @@ describe('Git hooks', () => {
         throw new TypeError(`lefthook must define ${hookName} jobs`)
       }
       const pairing: unknown = hook.jobs.find(
-        (job: unknown) => isRecord(job) && job.name === 'translation pairing (staged records)',
+        (job: unknown) => isRecord(job) && typeof job.name === 'string'
+          && job.name.includes('translation pairing'),
       )
 
-      expect(pairing).toMatchObject({ exclude: ['.agents/notes/archived/**'] })
+      expect(pairing).toBeUndefined()
     }
   })
 })

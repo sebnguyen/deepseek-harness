@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-21-call-hierarchy-non-callable-symbol.zh.md)
-
 ## Problem
 
 A `symbols` call with `hotspots: true` — and the `lsp` tool's `callers`/`callees` operations — failed the whole query when the server had no callable symbol at the requested position. gopls answers `textDocument/prepareCallHierarchy` for a type, constant, interface, or struct with a JSON-RPC error response (`{"code":0,"message":"<name> is not a function"}`) instead of the protocol's `null` result. `LspInstance.runMapRequest` propagated that rejection, so one non-callable symbol aborted an entire folder layout: the model received `Error: FlagReason is not a function` instead of the outline it asked for.

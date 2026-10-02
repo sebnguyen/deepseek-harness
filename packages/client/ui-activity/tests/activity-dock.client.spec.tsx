@@ -113,7 +113,7 @@ describe('ActivityDock chip', () => {
     const h = harness([job()])
     h.state = {
       ...h.state,
-      currentAddress: { parentSessionId: SESSION, childSessionId: CHILD, mode: 'one-shot' } as SessionListState['currentAddress'],
+      currentAddress: { parentSessionId: SESSION, childSessionId: CHILD, mode: 'one-shot' },
     }
     const targeted = {
       ...props(h),

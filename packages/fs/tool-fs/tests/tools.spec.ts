@@ -1082,16 +1082,19 @@ describe('scope-aware filesystem guidance', () => {
   it.each(Array.from({ length: 4 }, (_, mask) => mask))('preserves exact text for visible tools (mask %i)', async (mask) => {
     const { ctx } = await setup()
     const { key, scope } = await guidanceScope(ctx)
-    // Registration order: the unified write tool registers first.
+    // Registration order: the unified write tool registers first; prompt
+    // sections instead sort by TOOL_READ before TOOL_WRITE.
     const names = ['write', 'read'] as const
     const allow = names.filter((_, index) => (mask & (1 << index)) !== 0)
-    const baseline = withPersona(...names.map(name => originalGuidance[name]))
+    const sectionOrder = ['read', 'write'] as const
+    const baseline = withPersona(...sectionOrder.map(name => originalGuidance[name]))
     expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
     const release = scope.ctx.tools.restrict({ allow })
     try {
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
       expect(assembly.tools.map(tool => tool.name)).toEqual([...allow])
-      const expected = withPersona(...allow.map(name => originalGuidance[name]))
+      const visible = sectionOrder.filter(name => (allow as readonly string[]).includes(name))
+      const expected = withPersona(...visible.map(name => originalGuidance[name]))
       expect(renderPrompt(assembly)).toBe(expected)
       expect(renderPrompt(await ctx.systemPrompt.assemble())).toBe(baseline)
       release()
@@ -1114,7 +1117,7 @@ describe('scope-aware filesystem guidance', () => {
       scope.ctx.tools.register(write)
       const assembly = await ctx.systemPrompt.assemble({ scope: key })
       expect(assembly.tools.map(tool => tool.name)).toEqual(['write', 'read'])
-      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.write, originalGuidance.read))
+      expect(renderPrompt(assembly)).toBe(withPersona(originalGuidance.read, originalGuidance.write))
     } finally {
       await scope.dispose()
     }

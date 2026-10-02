@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-30-bounded-job-output-wait.zh.md)
-
 ## Problem
 
 Snapshot-only `job_output` reads left a genuinely blocked agent with no way to wait: an agent that cannot proceed until a job settles must either end its turn and rely on the completion notice, or loop over snapshots. The notice path answers an idle owner with a woken turn, but a busy owner only claims the notice at its next step boundary, and a step that needs the result mid-flight paid one step per poll. The removal also discarded the bound that had made the historical blocking read safe: waits were defaulted and capped by plugin config, so a blocking call could not stall a step indefinitely.

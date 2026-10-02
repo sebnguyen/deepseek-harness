@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-25-durable-request-wire-capture.zh.md)
-
 ## Problem
 
 Nothing durable recorded what an adapter actually put on the wire. The log already carries the request envelope (`request/header`: call config, adapter defaults, assembled tool schemas) and every message as a surface event, and the "model-visible means logged" invariant is satisfied by that. But the serialized body is a function of more than the log: provider extension fields merged after serialization, Files API `file_id`s minted per call, and the image representation an attempt settled on after a fallback are all resolved at dispatch and recorded nowhere.

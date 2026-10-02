@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-06-frontend-performance-budgets.zh.md)
-
 ## Problem
 
 A fast Node conversation fold does not prove that a browser paints a long conversation or remains responsive while a response streams. Active reconnect also reconstructs a different representation from settled history: a compact prefix becomes public per-chunk Client entries. The [Session performance policy](2026-09-04-session-open-performance-gate.md) supplies an isolated CI job but does not measure these user paths.
@@ -85,3 +83,11 @@ A controlled mouse-refocus delay waits for the real DONE marker without pausing 
 The benchmark layer changes no product implementation or user-visible behavior. It adds approximately fifteen seconds of local browser/reconnect execution plus Web build and browser provisioning to the existing isolated CI lane. A fresh browser discards previous caches, but each workflow deliberately retains its own loaded history and previously activated Trajectory during continuation.
 
 The baseline is independently mergeable and protects current performance; optimization layers tighten budgets only with repeated measurements and focused semantic tests. It does not cover sidebar cardinality, an hours-long soak, GPU presentation, real model latency, a published Host launch, or reconnect rendering. The [Web browser lane](2026-07-24-web-gui-browser-e2e-lane.md) retains its separate threshold-free manual diagnostics and functional browser tests; calibrated required measurements belong to this benchmark lane. The existing Session performance note remains active because it owns Node calibration and persistence rationale; this note extends rather than supersedes it.
+
+## Follow-up candidates
+
+These are ranked measurement hypotheses, not scheduled work: none is implemented, none carries a claimed number, and each ships only through the `long-session-browser` lane with a before/after median and a negative control, changing one causal factor per run.
+
+**`content-visibility` on rendered turn blocks.** The rendered window lays out every turn it contains, so a height change at the live edge ripples through the in-flow suffix of the window. `content-visibility: auto` with `contain-intrinsic-size` on each rendered turn article lets Chromium skip layout and paint for offscreen turns and bounds that ripple. The only existing containment is `ReasoningRow`'s `contain: size layout`; turn articles carry none. Risks: estimated offscreen heights interact with the manual prepend-height compensation around `ChatView.tsx:752`, with scroll anchoring, and with TurnNavigator sampling; acceptance requires improved paging and streaming medians with the prepend compensation and post-DONE controls still passing.
+
+**Render-path layout-read audit.** The client source carries 77 `offsetWidth`/`offsetHeight`/`getBoundingClientRect` call sites. Reads at open of anchored menus, tooltips, and dock panels are legitimate; reads executed during render or commit (the claim chip's hidden-portal width measure is the standing example) force one synchronous layout per commit over whatever the current dirty set is. The audit moves such reads to post-paint scheduling or cached sizes and defends the first-reply and draft-typing budgets. The streaming scroll sampler, which detaches its reads onto its own timer, is the pattern the audit generalizes.

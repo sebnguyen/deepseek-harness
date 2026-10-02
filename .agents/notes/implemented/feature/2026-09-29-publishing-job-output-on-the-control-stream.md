@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-29-publishing-job-output-on-the-control-stream.zh.md)
-
 ## Problem
 
 The Web client could list a session's background jobs and their statuses, and nothing more: the `jobs` frame carries identity, kind, label, status, timestamps, and detail. A job's output was reachable only by the model, through `job_output`, so a person watching a running command had no way to see what it was doing — the one thing a background job's UI exists to show.

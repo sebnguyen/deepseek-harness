@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-sidebar-files
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The right Sidebar's navigator: the session's workspace root as a tree, listed one level at a time over the wire, opening files into the Sidebar. It is drawn twice — as the panel's persistent explorer column, always beside the tabs, and as the `files` page type. The page type claims no address and is reached from the guide; both draw the same rows, and both open files by address for the `dsh-resource://file` viewers to claim — nothing in `ui-sidebar-right` knows this package.

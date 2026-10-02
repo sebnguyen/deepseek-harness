@@ -23,3 +23,17 @@ export interface ModelSelectInjected {
    */
   select: (selection: ModelSelection) => Promise<boolean>
 }
+
+/** Injected business face of the composer step-pace seat. */
+export interface StepPaceInjected {
+  /** Whether this session supports Agent-bound selection RPCs. */
+  available: boolean
+  /** The session's shared directory store (same instance the model seat reads). */
+  directory: SnapshotStore<ModelDirectoryState>
+  /**
+   * Persist the minimum interval between model request dispatches.
+   * @param ms - whole milliseconds; 0 disables pacing.
+   * @returns whether the host accepted the pace.
+   */
+  setPace: (ms: number) => Promise<boolean>
+}

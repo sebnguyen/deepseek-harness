@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-skill-context
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 This package admits skill bodies into the model's window on a decision model's judgment instead of leaving selection to the model. At every `agent/pre-step` it sends one Noul question per model-invocable skill to `ctx.decision` and emits a `skill-invocation` injection for each skill the answer admits. A skill whose body already sits in the window is never emitted again, so a repeated judgment emits nothing. Every unclear case holds: an absent provider, an incomplete catalog observation, or a disabled plugin leaves the window exactly as it was.

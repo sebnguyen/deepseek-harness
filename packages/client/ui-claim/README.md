@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-claim
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 The Web GUI claim surface turns the session's durable claims into a compact `Claims` control in the composer accessory row. An aggregate status dot — red when any claim failed, blue while any is pending, green once all passed — opens a dropdown menu of the latest turn's claims; each row expands a details card (title, description, the raw verifier script, the last run, and the blocked reason). The plugin only reads the `claim` session projection; it declares no actions and creates no claims. Shipped Web presets mount it; removing the `ui-claim` row from the web-app bundle's patch removes the surface entirely.
@@ -18,6 +16,7 @@ The Web GUI claim surface turns the session's durable claims into a compact `Cla
 - [Further Exploration](#further-exploration)
 - [Model Experience](#model-experience)
 - [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
 
 -----
 
@@ -63,3 +62,13 @@ None.
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Read-only surface** — the chip renders the durable ledger only; re-running or abandoning a claim stays model-side via the existing tools.
+
+<a id="dev-note"></a>
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+All rendering derives from the `claim` projection snapshot; there is no client-side store, and settlement policy changes belong in `@deepseek-ai/dsh-claim`.
+
+</details>

@@ -835,7 +835,7 @@ function main(): void {
       refreshPnpmLockfile(root)
       const graphChanges = writeModuleGraph(root)
       console.log(
-        `${GATE}: refreshed pnpm-lock.yaml and wrote ${String(graphChanges.length)} module-graph artifact(s).`,
+        `${GATE}: refreshed pnpm-lock.yaml${graphChanges.length > 0 ? ' and the module graph' : ''}.`,
       )
       state = readPackageDependencyState(root)
     }

@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-28-workspace-file-symlink-follow.zh.md)
-
 ## Problem
 
 The [workspace file service](2026-09-05-workspace-files-service.md) probed a requested path with `lstat` and refused any final component that was a symbolic link, wherever it pointed. The [read-authority decision](2026-09-09-workspace-file-read-authority.md) later gave `read`, `readBytes`, `readAll`, `readRelated`, and `stat` the Session filesystem backend's read authority, so an absolute path or a `..` path outside the workspace became readable — while a link to the same outside file stayed refused. Containing file reads was no longer what the refusal did.

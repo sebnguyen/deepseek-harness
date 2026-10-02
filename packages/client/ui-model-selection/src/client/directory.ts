@@ -5,7 +5,7 @@
  * selectModel call. A switch made in either entry updates this shared state.
  */
 import type {
-  ModelCatalogFailure, ModelProviderGroup, ModelSelection, ModelSelectionProjection,
+  ModelCatalogFailure, ModelProviderGroup, ModelSelection, ModelSelectionProjection, StepPaceProjectionState,
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
@@ -33,13 +33,15 @@ export interface ModelDirectoryState {
   status: 'idle' | 'loading' | 'ready' | 'selecting' | 'error'
   /** Whole-request or selection failure text; null when none. */
   error: string | null
+  /** Session step pace folded from the log; null before the first load. */
+  pace: StepPaceProjectionState | null
 }
 
 /** One session's shared directory controller; disposed with the session scope. */
 export class ModelDirectory {
   /** The shared snapshot both entries render from (uSES-safe store). */
   readonly store: SnapshotStore<ModelDirectoryState> = createSnapshotStore<ModelDirectoryState>({
-    current: null, routable: null, groups: [], failures: [], status: 'idle', error: null,
+    current: null, routable: null, groups: [], failures: [], status: 'idle', error: null, pace: null,
   })
 
   /** Latest selection operation wins; an older response never overwrites a newer one. */
@@ -48,6 +50,7 @@ export class ModelDirectory {
   private resolved = false
   private readonly unsubscribeCatalog: () => void
   private readonly unsubscribeSelection: () => void
+  private readonly unsubscribePace: () => void
 
   /**
    * @param sessions - the session wire face (captured from the plugin's root connection).
@@ -57,14 +60,16 @@ export class ModelDirectory {
    * @param projected - durable model selection projected from Session history.
    */
   constructor(
-    private readonly sessions: Pick<TypertClientRemote['session'], 'selectModel'>,
+    private readonly sessions: Pick<TypertClientRemote['session'], 'selectModel' | 'setStepPace'>,
     private readonly sessionId: SessionId,
     private readonly available: () => boolean,
     private readonly catalog: ModelCatalogDirectory,
     private readonly projected: ObservableSnapshot<unknown>,
+    private readonly paceProjected: ObservableSnapshot<unknown>,
   ) {
     this.unsubscribeCatalog = catalog.store.subscribe(() => { this.syncInputs() })
     this.unsubscribeSelection = projected.subscribe(() => { this.syncInputs() })
+    this.unsubscribePace = paceProjected.subscribe(() => { this.syncInputs() })
     this.syncInputs()
   }
 
@@ -113,6 +118,20 @@ export class ModelDirectory {
   }
 
   /**
+   * Persist this Session's minimum interval between model request dispatches.
+   * The durable projection updates the shared pace; failures throw so the seat's own retry surface engages.
+   * @param ms - whole milliseconds between dispatches; 0 disables pacing.
+   */
+  async setPace(ms: number): Promise<void> {
+    this.assertAvailable()
+    const result = await this.sessions.setStepPace({ sessionId: this.sessionId, ms })
+    if (!result.ok) {
+      throw new Error(`session.setStepPace failed: ${result.error.code}: ${result.error.message}`)
+    }
+    this.syncInputs()
+  }
+
+  /**
    * Invalidate an in-flight selection response from the previous Host generation.
    */
   resetConnected(): void {
@@ -129,6 +148,7 @@ export class ModelDirectory {
   dispose(): void {
     this.disposed = true
     this.unsubscribeSelection()
+    this.unsubscribePace()
     this.unsubscribeCatalog()
   }
 
@@ -159,6 +179,7 @@ export class ModelDirectory {
         failures: [],
         status: catalog.status === 'error' ? 'error' : 'loading',
         error: catalog.error,
+        pace: stepPaceProjection(this.paceProjected.getSnapshot()),
       })
       return
     }
@@ -173,10 +194,16 @@ export class ModelDirectory {
         ? 'selecting'
         : 'ready',
       error: null,
+      pace: stepPaceProjection(this.paceProjected.getSnapshot()),
     })
   }
 }
 
 function modelSelectionProjection(value: unknown): ModelSelectionProjection | undefined {
   return value === undefined ? undefined : value as ModelSelectionProjection
+}
+
+function stepPaceProjection(value: unknown): StepPaceProjectionState | null {
+  if (value === undefined || value === null) return null
+  return value as StepPaceProjectionState
 }

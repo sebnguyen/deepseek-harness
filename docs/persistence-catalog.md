@@ -590,7 +590,7 @@ Source: [`packages/llm/llm-retry/src/types.ts:11`](../packages/llm/llm-retry/src
 'model/selection': ModelSelection
 ```
 
-Source: [`packages/api/session-controller/src/types.ts:40`](../packages/api/session-controller/src/types.ts)
+Source: [`packages/api/session-controller/src/types.ts:44`](../packages/api/session-controller/src/types.ts)
 
 ### `permission/*`
 
@@ -829,6 +829,24 @@ Source: [`packages/core/session/src/types.ts:318`](../packages/core/session/src/
 ```
 
 Source: [`packages/core/session/src/types.ts:316`](../packages/core/session/src/types.ts)
+
+### `step-pace/*`
+
+<a id="step-pace--log-only"></a>
+
+#### `step-pace` — log-only
+
+```ts persistence-catalog
+/**
+ * Selected minimum interval between this Session's model request
+ * dispatches, letting the previous prefix reach the provider's disk cache
+ * before the next request. Log-only: it never enters derived model history
+ * and never alters request bytes.
+ */
+'step-pace': StepPace
+```
+
+Source: [`packages/api/session-controller/src/types.ts:51`](../packages/api/session-controller/src/types.ts)
 
 ### `subagent/*`
 

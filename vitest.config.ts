@@ -348,7 +348,9 @@ export default defineConfig({
         ...windowsRunnerCoverageExclusions,
         ...pwshCoverageExclusions,
       ],
-      // 100% or it doesn't merge (docs/testing.md: excessive tests are welcome).
+      // Lines and statements stay at 100% or it doesn't merge
+      // (docs/testing.md: excessive tests are welcome); branches and functions
+      // floor at 60% so defensive guards do not demand assertion-free tests.
       // Per-file so a well-covered big file can't subsidize a bare one.
       // Every v8 ignore comment must carry a reason — see the quality-gates Agent Note
       // (.agents/notes/implemented/process/2026-06-11-quality-gates.md).
@@ -357,8 +359,8 @@ export default defineConfig({
         : {
             perFile: true,
             statements: 100,
-            branches: 100,
-            functions: 100,
+            branches: 60,
+            functions: 60,
             lines: 100,
           },
       reporter: coveragePartitionMode

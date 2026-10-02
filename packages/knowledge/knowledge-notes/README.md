@@ -17,6 +17,7 @@ The store is per-machine local state and is not session state: the pointer, the 
 - [Model experience](#model-experience)
 - [Store layout](#store-layout)
 - [Freshness](#freshness)
+- [Dev Note](#dev-note)
 
 ## Use this package
 
@@ -47,3 +48,13 @@ One file per note at `<home>/knowledge/notes/<absolute-target-path>.json`, the l
 ## Freshness
 
 `upsert_note` hashes the target's content after normalizing line endings, trailing whitespace, and blank-line runs — the two meaning-preserving changes, a formatter run and an editor round-trip — and nothing else. A note is live when the hash matches, stale when the target changed, and orphaned when the target is gone. Normalization is deliberately tier-1 only: an identifier is semantic content. Renames are not normalized; a moved file reports orphaned.
+
+<a id="dev-note"></a>
+## Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+The store lives under the harness home and writes through `node:fs` directly: it is harness state outside the session sandbox and outside the repository, so no tool surface or gate ever sees note paths except the opaque pointer lines.
+
+</details>

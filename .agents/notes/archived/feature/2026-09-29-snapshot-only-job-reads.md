@@ -3,8 +3,6 @@
 Status: implemented
 Archived: 2026-09-30
 
-English | [中文](2026-09-29-snapshot-only-job-reads.zh.md)
-
 ## Problem
 
 `job_output` accepted `wait: true` with an optional `timeout_ms`, blocking the step until the job settled or a deadline expired (`waitTimeoutMs`, capped by `maxWaitTimeoutMs`). That parameter existed because a blocking read was once the only way for a model to learn a background job had finished. The completion notice superseded it: [background job completion wakes an idle owner](2026-08-11-background-job-completion-wakes-an-idle-owner.md) made settlement reach the owning agent as an in-session message, and the surrounding guidance was reduced to asking the model to use the blocking read "only when you are genuinely blocked" — a judgment call the mechanism imposed on its caller rather than answering itself.

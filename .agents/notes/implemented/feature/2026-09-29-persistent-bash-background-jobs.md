@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-29-persistent-bash-background-jobs.zh.md)
-
 ## Problem
 
 The persistent `bash` tool serializes every command through one PTY per agent and closes that shell at the per-command deadline. A long build therefore has two bad outcomes: every later `bash` call queues behind it, or the deadline fires and the work is destroyed with its shell. The one-shot `tool-bash` offers `run_in_background` over pipes, but the persistent tool — the tool whose whole point is shell state — had no path into the `ctx.jobs` runtime that already owns completion notices, snapshot output reads, and the Web job surface.

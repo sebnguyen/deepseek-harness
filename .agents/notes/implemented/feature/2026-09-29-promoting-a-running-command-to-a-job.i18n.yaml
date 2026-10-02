@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-29-promoting-a-running-command-to-a-job.md
-2026-09-29-promoting-a-running-command-to-a-job.md: 5766e834db4e95b00d94df5f5dbd87bb57a6bd1f
-2026-09-29-promoting-a-running-command-to-a-job.zh.md: d3ba42e1a2da487ebc89ce442312addc12446182

@@ -5,8 +5,6 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-activity
 
-English | [中文](README.zh.md)
-
 ## Summary
 
 This package renders the background-activity surface of the Web GUI: a chip docked above the composer that appears while the session owns at least one background item, and a drawer that slides up in normal flow beneath the composer chip inside the sticky seat, whose pinned bottom lifts the chip and input card above the fixed-height pane in both directions; the detail pane tails the selected job's output lines live. One row model joins the session's mirrored jobs with its direct subagent descendants; the tree splits live rows from an archive, and the detail pane shows a job's outcome text or an opening into a subagent's full session view. Every fact arrives through the Session Controller mirrors — `jobsBySession`, `subagentsByParent`, and the session summaries — and the two injected callbacks route through the sessions service's catalog verbs, so the plugin issues no RPC of its own. The model's own view of the same jobs belongs to `dsh-tool-jobs`; this package is a read-only projection for the human.

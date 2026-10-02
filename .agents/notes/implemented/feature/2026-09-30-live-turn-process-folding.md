@@ -2,8 +2,6 @@
 
 Status: implemented
 
-[中文](2026-09-30-live-turn-process-folding.zh.md) | English
-
 ## Problem
 
 Compact transcript folding applied only to closed Turns: while a Turn ran, every Context injection, Think, Tool, and intermediate Assistant row rendered fully expanded until `turn/end`, so a long-running agent turn flooded the reading surface with process material the finished-Turn design already treats as secondary. The completed-Turn disclosure also purged its folded detail bodies from the DOM (DisclosureRow unmounted closed children), which silently removed folded reasoning and context text from browser find.

@@ -1,7 +1,5 @@
 # Filesystem
 
-English | [中文](filesystem.zh.md)
-
 The optional filesystem capability has four parts: [dsh-fs](../../packages/fs/fs) owns `ctx.fs` and atomic text operations with optional guards, [dsh-fs-local](../../packages/fs/fs-local) implements local disk, [dsh-fs-observation-policy](../../packages/fs/fs-observation-policy) records observed presence or absence and adds freshness rules through events rather than a service, and [dsh-tool-fs](../../packages/fs/tool-fs) directly executes model-facing read and unified write calls and renders windows. It is outside the agent-loop spine; alternate backends do not change policy or tool schemas.
 
 `dsh-fs-observation-policy` is optional. Without it, `dsh-tool-fs` applies its own default gate over the `fs/*` events: content writes over an unread existing file need the explicit overwrite flag, and every content or program commit carries an observed or fresh version basis. The policy plugin changes operations only by deciding the `fs/write-intent` waterfall with its stricter read-before-mutation flavor. Removing it does not break the tool because the tool calls `ctx.fs` and dispatches events; it does not call policy methods.
@@ -262,6 +260,7 @@ type FsErrorCode =
   | 'FS_IO_ERROR'
   | 'FS_STALE_VERSION'
   | 'FS_NOT_OBSERVED'
+  | 'FS_OVERWRITE_DENIED'
   | 'FS_AMBIGUOUS_EDIT'
   | 'FS_EDIT_NOT_FOUND'
   | 'FS_ABORTED'

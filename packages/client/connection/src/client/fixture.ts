@@ -311,6 +311,7 @@ interface FixtureSessionApi {
     readonly model: string
     readonly reasoningEffort?: string
   }): Promise<ConnectionRpcResult<unknown>>
+  setStepPace(request: { readonly sessionId: SessionId; readonly ms: number }): Promise<ConnectionRpcResult<unknown>>
   prompt(request: {
     readonly requestId: string
     readonly sessionId: SessionId
@@ -1342,6 +1343,7 @@ function contextPressureOf(
 function projectionValuesOf(log: readonly SessionEvent[]): Record<string, unknown> {
   const values: Record<string, unknown> = {}
   values['modelSelection'] = modelSelectionProjectionOf(log)
+  values['stepPace'] = stepPaceProjectionOf(log)
   const titleEvent = log.findLast(item => (item as { type: string }).type === 'session/title')
   if (titleEvent !== undefined) {
     values['title'] = (titleEvent as unknown as { data: { title: string } }).data.title
@@ -1409,6 +1411,23 @@ function sameModelSelection(left: ModelSelection | null, right: ModelSelection |
     && left.reasoningEffort === right.reasoningEffort)
 }
 
+function stepPaceProjectionOf(log: readonly SessionEvent[]): {
+  ms: number | null
+  lastStepStartAt: number | null
+} {
+  let ms: number | null = null
+  let lastStepStartAt: number | null = null
+  for (const event of log) {
+    const type = (event as { type: string }).type
+    if (type === 'step-pace') {
+      ms = (event as unknown as { data: { ms: number } }).data.ms
+    } else if (type === 'step/start') {
+      lastStepStartAt = (event as { time: number }).time
+    }
+  }
+  return { ms, lastStepStartAt }
+}
+
 /** Host parallel: emit one Session control projection frame per key advanced by the event. */
 function projectionFramesOf(
   id: SessionId,
@@ -1417,6 +1436,15 @@ function projectionFramesOf(
 ): FixtureProjectionFrame[] {
   const type = (event as { type: string }).type
   const frames: FixtureProjectionFrame[] = []
+  if (type === 'step-pace' || type === 'step/start') {
+    frames.push({
+      type: 'projection',
+      sessionId: id,
+      key: 'stepPace',
+      value: stepPaceProjectionOf(log),
+      seq: event.seq,
+    })
+  }
   if (type === 'model/selection' || type === 'request/header') {
     frames.push({
       type: 'projection',
@@ -3291,6 +3319,10 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       modelSelections.set(request.sessionId, selected)
       return sessionOk({ selected })
     },
+    setStepPace: (request) => {
+      append(request.sessionId, { type: 'step-pace', data: { ms: request.ms } })
+      return sessionOk({ ms: request.ms })
+    },
     prompt: (request) => {
       const { sessionId: id, mode, content } = request
       const summary = summaryOf(id)
@@ -3955,6 +3987,9 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
         )
         case 'session/selectModel': return sessionApi.selectModel(
           request as Parameters<FixtureSessionApi['selectModel']>[0],
+        )
+        case 'session/setStepPace': return sessionApi.setStepPace(
+          request as Parameters<FixtureSessionApi['setStepPace']>[0],
         )
         case 'session/rename': return sessionApi.rename(
           request as Parameters<FixtureSessionApi['rename']>[0],

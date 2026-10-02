@@ -5,11 +5,9 @@ kind: "package-reference"
 
 # @deepseek-ai/dsh-client-ui-model-selection
 
-English | [中文](README.zh.md)
-
 ## Summary
 
-The Web GUI lets users switch the model, reasoning effort, and sampling temperature for an existing session through the `/model` popup, the composer's model control, and a composer temperature slider. Model surfaces present the same provider-grouped choices; the selected model determines the available effort names and default. Temperature adjusts on a 0.0 to 1.0 slider and persists with the session selection. A complete selection applies to the next request; a running step keeps the model, effort, and temperature it started with. If no adapter can serve the session's route, the composer remains disabled until routing becomes available.
+The Web GUI lets users switch the model, reasoning effort, and sampling temperature for an existing session through the `/model` popup, the composer's model control, and a composer temperature slider, and pace the session's model requests through a composer step-pace slider. Model surfaces present the same provider-grouped choices; the selected model determines the available effort names and default. Temperature adjusts on a 0.0 to 1.0 slider and persists with the session selection. The step-pace slider adjusts the minimum interval between request dispatches from 0 to 10 seconds so the provider has time to persist each request prefix into its disk cache before the next request needs it; 0 disables pacing and is the power-on default for every session. A complete selection applies to the next request; a running step keeps the model, effort, and temperature it started with, while a pace change takes effect on the next step boundary. If no adapter can serve the session's route, the composer remains disabled until routing becomes available.
 
 ## Table of Contents
 
@@ -43,7 +41,7 @@ When the Host reports that no adapter serves the session's route, this plugin ra
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-Three entries over ONE per-session directory owned by `ModelDirectoryResolver` (`ctx.modelDirectories`): the `/model` popupSelect contribution (registered through `ctx.commandUi`), the composer's named `conversation.input.model` seat, and the `conversation.input.temperature` slider all load the session's advisory directory through `session.models` and submit through `session.selectModel` via the same `ModelDirectory` instance, so a switch made in any entry is what the others show next. Directory loads and selections share a generation counter so an older response never overwrites a newer one; a connection reset drops every resident projection and repulls the Host-restored selection before display. Directories are per-session, resolved lazily, and disposed with the session scope; addressed subagent sessions expose neither entry. Every resident directory refetches directly on forwarded `llm/adapters-updated` and `settings/document-updated` owner events.
+Four entries over ONE per-session directory owned by `ModelDirectoryResolver` (`ctx.modelDirectories`): the `/model` popupSelect contribution (registered through `ctx.commandUi`), the composer's named `conversation.input.model` seat, the `conversation.input.temperature` slider, and the `conversation.input.stepPace` slider all load the session's advisory directory through `session.modelCatalog` and submit through `session.selectModel` or `session.setStepPace` via the same `ModelDirectory` instance, so a switch made in any entry is what the others show next. Selections and the pace persist on durable Session projections; the directory folds them from the log and the Host pushes fresh projection faces, including across connection resets which drop every resident projection and repull before display. Directory loads and selections share a generation counter so an older response never overwrites a newer one. Directories are per-session, resolved lazily, and disposed with the session scope; addressed subagent sessions expose neither entry. Every resident directory refetches directly on forwarded `llm/adapters-updated` and `settings/document-updated` owner events.
 
 </details>
 

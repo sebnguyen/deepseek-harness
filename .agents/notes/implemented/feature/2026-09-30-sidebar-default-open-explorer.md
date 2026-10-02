@@ -2,8 +2,6 @@
 
 Status: implemented
 
-English | [中文](2026-09-30-sidebar-default-open-explorer.zh.md)
-
 ## Problem
 
 The right Sidebar started collapsed behind a conversation-header button, and its file tree lived only in the `files` page tab. Reaching a workspace's files therefore took two gestures every session — open the panel, then open Files — and an opened preview sat beside the tree only while the Files tab stayed open: opening a file from the tree added a tab that competed with the very navigator that opened it. The collapsed default also meant the panel's content was invisible until a user discovered the header button.

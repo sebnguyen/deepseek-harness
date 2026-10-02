@@ -1,7 +1,5 @@
 # Post-mortem 0005: `test:snapshot` red after unmounting glob/grep without re-recording
 
-English | [中文](0005-snapshot-red-after-grep-glob-unmount.zh.md)
-
 Status: open
 
 ## Executive summary

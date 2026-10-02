@@ -1,7 +1,5 @@
 # Sessions
 
-English | [中文](session.zh.md)
-
 The in-memory, event-sourced model of [dsh-session](../../packages/core/session). A `Session` is an **append-only log** of typed `SessionEvent`s — the single source of truth for an agent's whole interaction history. The LLM message history is *derived* from the log, never stored separately; replay is re-derivation from the same events. How the log is made **durable** (the persistence seam, backends, crash recovery) is the sibling concern on [persistence.md](persistence.md).
 
 Source: [`packages/core/session/src/types.ts`](../../packages/core/session/src/types.ts)
@@ -133,6 +131,15 @@ interface SessionEventMap {
    * call's capability, not this snapshot from an earlier request.
    */
   'request/context': RequestContext
+  /**
+   * The exact serialized body one adapter handed to its transport, appended
+   * immediately before dispatch. It is log-only and contributes no derived
+   * history; it exists so a provider request can be diagnosed after the fact.
+   * The adapter reports it, not the loop, because only the adapter holds the
+   * completed body — provider extension fields and resolved image references
+   * are merged after the loop's request is frozen.
+   */
+  'request/wire': RequestWireRecord
   /**
    * Marks the end of a constructor seed. Events before it have smaller seq
    * values and came from the seed (resume, fork, or replay); this lifecycle
@@ -747,6 +754,13 @@ inspect( sessionId: SessionId, signal?: AbortSignal, ): Promise<SessionInspectio
  * @returns the normalized selection installed for the Session.
  */
 @Remote('selectModel') selectModel(request: SessionSelectModelRequest): Promise<SessionSelectModelValue>
+
+/**
+ * Persist one Session-local minimum interval between model request dispatches.
+ * @param request - Session identity and selected pace in whole milliseconds.
+ * @returns the installed pace.
+ */
+@Remote('setStepPace') setStepPace(request: SessionSetStepPaceRequest): Promise<SessionSetStepPaceValue>
 
 /**
  * Describe every currently routable model for Host-generation selectors.

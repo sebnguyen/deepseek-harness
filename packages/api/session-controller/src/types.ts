@@ -20,6 +20,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     imageLimits: null
     /** Durable model selection already used by a request and still pending for a later request. */
     modelSelection: ModelSelectionProjectionState
+    /** Selected request-dispatch pacing and the latest step dispatch time. */
+    stepPace: StepPaceProjectionState
   }
   interface SessionProjectionMap {
     /** Persisted facts used to summarize a Session without activating it. */
@@ -28,6 +30,8 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
     imageLimits: ImageAttachmentLimits
     /** Durable model selection already used and selected for the next request. */
     modelSelection: ModelSelectionProjection
+    /** Selected request-dispatch pacing and the latest step dispatch time. */
+    stepPace: StepPaceProjectionState
   }
 }
 
@@ -38,6 +42,13 @@ declare module '@deepseek-ai/dsh-session/types' {
      * assembly. Log-only: it never enters derived model history.
      */
     'model/selection': ModelSelection
+    /**
+     * Selected minimum interval between this Session's model request
+     * dispatches, letting the previous prefix reach the provider's disk cache
+     * before the next request. Log-only: it never enters derived model history
+     * and never alters request bytes.
+     */
+    'step-pace': StepPace
   }
 }
 
@@ -88,6 +99,20 @@ export interface ModelSelection {
   readonly model: string
   readonly reasoningEffort?: string
   readonly temperature?: number
+}
+
+/** One Session's selected minimum interval between model request dispatches. */
+export interface StepPace {
+  /** Minimum interval in whole milliseconds, 0 to disable pacing. */
+  readonly ms: number
+}
+
+/** Host and client fold state for Session step pacing. */
+export interface StepPaceProjectionState {
+  /** Selected minimum interval, or null before any selection. */
+  readonly ms: number | null
+  /** `time` of the latest `step/start`, or null before the first step. */
+  readonly lastStepStartAt: number | null
 }
 
 /** Host fold state for durable model selection. */
@@ -291,6 +316,17 @@ export interface SessionSelectModelValue {
 export interface SessionRenameRequest {
   readonly sessionId: SessionId
   readonly title: string
+}
+
+/** Set one Session's step pace. */
+export interface SessionSetStepPaceRequest {
+  readonly sessionId: SessionId
+  readonly ms: number
+}
+
+/** The installed step pace. */
+export interface SessionSetStepPaceValue {
+  readonly ms: number
 }
 
 /** Normalized title and the durable event position that committed it. */

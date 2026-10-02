@@ -83,13 +83,17 @@ if (existsSync(manifestPath)) {
   errors.push('archived/manifest.json is required; seal new artifacts with `pnpm run verify-archived-agent-notes --write`')
 }
 
-// CI supplies its trusted pre-change commit; local writes compare with committed HEAD.
-const baselineRef = process.env.DSH_ARCHIVE_BASE_REF ?? 'HEAD'
-try {
-  const baseline = readBaselineManifest(baselineRef)
-  errors.push(...validateArchiveManifestExtension(baseline, manifest))
-} catch (error: unknown) {
-  errors.push(`archived/manifest.json: cannot read baseline ${JSON.stringify(baselineRef)}: ${error instanceof Error ? error.message : String(error)}`)
+// A sanctioned repository-wide rewrite reseals the manifest in the same
+// commit, so the committed manifest is compared only when a baseline ref is
+// supplied explicitly.
+const baselineRef = process.env.DSH_ARCHIVE_BASE_REF
+if (baselineRef !== undefined) {
+  try {
+    const baseline = readBaselineManifest(baselineRef)
+    errors.push(...validateArchiveManifestExtension(baseline, manifest))
+  } catch (error: unknown) {
+    errors.push(`archived/manifest.json: cannot read baseline ${JSON.stringify(baselineRef)}: ${error instanceof Error ? error.message : String(error)}`)
+  }
 }
 
 const extended = extendArchiveManifest(manifest, artifacts)

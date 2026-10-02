@@ -522,6 +522,7 @@ export const InputBar = memo(function InputBar({
               : renderSlot('conversation.input.right', {})}
             {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
             {sessionId === undefined ? null : renderSlot('conversation.input.temperature', { locked })}
+            {sessionId === undefined ? null : renderSlot('conversation.input.stepPace', { locked })}
             <ContextMeter useProjection={useProjection} t={t} />
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500} disabled={stop === undefined}>
