@@ -7,7 +7,7 @@ kind: "package-group"
 
 ## Summary
 
-The `guard/` group keeps the agent loop productive by watching for common failure patterns. `repeat-tool-reminder` notices when the model repeats the exact same tool call and reminds it to change approach or finish, so a stuck loop stops burning time and tokens. `timeout-policy` puts a time limit on tool calls that declare one, so a hung call returns a clear timed-out error to the model instead of stalling the session. `staged-escalation` names an explore-then-act phase split in every turn and denies act-stage tools at the decision point until turn-local evidence lands, so a turn cannot spend its writes on unverified premises. `delegation-cap` denies delegation-tool starts beyond a per-turn cap, so spawning sprees collapse into todo items. The first three ship enabled in the `dsh` base bundle; a composition can tune or remove them, and can add the delegation cap wherever spawns should stay bounded per turn.
+The `guard/` group keeps the agent loop productive by watching for common failure patterns. `repeat-tool-reminder` notices when the model repeats the exact same tool call and reminds it to change approach or finish, so a stuck loop stops burning time and tokens. `timeout-policy` puts a time limit on tool calls that declare one, so a hung call returns a clear timed-out error to the model instead of stalling the session. `staged-escalation` names an explore-then-act phase split in every turn and denies act-stage tools until `request_escalation` crosses; that call grants immediately, so the agent can enter act at any point in the turn. `delegation-cap` denies delegation-tool starts beyond a per-turn cap, so spawning sprees collapse into todo items. The first three ship enabled in the `dsh` base bundle; a composition can tune or remove them, and can add the delegation cap wherever spawns should stay bounded per turn.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ The plugins each cover one pattern; each README below explains when to keep, tun
 | Package | What it provides |
 |---|---|
 | [`repeat-tool-reminder/`](repeat-tool-reminder/README.md) | Reminds the model when it repeats the same tool call, so it changes approach or finishes |
-| [`staged-escalation/`](staged-escalation/README.md) | Per-turn explore-then-act gate: denies act tools with one-line guidance until evidence lands, clamps the fence narrow-only |
+| [`staged-escalation/`](staged-escalation/README.md) | Per-turn explore-then-act gate: denies act tools until `request_escalation`, which grants on the call, and clamps the fence narrow-only |
 | [`timeout-policy/`](timeout-policy/README.md) | Times out tool calls that declare a limit, so the model gets a clear error instead of waiting forever |
 | [`delegation-cap/`](delegation-cap/README.md) | Denies delegation-tool starts beyond a per-turn cap, so spawning sprees collapse into todo items |
 

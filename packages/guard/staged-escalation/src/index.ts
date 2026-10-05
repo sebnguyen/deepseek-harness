@@ -1,12 +1,11 @@
 /**
  * Per-turn staged escalation: an explore-then-act gate that denies act-stage
  * tools (never hides them, keeping the tool catalog and prompt cache clean)
- * until `request_escalation` crosses on logged lower-stage evidence, clamps
- * the sandbox fence narrow-only while locked, and offers
- * `request_escalation` as the affirmative crossing. The granted stage is a
+ * until `request_escalation` crosses. The tool returns that grant itself and
+ * does not ask the approval seam, so a `never` policy cannot decline it, and
+ * clamps the sandbox fence narrow-only while locked. The granted stage is a
  * pure fold of this turn's session log, so every user message re-arms the
- * ladder and a resumed session re-derives it with no hidden state; explore
- * evidence feeds the mechanical answerer, never the fold.
+ * ladder and a resumed session re-derives it with no hidden state.
  *
  * The step-1 reminder and promotion replies render each stage's configured
  * `description` verbatim under a `You are in the "<name>" stage.` header, so
@@ -26,7 +25,7 @@ import type { Session } from '@deepseek-ai/dsh-session'
 import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent-in-process-driver'
 import '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-user-approval'
+import type { } from '@deepseek-ai/dsh-user-approval'
 
 /** One rung of the escalation ladder; the array index is the tier. */
 export interface Stage {
@@ -49,7 +48,7 @@ export interface Config {
 }
 
 const DEFAULT_DESCRIPTIONS = {
-  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, the shell runs read-only for searches and listings, web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. You can use request_escalation with the stage and a justification when you are ready to move on to the next stage after exploring, or where the evidence genuinely cannot precede the action.",
+  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, the shell runs read-only for searches and listings, the `gh` CLI rides that shell for GitHub-side read-only lookups (`gh pr view`, `gh issue list`, `gh run view`), web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. Call request_escalation with the stage and a justification whenever you are ready to move on; it grants on the call itself, and explore evidence is not required.",
   act: 'The act stage is where confidence gets spent: create, modify, execute, and reach the network — act on what exploration pinned down, on premises now read, searched, and answered rather than guessed. Stages last this turn only; your next message re-arms explore.',
 }
 
@@ -74,13 +73,17 @@ export const Config: z<Config> = z.object({
       name: 'act',
       description: DEFAULT_DESCRIPTIONS.act,
       allow: ['*'],
-      sandbox: 'workspace-write',
+      // The act fence resolves at the deployment's standing mode: the
+      // narrow-only clamp keeps this topmost entry at or below whatever
+      // policy the user configured, so permissive deployments act at full
+      // width while tighter ones stay at their own ceiling.
+      sandbox: 'danger-full-access',
     },
   ]),
   turnStartReminder: z.boolean().default(true),
 })
 
-export const CORE_RULE = 'Core Rule: Explore Before You Act - A guess about the workspace is cheap to verify and expensive to act on: the unknowns a turn ignores do not vanish, they only move into failed runs, overwritten files, and replies the user must correct, while a read or a question settles them at the price of tokens. The deployment therefore names two phases in every turn, explore then act: explorer subagents bring broad ground truth in one round trip, reads, grep, and glob pin the exact files a change will touch, searches fetch what the repository does not hold, and ask_user_question turns an ambiguous request into a specification — so the writing and running that follow carry confidence instead of guesses. An act call the turn has not crossed to returns a single-line staged Error naming the explore moves that would justify it, and one request_escalation call crosses with its stage and reason — granted mechanically once the evidence lands, answered by a judge or human where it genuinely cannot precede the act — so every crossing stays visible; the question re-arms with each user message, because each new task brings its own unverified premises. Example: an ambiguous numeric asks one ask_user_question rather than receiving one invented file, and the first write of a file the turn just read rides one visible request_escalation call.'
+export const CORE_RULE = 'Core Rule: Explore Before You Act - A guess about the workspace is cheap to verify and expensive to act on: the unknowns a turn ignores do not vanish, they only move into failed runs, overwritten files, and replies the user must correct, while a read or a question settles them at the price of tokens. The deployment therefore names two phases in every turn, explore then act: explorer subagents bring broad ground truth in one round trip, reads, grep, and glob pin the exact files a change will touch, searches fetch what the repository does not hold, and ask_user_question turns an ambiguous request into a specification — so the writing and running that follow carry confidence instead of guesses. An act call the turn has not crossed to returns a single-line staged Error, and one request_escalation call crosses with its stage and reason — granted on the call itself at any point in the turn, with no explore evidence required — so every crossing stays visible; the question re-arms with each user message, because each new task brings its own unverified premises. Example: an ambiguous numeric asks one ask_user_question rather than receiving one invented file, and the first write of a file the turn just read rides one visible request_escalation call.'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -117,15 +120,6 @@ export function grantText(stage: Stage): string {
 }
 
 /**
- * The refusal `request_escalation` throws when no answerer granted the stage.
- * @param stageName - the requested stage.
- * @returns the decline text.
- */
-export function declineText(stageName: string): string {
-  return `[staging: escalation to "${stageName}" declined — the turn shows no explore evidence, the mechanical answerer declined, and no judge or human answerer overrode.]`
-}
-
-/**
  * Render the step-1 reminder: header, the current stage's `description`
  * verbatim, the locked next stage, and one mechanics line.
  * @param current - the stage the turn sits in.
@@ -133,7 +127,7 @@ export function declineText(stageName: string): string {
  * @returns the reminder body.
  */
 export function reminderText(current: Stage, locked: Stage): string {
-  return `[staging] You are in the "${current.name}" stage.\n\n${current.description}\n\nLocked next: "${locked.name}" — ${locked.description}\nLater-stage tools return a staged Error until request_escalation crosses on this turn's logged evidence; the file and shell fences hold at ${current.sandbox}; the stages restart with each user message.`
+  return `[staging] You are in the "${current.name}" stage.\n\n${current.description}\n\nLocked next: "${locked.name}" — ${locked.description}\nLater-stage tools return a staged Error until request_escalation crosses; call it whenever you are ready, with no explore evidence required. The file and shell fences hold at ${current.sandbox}; the stages restart with each user message.`
 }
 
 /**
@@ -153,38 +147,6 @@ const GRANT_HEADER = /^\[staging\] You are in the "([^"]+)" stage\./
 
 /** The reason line `approveEscalation` stamps onto bash escalation requests. */
 const BASH_ESCALATION_MODE = /^escalate sandbox to (read-only|workspace-write|danger-full-access):/
-
-/**
- * The tier the turn's logged explore evidence supports: any successful
- * turn-local call lifts it one tier above that call's own tier. Feeds the
- * mechanical escalation answerer; the gate itself unfolds only grants.
- * @param stages - the validated ladder.
- * @param session - the calling session to fold.
- * @returns the tier the turn's evidence satisfies.
- */
-export function evidenceStage(stages: readonly Stage[], session: Session): number {
-  let evidence = 0
-  const pending = new Map<ToolCallId, string>()
-  for (const event of session.snapshotEvents()) {
-    if (event.type === 'turn/start') {
-      evidence = 0
-      pending.clear()
-      continue
-    }
-    if (event.type === 'tool/call') {
-      pending.set(event.data.callId, event.data.name)
-      continue
-    }
-    if (event.type !== 'tool/result') continue
-    const block = event.data.message.content[0]
-    const name = pending.get(block.toolCallId)
-    pending.delete(block.toolCallId)
-    if (name === undefined || name === 'request_escalation' || block.isError === true) continue
-    const tier = stageOfTool(stages, name)
-    if (tier >= 0 && tier + 1 > evidence) evidence = Math.min(stages.length - 1, tier + 1)
-  }
-  return evidence
-}
 
 /**
  * The current stage as a pure fold of the session log since the last
@@ -252,8 +214,8 @@ export const inject = ['tools', 'systemPrompt']
 
 /**
  * Compose the gate: the pre-execute denial, the step-1 reminder, the
- * narrow-only sandbox clamp, the `request_escalation` tool with its
- * mechanical approval answerer, and the static Core Rule section.
+ * narrow-only sandbox clamp, the `request_escalation` tool, and the static
+ * Core Rule section.
  * @param ctx - the cordis context.
  * @param config - the stage ladder and reminder switch.
  */
@@ -298,16 +260,7 @@ export function apply(ctx: Context, config: Config): void {
     return MODE_RANK[stageMode] < MODE_RANK[resolved.mode] ? { ...resolved, mode: stageMode } : resolved
   })
 
-  const pendingEscalations = new Map<ToolCallId, number>()
   ctx.on('approval/request', async (req, next) => {
-    const callId = req.callId
-    if (callId !== undefined) {
-      const pending = pendingEscalations.get(callId)
-      if (pending !== undefined) {
-        pendingEscalations.delete(callId)
-        return evidenceStage(stages, req.agent.session) >= pending ? 'allowed-once' : next()
-      }
-    }
     // Mechanical answerer for the shared `sandbox_permissions` path: a
     // widening ask is allowed-once exactly when the turn already carries an
     // escalation grant whose sandbox admits the requested mode, so the
@@ -320,10 +273,10 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.tools.register(defineTool({
     name: 'request_escalation',
-    description: 'Cross to a later stage of this turn\'s staged escalation with a justification, when evidence genuinely cannot precede the act.',
+    description: 'Cross to a later stage of this turn whenever you are ready. Pass the stage name and a justification. The call grants immediately; explore evidence is not required.',
     parameters: {
       stage: { type: 'string', required: true, enum: stages.map(stage => stage.name), description: 'The stage to proceed to.' },
-      justification: { type: 'string', required: true, description: 'Why the act cannot wait for explore evidence this turn.' },
+      justification: { type: 'string', required: true, description: 'Why you are crossing to this stage.' },
     },
     output: {
       schema: {
@@ -333,6 +286,7 @@ export function apply(ctx: Context, config: Config): void {
       },
       render: (_args, value) => [{ type: 'text', text: value.text }],
     },
+    // oxlint-disable-next-line typescript/require-await -- the async slot keeps validation failures rejections, not synchronous throws.
     async execute(args, exec) {
       if (exec.agent === undefined) throw new Error('request_escalation requires an owning agent session')
       const requested = stages.findIndex(stage => stage.name === args.stage)
@@ -341,17 +295,6 @@ export function apply(ctx: Context, config: Config): void {
       if (current >= requested) {
         return { text: `Already at or past "${args.stage}" this turn.` }
       }
-      const approver = ctx.get('approval')
-      if (approver === undefined) throw new Error(declineText(args.stage))
-      pendingEscalations.set(exec.callId, requested)
-      const outcome = await approver.request({
-        agent: exec.agent,
-        toolName: 'request_escalation',
-        callId: exec.callId,
-        reason: `escalate to "${args.stage}": ${args.justification}`,
-      })
-      pendingEscalations.delete(exec.callId)
-      if (outcome !== 'allowed-once') throw new Error(declineText(args.stage))
       return { text: grantText(stages[requested] as Stage) }
     },
   }))

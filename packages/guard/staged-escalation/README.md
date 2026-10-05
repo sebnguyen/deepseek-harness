@@ -1,5 +1,5 @@
 ---
-description: "Per-turn staged escalation: an explore-then-act gate that denies act tools until turn-local evidence, with a narrow-only sandbox clamp and a request_escalation crossing."
+description: "Per-turn staged escalation: an explore-then-act gate that denies act tools until request_escalation, which grants on the call itself, with a narrow-only sandbox clamp."
 kind: "package"
 ---
 
@@ -7,7 +7,7 @@ kind: "package"
 
 ## Summary
 
-Staged escalation names two phases in every turn — explore then act — and enforces the border with friction, not security: act-tier tools return a staged Error (the catalog and prompt cache are untouched — deny, never hide) until `request_escalation` crosses on logged explore evidence, and the `sandbox-policy/resolve` waterfall clamps the file and shell fences narrow-only while locked. `request_escalation` is the one crossing, visible on every act turn: it routes through the shared approval seam, and the plugin's mechanical answerer grants when the turn's explore evidence satisfies the requested stage, so the articulation costs one tool call and no human round trip on the ordinary path. The granted stage is a pure fold of the turn's session log, so each user message re-arms the ladder and a resumed session re-derives it with no hidden state.
+Staged escalation names two phases in every turn — explore then act — and enforces the border with friction, not security: act-tier tools return a staged Error (the catalog and prompt cache are untouched — deny, never hide) until `request_escalation` crosses, and the `sandbox-policy/resolve` waterfall clamps the file and shell fences narrow-only while locked. `request_escalation` is the one crossing, visible on every act turn: the tool returns the grant itself and does not ask the approval seam, so a `never` approval policy cannot decline it, and no explore evidence is required. The granted stage is a pure fold of the turn's session log, so each user message re-arms the ladder and a resumed session re-derives it with no hidden state.
 
 ## Contents
 
@@ -25,9 +25,9 @@ The tool catalog is byte-identical across lock, unlock, and restart: the gate de
 <a id="the-stage-ladder"></a>
 ## The stage ladder
 
-`Config.stages` is the ladder; the array index is the tier. Each stage names its `allow` tools (a lone `'*'` on the last stage admits every unlisted and future tool), its widest `sandbox` mode, a `name`, and the rationale-led `description` paragraph the reminder injects verbatim. The shipped default is `explore` (probes, reads, shell searches, questions; `read-only` fence, so the shell lists and searches but cannot mutate) then `act` (`'*'`; `workspace-write`). Validation throws at load on an empty ladder, a duplicated or empty name, an empty description, an empty stage, or a `'*'` anywhere but alone on the last stage. `turnStartReminder: false` removes the step-1 reminder for deployments that rely on denials alone.
+`Config.stages` is the ladder; the array index is the tier. Each stage names its `allow` tools (a lone `'*'` on the last stage admits every unlisted and future tool), its widest `sandbox` mode, a `name`, and the rationale-led `description` paragraph the reminder injects verbatim. The shipped default is `explore` (probes, reads, shell searches, `gh` GitHub-side lookups, questions; `read-only` fence, so the shell lists and searches the workspace but cannot mutate it) then `act` (`'*'`; the fence resolves at the deployment's standing mode, because the narrow-only clamp caps the topmost stage entry at the configured policy). Validation throws at load on an empty ladder, a duplicated or empty name, an empty description, an empty stage, or a `'*'` anywhere but alone on the last stage. `turnStartReminder: false` removes the step-1 reminder for deployments that rely on denials alone.
 
 <a id="invariant"></a>
 ## Invariant
 
-This package ships no `./invariant` module and no wiring: the reminder, the denial, the sandbox clamp, and the escalation answerer all read the same two folds over the same session log — `currentStage` (logged grants) for the gate and clamp, `evidenceStage` (successful explore calls) for the mechanical answerer — so there is no second observation whose divergence a runtime check could detect; the cross-seam agreement (pre-execute deny, resolve clamp, answerer grant) is pinned by the behavior specs instead.
+This package ships no `./invariant` module and no wiring: the reminder, the denial, and the sandbox clamp all read `currentStage`, the fold of logged `request_escalation` grants, so there is no second observation whose divergence a runtime check could detect. The tool writes that grant directly; the behavior specs pin the deny, the clamp, and the grant together.

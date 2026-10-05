@@ -200,53 +200,6 @@
       }
     },
     {
-      "name": "abandon_claim",
-      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The claim id, as returned by declare_claim."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why the declared condition was the wrong one."
-          }
-        },
-        "required": [
-          "id",
-          "reason"
-        ]
-      }
-    },
-    {
-      "name": "declare_claim",
-      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
-          },
-          "description": {
-            "type": "string",
-            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
-          },
-          "script": {
-            "type": "string",
-            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
-          }
-        },
-        "required": [
-          "title",
-          "description",
-          "script"
-        ]
-      }
-    },
-    {
       "name": "exit_plan_mode",
       "description": "Use only in plan mode. Present your plan for the user's review and, on approval, leave plan mode. Send the COMPLETE plan as markdown, starting with a # heading that names it. The user may approve (carry out the plan from your next step) or keep planning — their feedback comes back in the tool result; revise and present again.",
       "parameters": {
@@ -293,14 +246,6 @@
             ]
           }
         }
-      }
-    },
-    {
-      "name": "list_claims",
-      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
-      "parameters": {
-        "type": "object",
-        "properties": {}
       }
     },
     {
@@ -356,18 +301,27 @@
       }
     },
     {
-      "name": "run_claim",
-      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
+      "name": "request_escalation",
+      "description": "Cross to a later stage of this turn whenever you are ready. Pass the stage name and a justification. The call grants immediately; explore evidence is not required.",
       "parameters": {
         "type": "object",
         "properties": {
-          "id": {
+          "stage": {
             "type": "string",
-            "description": "The claim id, as returned by declare_claim."
+            "description": "The stage to proceed to.",
+            "enum": [
+              "explore",
+              "act"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Why you are crossing to this stage."
           }
         },
         "required": [
-          "id"
+          "stage",
+          "justification"
         ]
       }
     },

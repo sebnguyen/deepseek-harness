@@ -134,6 +134,7 @@
             contextWindow: 391168
             maxTokens: 32768
             reasoningEfforts:
+              off: none  # explorer children pin reasoningEffort off: wire reasoning_effort none
               low: low
               high: high
               xhigh: xhigh

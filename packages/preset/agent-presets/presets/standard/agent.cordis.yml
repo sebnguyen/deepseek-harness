@@ -315,7 +315,8 @@
           answer in `handoff`.
         agentOptions:
           provider: digitalocean
-          model: glm-5.3-flash
+          model: deepseek-v4.1-flash
+          reasoningEffort: off
 
     # Production dsh does not install these optional providers. Install the
     # matching Bundle in this Profile and restart the Host, then copy this

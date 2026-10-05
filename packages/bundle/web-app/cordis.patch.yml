@@ -354,9 +354,11 @@
       name: '@deepseek-ai/dsh-client-ui-deliverables'
 
     # Claim chip: per-Turn claim status row in the turn-status strip, over the
-    # claim session projection. Remove this entry to turn the surface off.
+    # claim session projection. Disabled with the claim loop; remove this entry
+    # to drop the surface and its patch row entirely.
     - id: ui-claim
       name: '@deepseek-ai/dsh-client-ui-claim'
+      disabled: true
 
 
     - id: ui-workspace

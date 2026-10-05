@@ -8,6 +8,8 @@ Every user turn starts with the full request tool catalog, and the shipped gates
 
 ## Proposal
 
+The evidence precondition on `request_escalation` is reversed by [anytime escalation](../../implemented/simplification/2026-10-05-request-escalation-anytime.md): the mechanical answerer grants the requested stage on the call itself. The ladder, denial, and narrow-only clamp below otherwise still describe the plugin.
+
 Add a plugin `staged-escalation` under `packages/guard/`, shipped enabled in the `dsh-base` bundle so every base-backed profile gates by default whose single configuration value is a `GatedEscalation` ladder: an ordered array where the index is the tier, each record pairs the tool set the tier admits with the sandbox policy the resolver holds while that tier is current, and the plugin compiles the whole ladder into one pinned Core Rule prompt section and exactly four seam injections — a reminder context injection, a model-facing escalation tool, one `tools/pre-execute` listener, and one `'sandbox-policy/resolve'` listener. The gate keys on observed transcript events, so the unlock precondition cannot be faked with a boilerplate justification.
 
 ### The GatedEscalation ladder
@@ -245,7 +247,7 @@ sequenceDiagram
   M->>P: read(src/auth.ts)
   P->>M: allow (stage 0 tools are never denied; fence clamped read-only)
   M->>P: request_escalation(act): the read pinned the file
-  P->>M: grant (mechanical answerer: evidence satisfies stage 1; fence workspace-write)
+  P->>M: grant (mechanical answerer: evidence satisfies stage 1; fence at the standing mode)
   M->>P: write(report.md)
   P->>M: allow; fold at stage 1 for the rest of the turn
   U->>P: turn N+1: turn/start resets the fold, reminder re-arms
@@ -269,11 +271,11 @@ The profile default this proposal ships is two stages — explore, then act — 
           description: |
             The act stage is where confidence gets spent: create, modify, execute, and reach the network — act on what exploration pinned down, on premises now read, searched, and answered rather than guessed. Stages last this turn only; your next message re-arms explore.
           allow: ['*']
-          sandbox: workspace-write             # danger-full-access in permissive profiles
+          sandbox: danger-full-access          # narrow-only clamp resolves the entry at the standing mode; tighter deployments act below it
     turnStartReminder: true
 ```
 
-Stage 0's `description` is the injected reminder body itself: gentle encouragement led by rationale — explorer subagents that make broad recon fast and cheap, the unviable-solution waste argument, the favored probes, and an `Example:` to aid generalization — matching the harness's own [Explore Through Explorers](../../implemented/feature/2026-10-02-explore-through-explorers-core-rule.md) and ask-first rules, so the soft guidance and the hard gate speak with one voice. The trailing `'*'` puts every unlisted and future tool — write, str_replace_editor, run_code, terminal, todo_write — in `act`, so full unlock needs no enumeration and nothing new slips past the gate by being forgotten. The shell itself is a stage-0 probe: `bash` and `pwsh` run in explore under the read-only fence, so `ls`, `grep`, and `rg` succeed while `echo >` fails at the fence — containment, not denial, keeps the explore phase mutation-free. The one exempt call is a schema child's `structured_output` — the child's return statement, not a staged act — so the gate never denies a child its only result channel. The read-only fence during explore still admits every stage-0 activity, including subagent children inheriting the policy; a permissive profile flips only the last stage's `sandbox` entry while the gate itself stays identical. Ladder and reminder flag are validated `Config` fields per the no-hardcoded-tunables convention; deployments that want no gating omit the package from the profile rather than shipping an off switch; a stage `sandbox` entry above the standing mode states an ambition only — the resolver is narrow-only, so it never admits more than the standing policy.
+Stage 0's `description` is the injected reminder body itself: gentle encouragement led by rationale — explorer subagents that make broad recon fast and cheap, the unviable-solution waste argument, the favored probes, and an `Example:` to aid generalization — matching the harness's own [Explore Through Explorers](../../implemented/feature/2026-10-02-explore-through-explorers-core-rule.md) and ask-first rules, so the soft guidance and the hard gate speak with one voice. The trailing `'*'` puts every unlisted and future tool — write, str_replace_editor, run_code, terminal, todo_write — in `act`, so full unlock needs no enumeration and nothing new slips past the gate by being forgotten. The shell itself is a stage-0 probe: `bash` and `pwsh` run in explore under the read-only fence, so `ls`, `grep`, and `rg` succeed while `echo >` fails at the fence — containment, not denial, keeps the explore phase mutation-free. The one exempt call is a schema child's `structured_output` — the child's return statement, not a staged act — so the gate never denies a child its only result channel. The read-only fence during explore still admits every stage-0 activity, including subagent children inheriting the policy; the shipped last stage already sits at the topmost mode, so the act fence resolves at the standing mode and the gate itself stays identical. Ladder and reminder flag are validated `Config` fields per the no-hardcoded-tunables convention; deployments that want no gating omit the package from the profile rather than shipping an off switch; a stage `sandbox` entry above the standing mode states an ambition only — the resolver is narrow-only, so it never admits more than the standing policy.
 
 ### The escalation tool: the affirmative act
 

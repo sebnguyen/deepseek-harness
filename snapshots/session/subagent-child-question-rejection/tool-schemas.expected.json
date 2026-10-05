@@ -200,27 +200,6 @@
       }
     },
     {
-      "name": "abandon_claim",
-      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The claim id, as returned by declare_claim."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why the declared condition was the wrong one."
-          }
-        },
-        "required": [
-          "id",
-          "reason"
-        ]
-      }
-    },
-    {
       "name": "ask_user_question",
       "description": "Ask the user a concise question when you need confirmation, a choice, or missing information before proceeding. Send one or more questions, each with a stable id that will be echoed in the answer.",
       "parameters": {
@@ -300,32 +279,6 @@
         },
         "required": [
           "objective"
-        ]
-      }
-    },
-    {
-      "name": "declare_claim",
-      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
-          },
-          "description": {
-            "type": "string",
-            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
-          },
-          "script": {
-            "type": "string",
-            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
-          }
-        },
-        "required": [
-          "title",
-          "description",
-          "script"
         ]
       }
     },
@@ -435,14 +388,6 @@
       }
     },
     {
-      "name": "list_claims",
-      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
-      "parameters": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
       "name": "ralph",
       "description": "Run a foreground fresh-agent Ralph loop toward one immutable objective. Use only when the direct human explicitly asks for Ralph or fresh-agent iteration. Each round opens a new child with no parent conversation or prior child session; the shared workspace is long-term memory, and only a bounded structured report crosses rounds. The call returns when a worker reports completion or a concrete blocker, or at the round limit. Ordinary long-running same-session work belongs to goal tools.",
       "parameters": {
@@ -495,18 +440,27 @@
       }
     },
     {
-      "name": "run_claim",
-      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
+      "name": "request_escalation",
+      "description": "Cross to a later stage of this turn whenever you are ready. Pass the stage name and a justification. The call grants immediately; explore evidence is not required.",
       "parameters": {
         "type": "object",
         "properties": {
-          "id": {
+          "stage": {
             "type": "string",
-            "description": "The claim id, as returned by declare_claim."
+            "description": "The stage to proceed to.",
+            "enum": [
+              "explore",
+              "act"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Why you are crossing to this stage."
           }
         },
         "required": [
-          "id"
+          "stage",
+          "justification"
         ]
       }
     },

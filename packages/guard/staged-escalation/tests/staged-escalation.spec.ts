@@ -1,7 +1,7 @@
 /**
  * Behavior tests for staged-escalation: the explore-then-act gate denies act
- * tools with the one-line refusal and lifts on turn-local evidence, the
- * reminder injects the configured description at step 1, the
+ * tools with the one-line refusal until request_escalation, which grants on
+ * the call itself, the reminder injects the configured description at step 1, the
  * sandbox-policy seam clamps narrow-only, and load-time misconfiguration
  * fails loud.
  */
@@ -25,7 +25,7 @@ import SubagentRuntime, { type SubagentStartRequest } from '@deepseek-ai/dsh-sub
 import { startInProcessRun, STRUCTURED_OUTPUT_TOOL } from '../../../subagent/subagent-in-process-driver/src/index.ts'
 import { MockAdapter, toolCallResponse, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as StagedEscalation from '../src/index.ts'
-import { currentStage, evidenceStage, grantText, type StagedEscalationSource } from '../src/index.ts'
+import { currentStage, grantText, type StagedEscalationSource } from '../src/index.ts'
 import type { Config, Stage } from '../src/index.ts'
 
 const LADDER: Stage[] = [
@@ -64,12 +64,12 @@ const LADDER3: Stage[] = [
   },
 ]
 
-async function harness(config: Config): Promise<{ ctx: Context; parent: Agent; adapter: MockAdapter }> {
+async function harness(config: Config, options?: { approval?: 'never' }): Promise<{ ctx: Context; parent: Agent; adapter: MockAdapter }> {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(StagedEscalation, config)
-  await ctx.plugin(ApprovalService, {})
+  await ctx.plugin(ApprovalService, options?.approval === 'never' ? { policy: 'never' } : {})
   ctx.tools.register(defineContentToolFixture({
     name: 'read',
     description: 'reader',
@@ -106,9 +106,9 @@ function toolOutcomes(parent: Agent): { isError: boolean; text: string }[] {
 }
 
 describe('staged-escalation gate', () => {
-  it('denies act tools until request_escalation crosses on logged evidence', async () => {
+  it('denies act tools until request_escalation crosses', async () => {
     const { ctx, parent, adapter } = await harness({ stages: LADDER })
-    ;(adapter as unknown as { script: unknown[] }).script = [
+      ; (adapter as unknown as { script: unknown[] }).script = [
       toolCallResponse('c1', 'write', {}),
       toolCallResponse('c2', 'read', {}),
       toolCallResponse('c3', 'request_escalation', { stage: 'act', justification: 'the read pinned the file' }),
@@ -123,22 +123,39 @@ describe('staged-escalation gate', () => {
     expect(outcomes[2]?.text ?? '').toContain('You are in the "act" stage.')
   })
 
-  it('declines an evidence-less request_escalation when no answerer grants', async () => {
+  it('grants request_escalation with no explore evidence', async () => {
     const { ctx, parent, adapter } = await harness({ stages: LADDER })
-    ;(adapter as unknown as { script: unknown[] }).script = [
-      toolCallResponse('c1', 'request_escalation', { stage: 'act', justification: 'no time' }),
+      ; (adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'request_escalation', { stage: 'act', justification: 'ready to edit' }),
+      toolCallResponse('c2', 'write', {}),
       textResponse('done'),
     ] as never
     parent.followup({ role: 'user', content: [{ type: 'text', text: 'fix it now' }], source: { kind: 'user' } } as never)
     await settle(ctx, parent)
     const outcomes = toolOutcomes(parent)
-    expect(outcomes[0]?.isError).toBe(true)
-    expect(outcomes[0]?.text ?? '').toContain('escalation to "act" declined')
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false, false])
+    expect(outcomes[0]?.text ?? '').toContain('You are in the "act" stage.')
+    expect(outcomes[1]?.text ?? '').toBe('written')
+  })
+
+  it('grants request_escalation when the approval policy is never', async () => {
+    const { ctx, parent, adapter } = await harness({ stages: LADDER }, { approval: 'never' })
+      ; (adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'request_escalation', { stage: 'act', justification: 'ready to edit' }),
+      toolCallResponse('c2', 'write', {}),
+      textResponse('done'),
+    ] as never
+    parent.followup({ role: 'user', content: [{ type: 'text', text: 'fix it now' }], source: { kind: 'user' } } as never)
+    await settle(ctx, parent)
+    const outcomes = toolOutcomes(parent)
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false, false])
+    expect(outcomes[0]?.text ?? '').toContain('You are in the "act" stage.')
+    expect(outcomes[1]?.text ?? '').toBe('written')
   })
 
   it('re-arms on the next user message', async () => {
     const { ctx, parent, adapter } = await harness({ stages: LADDER })
-    ;(adapter as unknown as { script: unknown[] }).script = [
+      ; (adapter as unknown as { script: unknown[] }).script = [
       toolCallResponse('c1', 'read', {}),
       toolCallResponse('c2', 'write', {}),
       textResponse('turn one done'),
@@ -156,7 +173,7 @@ describe('staged-escalation gate', () => {
 
   it('injects the step-1 reminder carrying the stage description verbatim', async () => {
     const { ctx, parent, adapter } = await harness({ stages: LADDER })
-    ;(adapter as unknown as { script: unknown[] }).script = [textResponse('noted')] as never
+      ; (adapter as unknown as { script: unknown[] }).script = [textResponse('noted')] as never
     parent.followup({ role: 'user', content: [{ type: 'text', text: 'a task' }], source: { kind: 'user' } } as never)
     await settle(ctx, parent)
     const injected = parent.session.snapshotEvents().filter((event): event is Extract<typeof event, { type: 'user/message' }> =>
@@ -183,7 +200,7 @@ describe('staged-escalation gate', () => {
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access' })
     const locked = await ctx.sandboxPolicy.resolveClamped({ session: parent.session })
     expect(locked.mode).toBe('read-only')
-    ;(adapter as unknown as { script: unknown[] }).script = [
+    ; (adapter as unknown as { script: unknown[] }).script = [
       toolCallResponse('c1', 'bash', {}),
       toolCallResponse('c2', 'pwsh', {}),
       toolCallResponse('c3', 'write', {}),
@@ -272,6 +289,29 @@ describe('staged-escalation gate', () => {
   })
 
 
+  it('resolves the shipped act stage at the standing mode, never above it', async () => {
+    const sessionAtAct = () => {
+      const sessionId = SessionId('default-fence')
+      const meta = { version: SESSION_FORMAT_VERSION, id: sessionId, createdAt: 0, isSeeded: false }
+      const session = Session.create(sessionId, undefined, meta)
+      session.append('turn/start', { turn: 1 })
+      session.append('tool/call', { turn: 1, step: 1, callId: ToolCallId('g1'), name: 'request_escalation', arguments: '{"stage":"act"}' })
+      session.append('tool/result', {
+        turn: 1,
+        step: 1,
+        message: createToolResultMessage({ callId: ToolCallId('g1'), content: [{ type: 'text', text: grantText({ name: 'act', description: 'x', allow: ['*'], sandbox: 'read-only' }) }], isError: false }),
+      }, { surfaceOp: 'append' })
+      return session
+    }
+    for (const mode of ['danger-full-access', 'workspace-write'] as const) {
+      const ctx = new Context()
+      await mountAgentLoopTestDependencies(ctx)
+      await ctx.plugin(SandboxPolicyService, { mode })
+      await ctx.plugin(StagedEscalation, {})
+      expect((await ctx.sandboxPolicy.resolveClamped({ session: sessionAtAct() })).mode).toBe(mode)
+    }
+  })
+
   it('never denies the structured-output completion channel of a schema child', async () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)
@@ -307,7 +347,7 @@ describe('staged-escalation gate', () => {
     await run.dispose()
   })
 
-  it('folds grants into the current stage and evidence into the answerer tier', () => {
+  it('folds grants into the current stage and ignores explore calls', () => {
     const sessionId = SessionId('fold')
     const session = Session.create(sessionId, undefined, {
       version: SESSION_FORMAT_VERSION,
@@ -316,7 +356,6 @@ describe('staged-escalation gate', () => {
       isSeeded: false,
     })
     expect(currentStage(LADDER3, session)).toBe(0)
-    expect(evidenceStage(LADDER3, session)).toBe(0)
     session.append('turn/start', { turn: 1 })
     const call = (id: string, name: string, step: number) =>
       session.append('tool/call', { turn: 1, step, callId: ToolCallId(id), name, arguments: '{}' })
@@ -332,9 +371,6 @@ describe('staged-escalation gate', () => {
       }, { surfaceOp: 'append' })
     call('c1', 'read', 1)
     result('c1', 1, 'pinned lines')
-    // Evidence satisfies tier 1 for the mechanical answerer, but the gate
-    // itself stays at stage 0 until a grant crosses.
-    expect(evidenceStage(LADDER3, session)).toBe(1)
     expect(currentStage(LADDER3, session)).toBe(0)
     call('c2', 'request_escalation', 2)
     result('c2', 2, '[staging] You are in the "ship" stage.\n\nPublish.\nThis promotion lasts this turn only.')

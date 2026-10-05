@@ -301,9 +301,11 @@
     # the turn-boundary settlement listener that runs each claim's verifier.
     - id: claim
       name: '@deepseek-ai/dsh-claim'
+      disabled: true
 
     - id: claim-settlement
       name: '@deepseek-ai/dsh-claim-settlement'
+      disabled: true
 
     - id: goal
       name: '@deepseek-ai/dsh-goal'
@@ -428,6 +430,7 @@
     # and settlement listener are above.
     - id: tool-claim
       name: '@deepseek-ai/dsh-tool-claim'
+      disabled: true
 
     # Fresh-agent Ralph iteration over a build-time-fixed script.
     - id: tool-ralph
@@ -444,8 +447,8 @@
         argumentsPreviewChars: 500
 
     # Per-turn explore-then-act escalation gate: denies act-stage tools with
-    # one-line guidance until turn-local evidence lands and clamps the file
-    # and shell fences narrow-only; request_escalation crosses with a reason.
+    # one-line guidance until request_escalation, which grants on the call
+    # itself, and clamps the file and shell fences narrow-only.
     - id: staged-escalation
       name: '@deepseek-ai/dsh-staged-escalation'
 

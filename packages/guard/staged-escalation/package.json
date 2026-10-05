@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-staged-escalation",
-  "description": "Per-turn staged escalation: an explore-then-act gate that denies (never hides) act tools until turn-local evidence, and clamps the sandbox fence narrow-only",
+  "description": "Per-turn staged escalation: an explore-then-act gate that denies (never hides) act tools until request_escalation, which grants on the call, and clamps the sandbox fence narrow-only",
   "version": "0.1.0-rc.1",
   "publishConfig": {
     "access": "public"
