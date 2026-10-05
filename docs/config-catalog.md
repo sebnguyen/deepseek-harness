@@ -1553,7 +1553,7 @@ export interface ReplayModelConfig {
 
 Depends on: [`ModelModality`](../packages/llm/llm/src/index.ts) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · [`SystemPromptUpdate`](../packages/llm/llm/src/index.ts)
 
-Source: [`packages/test-support/llm-replay/src/index.ts:1123`](../packages/test-support/llm-replay/src/index.ts)
+Source: [`packages/test-support/llm-replay/src/index.ts:1180`](../packages/test-support/llm-replay/src/index.ts)
 
 <a id="deepseek-aidsh-llm-retry"></a>
 
@@ -2314,6 +2314,24 @@ export interface Config {
 ```
 
 Source: [`packages/shell/shell-env/src/index.ts:28`](../packages/shell/shell-env/src/index.ts)
+
+<a id="deepseek-aidsh-shell-search"></a>
+
+## `@deepseek-ai/dsh-shell-search`
+
+Requires: `shellEnv`
+
+```ts config-catalog
+/** Plugin config (all optional — every field has a boot-time default). */
+export interface Config {
+  /** Harness home hosting `shell-search/`; highest precedence of the home resolution order. */
+  dshHome?: string
+  /** Absolute ripgrep binary path; startup fails when it is not executable. */
+  rg?: string
+}
+```
+
+Source: [`packages/shell/shell-search/src/index.ts:32`](../packages/shell/shell-search/src/index.ts)
 
 <a id="deepseek-aidsh-skill"></a>
 

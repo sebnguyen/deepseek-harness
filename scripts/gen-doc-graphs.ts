@@ -497,6 +497,22 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Plugins declare effect-scoped DSH_* facts; each shell tool collects one trusted snapshot per execution and its executor rebuilds the namespace.',
   },
   {
+    key: 'claims',
+    pkg: 'claim',
+    title: 'Durable turn-bound verification claims',
+    mode: 'core',
+    consumers: ['claim-settlement', 'tool-claim'],
+    note: 'The claim tool declares and runs turn claims against the owning session log; settlement reads pending claims at turn boundary and records their outcomes.',
+  },
+  {
+    key: 'searxngRuntime',
+    pkg: 'web-search-searxng',
+    title: 'Managed SearXNG container runtime',
+    mode: 'core',
+    consumers: ['web-search-searxng'],
+    note: 'The provider plugin creates and consumes its own fiber-scoped service: one owned container lifecycle (pull, start, stop) behind the search seam.',
+  },
+  {
     key: 'terminals',
     pkg: 'terminal',
     title: 'Persistent PTY session registry',
