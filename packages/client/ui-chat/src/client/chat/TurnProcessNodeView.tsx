@@ -7,11 +7,12 @@ import css from './TurnProcessNodeView.module.css'
 
 /** One collapsible group's toggle button; ChatNodeSeat places it per group. */
 export const TurnProcessDisclosure = memo(function TurnProcessDisclosure({
-  turn, toolCalls, subagents, open, setOpen, t,
+  turn, toolCalls, subagents, running, open, setOpen, t,
 }: {
   turn: number
   toolCalls: number
   subagents: number
+  running: boolean
   open: boolean
   setOpen(open: boolean): void
   t: PropsLocale<'chat'>['t']
@@ -34,7 +35,7 @@ export const TurnProcessDisclosure = memo(function TurnProcessDisclosure({
     ))
   }
   const label = labels.length === 0
-    ? t('message.turnProcess.thoughtForAWhile')
+    ? running ? t('message.turnProcess.working') : t('message.turnProcess.thoughtForAWhile')
     : labels.join(t('message.turnProcess.separator'))
   return (
     <button

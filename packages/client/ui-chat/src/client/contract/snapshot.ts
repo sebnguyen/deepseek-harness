@@ -74,8 +74,8 @@ export interface ChatLocationNodeIndex {
 export interface TurnProcessGroup {
   /** anchorSeq where this group's rows begin. */
   readonly start: number
-  /** anchorSeq of the reply row that terminates the group. */
-  readonly boundary: number
+  /** anchorSeq of the reply row that terminates the group; null while the run still streams. */
+  readonly boundary: number | null
   /** Foldable rows hidden while the group is closed. */
   readonly members: number
   readonly toolCalls: number
@@ -89,7 +89,7 @@ export interface ChatTurnProcessPresentation {
   readonly turnClosed: boolean
   readonly hasExternalProcess: boolean
   readonly compactAnswer: boolean
-  /** Fold groups; empty while the Turn still runs (live single control). */
+  /** Fold groups; the still-streaming run of a running Turn carries a null boundary. */
   readonly groups: readonly TurnProcessGroup[]
 }
 

@@ -1432,6 +1432,48 @@ describe('ChatView', () => {
     expect(toggles.map(toggle => toggle.getAttribute('aria-expanded'))).toEqual(['true', 'true'])
   })
 
+  it('keeps live replies visible between the folds while the Turn streams', () => {
+    const first = {
+      ...assistant(2, 'planning out loud', 1, 1),
+      blocks: [
+        { kind: 'reasoning' as const, text: 'consider the options' },
+        { kind: 'text' as const, text: 'planning out loud' },
+      ],
+    }
+    const second = {
+      ...assistant(4, 'found it', 1, 2),
+      blocks: [{ kind: 'text' as const, text: 'found it' }],
+    }
+    const h = makeHarness({
+      nodes: [user(1, 'question'), first, toolResult(3, 'a'), second, toolResult(5, 'b')],
+      partial: { turn: 1, step: 3, blocks: [{ kind: 'reasoning', text: 'weighing the result' }] },
+      running: true,
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    // The finished run folds at the head; the streaming run folds behind a
+    // control riding the reply it began after; both replies stay visible.
+    const toggles = [...view.container.querySelectorAll<HTMLElement>('button[data-turn-process]')]
+    expect(toggles).toHaveLength(2)
+    expect(toggles.map(toggle => toggle.getAttribute('data-turn-process-tool-calls')))
+      .toEqual(['1', '1'])
+    const tailSeat = toggles[1]!.closest('[data-chat-flow-key]') as HTMLElement
+    expect(tailSeat.getAttribute('data-chat-flow-kind')).toBe('assistant-step')
+    expect(tailSeat.getAttribute('hidden')).toBeNull()
+    for (const text of ['planning out loud', 'found it']) {
+      const row = view.getByText(text).closest('[data-chat-flow-key]') as HTMLElement
+      expect(row.getAttribute('hidden')).toBeNull()
+    }
+    const rows = [...view.container.querySelectorAll<HTMLElement>('[data-turn-process-member]')]
+    expect(rows).toHaveLength(3)
+    expect(rows.map(row => row.getAttribute('hidden')))
+      .toEqual(['until-found', 'until-found', 'until-found'])
+
+    // Widening the streaming run reveals only its own rows.
+    fireEvent.click(toggles[1]!)
+    expect(rows.map(row => row.getAttribute('hidden')))
+      .toEqual(['until-found', null, null])
+  })
+
   it('folds injected Context in place with the rest of the Turn process', () => {
     const h = makeHarness({
       nodes: [

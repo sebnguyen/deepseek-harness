@@ -8,7 +8,7 @@ export interface TurnProcessViewEntry {
   readonly turn: number
   /** The settled answer step the wide open rides on; null while the Turn still runs. */
   readonly answerStep: number | null
-  /** Group boundary seq the expansion rides on; 0 is the live head control. */
+  /** Start seq of the group the expansion rides on. */
   readonly group: number
 }
 

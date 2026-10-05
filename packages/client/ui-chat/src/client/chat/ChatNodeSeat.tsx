@@ -6,7 +6,6 @@ import type { ChatNode } from '../contract/chat-nodes.ts'
 import type { TurnProcessGroup } from '../contract/snapshot.ts'
 import { hasAssistantReplyContent } from '../contract/assistant-content.ts'
 import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
-import { storedTurnProcessEntry } from '../stores.ts'
 import { useSearchableHidden } from './searchable-hidden.ts'
 import { TurnProcessDisclosure } from './TurnProcessNodeView.tsx'
 import css from './ChatView.module.css'
@@ -37,6 +36,7 @@ function turnOf(node: ChatNode | undefined): number | undefined {
 }
 
 const NO_GROUPS: readonly TurnProcessGroup[] = []
+const NO_ENTRIES: readonly Readonly<import('../contract/store.ts').TurnProcessViewEntry>[] = []
 
 /** Subscribe, apply Turn-process visibility, and dispatch one stable Context key. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
@@ -56,15 +56,15 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const closedReady = presentationReady
     && processSpec.answerAnchorSeq !== null
     && processPresentation.turnClosed
-  // A running turn folds under one head disclosure while the work streams;
-  // settlement hands over to the per-group fold below.
   const runningWindowReady = presentationReady
     && processSpec.answerAnchorSeq === null
-  // A closed Turn splits its process rows at every visible Assistant reply:
-  // each run collapses where it ends and the replies stay rendered between
-  // the controls. The first run rides the turn-process row; every later run
-  // rides the reply row that ends it.
-  const groups = closedReady ? processPresentation.groups : NO_GROUPS
+  // Live and settled Turns share one split: process rows collapse at every
+  // visible Assistant reply, replies stay rendered between the controls, and
+  // a running Turn's open run streams behind its own tail collapse. The run
+  // that starts the Turn rides the turn-process row; a settled later run
+  // rides the reply row that ends it; a live tail past the first reply rides
+  // the reply row it began after.
+  const groups = presentationReady ? processPresentation.groups : NO_GROUPS
   const isReplyDivider = routedNode?.kind === 'assistant-step'
     && hasAssistantReplyContent(routedNode.data.blocks)
   const memberEligible = presentationReady
@@ -77,59 +77,72 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     // A live Turn's retry notices stay in the transcript while the turn
     // runs; only once the answer settles do they fold with the rest.
     && !(routedNode.kind === 'model-retry' && runningWindowReady)
-  const memberGroup = closedReady && memberEligible
-    ? groups.find(group => routedNode.anchorSeq >= group.start && routedNode.anchorSeq < group.boundary)
+  const memberGroup = memberEligible
+    ? groups.find(group => routedNode.anchorSeq >= group.start
+      && (group.boundary === null || routedNode.anchorSeq < group.boundary))
     : undefined
-  const ownedGroup = closedReady && routedNode !== undefined
-    ? routedNode.kind === 'turn-process'
-      ? groups[0]
-      : isReplyDivider
-        ? groups.find(group => group.boundary === routedNode.anchorSeq && group !== groups[0])
-        : undefined
-    : undefined
+  // A reply row hosts the collapse of the run that ends at it beside the
+  // collapse of a live run that starts right after it; the turn-process row
+  // hosts the run that opens the Turn.
+  const ownedGroups = routedNode === undefined || processSpec === undefined
+    ? NO_GROUPS
+    : routedNode.kind === 'turn-process'
+      ? groups.filter(group => group.start === processSpec.processStartSeq)
+      : groups.filter(group => group.start !== processSpec.processStartSeq
+        && (group.boundary === routedNode.anchorSeq
+          || (group.boundary === null && group.start === routedNode.anchorSeq)))
   const processAnswer = routedNode !== undefined
     && closedReady
     && routedNode.kind === 'assistant-step'
     && routedNode.data.step === processSpec.answerStep
-  // An answer whose reasoning is its only process evidence keeps it behind a
-  // 已思考-style control riding the answer row, as before the group split.
+  // A Turn whose single run owns the answer too folds from the head control;
+  // the answer row then reveals that run's reasoning through the same entry.
+  const revealGroup = processAnswer && processSpec.inlineReasoning
+    ? groups.find(group => group.boundary === processSpec.answerAnchorSeq
+      && group.start === processSpec.processStartSeq)
+    : undefined
+  // A reasoning-only answer keeps its single-run collapse beside the reply.
   const inlineControl = processAnswer
     && processSpec.inlineReasoning
-    && ownedGroup === undefined
-    ? { boundary: processSpec.answerAnchorSeq, toolCalls: 0, subagents: 0 }
+    && ownedGroups.length === 0
+    ? {
+      start: processSpec.processStartSeq, boundary: processSpec.answerAnchorSeq,
+      members: 0, toolCalls: 0, subagents: 0,
+    }
     : undefined
-  const liveControl = runningWindowReady && routedNode?.kind === 'turn-process'
-    ? { boundary: 0, toolCalls: processSpec.toolCallCount, subagents: processSpec.subagentCount }
-    : undefined
-  const controlGroup = ownedGroup ?? inlineControl ?? liveControl
-  const foldable = closedReady
-    ? groups.length > 0 || inlineControl !== undefined
-    : liveControl !== undefined
-  const liveMember = runningWindowReady && memberEligible
-  const openBoundary = controlGroup?.boundary
-    ?? memberGroup?.boundary
-    ?? (liveMember ? 0 : undefined)
-  const storedEntry = useStore(state => processSpec === undefined || openBoundary === undefined
-    ? undefined
-    : storedTurnProcessEntry(state, processSpec.turn, openBoundary))
-  const processEntry = processSpec !== undefined
-    && storedEntry?.answerStep === processSpec.answerStep
-    ? storedEntry
-    : undefined
-  const processOpen = processEntry !== undefined
-  const setOpen = useCallback((open: boolean) => {
-    if (processSpec === undefined || openBoundary === undefined) return
-    actions.setTurnProcessOpen(processSpec.turn, processSpec.answerStep, openBoundary, open)
-  }, [actions, processSpec, openBoundary])
-  const processMember = memberGroup !== undefined || liveMember
+  const inlineStart = inlineControl !== undefined ? inlineControl.start : revealGroup?.start
+  const foldable = groups.length > 0 || inlineControl !== undefined
+  const openStarts = [
+    ...ownedGroups.map(group => group.start),
+    memberGroup === undefined ? -1 : memberGroup.start,
+    inlineStart ?? -1,
+  ].filter(start => start >= 0)
+  const storedEntries = useStore((state) => {
+    if (processSpec === undefined || openStarts.length === 0) return NO_ENTRIES
+    return state.turnProcesses.filter(entry => entry.turn === processSpec.turn
+      && entry.answerStep === processSpec.answerStep
+      && openStarts.includes(entry.group))
+  })
+  const setGroupOpen = useCallback((start: number, open: boolean) => {
+    if (processSpec === undefined) return
+    actions.setTurnProcessOpen(processSpec.turn, processSpec.answerStep, start, open)
+  }, [actions, processSpec])
+  const inlineOpen = inlineStart !== undefined
+    && storedEntries.some(entry => entry.group === inlineStart)
+  const processMember = memberGroup !== undefined
+  const memberOpen = memberGroup !== undefined
+    && storedEntries.some(entry => entry.group === memberGroup.start)
   const compactAnswer = processAnswer
     && groups.length > 0
     && processPresentation.compactAnswer
-    && !(ownedGroup !== undefined && processOpen)
-  const processHidden = processMember && !processOpen
+    && !(ownedGroups.length > 0 && inlineOpen)
+  const processHidden = processMember && !memberOpen && ownedGroups.length === 0
+  const inlineSetOpen = useCallback((open: boolean) => {
+    if (inlineStart !== undefined) setGroupOpen(inlineStart, open)
+  }, [inlineStart, setGroupOpen])
   const revealProcess = useCallback(() => {
-    if (processMember) setOpen(true)
-  }, [processMember, setOpen])
+    if (processMember && memberGroup !== undefined) setGroupOpen(memberGroup.start, true)
+  }, [processMember, memberGroup, setGroupOpen])
   const wrapperRef = useSearchableHidden(processHidden, revealProcess)
   const owner = useMemo<ChatNodeOwnerProps | null>(() => node === undefined
     ? null
@@ -144,11 +157,11 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       fileMentions,
       turnProcess: processSpec === undefined
         ? undefined
-        : { spec: processSpec, foldable, open: processOpen, setOpen },
+        : { spec: processSpec, foldable, open: inlineOpen, setOpen: inlineSetOpen },
     }, [
     node, cwd, openFile, openSkill, inspectCall, forkAt,
     loadImage, renderMessageImages, fileMentions,
-    processSpec, foldable, processOpen, setOpen,
+    processSpec, foldable, inlineOpen, inlineSetOpen,
   ])
   if (routedNode === undefined || owner === null) return null
   const turnData = turnDataOf(routedNode)
@@ -168,16 +181,19 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-turn-process-hidden={processHidden || undefined}
       data-turn-process-answer={compactAnswer || undefined}
     >
-      {controlGroup !== undefined && processSpec !== undefined && (
-        <TurnProcessDisclosure
-          turn={processSpec.turn}
-          toolCalls={controlGroup.toolCalls}
-          subagents={controlGroup.subagents}
-          open={processOpen}
-          setOpen={setOpen}
-          t={t}
-        />
-      )}
+      {processSpec !== undefined
+        && [...ownedGroups, ...inlineControl !== undefined ? [inlineControl] : []].map(group => (
+          <TurnProcessDisclosure
+            key={group.start}
+            turn={processSpec.turn}
+            toolCalls={group.toolCalls}
+            subagents={group.subagents}
+            running={group.boundary === null}
+            open={storedEntries.some(entry => entry.group === group.start)}
+            setOpen={open => setGroupOpen(group.start, open)}
+            t={t}
+          />
+        ))}
       {renderSlot('conversation.chat.node', routedOwner, {
         entryKey: routedNode.kind,
         hookContext: turnData,

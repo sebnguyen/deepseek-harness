@@ -107,7 +107,12 @@ function derivePresentation(
       else toolCalls += 1
     }
   }
-  closeGroup(spec.answerAnchorSeq ?? 0)
+  if (spec.answerAnchorSeq === null) {
+    // A running Turn's open run streams behind its own collapse.
+    if (members > 0) groups.push({ start: groupStart, boundary: null, members, toolCalls, subagents })
+  } else {
+    closeGroup(spec.answerAnchorSeq)
+  }
   return {
     turn,
     spec,

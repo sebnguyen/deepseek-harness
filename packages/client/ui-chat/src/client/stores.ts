@@ -13,21 +13,6 @@ type ChatActions = {
 }
 
 /**
- * Resolve the manually expanded process group for one Turn.
- * @param state - Chat store snapshot.
- * @param turn - owning Turn.
- * @param group - group boundary seq (0 for the live head control).
- * @returns the Turn's stored entry for that group, when present.
- */
-export function storedTurnProcessEntry(
-  state: Readonly<ChatStoreState>,
-  turn: number,
-  group: number,
-): Readonly<TurnProcessViewEntry> | undefined {
-  return state.turnProcesses.find(entry => entry.turn === turn && entry.group === group)
-}
-
-/**
  * Create the Chat view store handle.
  * @returns a handle instantiated once per rendered Session scope.
  */
