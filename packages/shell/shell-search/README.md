@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`dsh-shell-search` makes every command a model shell call runs resolve `grep`, `egrep`, and `fgrep` to generated POSIX sh wrappers, prepended to `PATH` at boot under the Harness home. With a resolvable ripgrep — the vendored `@vscode/ripgrep` platform package first, then `rg` on `PATH` — the wrappers exec a generated Node translator that maps safe GNU flags onto ripgrep with ignore hygiene, hidden-file search, deterministic order, and line-length truncation; any unrecognized flag execs the host GNU grep verbatim. Without ripgrep the wrappers are GNU grep. Disposal removes the shims and restores `PATH`.
+`dsh-shell-search` makes every command a model shell call runs resolve `grep`, `egrep`, and `fgrep` to generated POSIX sh wrappers, prepended to `PATH` at boot under the Harness home. `dsh-base` ships the plugin beside `dsh-shell-env`, so every base-backed profile shadows the grep family out of the box. With a resolvable ripgrep — the vendored `@vscode/ripgrep` platform package first, then `rg` on `PATH` — the wrappers exec a generated Node translator that maps safe GNU flags onto ripgrep with ignore hygiene, hidden-file search, deterministic order, and line-length truncation; any unrecognized flag execs the host GNU grep verbatim. Without ripgrep the wrappers are GNU grep. Disposal removes the shims and restores `PATH`.
 
 ## Table of Contents
 
@@ -22,7 +22,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## Use this package
 
-Load this plugin beside `dsh-shell-env` in a composition whose agent searches through the shell; the `shellEnv` injection means the plugin stays PENDING until that registry exists, so the env plugin must mount first. The effect writes `<home>/shell-search/` (wrappers plus translator), prepends that `bin` directory to the harness `PATH` on POSIX, and contributes `DSH_SEARCH_BIN` naming it; disposing the plugin reverses all three. Windows skips the prepend and documents the limitation below.
+`dsh-base` mounts the plugin beside `dsh-shell-env`, so the `web`, `headless`, `acp`, and `sdk` profiles shadow the grep family by default; a deployment opts out by disabling the `shell-search` row in its profile patch. Compositions that mount the plugin outside the base must keep `dsh-shell-env` first: the `shellEnv` injection keeps the plugin PENDING until that registry exists. The effect writes `<home>/shell-search/` (wrappers plus translator), prepends that `bin` directory to the harness `PATH` on POSIX, and contributes `DSH_SEARCH_BIN` naming it; disposing the plugin reverses all three. Windows skips the prepend and documents the limitation below.
 
 | Field | Default | Meaning |
 |---|---|---|

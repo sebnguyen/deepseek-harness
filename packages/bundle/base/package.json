@@ -44,6 +44,7 @@
     "@deepseek-ai/dsh-claim-settlement": "workspace:^",
     "@deepseek-ai/dsh-tool-claim": "workspace:^",
     "@deepseek-ai/dsh-shell-env": "workspace:^",
+    "@deepseek-ai/dsh-shell-search": "workspace:^",
     "@deepseek-ai/dsh-bash-sandbox": "workspace:^",
     "@deepseek-ai/dsh-command-compact": "workspace:^",
     "@deepseek-ai/dsh-command-feedback": "workspace:^",

@@ -443,7 +443,10 @@
 # publish `DSH_WEB_URL`/`DSH_WEB_MODE`, and a host row that injects a service is
 # the criterion for host-plane ownership — injection resolves before any session
 # exists, so there is no agent to key by. Behind a preset realm those variables
-# would never reach the model's shell at all.
+# would never reach the model's shell at all. `shell-search` rides on the same
+# criterion: its effect mutates the harness process PATH before any session
+# exists, and every session's shells inherit it through the scrubbed
+# subprocess environment.
 
 - id: tool-bash
   disabled: true
