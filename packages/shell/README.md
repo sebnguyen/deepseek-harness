@@ -28,6 +28,7 @@ The shell group provides command execution to agents: run a foreground command a
 | [`pwsh-local`](pwsh-local/README.md) | Runs PowerShell commands as fresh `pwsh -Command` processes on Windows | registers `ctx.shell` |
 | [`pwsh-sandbox`](pwsh-sandbox/README.md) | Runs PowerShell commands confined through the sandbox capability | registers `ctx.shell` |
 | [`shell-env`](shell-env/README.md) | Supplies the managed `DSH_*` environment every shell command receives | `ctx.shellEnv` |
+| [`shell-search`](shell-search/README.md) | PATH-shims the grep family onto the vendored ripgrep binary for model shell calls | registers on `ctx.shellEnv` |
 | [`tool-bash`](tool-bash/README.md) | Exposes Bash execution and background jobs to the model as the `bash` tool | registers on `ctx.tools` |
 | [`tool-bash-persistent`](tool-bash-persistent/README.md) | Runs model shell calls in one owner-isolated persistent Bash session | registers on `ctx.tools` |
 | [`tool-pwsh`](tool-pwsh/README.md) | Exposes PowerShell execution to the model as the `pwsh` tool | registers on `ctx.tools` |

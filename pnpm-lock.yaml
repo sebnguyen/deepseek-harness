@@ -9069,6 +9069,31 @@ importers:
         specifier: workspace:^
         version: link:../../core/tools
 
+  packages/shell/shell-search:
+    dependencies:
+      '@deepseek-ai/schemastery':
+        specifier: link:../../../vendor/schemastery
+        version: link:../../../vendor/schemastery
+      '@vscode/ripgrep':
+        specifier: ^1.18.0
+        version: 1.18.0
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-home-paths':
+        specifier: workspace:^
+        version: link:../../util/home-paths
+      '@deepseek-ai/dsh-llm':
+        specifier: workspace:^
+        version: link:../../llm/llm
+      '@deepseek-ai/dsh-shell-env':
+        specifier: workspace:^
+        version: link:../shell-env
+      '@deepseek-ai/dsh-tools':
+        specifier: workspace:^
+        version: link:../../core/tools
+
   packages/shell/tool-bash:
     dependencies:
       '@deepseek-ai/schemastery':
