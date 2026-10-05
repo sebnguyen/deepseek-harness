@@ -155,17 +155,19 @@
 
 .cnt { text-align: center; }
 
-.cName { width: 28%; }
+.cName { width: 26%; }
 
-.cModels { width: 9%; }
+.cModels { width: 8%; }
 
-.cBar { width: 21%; }
+.cBar { width: 18%; }
 
-.cRate { width: 14%; }
+.cRate { width: 12%; }
 
-.cSpend { width: 12%; }
+.cSpend { width: 11%; }
 
-.cHit { width: 16%; }
+.cTokens { width: 10%; }
+
+.cHit { width: 15%; }
 
 /* The bar lives in a fixed-width track; only the fill inside scales. */
 .track {

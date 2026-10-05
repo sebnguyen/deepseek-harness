@@ -1,10 +1,12 @@
 // The token efficiency window: a fixed-column table over every priced
 // sessions-list row's served sessionCost fold — one row per session with
 // its blended spend per million billed tokens, a fixed-width bar track
-// whose fill scales against the priced maximum (its hover names the value
-// as a share of the max plus the max itself), and a Models cell whose
-// hover opens the per-model spend listing. Rows ladder under their
-// parentId roots; pooled micros-over-tokens rates headline the groups.
+// whose fill scales against the priced maximum (its hover and aria name
+// give the row's blended rate, its share of the max, and the max itself),
+// a Models cell whose hover
+// opens the per-model spend listing, and a Tokens cell with the displayed
+// billed total. Rows ladder under their parentId roots, latest session
+// first at every level; pooled micros-over-tokens rates headline the groups.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -55,9 +57,28 @@ function modelsTipText(
 }
 
 /**
- * The bar hover text: this row's value as a share of the priced maximum,
- * then the maximum blended rate the fill's 100% scales against.
- * @param reading - the row's efficiency reading.
+ * The bar's value line: the row's blended rate named outright, then its
+ * share of the priced maximum the fill's 100% scales against.
+ * @param rate - the row's displayed blended rate; null when nothing bills.
+ * @param maxRate - the priced maximum blended rate; null when none bills.
+ * @param t - chat locale seat.
+ * @returns the one-line label shared by the hover and the aria name.
+ */
+function barValueLine(
+  rate: number | null,
+  maxRate: number | null,
+  t: ChatViewSlotProps['t'],
+): string {
+  const percent = maxRate !== null && maxRate > 0 && rate !== null
+    ? Math.round((rate / maxRate) * 100)
+    : 0
+  return `${t('efficiency.barValue')} — ${t('stats.costPerMillion', { amount: formatUsdMicros(rate ?? 0, t) })} · ${t('efficiency.barShare', { percent })}`
+}
+
+/**
+ * The bar hover text: the value line, then the maximum blended rate the
+ * fill's 100% scales against.
+ * @param rate - the row's displayed blended rate; null when nothing bills.
  * @param maxRate - the priced maximum blended rate; null when none bills.
  * @param t - chat locale seat.
  * @returns the two-line label.
@@ -67,11 +88,8 @@ function barTipText(
   maxRate: number | null,
   t: ChatViewSlotProps['t'],
 ): string {
-  const percent = maxRate !== null && maxRate > 0 && rate !== null
-    ? Math.round((rate / maxRate) * 100)
-    : 0
   return [
-    `${t('efficiency.barValue')} — ${t('efficiency.barShare', { percent })}`,
+    barValueLine(rate, maxRate, t),
     `${t('efficiency.barMax')} — ${t('stats.costPerMillion', { amount: formatUsdMicros(maxRate ?? 0, t) })}`,
   ].join('\n')
 }
@@ -132,7 +150,7 @@ function TableRow({ row, maxRate, t, canExpand, open, onToggle }: {
           <span
             className={css.track}
             tabIndex={0}
-            aria-label={t('efficiency.barShare', { percent: widthPercent })}
+            aria-label={barValueLine(view.rate, maxRate, t)}
           >
             <i className={css.fill} style={{ width: `${widthPercent}%` }} />
           </span>
@@ -140,6 +158,7 @@ function TableRow({ row, maxRate, t, canExpand, open, onToggle }: {
       </td>
       <td className={css.num}>{formatUsdMicros(view.rate ?? 0, t)}</td>
       <td className={css.num}>{formatUsdMicros(view.micros, t)}</td>
+      <td className={css.num}>{formatTokens(view.tokens, t)}</td>
       <td className={css.num}>{view.cacheHit !== null ? `${view.cacheHit}%` : ''}</td>
     </tr>
   )
@@ -241,6 +260,7 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
                 <col className={css.cBar} />
                 <col className={css.cRate} />
                 <col className={css.cSpend} />
+                <col className={css.cTokens} />
                 <col className={css.cHit} />
               </colgroup>
               <thead>
@@ -250,6 +270,7 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
                   <th scope="col">{t('efficiency.colBar')}</th>
                   <th scope="col" className={css.num}>{t('efficiency.colRate')}</th>
                   <th scope="col" className={css.num}>{t('efficiency.colSpend')}</th>
+                  <th scope="col" className={css.num}>{t('efficiency.colTokens')}</th>
                   <th scope="col" className={css.num}>{t('efficiency.colHit')}</th>
                 </tr>
               </thead>

@@ -53,6 +53,8 @@ export interface EfficiencyReading {
   id: string
   title: string
   parentId: string | null
+  /** Sessions-list recency stamp; roots and child ladders order by it, latest first. */
+  updatedAt: number
   costMicros: number
   /** The fold's four billed buckets summed. */
   tokens: number
@@ -82,6 +84,7 @@ export function efficiencyReading(id: string, row: SessionSummary, cost: Session
     id,
     title: row.displayTitle,
     parentId: row.parentId ?? null,
+    updatedAt: row.updatedAt,
     costMicros: cost.costMicros,
     tokens: spendTokens(cost),
     rateMicros: perMillionMicros(cost.costMicros, spendTokens(cost)),
@@ -115,9 +118,9 @@ export interface IndentedReading extends EfficiencyReading {
   family: FamilyRollup | null
 }
 
-/** Rates descending, null rates last, title tiebreak. */
-function byRate(leftRate: number | null, rightRate: number | null, leftTitle: string, rightTitle: string): number {
-  return (rightRate ?? -1) - (leftRate ?? -1) || leftTitle.localeCompare(rightTitle)
+/** Most recently updated first, title tiebreak. */
+function byLatest(leftTime: number, rightTime: number, leftTitle: string, rightTitle: string): number {
+  return rightTime - leftTime || leftTitle.localeCompare(rightTitle)
 }
 
 interface RawRollup {
@@ -178,10 +181,10 @@ function mergeRollup(acc: RawRollup, child: RawRollup): void {
 }
 
 /**
- * Order the priced readings roots-first, session-based: roots rank by their
- * family blended rate (the session pools its subagents), each root
- * followed depth-first by its descendant subtree whose rows detail their
- * own folds, depths annotating the indent. Every root carries its family
+ * Order the priced readings roots-first, session-based: roots rank
+ * latest-updated first (the session pools its subagents), each root
+ * followed depth-first by its descendant subtree, likewise latest-first,
+ * whose rows detail their own folds; depths annotating the indent. Every root carries its family
  * rollup — models, spend, rate, and cache hit over root plus subagents.
  * A parent chain that cycles or names an absent parent places its
  * orphaned rows as roots at the end instead of looping.
@@ -233,14 +236,14 @@ export function orderEfficiencyReadings(readings: readonly EfficiencyReading[]):
     visited.add(reading.id)
     ordered.push({ ...reading, depth, family: isLadderRoot ? familyOf(reading) : null })
     const kids = (children.get(reading.id) ?? [])
-      .toSorted((a, b) => byRate(a.rateMicros, b.rateMicros, a.title, b.title))
+      .toSorted((a, b) => byLatest(a.updatedAt, b.updatedAt, a.title, b.title))
     for (const kid of kids) walk(kid, depth + 1, false)
   }
-  for (const root of roots.toSorted((a, b) => byRate(familyOf(a).rate, familyOf(b).rate, a.title, b.title))) {
+  for (const root of roots.toSorted((a, b) => byLatest(a.updatedAt, b.updatedAt, a.title, b.title))) {
     walk(root, 0, true)
   }
-  // A pure cycle has no root; append its members as roots in rate order.
-  for (const reading of [...readings].sort((a, b) => byRate(a.rateMicros, b.rateMicros, a.title, b.title))) {
+  // A pure cycle has no root; append its members as roots in latest order.
+  for (const reading of [...readings].sort((a, b) => byLatest(a.updatedAt, b.updatedAt, a.title, b.title))) {
     if (!visited.has(reading.id)) walk(reading, 0, true)
   }
   return ordered

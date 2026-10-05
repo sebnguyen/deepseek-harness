@@ -51,7 +51,7 @@ function cost(micros: number, perModel: Record<string, SpendSpec>): SessionCostP
 }
 
 /** One sessions-list row; only displayTitle, parentId, and sessionCost are read. */
-function row(id: string, title: string, parentId: string | undefined, sessionCost: SessionCostProjection | undefined): {
+function row(id: string, title: string, parentId: string | undefined, sessionCost: SessionCostProjection | undefined, updatedAt = 0): {
   id: string
   displayTitle: string
   running: boolean
@@ -61,7 +61,7 @@ function row(id: string, title: string, parentId: string | undefined, sessionCos
   projectionValues?: { sessionCost: SessionCostProjection }
 } {
   return {
-    id, displayTitle: title, running: false, blank: false, updatedAt: 0,
+    id, displayTitle: title, running: false, blank: false, updatedAt,
     ...(parentId === undefined ? {} : { parentId }),
     ...(sessionCost === undefined ? {} : { projectionValues: { sessionCost } }),
   }
@@ -72,28 +72,28 @@ function pricedRows() {
   return {
     audit: row('audit', 'Nightly audit sweep', undefined, cost(2_360_000, {
       qwen: { buckets: [940_000, 0, 60_000, 0], micros: 2_360_000 },
-    })),
+    }), 30),
     refactor: row('refactor', 'Refactor auth to session-stats', undefined, cost(3_700_000, {
       'qwen3.8-max': { buckets: [550_000, 0, 2_250_000, 0], micros: 3_500_000 },
       'deepseek-v4': { buckets: [0, 0, 2_200_000, 0], micros: 200_000 },
-    })),
+    }), 20),
     act: row('act', 'act: apply migration', 'refactor', cost(950_000, {
       qwen: { buckets: [130_000, 0, 370_000, 0], micros: 950_000 },
-    })),
+    }), 21),
     explore: row('explore', 'explore: repo orientation', 'refactor', cost(150_000, {
       v4: { buckets: [80_000, 0, 920_000, 0], micros: 150_000 },
-    })),
+    }), 22),
     deep: row('deep', 'explore: deep dive', 'explore', cost(20_000, {
       v4: { buckets: [50_000, 0, 50_000, 0], micros: 20_000 },
-    })),
+    }), 1),
     docs: row('docs', 'Docs Q&A', undefined, cost(1_360_000, {
       a: { buckets: [100_000, 0, 1_000_000, 0], micros: 400_000 },
       b: { buckets: [100_000, 0, 1_000_000, 0], micros: 500_000 },
       c: { buckets: [180_000, 0, 1_320_000, 0], micros: 460_000 },
-    })),
+    }), 40),
     v4only: row('v4only', 'Refactor auth (v4 only)', undefined, cost(630_000, {
       v4: { buckets: [675_000, 0, 3_825_000, 0], micros: 630_000 },
-    })),
+    }), 10),
   }
 }
 
@@ -122,10 +122,11 @@ function open(view: ReturnType<typeof mount>, name = 'Efficiency') {
 }
 
 describe('cost metrics', () => {
-  const reading = (id: string, rate: number | null, parentId: string | null = null): EfficiencyReading => ({
+  const reading = (id: string, rate: number | null, parentId: string | null = null, updatedAt = 0): EfficiencyReading => ({
     id,
     title: id,
     parentId,
+    updatedAt,
     costMicros: rate ?? 0,
     tokens: 1,
     rateMicros: rate,
@@ -141,24 +142,24 @@ describe('cost metrics', () => {
     expect(perMillionMicros(500_000, 0)).toBeNull()
   })
 
-  it('ladders decoder rows under their roots by rate, roots by rate descending', () => {
+  it('ladders decoder rows under their roots by recency, roots latest first', () => {
     const ordered = orderEfficiencyReadings([
-      reading('cheap', 1),
-      reading('child', 9, 'dear'),
-      reading('dear', 5),
-      reading('orphan', 3, 'gone'),
+      reading('cheap', 1, null, 1),
+      reading('child', 9, 'dear', 4),
+      reading('dear', 5, null, 3),
+      reading('orphan', 3, 'gone', 2),
     ])
-    // dear before cheap; its child rides directly beneath it; the orphan
-    // parentless row places as a root in rate order.
+    // dear (newest root) leads with its child beneath; the orphan and the
+    // cheap root follow in recency order, the child's higher rate ignored.
     expect(ordered.map(r => [r.id, r.depth])).toEqual([
       ['dear', 0], ['child', 1], ['orphan', 0], ['cheap', 0],
     ])
   })
 
   it('cuts a pure parent cycle instead of looping', () => {
-    // The chain walk visits each member once: the rate-leading cycle node
+    // The chain walk visits each member once: the newest cycle node
     // becomes the ladder root and the follower rides one rung beneath.
-    const ordered = orderEfficiencyReadings([reading('a', 2, 'b'), reading('b', 1, 'a')])
+    const ordered = orderEfficiencyReadings([reading('a', 2, 'b', 2), reading('b', 1, 'a', 1)])
     expect(ordered.map(r => [r.id, r.depth])).toEqual([['a', 0], ['b', 1]])
   })
 
@@ -194,14 +195,14 @@ describe('cost metrics', () => {
       efficiencyReading('act', asSummary(pricedRows().act), pricedRows().act.projectionValues!.sessionCost),
       efficiencyReading('explore', asSummary(pricedRows().explore), pricedRows().explore.projectionValues!.sessionCost),
     ])
-    const family = ordered[0]!.family!
+    const family = ordered.find(r => r.id === 'refactor')!.family!
     // Four distinct models across the tree, pooled spend per model.
     expect(family.models).toBe(4)
     expect(family.micros).toBe(4_800_000)
     expect(family.tokens).toBe(6_500_000)
     expect(family.entries.map(([model]) => model)).toEqual(['qwen3.8-max', 'qwen', 'deepseek-v4', 'v4'])
     // Children carry no family; the root rows alone do.
-    expect(ordered[1]!.family).toBeNull()
+    expect(ordered.find(r => r.id === 'act')!.family).toBeNull()
   })
 })
 
@@ -251,7 +252,7 @@ describe('TokenEfficiencyEntry', () => {
       .not.toContain('↳ ↳ explore: deep dive')
   })
 
-  it('lists session families by blended rate, collapsed to roots until expanded', () => {
+  it('lists session families latest first, collapsed to roots until expanded', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
     // Pooled family micros over tokens per model-count group; never rate
@@ -262,9 +263,9 @@ describe('TokenEfficiencyEntry', () => {
     // Collapsed by default: the four roots only.
     let titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
     expect(titles).toEqual([
+      'Docs Q&A',
       'Nightly audit sweep',
       'Refactor auth to session-stats',
-      'Docs Q&A',
       'Refactor auth (v4 only)',
     ])
     // Expanding the refactor family ladders its subagent rows beneath it,
@@ -274,24 +275,27 @@ describe('TokenEfficiencyEntry', () => {
     expect(caret.getAttribute('aria-expanded')).toBe('true')
     titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
     expect(titles).toEqual([
+      'Docs Q&A',
       'Nightly audit sweep',
       'Refactor auth to session-stats',
-      '↳ act: apply migration',
       '↳ explore: repo orientation',
-      'Docs Q&A',
+      '↳ act: apply migration',
       'Refactor auth (v4 only)',
     ])
     const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
-    expect(rates).toEqual(['$2.36', '$0.730', '$1.90', '$0.150', '$0.368', '$0.140'])
+    expect(rates).toEqual(['$0.368', '$2.36', '$0.730', '$0.150', '$1.90', '$0.140'])
     const spends = [...dialog.querySelectorAll('tbody td:nth-child(5)')].map(td => td.textContent)
-    expect(spends).toEqual(['$2.36', '$4.82', '$0.950', '$0.150', '$1.36', '$0.630'])
+    expect(spends).toEqual(['$1.36', '$2.36', '$4.82', '$0.150', '$0.950', '$0.630'])
     // The models column: session-family model counts on roots (subagents
     // pooled into their root), own-fold counts on detail rows.
     const models = [...dialog.querySelectorAll('tbody td:nth-child(2)')].map(td => td.textContent)
-    expect(models).toEqual(['1', '4', '1', '1', '3', '1'])
+    expect(models).toEqual(['3', '1', '4', '1', '1', '1'])
+    // The Tokens column: family billed totals on roots, own folds below.
+    const tokens = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
+    expect(tokens).toEqual(['3.7M', '1M', '6.6M', '1M', '500K', '4.5M'])
     // Cache hit rides the displayed buckets: pooled on roots, own below.
-    const hits = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
-    expect(hits).toEqual(['6%', '88%', '74%', '92%', '90%', '85%'])
+    const hits = [...dialog.querySelectorAll('tbody td:nth-child(7)')].map(td => td.textContent)
+    expect(hits).toEqual(['90%', '6%', '88%', '92%', '74%', '85%'])
     fireEvent.click(caret)
     expect(caret.getAttribute('aria-expanded')).toBe('false')
     titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
@@ -301,7 +305,7 @@ describe('TokenEfficiencyEntry', () => {
   it('opens the per-model listing when the Models cell is hovered', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    const mixedCell = [...dialog.querySelectorAll('tbody td:nth-child(2) span')][1]!
+    const mixedCell = [...dialog.querySelectorAll('tbody td:nth-child(2) span')][2]!
     fireEvent.mouseOver(mixedCell)
     const tip = view.getByRole('tooltip')
     expect(tip.textContent).toContain('Refactor auth to session-stats · 4 model(s) logged')
@@ -312,15 +316,15 @@ describe('TokenEfficiencyEntry', () => {
     expect(view.queryByRole('tooltip')).toBeNull()
   })
 
-  it('names the bar scale value and max when the track is hovered', () => {
+  it('names the bar rate, its share, and the max when the track is hovered', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    // Collapsed roots: audit 0, refactor 1, docs 2, v4only 3.
-    const docsTrack = [...dialog.querySelectorAll('tbody td:nth-child(3) span')][2]!
+    // Collapsed roots latest first: docs 0, audit 1, refactor 2, v4only 3.
+    const docsTrack = [...dialog.querySelectorAll('tbody td:nth-child(3) span')][0]!
     fireEvent.mouseOver(docsTrack)
     const tip = view.getByRole('tooltip')
-    // The docs row's 0.368 rate is a 16% share of the 2.36 max.
-    expect(tip.textContent).toContain('value — 16% of max')
+    // The docs row's $0.368 rate names outright, a 16% share of the $2.36 max.
+    expect(tip.textContent).toContain('value — $0.368/M tok · 16% of max')
     expect(tip.textContent).toContain('max — $2.36/M tok')
     fireEvent.mouseOut(docsTrack)
     expect(view.queryByRole('tooltip')).toBeNull()
@@ -361,13 +365,16 @@ describe('TokenEfficiencyEntry', () => {
     const dialog = open(view)
     const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
     expect(rates).toEqual(['$0.00', '$0.00'])
-    const hits = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
+    const hits = [...dialog.querySelectorAll('tbody td:nth-child(7)')].map(td => td.textContent)
     expect(hits).toEqual(['', ''])
+    // Both folds billed spend against zero billed tokens.
+    const tokens = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
+    expect(tokens).toEqual(['0', '0'])
     // The bar reports the scale honestly: zero of an absent max.
     const track = dialog.querySelector('tbody td:nth-child(3) span')!
     fireEvent.mouseOver(track)
     const tip = view.getByRole('tooltip')
-    expect(tip.textContent).toContain('value — 0% of max')
+    expect(tip.textContent).toContain('value — $0.00/M tok · 0% of max')
     expect(tip.textContent).toContain('max — $0.00/M tok')
     fireEvent.mouseOut(track)
   })
