@@ -49,15 +49,13 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     ? undefined
     : storedTurnProcessEntry(state, processSpec.turn))
   const processEntry = processSpec !== undefined
-    && processSpec.answerStep !== null
     && storedEntry?.answerStep === processSpec.answerStep
     ? storedEntry
     : undefined
   const processOpen = processEntry !== undefined
   const setOpen = useCallback((open: boolean) => {
-    if (processSpec !== undefined && processSpec.answerStep !== null) {
-      actions.setTurnProcessOpen(processSpec.turn, processSpec.answerStep, open)
-    }
+    if (processSpec === undefined) return
+    actions.setTurnProcessOpen(processSpec.turn, processSpec.answerStep, open)
   }, [actions, processSpec])
   const processWindowReady = processSpec !== undefined
     && processPresentation !== undefined
@@ -66,19 +64,35 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     && processPresentation.turn === processSpec.turn
     && processPresentation.turnClosed
     && !historyIncomplete
+  // A running turn folds exactly like a closed one under the compact
+  // transcript: the disclosure streams its live counts while the work
+  // rows hide behind it until unfolded or the turn settles.
+  const runningWindowReady = processSpec !== undefined
+    && processPresentation !== undefined
+    && compactTranscript
+    && processSpec.answerAnchorSeq === null
+    && processPresentation.turn === processSpec.turn
+    && !historyIncomplete
+  const foldWindowReady = processWindowReady || runningWindowReady
   const processMember = routedNode !== undefined
-    && processWindowReady
+    && foldWindowReady
     && !TURN_PROCESS_INDEPENDENT_KINDS.has(routedNode.kind)
+    // A live Turn's retry notices stay in the transcript while the turn
+    // runs; only once the answer settles do they fold with the rest.
+    && !(routedNode.kind === 'model-retry' && runningWindowReady)
     && routedNode.anchorSeq >= processSpec.processStartSeq
-    && routedNode.anchorSeq < processSpec.answerAnchorSeq
+    && (processSpec.answerAnchorSeq === null
+      || routedNode.anchorSeq < processSpec.answerAnchorSeq)
   const processAnswer = routedNode !== undefined
     && processWindowReady
     && routedNode.kind === 'assistant-step'
     && routedNode.data.step === processSpec.answerStep
   const ownsDisclosure = routedNode?.kind === 'turn-process' || processAnswer
-  const foldable = processWindowReady
+  const foldable = foldWindowReady
     && (processMember || (ownsDisclosure
-      && (processPresentation.hasExternalProcess || processSpec.inlineReasoning)))
+      && (processPresentation.hasExternalProcess
+        || processSpec.inlineReasoning
+        || runningWindowReady)))
   const turnProcess = useMemo(() => processSpec === undefined
     ? undefined
     : {

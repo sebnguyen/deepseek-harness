@@ -1535,7 +1535,7 @@ describe('ChatView', () => {
     expect(answer?.hasAttribute('data-turn-process-answer')).toBe(false)
   })
 
-  it('keeps a live Turn expanded and folds it once at turn/end', () => {
+  it('folds a live Turn under the streaming disclosure and widens it on demand', () => {
     const process = assistant(2, 'inspect', 1, 1)
     const h = makeHarness({
       nodes: [user(1, 'question'), process],
@@ -1543,8 +1543,14 @@ describe('ChatView', () => {
       running: true,
     })
     const view = render(<h.ChatView {...h.props} />)
-    expect(turnProcessControl(view.container)).toBeNull()
+    const liveToggle = turnProcessControl(view.container)
+    expect(liveToggle).not.toBeNull()
+    expect(liveToggle!.getAttribute('aria-expanded')).toBe('false')
     const processRow = view.getByText('inspect').closest('[data-chat-flow-kind="assistant-step"]') as HTMLElement
+    expect(processRow.getAttribute('hidden')).toBe('until-found')
+
+    act(() => { fireEvent.click(liveToggle!) })
+    expect(processRow.getAttribute('hidden')).toBeNull()
 
     act(() => {
       h.set({
