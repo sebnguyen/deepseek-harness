@@ -75,7 +75,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   const pricing = config.pricing
   // Schemastery's object coercion can leave an absent `pricing` as an empty
   // shell; an empty object has no rates and must stay unregistered.
-  if (pricing !== undefined && pricing !== null && Object.keys(pricing).length > 0) {
+  if (pricing !== undefined && Object.keys(pricing).length > 0) {
     ctx.sessionProjections.register(sessionCostProjectionDefinition(pricing))
   }
 }

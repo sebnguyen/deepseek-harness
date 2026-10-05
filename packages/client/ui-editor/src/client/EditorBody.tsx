@@ -90,7 +90,9 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
       loadedRef.current = { text, version: result.value.version }
       setDoc({ text, version: result.value.version, key: Date.now() })
     })
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+    }
   }, [file, load, reloadKey, t])
 
   const runSave = useCallback((expectedVersion: string | undefined, guarded: boolean): void => {
@@ -116,7 +118,9 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
   }, [file, save, saving, t])
 
   /** The Mod-S entry point: guard against the version this buffer was loaded from. */
-  const guardedSave = useCallback((): void => runSave(undefined, true), [runSave])
+  const guardedSave = useCallback((): void => {
+    runSave(undefined, true)
+  }, [runSave])
 
   useEffect(() => {
     const host = hostRef.current
@@ -161,8 +165,8 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
           <span className={css.bannerText}>{banner.kind === 'conflict' ? t('conflict') : banner.text}</span>
           {banner.kind === 'conflict' && (
             <>
-              <button type="button" onClick={() => setReloadKey(key => key + 1)}>{t('reload')}</button>
-              <button type="button" onClick={() => runSave(freshVersion, false)}>{t('overwrite')}</button>
+              <button type="button" onClick={() => { setReloadKey(key => key + 1) }}>{t('reload')}</button>
+              <button type="button" onClick={() => { runSave(freshVersion, false) }}>{t('overwrite')}</button>
             </>
           )}
         </div>
@@ -173,8 +177,8 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
       {failed === undefined && (
         <div className={css.footer}>
           <span className={css.status}>{status}</span>
-          <button type="button" disabled={!dirty || saving} onClick={() => runSave(undefined, true)}>{t('save')}</button>
-          <button type="button" disabled={saving || doc === undefined} onClick={() => setReloadKey(key => key + 1)}>
+          <button type="button" disabled={!dirty || saving} onClick={() => { runSave(undefined, true) }}>{t('save')}</button>
+          <button type="button" disabled={saving || doc === undefined} onClick={() => { setReloadKey(key => key + 1) }}>
             {t('revert')}
           </button>
         </div>

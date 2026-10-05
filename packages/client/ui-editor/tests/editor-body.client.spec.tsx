@@ -28,7 +28,7 @@ const rangeProto = Range.prototype as Range & { getClientRects(): DOMRectList; g
 rangeProto.getClientRects = () => ([]) as unknown as DOMRectList
 rangeProto.getBoundingClientRect = () => ({
   x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => '',
-}) as DOMRect
+})
 // CodeMirror's measure pass reschedules through requestAnimationFrame and
 // never settles against jsdom's zero geometry. The tests assert model and
 // status, not drawn text, so RAF stays inert; view updates are dispatched
@@ -121,7 +121,7 @@ describe('EditorBody', () => {
     const face = fakeFace()
     render(createElement(Harness, { load: face.load, save: face.save }))
     await screen.findByText(en.saved)
-    expect((screen.getByRole('button', { name: en.save }) as HTMLButtonElement).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: en.save }).disabled).toBe(true)
     expect(face.readAlls).toEqual(['notes.txt'])
   })
 
@@ -130,7 +130,9 @@ describe('EditorBody', () => {
     const { container } = render(createElement(Harness, { load: face.load, save: face.save }))
     await screen.findByText(en.saved)
     await pressSave(container)
-    await waitFor(() => expect(face.saves).toHaveLength(1))
+    await waitFor(() => {
+      expect(face.saves).toHaveLength(1)
+    })
     expect(face.saves[0]).toEqual({ content: 'one\n', expectedVersion: 'v1' })
   })
 
@@ -153,12 +155,18 @@ describe('EditorBody', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: en.overwrite }))
     })
-    await waitFor(() => expect(face.saves).toHaveLength(2))
+    await waitFor(() => {
+      expect(face.saves).toHaveLength(2)
+    })
     expect(face.saves[1]?.expectedVersion).toBeUndefined()
     expect(screen.getByText(en.conflict)).toBeDefined()
     await pressSave(container)
-    await waitFor(() => expect(face.saves).toHaveLength(3))
-    await waitFor(() => expect(screen.queryByText(en.conflict)).toBeNull())
+    await waitFor(() => {
+      expect(face.saves).toHaveLength(3)
+    })
+    await waitFor(() => {
+      expect(screen.queryByText(en.conflict)).toBeNull()
+    })
   })
 
   it('reloads the file when the conflict banner asks for it', async () => {
@@ -173,7 +181,9 @@ describe('EditorBody', () => {
     act(() => {
       fireEvent.click(screen.getByRole('button', { name: en.reload }))
     })
-    await waitFor(() => expect(face.readAlls).toHaveLength(2))
+    await waitFor(() => {
+      expect(face.readAlls).toHaveLength(2)
+    })
   })
 
   it('aborts an in-flight load when the tab unmounts', async () => {

@@ -180,7 +180,7 @@ export function foldSessionUsage(path: string): SessionUsageFold {
   } catch {
     throw new Error(`wind-up-cost-fold: ${path} line 1 is not JSON`)
   }
-  if (header === undefined || header.type !== 'session' || typeof header.id !== 'string') {
+  if (header.type !== 'session' || typeof header.id !== 'string') {
     throw new Error(`wind-up-cost-fold: ${path} lacks a type:'session' header line`)
   }
   const fold: SessionUsageFold = {

@@ -101,7 +101,7 @@ describe('sessionCost projection', () => {
 
   it('folds the definition directly on controlled events', () => {
     const definition = sessionCostProjectionDefinition(RATES)
-    let state = definition.init({} as never, 0 as never)
+    let state = definition.init({}, 0)
     state = definition.apply(state, {
       type: 'assistant/message',
       data: { usage: { inputTokens: 10, outputTokens: 4 } },
@@ -126,13 +126,13 @@ describe('sessionCost projection', () => {
         'qwen3.8-max': { inputPerMillionUsd: 2, outputPerMillionUsd: 6, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
       },
     })
-    expect(definition.init({} as never, 0 as never).rates.models['qwen3.8-max']).toMatchObject({ inputPerMillionUsd: 2 })
+    expect(definition.init({}, 0).rates.models['qwen3.8-max']).toMatchObject({ inputPerMillionUsd: 2 })
     const message = (model: string) => ({
       type: 'assistant/message',
       data: { usage: { inputTokens: 1_000_000, outputTokens: 0 }, message: { source: { provider: 'digitalocean', model } } },
       time: 0,
     } as never)
-    let state = definition.init({} as never, 0 as never)
+    let state = definition.init({}, 0)
     state = definition.apply(state, message('qwen3.8-max'))
     state = definition.apply(state, message('other-route'))
     // 1M at the model rate plus 1M at the flat fallback.

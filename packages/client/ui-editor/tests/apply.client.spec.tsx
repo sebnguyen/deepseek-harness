@@ -85,7 +85,7 @@ describe('ui-editor client apply', () => {
     await face.save(file, 'text', undefined, new AbortController().signal)
     expect(reads).toEqual(['s-1/notes.txt'])
     expect(writes).toEqual(['s-1/notes.txt:text'])
-    expect(hostApply()).toBeUndefined()
+    hostApply()
     await fiber.dispose()
     expect(disposed.sort()).toEqual(['body', 'locale', 'sidebar.right.pane.tab', 'type'])
   })

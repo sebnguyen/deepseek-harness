@@ -16,7 +16,6 @@ import { createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import { ApprovalService } from '@deepseek-ai/dsh-user-approval'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
@@ -338,7 +337,7 @@ describe('staged-escalation gate', () => {
       prompt: [{ type: 'text', text: 'answer' }],
       parent,
       signal: new AbortController().signal,
-      outputSchema: { type: 'object', properties: { answer: { type: 'number' } }, required: ['answer'] } as ObjectJsonSchema,
+      outputSchema: { type: 'object', properties: { answer: { type: 'number' } }, required: ['answer'] },
     }
     const run = await ctx.subagents.start('spawn', request)
     const result = await run.result

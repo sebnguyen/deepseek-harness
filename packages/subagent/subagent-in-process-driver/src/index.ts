@@ -264,7 +264,7 @@ function readResult(
 function parseStructuredOutput(output: ContentBlock[], schema: ObjectJsonSchema): unknown {
   const text = output
     .filter((block): block is { type: 'text'; text: string } =>
-      typeof block === 'object' && block !== null && !Array.isArray(block)
+      !Array.isArray(block)
       && (block as { type?: unknown }).type === 'text'
       && typeof (block as { text?: unknown }).text === 'string')
     .map(block => block.text)
