@@ -47,7 +47,7 @@ export interface Config {
 }
 
 const DEFAULT_DESCRIPTIONS = {
-  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. You can use request_escalation with the stage and a justification when you are ready to move on to the next stage after exploring, or where the evidence genuinely cannot precede the action.",
+  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, the shell runs read-only for searches and listings, web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. You can use request_escalation with the stage and a justification when you are ready to move on to the next stage after exploring, or where the evidence genuinely cannot precede the action.",
   act: 'The act stage is where confidence gets spent: create, modify, execute, and reach the network — act on what exploration pinned down, on premises now read, searched, and answered rather than guessed. Stages last this turn only; your next message re-arms explore.',
 }
 
@@ -65,7 +65,7 @@ export const Config: z<Config> = z.object({
     {
       name: 'explore',
       description: DEFAULT_DESCRIPTIONS.explore,
-      allow: ['ask_user_question', 'read', 'read_image', 'read_note', 'grep', 'glob', 'lsp', 'explore', 'subagent', 'web_search', 'web_fetch'],
+      allow: ['ask_user_question', 'read', 'read_image', 'read_note', 'grep', 'glob', 'lsp', 'explore', 'subagent', 'web_search', 'web_fetch', 'bash', 'pwsh'],
       sandbox: 'read-only',
     },
     {

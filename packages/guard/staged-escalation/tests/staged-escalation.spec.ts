@@ -147,6 +147,32 @@ describe('staged-escalation gate', () => {
     expect((first.data.source as StagedEscalationSource).currentStage).toBe('explore')
   })
 
+  it('ships the shell in the explore stage: bash and pwsh run read-only on an evidence-less turn and lift act', async () => {
+    const { ctx, parent, adapter } = await harness({})
+    for (const shell of ['bash', 'pwsh']) {
+      ctx.tools.register(defineContentToolFixture({
+        name: shell,
+        description: 'shell',
+        parameters: {},
+        async execute() { return [{ type: 'text', text: `${shell} ran` }] },
+      }))
+    }
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access' })
+    const locked = await ctx.sandboxPolicy.resolveClamped({ session: parent.session })
+    expect(locked.mode).toBe('read-only')
+    ;(adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'bash', {}),
+      toolCallResponse('c2', 'pwsh', {}),
+      toolCallResponse('c3', 'write', {}),
+      textResponse('done'),
+    ] as never
+    parent.followup({ role: 'user', content: [{ type: 'text', text: 'inspect then fix' }], source: { kind: 'user' } } as never)
+    await settle(ctx, parent)
+    const outcomes = toolOutcomes(parent)
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false, false, false])
+    expect(outcomes[0]?.text ?? '').toBe('bash ran')
+  })
+
   it('clamps the resolved sandbox policy narrow-only and never widens', async () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)

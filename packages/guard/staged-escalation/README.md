@@ -25,7 +25,7 @@ The tool catalog is byte-identical across lock, unlock, and restart: the gate de
 <a id="the-stage-ladder"></a>
 ## The stage ladder
 
-`Config.stages` is the ladder; the array index is the tier. Each stage names its `allow` tools (a lone `'*'` on the last stage admits every unlisted and future tool), its widest `sandbox` mode, a `name`, and the rationale-led `description` paragraph the reminder injects verbatim. The shipped default is `explore` (probes, reads, searches, questions; `read-only` fence) then `act` (`'*'`; `workspace-write`). Validation throws at load on an empty ladder, a duplicated or empty name, an empty description, an empty stage, or a `'*'` anywhere but alone on the last stage. `turnStartReminder: false` removes the step-1 reminder for deployments that rely on denials alone.
+`Config.stages` is the ladder; the array index is the tier. Each stage names its `allow` tools (a lone `'*'` on the last stage admits every unlisted and future tool), its widest `sandbox` mode, a `name`, and the rationale-led `description` paragraph the reminder injects verbatim. The shipped default is `explore` (probes, reads, shell searches, questions; `read-only` fence, so the shell lists and searches but cannot mutate) then `act` (`'*'`; `workspace-write`). Validation throws at load on an empty ladder, a duplicated or empty name, an empty description, an empty stage, or a `'*'` anywhere but alone on the last stage. `turnStartReminder: false` removes the step-1 reminder for deployments that rely on denials alone.
 
 <a id="invariant"></a>
 ## Invariant
