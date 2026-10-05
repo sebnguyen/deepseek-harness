@@ -218,6 +218,12 @@ importers:
       '@deepseek-ai/dsh-launch-environment':
         specifier: workspace:^
         version: link:../../packages/util/launch-environment
+      '@deepseek-ai/dsh-lsp':
+        specifier: workspace:^
+        version: link:../../packages/lsp/lsp
+      '@deepseek-ai/dsh-lsp-stdio':
+        specifier: workspace:^
+        version: link:../../packages/lsp/lsp-stdio
       '@deepseek-ai/dsh-mcp-client':
         specifier: workspace:^
         version: link:../../packages/mcp/mcp-client
@@ -293,6 +299,12 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:^
         version: link:../../packages/jobs/tool-jobs
+      '@deepseek-ai/dsh-tool-lsp':
+        specifier: workspace:^
+        version: link:../../packages/lsp/tool-lsp
+      '@deepseek-ai/dsh-tool-lsp-map':
+        specifier: workspace:^
+        version: link:../../packages/lsp/tool-lsp-map
       '@deepseek-ai/dsh-tool-present':
         specifier: workspace:^
         version: link:../../packages/fs/tool-present
@@ -1489,6 +1501,9 @@ importers:
       '@deepseek-ai/dsh-shell-env':
         specifier: workspace:^
         version: link:../../shell/shell-env
+      '@deepseek-ai/dsh-shell-search':
+        specifier: workspace:^
+        version: link:../../shell/shell-search
       '@deepseek-ai/dsh-skill':
         specifier: workspace:^
         version: link:../../skill/skill
