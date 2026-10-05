@@ -13,8 +13,8 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import {
   StatsPills, deriveStats, formatDuration, lastRequestTps, type StatsPillsProps,
 } from '../src/client/chat/StatsPills.tsx'
-import { formatUsdMicros } from '../src/client/chat/token-format.ts'
-import { formatTokens } from '../src/client/chat/token-format.ts'
+import { formatUsdMicros } from '../src/client/contract/token-format.ts'
+import { formatTokens } from '../src/client/contract/token-format.ts'
 import { en, zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 

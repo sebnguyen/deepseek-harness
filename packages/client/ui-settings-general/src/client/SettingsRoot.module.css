@@ -7,6 +7,26 @@
   margin: 4px -2px;
 }
 
+/* Sidebar-foot stack: feature entries above the Settings trigger row; the
+   rail variant centers its 36px column. */
+.footColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.footColumn .triggerRow {
+  margin: 0 -2px;
+}
+
+.footColumn.railColumn {
+  align-items: center;
+}
+
+.footColumn.railColumn .triggerRow {
+  margin: 0;
+}
+
 .triggerRow.railRow {
   width: 36px;
   margin: 8px 0 10px;

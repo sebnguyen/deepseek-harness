@@ -398,4 +398,3 @@ With the plugin composed in a test-only `cordis.yml` per the real-composition te
 **PTC direct writes.** Worker-thread `node:fs` writes bypass every fence and stay bypassed after this proposal; the execute-stage gate plus fs-fenced binding writes are the staged controls, with sandboxed worker spawning as the recorded reintroduction condition.
 
 **Seam surface growth.** `'sandbox-policy/resolve'` becomes shared `sandbox-policy` API surface; its narrow-only discipline must live inside resolve so a nonconforming listener cannot widen policy, per the enforce-the-decision rule, and every shipped consumer (bash, pwsh, terminal, fs) must route through it.
-

@@ -41,10 +41,12 @@ export function formatUsdMicros(micros: number, t: ChatViewSlotProps['t']): stri
   const dollars = micros / 1_000_000
   const decimals = dollars === 0 ? 2 : dollars < 0.1 ? 4 : dollars < 1 ? 3 : 2
   const text = dollars.toFixed(decimals)
-  const [whole, fraction] = text.split('.')
+  const dot = text.indexOf('.')
+  const whole = text.slice(0, dot)
+  const fraction = text.slice(dot + 1)
   const groups: string[] = []
-  for (let end = whole!.length; end > 0; end -= 3) {
-    groups.unshift(whole!.slice(Math.max(0, end - 3), end))
+  for (let end = whole.length; end > 0; end -= 3) {
+    groups.unshift(whole.slice(Math.max(0, end - 3), end))
   }
   return `${t('number.usdSymbol')}${groups.join(t('number.groupSeparator'))}.${fraction}`
 }

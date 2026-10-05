@@ -179,28 +179,31 @@ export function SettingsRoot(props: SettingsRootComponentProps) {
 
   return (
     <>
-      <div className={clsx(css.triggerRow, !wide && css.railRow)}>
-        <button
-          ref={triggerButton}
-          type="button"
-          className={clsx(css.trigger, !wide && css.rail)}
-          aria-label={t('trigger')}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onClick={() => { setOpen(true) }}
-        >
-          {renderSlot('settings.trigger', { wide })}
-        </button>
-        <ConnectionIndicator
-          state={wide ? connectionIndicator : undefined}
-          disconnectedLabel={t('connection.error')}
-          reconnectLabel={t('connection.retry')}
-          connectingLabel={t('connection.connecting')}
-          recoveredLabel={t('connection.connected')}
-          reconnectActionLabel={t('connection.reconnect')}
-          restartActionLabel={t('connection.restart')}
-          onReconnect={reconnect}
-        />
+      <div className={clsx(css.footColumn, !wide && css.railColumn)}>
+        {renderSlot('settings.trigger-item', { wide })}
+        <div className={clsx(css.triggerRow, !wide && css.railRow)}>
+          <button
+            ref={triggerButton}
+            type="button"
+            className={clsx(css.trigger, !wide && css.rail)}
+            aria-label={t('trigger')}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onClick={() => { setOpen(true) }}
+          >
+            {renderSlot('settings.trigger', { wide })}
+          </button>
+          <ConnectionIndicator
+            state={wide ? connectionIndicator : undefined}
+            disconnectedLabel={t('connection.error')}
+            reconnectLabel={t('connection.retry')}
+            connectingLabel={t('connection.connecting')}
+            recoveredLabel={t('connection.connected')}
+            reconnectActionLabel={t('connection.reconnect')}
+            restartActionLabel={t('connection.restart')}
+            onReconnect={reconnect}
+          />
+        </div>
       </div>
       {open && (
         <SettingsPanel

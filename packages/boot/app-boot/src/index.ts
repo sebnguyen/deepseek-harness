@@ -832,4 +832,3 @@ export async function boot(
     throw new Error(`${binName}: ${stage}: ${detail}${stack}`, { cause })
   }
 }
-

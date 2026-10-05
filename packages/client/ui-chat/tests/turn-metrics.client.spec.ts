@@ -6,7 +6,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { assistantStepReading, deriveTurnMetrics } from '../src/client/contract/turn-metrics.ts'
 import { formatLatencySeconds, formatTokensPerSecond } from '../src/client/chat/message-chrome.ts'
-import { formatCacheHitPercent } from '../src/client/chat/token-format.ts'
+import { formatCacheHitPercent } from '../src/client/contract/token-format.ts'
 
 interface StepSpec {
   seq: number
