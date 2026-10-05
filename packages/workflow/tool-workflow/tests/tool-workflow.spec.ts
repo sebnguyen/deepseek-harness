@@ -5,6 +5,7 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import type { ToolExecutionResult, ToolExecutionToken } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { WorkflowRunId, WorkflowEngine } from '@deepseek-ai/dsh-workflow'
 import type {
   WorkflowAgentEndInfo, WorkflowAgentInfo, WorkflowResult, WorkflowRun,
@@ -388,6 +389,23 @@ describe('dsh-tool-workflow', () => {
     expect(ctx.tools.get('orchestrate')).toBeUndefined()
     // …and gone with the fiber — a reload must not leak a stale section.
     expect((await ctx.systemPrompt.assemble()).sections.some(s => s.name === 'tool:orchestrate')).toBe(false)
+  })
+
+  it('omits the usage policy from scopes where the tool is hidden', async () => {
+    const { ctx } = await setup()
+    const key = {}
+    let scope!: Scope
+    await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, key) },
+      { inject: ['tools', 'systemPrompt'] }))
+    const release = scope.ctx.tools.restrict({ allow: [] })
+    try {
+      expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+        .find(s => s.name === 'tool:workflow')?.text).toBe('')
+    } finally {
+      release()
+    }
+    expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+      .find(s => s.name === 'tool:workflow')?.text).toContain('ONLY when the user explicitly asks')
   })
 
   it('presents a generic pending card titled by the meta name, with the script as rawInput', async () => {

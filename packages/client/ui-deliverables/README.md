@@ -75,11 +75,11 @@ Read these pages when the deliverables surface is not enough. They move from the
 
 #### What the model sees
 
-One fixed paragraph instructs the model to name primary files from successful creation or modification calls in its final response and to format those and any other changed-file references as exact-path or unique-basename Markdown inline code, such as `out/report.html`.
+One fixed `Advice:` line instructs the model to name primary files from successful creation or modification calls in its final response and to format those and any other changed-file references as exact-path or unique-basename Markdown inline code, such as `out/report.html`. The section renders only while the `present` tool is visible in the assembly scope.
 
 #### Token effect
 
-One fixed prompt paragraph whenever this package is loaded. The [present tool](../../fs/tool-present/README.md#model-experience) owns the delivery schema and result text.
+One fixed prompt line while `present` is visible. The [present tool](../../fs/tool-present/README.md#model-experience) owns the delivery schema and result text.
 
 #### KV Cache effect
 

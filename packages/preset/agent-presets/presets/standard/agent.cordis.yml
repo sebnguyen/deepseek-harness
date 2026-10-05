@@ -28,7 +28,13 @@
     prefix: >-
       You are a coding agent powered by the {{model}} model. When a step depends on an
       assumption you cannot settle by inspection, ask the user with ask_user_question
-      instead of reasoning through a long chain of guesses.
+      instead of reasoning through a long chain of guesses. Exploration in this
+      deployment delegates: broad orientation, cross-cutting searches, and reading
+      at scale route to `explore` — cheap one-shot children whose only product is
+      their handoff — while your own context stays for thinking, writing, and the
+      targeted reads that back a specific edit. Two `explore` children never cover
+      the same territory in parallel; batch distinct unknowns in one message, and
+      convert accepted handoffs into todo items before implementing.
 
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
@@ -168,6 +174,8 @@
 
               Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
 
+              Exploration in this window delegates: every unknown class gets at most one `explore` child, and the same territory is not explored in parallel in your own context. The plan cites explorer handoffs, never repeating a child's raw results.
+
               The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
 
               Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
@@ -249,6 +257,66 @@
         toolName: subagent_fork
         backgroundMode: continuable
 
+    # The wind-up explorer — the `wind-up-wind-down` preset's flow mounted
+    # here so standard sessions boot into it: one-shot foreground child,
+    # no children of its own, deployment-owned handoff schema, step
+    # budget, and read-only confinement. The allow list names only tools
+    # this preset itself mounts, so the child-scope restriction resolves
+    # in every deployment; search rides the shell (`rg` through `bash`),
+    # matching this preset's deliberate `tool-fs-search` omission. The
+    # explorer pins this deployment's cheap flash route so peripheral
+    # reads bill at flash rates while the parent keeps its thinking
+    # route; the pin resolves against the live adapter per call, so a
+    # deployment without that route retunes it to its own cheap model.
+    - id: tool-subagent-explore
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: explore
+        toolFilter:
+          allow: [read, read_image, bash, web_fetch, web_search]
+        enableRunInBackground: false
+        enableBatchTasks: true
+        maxDepth: 1
+        backgroundMode: one-shot
+        childSandboxMode: read-only
+        maxSteps: 24
+        outputSchema:
+          type: object
+          additionalProperties: false
+          required: [handoff, findings, unknowns]
+          properties:
+            handoff:
+              type: string
+            findings:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                required: [subject, fact, evidence]
+                properties:
+                  subject: { type: string }
+                  fact: { type: string }
+                  evidence: { type: string }
+            unknowns:
+              type: array
+              items: { type: string }
+        persona: >-
+          You are an explorer: a cheap broad reader answering one open question
+          about unknown territory while the parent keeps its thinking route. The
+          prompt names a question, not a file. Orient first (list the directory,
+          find the entries), then explore the periphery: read the relevant ranges,
+          follow references and callers where that sharpens the answer, cross-cut
+          with `rg` through `bash`, and run read-only commands. Keep exploring
+          until every part of the question is settled or dead-ends — a broad
+          territory earns many reads, not one. Write nothing that mutates. Hand
+          off a map: confirmed facts with file:line evidence in `findings`, what
+          remains open for the parent to probe in `unknowns`, and the direct
+          answer in `handoff`.
+        agentOptions:
+          provider: digitalocean
+          model: glm-5.3-flash
+
     # Production dsh does not install these optional providers. Install the
     # matching Bundle in this Profile and restart the Host, then copy this
     # preset and remove `disabled` from the matching tool row. Host availability
@@ -284,6 +352,15 @@
       config:
         subagentProvider: spawn
         maxRounds: 64
+
+# The spree brake for this preset's delegation tools: at most twenty counted
+# starts per turn (a batched explore call counts one per `tasks` entry), the
+# twenty-first denied with the advice to convert handoffs into todos.
+- id: delegation-cap
+  name: '@deepseek-ai/dsh-delegation-cap'
+  config:
+    tools: [subagent, subagent_fork, explore]
+    maxDelegationsPerTurn: 20
 
 # ── remaining model-facing rows ─────────────────────────────────────────────
 

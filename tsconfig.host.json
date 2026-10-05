@@ -343,6 +343,7 @@
     { "path": "./packages/preset/agent-presets" },
     { "path": "./packages/preset/persona" },
     { "path": "./packages/guard/repeat-tool-reminder" },
+    { "path": "./packages/guard/delegation-cap" },
     { "path": "./packages/knowledge/knowledge-notes" },
     { "path": "./packages/extensions/cordis-host-runner" },
     { "path": "./packages/extensions/tool-cordis" },

@@ -3,6 +3,7 @@ import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
@@ -394,6 +395,23 @@ describe('dsh-tool-ralph', () => {
     await fiber.dispose()
     expect(ctx.tools.get('ralph')).toBeUndefined()
     expect((await ctx.systemPrompt.assemble()).sections.some(candidate => candidate.name === 'tool:ralph')).toBe(false)
+  })
+
+  it('omits the usage policy from scopes where the ralph tool is hidden', async () => {
+    const { ctx } = await setup()
+    const key = {}
+    let scope!: Scope
+    await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, key) },
+      { inject: ['tools', 'systemPrompt'] }))
+    const release = scope.ctx.tools.restrict({ allow: [] })
+    try {
+      expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+        .find(candidate => candidate.name === 'tool:ralph')?.text).toBe('')
+    } finally {
+      release()
+    }
+    expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+      .find(candidate => candidate.name === 'tool:ralph')?.text).toContain('ONLY when the direct human explicitly asks')
   })
 
   it('has the namespace-plugin export shape', () => {

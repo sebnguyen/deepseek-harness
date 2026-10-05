@@ -46,6 +46,36 @@ Mount the plugin beside the session store and the projection registry when clien
 
 Every field is 0 until its first contributing event; the composed registry always serves the key, so clients read the value rather than key presence. Clients render whole-log figures through the projection seam's snapshot and change feed; the reference consumer is the web chat stats strip, whose window fold mirrors these field names as its no-unit fallback.
 
+### Cost figures
+
+With a `pricing` row the plugin also registers `sessionCost`: whole-log provider usage priced under deployment-declared USD per-million rates. Each `assistant/message` event prices under its logged `message.source.model`: the optional `pricing.models` map keys one four-rate set per model id, and the flat rates price any model they do not list. Each session folds its own log, so a subagent session carries its own spend; the projection stays per-scope, while the web cost popover separately folds descendant sessions' values off their session-list rows for a tree view.
+
+```yaml
+- name: '@deepseek-ai/dsh-session-stats'
+  config:
+    pricing:
+      inputPerMillionUsd: 0.5
+      outputPerMillionUsd: 2
+      cacheReadPerMillionUsd: 0.1
+      cacheWritePerMillionUsd: 0.6
+      models:
+        qwen3.8-max:
+          inputPerMillionUsd: 2
+          outputPerMillionUsd: 6
+          cacheReadPerMillionUsd: 0.2
+          cacheWritePerMillionUsd: 0
+```
+
+| Field | Meaning |
+|---|---|
+| `uncachedInputTokens` / `outputTokens` | Provider buckets folded from `assistant/message` usage |
+| `cacheReadTokens` / `cacheWriteTokens` | Same, for the cache buckets |
+| `costMicros` | Estimated spend under the configured rates, millionths of a dollar |
+| `perModel` | Per-model spend (the same four buckets plus `costMicros`) keyed by logged model id; a message without one accumulates under `''` |
+| `rates` | The exact rate table that priced the totals |
+
+The four buckets map one-to-one onto the four rates (`inputTokens` already excludes cache counters), and a usage record without finite nonnegative counts never touches the fold. Every rate entry is validated at plugin load and a malformed one throws instead of underpricing. Without `pricing` the key is absent entirely — rates are deployment policy, never inferred.
+
 ### Failures and recovery
 
 The unit is inert without the projection registry: `inject` keeps the fiber pending and nothing registers, so other assemblies lack the `sessionStats` key. Unmounting the plugin removes the key, because registrations are effects on the mounting fiber. A crash-interrupted step counts after the session reloads, when crash recovery appends its synthetic `step/end`.

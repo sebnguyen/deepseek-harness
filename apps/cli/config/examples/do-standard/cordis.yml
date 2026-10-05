@@ -273,3 +273,79 @@
 #       config:
 #         searchProvider: exa         # needs EXA_API_KEY
 #         # searchProvider: deepseek  # needs DEEPSEEK_API_KEY
+
+# ── per-scope cost chip rates ────────────────────────────────────────────────
+# Overrides the bundled session-stats pricing row (later patch layers
+# configure rows earlier layers inserted). Flat rates price the deployment
+# default route; pricing.models re-rates every other catalog model at the
+# DigitalOcean serverless inference table. Dropping the block leaves the
+# bundled default in force.
+- id: session-stats
+  config:
+    pricing:
+      inputPerMillionUsd: 0.14
+      outputPerMillionUsd: 0.28
+      cacheReadPerMillionUsd: 0.028
+      cacheWritePerMillionUsd: 0
+      # DO serverless inference per-model rates (docs verified 2026-10-01).
+      models:
+        'glm-5.3-flash':
+          inputPerMillionUsd: 0.15
+          outputPerMillionUsd: 0.5
+          cacheReadPerMillionUsd: 0.03
+          cacheWritePerMillionUsd: 0
+        'glm-5.3':
+          inputPerMillionUsd: 1.4
+          outputPerMillionUsd: 4.4
+          cacheReadPerMillionUsd: 0.26
+          cacheWritePerMillionUsd: 0
+        'minimax-m2.5':
+          inputPerMillionUsd: 0.3
+          outputPerMillionUsd: 1.2
+          cacheReadPerMillionUsd: 0.06
+          cacheWritePerMillionUsd: 0
+        'mimo-v2.5-pro':
+          inputPerMillionUsd: 0.8
+          outputPerMillionUsd: 3
+          cacheReadPerMillionUsd: 0.16
+          cacheWritePerMillionUsd: 0
+        'kimi-k2.6':
+          inputPerMillionUsd: 0.95
+          outputPerMillionUsd: 4
+          cacheReadPerMillionUsd: 0.19
+          cacheWritePerMillionUsd: 0
+        'qwen3.8-max':
+          inputPerMillionUsd: 2
+          outputPerMillionUsd: 6
+          cacheReadPerMillionUsd: 0.2
+          cacheWritePerMillionUsd: 0
+        'gemma-4-31B-it':
+          inputPerMillionUsd: 0.18
+          outputPerMillionUsd: 0.5
+          cacheReadPerMillionUsd: 0.036
+          cacheWritePerMillionUsd: 0
+        'deepseek-v4.1-flash':
+          inputPerMillionUsd: 0.3
+          outputPerMillionUsd: 1.2
+          cacheReadPerMillionUsd: 0.006
+          cacheWritePerMillionUsd: 0
+        'deepseek-v4-flash-0731':
+          inputPerMillionUsd: 0.14
+          outputPerMillionUsd: 0.28
+          cacheReadPerMillionUsd: 0.028
+          cacheWritePerMillionUsd: 0
+        'deepseek-v4-pro-0813':
+          inputPerMillionUsd: 1.32
+          outputPerMillionUsd: 3.96
+          cacheReadPerMillionUsd: 0.044
+          cacheWritePerMillionUsd: 0
+        'deepseek-v4-pro':
+          inputPerMillionUsd: 1.74
+          outputPerMillionUsd: 3.48
+          cacheReadPerMillionUsd: 0.348
+          cacheWritePerMillionUsd: 0
+        'deepseek-v4-flash':
+          inputPerMillionUsd: 0.14
+          outputPerMillionUsd: 0.28
+          cacheReadPerMillionUsd: 0.028
+          cacheWritePerMillionUsd: 0

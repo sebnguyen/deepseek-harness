@@ -210,6 +210,41 @@ describe('LlmRuntime', () => {
     expect(adapter.lastOptions?.messages[0]).toBe(message)
   })
 
+  it('strips structuredOutput for adapters that cannot grammar-decode', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['test-provider'], adapter)
+
+    for await (const _chunk of ctx.llm.stream({
+      provider: 'test-provider',
+      model: 'test-model',
+      messages: [],
+      structuredOutput: { type: 'object' },
+    })) { /* drain */ }
+
+    expect(adapter.lastOptions?.structuredOutput).toBeUndefined()
+  })
+
+  it('passes structuredOutput through to adapters that grammar-decode', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const SchemaAdapter = class extends RecordingAdapter {
+      override readonly structuredOutputOnRequest = true
+    }
+    const adapter = new SchemaAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['test-provider'], adapter)
+
+    for await (const _chunk of ctx.llm.stream({
+      provider: 'test-provider',
+      model: 'test-model',
+      messages: [],
+      structuredOutput: { type: 'object' },
+    })) { /* drain */ }
+
+    expect(adapter.lastOptions?.structuredOutput).toEqual({ type: 'object' })
+  })
+
   it('projects file blocks through every host-path availability outcome', async () => {
     const attachment = {
       attachmentId: AttachmentId(`sha256:${'ab'.repeat(32)}`),

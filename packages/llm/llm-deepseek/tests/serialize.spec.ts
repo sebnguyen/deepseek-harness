@@ -266,6 +266,32 @@ describe('serializeRequest', () => {
     expect(JSON.stringify(imageHistory)).toBe(JSON.stringify(imageOption))
   })
 
+  it('maps structuredOutput to response_format json_schema', () => {
+    const wire = serializeRequest(request({ messages: history, structuredOutput: {
+      type: 'object',
+      properties: { handoff: { type: 'string' } },
+      required: ['handoff'],
+      additionalProperties: false,
+    } }))
+    expect(wire.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: {
+        name: 'structured_output',
+        schema: {
+          type: 'object',
+          properties: { handoff: { type: 'string' } },
+          required: ['handoff'],
+          additionalProperties: false,
+        },
+      },
+    })
+  })
+
+  it('omits response_format when the request has no structuredOutput', () => {
+    const wire = serializeRequest(request({ messages: history }))
+    expect(wire.response_format).toBeUndefined()
+  })
+
   it('maps sampling params and stop sequences', () => {
     const wire = serializeRequest(request({ messages: history, temperature: 0.2, maxTokens: 100, stop: ['END'] }))
     expect(wire.temperature).toBe(0.2)

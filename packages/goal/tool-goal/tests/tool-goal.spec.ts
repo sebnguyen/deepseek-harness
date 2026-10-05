@@ -14,6 +14,7 @@ import SessionStore, {
   SessionId,
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
+import { createScope, type Scope } from '@deepseek-ai/dsh-scope'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -157,6 +158,23 @@ describe('goal tool registration and presentation', () => {
     await fiber.dispose()
     expect(ctx.tools.get('get_goal')).toBeUndefined()
     expect((await ctx.systemPrompt.assemble()).sections.some(item => item.name === 'tool:goal')).toBe(false)
+  })
+
+  it('omits the guidance from scopes where the goal tools are hidden', async () => {
+    const { ctx } = await harness()
+    const key = {}
+    let scope!: Scope
+    await ctx.plugin(Object.assign((inner: Context) => { scope = createScope(inner, key) },
+      { inject: ['tools', 'systemPrompt'] }))
+    const release = scope.ctx.tools.restrict({ allow: [] })
+    try {
+      expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+        .find(item => item.name === 'tool:goal')?.text).toBe('')
+    } finally {
+      release()
+    }
+    expect((await ctx.systemPrompt.assemble({ scope: key })).sections
+      .find(item => item.name === 'tool:goal')?.text).toContain('infer goal intent')
   })
 
   it('uses args-only generic render intent and soft-fails malformed replay args', async () => {

@@ -367,6 +367,9 @@ function requestWithMessages(
     ...options.temperature !== undefined ? { temperature: options.temperature } : {},
     ...options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens },
     ...options.stop !== undefined ? { stop: options.stop } : {},
+    ...options.structuredOutput !== undefined
+      ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'structured_output', schema: options.structuredOutput } } }
+      : {},
   }
 }
 

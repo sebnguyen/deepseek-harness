@@ -7,6 +7,7 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import type {
   ChatConversationViewNode, ConversationNode,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { ChatNodeViewProps } from '../src/client/contract/slots.ts'
 import {
   formatMessageClock, msUntilNextLocalMidnight, startOfLocalDay,
@@ -16,7 +17,7 @@ import {
   UserMessageNodeView,
 } from '../src/client/chat/MessageItem.tsx'
 import { AssistantMarkdown, type AssistantMarkdownProps } from '../src/client/chat/AssistantMarkdown.tsx'
-import { StatsPills } from '../src/client/chat/StatsPills.tsx'
+import { StatsPills, type StatsPillsProps } from '../src/client/chat/StatsPills.tsx'
 import { zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
@@ -34,6 +35,15 @@ const RETRY_ID = 'retry-fixture' as Extract<ConversationNode, { kind: 'model-ret
 const useDetachedChat: ChatNodeViewProps['useChat'] = bindSnapshotSelector({
   subscribe: () => () => { },
   getSnapshot: () => ({ order: [], nodes: new Map() }),
+} as never)
+
+// StatsPills reads only the list's byId for its spend rollup; an empty list
+// keeps the cost popover scoped to the viewed session. One stable object:
+// useSyncExternalStore re-renders on every getSnapshot identity change.
+const EMPTY_SESSION_LIST = { byId: {} }
+const useEmptySessions: StatsPillsProps['useSessions'] = bindSnapshotSelector({
+  subscribe: () => () => { },
+  getSnapshot: () => EMPTY_SESSION_LIST,
 } as never)
 
 interface MessageItemProps {
@@ -1057,6 +1067,8 @@ describe('small branch tails', () => {
         useProjection={(key: string) => key === 'tokenUsage'
           ? { uncachedInputTokens: 0, outputTokens: 10, cacheReadTokens: 0, cacheWriteTokens: 0 }
           : undefined}
+        useSessions={useEmptySessions}
+        sessionId={'tail' as SessionId}
       />,
     )
     // The untimed counts pill renders static, so the usage pill is the only button.

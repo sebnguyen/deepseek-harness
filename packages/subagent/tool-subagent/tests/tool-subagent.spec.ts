@@ -109,6 +109,26 @@ describe('dsh-tool-subagent', () => {
     expect(text(result)).toBe('child says hi')
   })
 
+  it('renders the structured capture when the child settles without final text', async () => {
+    const ctx = await setup(
+      {
+        provider: 'mock',
+        outputSchema: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['handoff'],
+          properties: { handoff: { type: 'string' } },
+        },
+      },
+      { reply: '', structured: { handoff: 'findings' } },
+    )
+    const result = await callSubagent(ctx, { description: 'read the unknown', prompt: 'p' })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected subagent success')
+    expect(result.value).toMatchObject({ kind: 'foreground', structured: { handoff: 'findings' } })
+    expect(text(result)).toBe(JSON.stringify({ handoff: 'findings' }, null, 2))
+  })
+
   it('omits run_in_background entirely when the instance disables it (schema and capability never disagree)', async () => {
     const ctx = await setup({ provider: 'mock', enableRunInBackground: false })
     const schema = ctx.tools.schemas().find(s => s.name === 'subagent')
@@ -816,6 +836,118 @@ describe('dsh-tool-subagent', () => {
     })
     const fiber = ctx.plugin(tool, { provider: 'p', toolFilter: {} })
     await expect(fiber).rejects.toThrow(/names neither `allow` nor `deny`/)
+  })
+})
+
+describe('dsh-tool-subagent batch tasks', () => {
+  it('swaps `prompt` for a required `tasks` only when the instance enables batch execution', async () => {
+    const plain = await setup({ provider: 'mock' })
+    const plainSchema = plain.tools.schemas().find(schema => schema.name === 'subagent')!
+    const plainProps = (plainSchema.parameters as { properties?: Record<string, unknown> }).properties ?? {}
+    expect(plainProps).toHaveProperty('prompt')
+    expect(plainProps).not.toHaveProperty('tasks')
+    expect(plainSchema.description).not.toContain('`tasks`')
+    const batch = await setup({ provider: 'mock', enableBatchTasks: true })
+    const schema = batch.tools.schemas().find(s => s.name === 'subagent')!
+    const batchProps = (schema.parameters as {
+      properties?: Record<string, unknown>
+      required?: string[]
+    }).properties ?? {}
+    expect(batchProps).toHaveProperty('tasks')
+    expect(batchProps).not.toHaveProperty('prompt')
+    expect((schema.parameters as { required?: string[] }).required).toContain('tasks')
+    expect(schema.description).toContain('through the `tasks` array')
+  })
+
+  it('runs one foreground child per `tasks` entry and reports them in task order', async () => {
+    const started: string[] = []
+    const ctx = await setup(
+      { provider: 'mock', enableBatchTasks: true },
+      { reply: 'found it', onStart: (request) => { started.push(request.label ?? '') } },
+    )
+    const result = await callSubagent(ctx, {
+      description: 'batch',
+      tasks: [
+        { description: 'first reader', prompt: 'p1' },
+        { description: 'second reader', prompt: 'p2' },
+      ],
+    })
+    expect(result.isError).toBe(false)
+    if (result.isError) throw new Error('expected batch success')
+    expect([...started].sort()).toEqual(['first reader', 'second reader'])
+    type BatchValue = {
+      readonly kind: string
+      readonly results?: ReadonlyArray<{ description: string; status: string; output: unknown }>
+    }
+    const value = result.value as unknown as BatchValue
+    expect(value.kind).toBe('foreground')
+    expect(value.results).toEqual([
+      { description: 'first reader', status: 'ok', output: [{ type: 'text', text: 'found it' }] },
+      { description: 'second reader', status: 'ok', output: [{ type: 'text', text: 'found it' }] },
+    ])
+    expect(text(result)).toContain('## first reader\nfound it')
+    expect(text(result)).toContain('## second reader\nfound it')
+  })
+
+  it('rejects missing, empty, and backgrounded `tasks` batches', async () => {
+    const ctx = await setup({ provider: 'mock', enableBatchTasks: true })
+    const missing = await callSubagent(ctx, { description: 'd' })
+    expect(missing.isError).toBe(true)
+    expect(JSON.stringify(missing.content)).toContain('missing required property')
+    const empty = await callSubagent(ctx, { description: 'd', tasks: [] })
+    expect(empty.isError).toBe(true)
+    expect(JSON.stringify(empty.content)).toContain('at least one entry')
+    const backgrounded = await callSubagent(ctx, {
+      description: 'd',
+      tasks: [{ description: 'a', prompt: 'x' }],
+      run_in_background: true,
+    })
+    expect(backgrounded.isError).toBe(true)
+    expect(JSON.stringify(backgrounded.content)).toContain('runs in the foreground')
+  })
+
+  it('keeps one failing child an error entry beside its sibling, and fails whole only when all fail', async () => {
+    const brokenStart = await setup(
+      { provider: 'mock', enableBatchTasks: true },
+      {
+        reply: 'found it',
+        onStart: (request) => {
+          if (request.label === 'broken reader') throw new Error('no such territory')
+        },
+      },
+    )
+    const partial = await callSubagent(brokenStart, {
+      description: 'batch',
+      tasks: [
+        { description: 'broken reader', prompt: 'p1' },
+        { description: 'healthy reader', prompt: 'p2' },
+      ],
+    })
+    expect(partial.isError).toBe(false)
+    if (partial.isError) throw new Error('expected partial batch success')
+    const partialValue = partial.value as { results?: ReadonlyArray<{ description: string; status: string; error?: string }> }
+    expect(partialValue.results?.map(entry => ({ description: entry.description, status: entry.status }))).toEqual([
+      { description: 'broken reader', status: 'error' },
+      { description: 'healthy reader', status: 'ok' },
+    ])
+    expect(partialValue.results?.[0]?.error ?? '').toContain('no such territory')
+    expect(text(partial)).toContain('## broken reader\nError:')
+    expect(text(partial)).toContain('no such territory')
+    expect(text(partial)).toContain('## healthy reader\nfound it')
+
+    const allFail = await setup(
+      { provider: 'mock', enableBatchTasks: true },
+      { stopReason: 'max-tokens', diagnostic: 'budget out' },
+    )
+    const failed = await callSubagent(allFail, {
+      description: 'batch',
+      tasks: [
+        { description: 'first reader', prompt: 'p1' },
+        { description: 'second reader', prompt: 'p2' },
+      ],
+    })
+    expect(failed.isError).toBe(true)
+    expect(JSON.stringify(failed.content)).toContain('all 2 batched children failed')
   })
 })
 

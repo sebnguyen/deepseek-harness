@@ -8,13 +8,14 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-tools'
 import { registerPresentOpen } from './present-open.ts'
 
 /** Services required for file-reference guidance and authenticated native opens of declared files. */
-export const inject = ['systemPrompt', 'connection', 'sessionQuery', 'sessionController', 'workspaceFiles', 'fs', 'sandboxPolicy']
+export const inject = ['systemPrompt', 'tools', 'connection', 'sessionQuery', 'sessionController', 'workspaceFiles', 'fs', 'sandboxPolicy']
 
-/** Stable final-response guidance owned by the matching renderer. */
-const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, mention the primary outputs in your final response. '
+/** Stable final-response guidance owned by the matching renderer, rendered only while `present` is visible. */
+const FILE_REFERENCE_PROMPT = 'Advice: When you successfully create or modify files, mention the primary outputs in your final response. '
   + 'To make those and any other changed-file references clickable in Web, format them as Markdown inline code using the exact file-tool path, or a basename when unique among the files changed in that turn.'
 
 /**
@@ -26,6 +27,6 @@ export function apply(ctx: Context): void {
   ctx.systemPrompt.section({
     name: 'ui:deliverable-file-references',
     order: ctx.systemPrompt.getSectionOrder('DELIVERABLE_FILE_REFERENCES'),
-    text: FILE_REFERENCE_PROMPT,
+    text: ({ scope }) => ctx.tools.get('present', scope) === undefined ? '' : FILE_REFERENCE_PROMPT,
   })
 }

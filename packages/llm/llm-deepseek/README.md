@@ -189,6 +189,7 @@ These limits define where the adapter stops and future work begins. They are cur
 
 - **A settings `models` list replaces the composition list wholesale** — settings-layer merging is per-field, and arrays are one field; per-entry catalog merging would need a keyed shape.
 - **`tool_choice` is not mapped** — not part of the core vocabulary (shared with the pi-ai twin).
+- **`structuredOutput` maps to `response_format.json_schema` with the fixed name `structured_output`** — the adapter sets `structuredOutputOnRequest` so the runtime feeds it the field; grammar-decoded output still flows through the ordinary stream path and the caller's capture validation remains authoritative. Token effect: the schema adds request-body bytes once and constrains decode choices, it never appears in history replay.
 - **Requests use raw `fetch`, not `@cordisjs/plugin-http`** — no shared proxy or interception configuration.
 - **Plugin-added content block types are skipped** — core text and supported image blocks are serialized, and empty tool output crosses the wire as the literal `(no output)`.
 - **Images are input-only durable attachments** — direct external URLs and assistant image output are not supported; DeepSeek input normally uses the Files API and uses inline base64 only for per-request recovery.
