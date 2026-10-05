@@ -16,6 +16,8 @@ Compact transcript folding applied only to closed Turns: while a Turn ran, every
 
 **DisclosureRow keeps closed children mounted on demand.** A `keepChildrenMounted` prop renders closed `children` inside a `hidden="until-found"` wrapper; ReasoningRow, ContextInjectionRow, and SystemPromptRow opt in so folded detail text stays in the document for search and assistive technology, and hidden members no longer purge mid-Turn.
 
+**Partial history folds every loaded Turn.** The one-Turn boundary exemption that shipped with this mechanism ([successor](../../implemented/feature/2026-10-05-partial-history-folds-every-loaded-turn.md)) kept the first loaded Turn expanded while an older page stayed unloaded; product direction supersedes it — compact mode folds the boundary Turn too, on the loaded evidence, and the counts widen when the older page loads.
+
 ## Verification
 
 ChatView specs cover the live fold's member set and hidden state, the counts and label while running, Normal-mode passthrough, hand-over at `turn/end`, and focused-row reveal; the chat-store spec pins the null-step entry lifecycle; `pnpm run test:gui` stays green across the client suites.
@@ -34,3 +36,4 @@ ChatView specs cover the live fold's member set and hidden state, the counts and
 - A running Turn's visible Assistant row is never a fold member; when the Turn has no reply-bearing row yet, every evidence row folds behind the control.
 - Closed-children mount retention is opt-in per DisclosureRow callsite; rows with heavy expanded bodies keep the unmounted default.
 - The projector's presentation gains `liveStep`/`liveFoldable`; closed turns publish null/false so the completed-Turn contract is unchanged.
+- Older-page loading never disables folding: the brief boundary-Turn exemption is superseded by [Partial history folds every loaded Turn](2026-10-05-partial-history-folds-every-loaded-turn.md), and the ChatView specs pin the boundary Turn folding beside the rest of a partial page.

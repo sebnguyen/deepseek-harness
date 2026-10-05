@@ -1683,10 +1683,10 @@ describe('ChatView', () => {
     expect(contextRow?.getAttribute('hidden')).toBe('until-found')
   })
 
-  it('keeps a foldable closed Turn fully visible while history is partial', () => {
+  it('folds a completed Turn whose prompt is loaded while history is partial', () => {
     const h = makeHarness({
       nodes: [
-        user(1, 'question'),
+        userInTurn(1, 'question', 1),
         context(2, 'runtime policy', 1),
         assistant(3, 'working', 1, 1),
         assistant(4, 'final answer', 1, 2),
@@ -1696,47 +1696,52 @@ describe('ChatView', () => {
     })
     const view = render(<h.ChatView {...h.props} />)
     const contextRow = view.container.querySelector<HTMLElement>('[data-chat-flow-kind="context"]')
-
-    expect(turnProcessControl(view.container)).toBeNull()
-    expect(contextRow?.getAttribute('hidden')).toBeNull()
-    expect(contextRow?.hasAttribute('data-turn-process-member')).toBe(false)
-
-    act(() => { h.set({ hasMore: false }) })
     const toggle = turnProcessControl(view.container)!
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(contextRow?.getAttribute('hidden')).toBe('until-found')
   })
 
-  it('withholds process controls for partial history and folds final-page groups', () => {
+  it('folds a Turn that begins above the loaded window with the rest', () => {
     const h = makeHarness({
-      nodes: [user(9, 'visible question'), assistant(10, 'visible answer', 2)],
+      nodes: [
+        context(2, 'runtime policy', 1),
+        assistant(3, 'working', 1, 1),
+        assistant(4, 'final answer', 1, 2),
+      ],
+      turnEnds: new Map([[1, 5]]),
       hasMore: true,
     })
     const view = render(<h.ChatView {...h.props} />)
-    expect(turnProcessControl(view.container)).toBeNull()
-
-    act(() => {
-      h.set({
-        nodes: [
-          user(1, 'older question'),
-          assistant(2, 'older first answer', 1, 1),
-          assistant(4, 'older final answer', 1, 2),
-          user(9, 'visible question'),
-          assistant(10, 'visible answer', 2),
-        ],
-        turnEnds: new Map([[1, 5]]),
-        hasMore: false,
-      })
-    })
-
+    const contextRow = view.container.querySelector<HTMLElement>('[data-chat-flow-kind="context"]')
     const toggle = turnProcessControl(view.container)!
-    const member = view.container.querySelector<HTMLElement>('[data-turn-process-member]')
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(member?.getAttribute('hidden')).toBe('until-found')
+    expect(contextRow?.getAttribute('data-turn-process-member')).toBe('true')
+    expect(contextRow?.getAttribute('hidden')).toBe('until-found')
+  })
 
-    fireEvent.click(toggle)
-    expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(member?.getAttribute('hidden')).toBeNull()
+  it('folds every loaded Turn under partial history, including the first one', () => {
+    const h = makeHarness({
+      nodes: [
+        context(2, 'older policy', 1),
+        assistant(4, 'older final answer', 1, 2),
+        user(9, 'visible question'),
+        context(10, 'visible policy', 2),
+        assistant(12, 'visible answer', 2, 2),
+      ],
+      turnEnds: new Map([[1, 5], [2, 13]]),
+      hasMore: true,
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const controls = [...view.container.querySelectorAll<HTMLElement>('[data-turn-process]')]
+    expect(controls.map(control => control.getAttribute('data-turn-process'))).toEqual(['1', '2'])
+    for (const control of controls) expect(control.getAttribute('aria-expanded')).toBe('false')
+    const visiblePolicy = view.getByText('visible policy').closest('[data-chat-flow-kind="context"]') as HTMLElement
+    const olderPolicy = view.getByText('older policy').closest('[data-chat-flow-kind="context"]') as HTMLElement
+    expect(visiblePolicy.getAttribute('hidden')).toBe('until-found')
+    expect(olderPolicy.getAttribute('hidden')).toBe('until-found')
+
+    act(() => { h.set({ hasMore: false }) })
+    expect(view.getByText('older policy').closest('[data-chat-flow-kind="context"]')?.getAttribute('hidden')).toBe('until-found')
   })
 
   it('refreshes process layout without reordering when the final page only changes Turn data', () => {
