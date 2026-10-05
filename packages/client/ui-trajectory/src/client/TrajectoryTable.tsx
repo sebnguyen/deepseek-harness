@@ -138,7 +138,7 @@ interface TableRecord {
   cell: TrajectoryCellProps
   turnEnd: boolean
   collapsedSummary?: string
-  collapsedSummaryKind?: 'turn' | 'assistant'
+  collapsedSummaryKind?: 'turn' | 'assistant' | 'work'
 }
 
 interface VirtualRowStructure {
@@ -435,6 +435,12 @@ export interface TrajectoryTableProps {
   collapsedAssistants: ReadonlySet<string>
   /** Toggle tool calls under one assistant record. */
   onToggleAssistant: (id: string) => void
+  /** Fold every internal work run (tools, injections, compactions) into one rollup row. */
+  workCollapsed?: boolean
+  /** Work runs the user unfolded while folding is on. */
+  expandedWorkRuns?: ReadonlySet<string>
+  /** Unfold one collapsed work run. */
+  onToggleWorkRun?: (key: string) => void
   /** One-shot cross-view inspect: open and scroll to this call's record. */
   inspectCallId?: string | null
   /** Acknowledge a consumed (or unresolvable) inspect request. */
@@ -667,6 +673,68 @@ function collapseTurnRecords(
       },
     ]
   })
+}
+
+const EMPTY_WORK_RUNS: ReadonlySet<string> = new Set()
+
+/** Whether a record is internal work a rollup may fold. */
+function isWorkMember(record: TableRecord): boolean {
+  if (record.collapsedSummary !== undefined) return false
+  const kind = record.cell.kind
+  return kind === 'tool' || kind === 'subtool' || kind === 'context' || kind === 'compacted'
+}
+
+/** The key uniting a folded work run with its summary row. */
+export function workRunKey(turn: number | null, firstIndex: number): string {
+  return `${turn ?? 'between'}:${firstIndex}`
+}
+
+/**
+ * Fold each maximal run of internal work records into one rollup row,
+ * cursor-style: tools, subtools, injected context, and compaction markers
+ * between the human-model exchange read as one disclosure. Single-record
+ * runs and user-unfolded runs stay expanded.
+ * @param records - the fully ordered table records.
+ * @param expandedRuns - run keys the user unfolded.
+ * @param requestGroups - request keys the step summary counts.
+ * @param t - the bound trajectory dictionary.
+ * @returns records with work runs replaced by their rollup rows.
+ */
+function collapseWorkRecords(
+  records: readonly TableRecord[],
+  expandedRuns: ReadonlySet<string>,
+  requestGroups: ReadonlySet<string>,
+  t: TrajectoryTranslate,
+): TableRecord[] {
+  const out: TableRecord[] = []
+  let run: TableRecord[] = []
+  const flush = (): void => {
+    const first = run[0]
+    const last = run.at(-1)
+    if (run.length >= 2 && first !== undefined && last !== undefined
+      && !expandedRuns.has(workRunKey(first.turn, first.cell.index))) {
+      out.push({
+        ...first,
+        turnEnd: last.turnEnd || first.turnEnd,
+        collapsedSummary: summarizeTurn(run, requestGroups, t),
+        collapsedSummaryKind: 'work',
+      })
+      run = []
+      return
+    }
+    out.push(...run)
+    run = []
+  }
+  for (const record of records) {
+    if (isWorkMember(record)) {
+      run.push(record)
+      continue
+    }
+    flush()
+    out.push(record)
+  }
+  flush()
+  return out
 }
 
 function assistantToolCalls(
@@ -2040,6 +2108,9 @@ export function TrajectoryTable({
   onToggleTurn,
   collapsedAssistants,
   onToggleAssistant,
+  workCollapsed = false,
+  expandedWorkRuns,
+  onToggleWorkRun,
   inspectCallId = null,
   onInspectApplied,
   rawSurfaceEvents = EMPTY_RAW_SURFACE_EVENTS,
@@ -2100,10 +2171,16 @@ export function TrajectoryTable({
     const turnRecords = collapsedTurns.size === 0
       ? allRecords
       : collapseTurnRecords(allRecords, collapsedTurns, requestGroups, t)
-    return collapsedAssistants.size === 0
+    const assistantRecords = collapsedAssistants.size === 0
       ? turnRecords
       : collapseAssistantRecords(turnRecords, collapsedAssistants, t)
-  }, [allRecords, collapsedAssistants, collapsedTurns, requestGroups, searchMatchIndexes, t])
+    return workCollapsed
+      ? collapseWorkRecords(assistantRecords, expandedWorkRuns ?? EMPTY_WORK_RUNS, requestGroups, t)
+      : assistantRecords
+  }, [
+    allRecords, collapsedAssistants, collapsedTurns, expandedWorkRuns,
+    requestGroups, searchMatchIndexes, t, workCollapsed,
+  ])
   const projectedVirtualRows = useMemo(
     () => groupTrajectoryVirtualRows(records),
     [records],
@@ -2699,7 +2776,9 @@ export function TrajectoryTable({
                         ? t('request.collapsedSummary', {
                           kind: t(record.collapsedSummaryKind === 'turn'
                             ? 'request.collapsedTurn'
-                            : 'request.collapsedAssistant'),
+                            : record.collapsedSummaryKind === 'work'
+                              ? 'request.collapsedWork'
+                              : 'request.collapsedAssistant'),
                           summary: record.collapsedSummary,
                         })
                         : isRequestOnly
@@ -2734,6 +2813,8 @@ export function TrajectoryTable({
                           ? () => {
                             if (record.collapsedSummaryKind === 'turn' && record.turn !== null) {
                               onToggleTurn(record.turn)
+                            } else if (record.collapsedSummaryKind === 'work') {
+                              onToggleWorkRun?.(workRunKey(record.turn, record.cell.index))
                             } else onToggleAssistant(trajectoryRecordId(record.cell))
                           }
                           : () => { selectRecord(record.cell.index) }}
@@ -2768,6 +2849,8 @@ export function TrajectoryTable({
                         if (isCollapsedSummary) {
                           if (record.collapsedSummaryKind === 'turn' && record.turn !== null) {
                             onToggleTurn(record.turn)
+                          } else if (record.collapsedSummaryKind === 'work') {
+                            onToggleWorkRun?.(workRunKey(record.turn, record.cell.index))
                           } else onToggleAssistant(trajectoryRecordId(record.cell))
                           return
                         }

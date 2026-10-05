@@ -141,6 +141,8 @@ export function TrajectoryView({
   )
   const [collapsedAssistants, setCollapsedAssistants] =
     useState<ReadonlySet<string>>(EMPTY_RECORD_IDS)
+  const [workCollapsed, setWorkCollapsed] = useState(true)
+  const [expandedWorkRuns, setExpandedWorkRuns] = useState<ReadonlySet<string>>(EMPTY_RECORD_IDS)
   const [timelineSelection, setTimelineSelection] = useState<TrajectoryTimeRange | null>(null)
   const actualDuration = useDuration(value => value)
   const [actualTime, setActualTime] = useState(false)
@@ -489,6 +491,20 @@ export function TrajectoryView({
     })
   }
 
+  const toggleWork = () => {
+    setWorkCollapsed(current => !current)
+    setExpandedWorkRuns(EMPTY_RECORD_IDS)
+  }
+
+  const toggleWorkRun = (key: string) => {
+    setExpandedWorkRuns((current) => {
+      const unfolded = new Set(current)
+      if (unfolded.has(key)) unfolded.delete(key)
+      else unfolded.add(key)
+      return unfolded
+    })
+  }
+
   const toggleAllAssistants = () => {
     setCollapsedAssistants((current) => {
       const collapsed = new Set(current)
@@ -524,6 +540,8 @@ export function TrajectoryView({
         onToggleAllTurns={toggleAllTurns}
         allAssistantsCollapsed={allAssistantsCollapsed}
         onToggleAllAssistants={toggleAllAssistants}
+        workCollapsed={workCollapsed}
+        onToggleWork={toggleWork}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         t={t}
@@ -566,6 +584,9 @@ export function TrajectoryView({
           onToggleTurn={toggleTurn}
           collapsedAssistants={collapsedAssistants}
           onToggleAssistant={toggleAssistant}
+          workCollapsed={workCollapsed}
+          expandedWorkRuns={expandedWorkRuns}
+          onToggleWorkRun={toggleWorkRun}
           inspectCallId={inspectCallId}
           onInspectApplied={completeViewRequest}
           rawSurfaceEvents={rawSurfaceEvents}

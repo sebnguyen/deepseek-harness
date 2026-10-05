@@ -22,6 +22,10 @@ export interface TrajectoryToolbarProps {
   allAssistantsCollapsed: boolean
   /** Fold or expand tool calls under every collapsible assistant. */
   onToggleAllAssistants: () => void
+  /** Whether internal work runs (tools, injections, compactions) ride one rollup row. */
+  workCollapsed: boolean
+  /** Fold internal work into rollup rows, or show every record. */
+  onToggleWork: () => void
   /** Current live ledger search query. */
   searchQuery: string
   /** Update the live ledger search query. */
@@ -44,6 +48,8 @@ export function TrajectoryToolbar({
   onToggleAllTurns,
   allAssistantsCollapsed,
   onToggleAllAssistants,
+  workCollapsed,
+  onToggleWork,
   searchQuery,
   onSearchQueryChange,
   t,
@@ -109,6 +115,19 @@ export function TrajectoryToolbar({
               {allAssistantsCollapsed ? '⊞' : '⊟'}
             </span>
             {t('toolbar.calls')}
+          </button>
+          <button
+            type="button"
+            className={css.action}
+            aria-label={workCollapsed ? t('toolbar.expandWork') : t('toolbar.collapseWork')}
+            aria-pressed={workCollapsed}
+            title={workCollapsed ? t('toolbar.expandWork') : t('toolbar.collapseWork')}
+            onClick={onToggleWork}
+          >
+            <span className={css.actionIcon} aria-hidden="true">
+              {workCollapsed ? '⊞' : '⊟'}
+            </span>
+            {t('toolbar.work')}
           </button>
         </div>
         <div className={css.search}>

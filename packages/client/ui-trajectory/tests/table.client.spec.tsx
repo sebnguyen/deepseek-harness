@@ -743,6 +743,42 @@ describe('TrajectoryTable', () => {
     expect(screen.getByText('Context 1 streaming update')).toBeTruthy()
   })
 
+  it('folds internal work runs into one rollup row and unfolds it on click', () => {
+    const unfolded: string[] = []
+    const view = render(
+      <TrajectoryTable
+        turns={TURNS}
+        collapsedTurns={new Set<number>()}
+        onToggleTurn={() => {}}
+        collapsedAssistants={new Set<string>()}
+        onToggleAssistant={() => {}}
+        workCollapsed
+        onToggleWorkRun={(key) => { unfolded.push(key) }}
+      />,
+    )
+    const rolls = view.container.querySelectorAll('tbody tr[data-collapsed-summary="work"]')
+    expect(rolls).toHaveLength(1)
+    expect(view.container.querySelectorAll('tbody tr[data-kind="tool"]:not([data-collapsed-summary])')).toHaveLength(0)
+    fireEvent.click(rolls[0]!)
+    expect(unfolded).toEqual(['1:2'])
+  })
+
+  it('keeps a user-unfolded work run expanded', () => {
+    const view = render(
+      <TrajectoryTable
+        turns={TURNS}
+        collapsedTurns={new Set<number>()}
+        onToggleTurn={() => {}}
+        collapsedAssistants={new Set<string>()}
+        onToggleAssistant={() => {}}
+        workCollapsed
+        expandedWorkRuns={new Set(['1:2'])}
+      />,
+    )
+    expect(view.container.querySelectorAll('tbody tr[data-collapsed-summary="work"]')).toHaveLength(0)
+    expect(view.container.querySelectorAll('tbody tr[data-kind="tool"]:not([data-collapsed-summary])')).toHaveLength(2)
+  })
+
   it('keeps the virtual tail reachable with collapsed-summary row heights', async () => {
     vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(600)
     Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
