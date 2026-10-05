@@ -2,14 +2,17 @@
  * The stateless halves: every failure code maps to its line, and the grammar
  * set matches exactly the suffixes it advertises.
  */
+import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import { describe, expect, it } from 'vitest'
 import { createEditorExtensions, languageFor, saveCommand } from '../src/client/editor.ts'
 import { en } from '../src/client/locales.ts'
 import { decodeText, failureLine, sessionFileOf } from '../src/client/rpc.ts'
 
-const t = (key: keyof typeof en, params?: Record<string, string | number>): string => {
-  const line = en[key]
-  if (params === undefined) return line
+// The spec's translate backs the same `editor` namespace the framework would
+// bind, plus the common-vocabulary miss the bound seat falls through to.
+const t: TranslateNS<'editor'> = (key, params) => {
+  const line = (en as Record<string, string>)[key]
+  if (line === undefined || params === undefined) return line ?? key
   return line.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in params ? String(params[name]) : match)
 }

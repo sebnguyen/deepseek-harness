@@ -98,14 +98,13 @@ interface HarnessOptions {
 }
 
 /** The body with a controllable external file version, so meta updates rerender. */
-function Harness(props: HarnessOptions & { load: unknown; save: unknown; onEditor?: (view: EditorView) => void }): ReactNode {
+function Harness(props: HarnessOptions & { load: unknown; save: unknown }): ReactNode {
   const version = props.externalVersion
   return createElement(EditorBody, {
     useTabInfo: tabInfo,
     useResource: () => (version === undefined ? { status: 'none' } : { status: 'live', value: { version } }),
     load: props.load,
     save: props.save,
-    onEditor: props.onEditor,
     t,
   } as never)
 }
@@ -121,7 +120,7 @@ describe('EditorBody', () => {
     const face = fakeFace()
     render(createElement(Harness, { load: face.load, save: face.save }))
     await screen.findByText(en.saved)
-    expect(screen.getByRole('button', { name: en.save }).disabled).toBe(true)
+    expect(screen.getByRole('button', { name: en.save })).toHaveProperty('disabled', true)
     expect(face.readAlls).toEqual(['notes.txt'])
   })
 
@@ -214,7 +213,7 @@ describe('EditorBody', () => {
     let release!: (value: unknown) => void
     const { container } = render(createElement(Harness, {
       load: face.load,
-      save: (file: SessionFile, content: string, expectedVersion: string | undefined) => {
+      save: (_file: SessionFile, content: string, expectedVersion: string | undefined) => {
         face.saves.push({ content, expectedVersion })
         return new Promise((resolve) => { release = resolve })
       },
