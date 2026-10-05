@@ -43,7 +43,7 @@ export interface Harness {
  * @param prefix - temp directory prefix naming the suite.
  * @returns the harness; dispose it in `afterEach`.
  */
-export async function openWorkspace(prefix: string): Promise<Harness> {
+export async function openWorkspace(prefix: string, sandboxMode: 'workspace-write' | 'read-only' = 'workspace-write'): Promise<Harness> {
   const root = await mkdtemp(join(tmpdir(), prefix))
   const workspace = join(root, 'workspace')
   const outside = join(root, 'outside')
@@ -53,7 +53,8 @@ export async function openWorkspace(prefix: string): Promise<Harness> {
   const fiber = await ctx.plugin(LocalFileSystem, { cwd: workspace })
   ctx.provide('sandboxPolicy', {
     workspaceRoot: workspace,
-    resolve: () => ({ mode: 'workspace-write', workspaceRoot: workspace }),
+    defaultMode: sandboxMode,
+    resolve: () => ({ mode: sandboxMode, workspaceRoot: workspace }),
   } as never)
   let service: WorkspaceFiles | undefined
   return {

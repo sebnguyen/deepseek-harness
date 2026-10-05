@@ -35,6 +35,13 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@anthropic-ai/claude-agent-sdk`](https://github.com/anthropics/claude-agent-sdk-typescript) | SEE LICENSE IN README.md |
 | [`@anthropic-ai/sdk`](https://github.com/anthropics/anthropic-sdk-typescript) | MIT |
 | [`@babel/code-frame`](https://github.com/babel/babel) | MIT |
+| [`@codemirror/commands`](https://code.haverbeke.berlin/codemirror/commands) | MIT |
+| [`@codemirror/lang-javascript`](https://github.com/codemirror/lang-javascript) | MIT |
+| [`@codemirror/lang-json`](https://github.com/codemirror/lang-json) | MIT |
+| [`@codemirror/lang-markdown`](https://code.haverbeke.berlin/codemirror/lang-markdown) | MIT |
+| [`@codemirror/lang-python`](https://github.com/codemirror/lang-python) | MIT |
+| [`@codemirror/state`](https://code.haverbeke.berlin/codemirror/state) | MIT |
+| [`@codemirror/view`](https://code.haverbeke.berlin/codemirror/view) | MIT |
 | [`@earendil-works/pi-ai`](https://github.com/earendil-works/pi) | MIT |
 | [`@joplin/turndown-plugin-gfm`](https://github.com/laurent22/joplin-turndown-plugin-gfm) | MIT |
 | [`@jridgewell/gen-mapping`](https://github.com/jridgewell/sourcemaps) | MIT |
@@ -63,6 +70,7 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`buffer`](https://github.com/feross/buffer) | MIT |
 | [`chokidar`](https://github.com/paulmillr/chokidar) | MIT |
 | [`clsx`](https://github.com/lukeed/clsx) | MIT |
+| [`codemirror`](https://github.com/codemirror/basic-setup) | MIT |
 | [`commander`](https://github.com/tj/commander.js) | MIT |
 | [`compression`](https://github.com/expressjs/compression) | MIT |
 | [`diff`](https://github.com/kpdecker/jsdiff) | BSD-3-Clause |
