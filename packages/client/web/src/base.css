@@ -8,6 +8,16 @@ body,
   margin: 0;
 }
 
+/* The shell is a fixed-viewport application: every scrollable surface (chat
+   scrollport, sidebar lists, view bodies, dialogs) is an internal scroller,
+   so the document itself never scrolls. Clip it explicitly instead of
+   relying on the content happening to fit — any stray overflow box would
+   otherwise turn the whole chrome into a scrollable page. */
+html,
+body {
+  overflow: hidden;
+}
+
 body {
   font-family: var(
     --dsw-font-family,
