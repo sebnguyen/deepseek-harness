@@ -5,12 +5,13 @@
  * every command a model shell tool runs resolves the grep family through
  * them. With a resolvable ripgrep binary (the vendored
  * `@vscode/ripgrep-<plat>` platform package first, then `rg` on `PATH`) the
- * wrappers exec a generated Node translator that maps GNU grep argv onto
- * ripgrep argv through a fail-open table; without one they exec the host
- * GNU grep verbatim. Ownership of the directory and the `PATH` prepend is a
- * single effect: disposing the plugin restores the prior `PATH`,
- * unregisters the `DSH_SEARCH_BIN` shell-environment fact, and removes the
- * generated directory.
+ * `egrep` and `fgrep` wrappers exec a generated Node translator that maps
+ * GNU grep argv onto ripgrep argv through a fail-open table; ripgrep has no
+ * POSIX BRE dialect, so the `grep` wrapper always execs the host GNU grep,
+ * as do all wrappers without a ripgrep backend. Ownership of the directory
+ * and the `PATH` prepend is a single effect: disposing the plugin restores
+ * the prior `PATH`, unregisters the `DSH_SEARCH_BIN` shell-environment fact,
+ * and removes the generated directory.
  *
  * @module @deepseek-ai/dsh-shell-search
  */
@@ -22,7 +23,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-shell-env'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import z from '@deepseek-ai/schemastery'
-import { findExecutable, renderShims, renderTranslator, SHIM_NAMES } from './shims.ts'
+import { findExecutable, findHostGrep, renderShims, renderTranslator, SHIM_NAMES } from './shims.ts'
 import type { ShimBackend } from './shims.ts'
 
 export const name = 'shell-search'
@@ -100,7 +101,8 @@ export function resolveRg(configuredRg: string | undefined, shimDir: string): st
 
 /**
  * Resolve the complete backend for one generation: the ripgrep tier (see
- * {@link resolveRg}) plus the host grep the fall-back forms exec.
+ * {@link resolveRg}) plus the host grep the fall-back forms exec, discovered
+ * outside any active shell-search shim directory.
  *
  * @param configuredRg - the plugin config's explicit binary path, when set.
  * @param shimDir - the directory the shims will live in.
@@ -108,7 +110,7 @@ export function resolveRg(configuredRg: string | undefined, shimDir: string): st
  * @throws when a configured rg is not executable, or no host grep exists.
  */
 export function resolveBackend(configuredRg: string | undefined, shimDir: string): ShimBackend {
-  const hostGrep = findExecutable('grep', shimDir)
+  const hostGrep = findHostGrep(shimDir)
   if (hostGrep === undefined) throw new Error('shell-search: no host grep found on PATH to fall back to')
   const rg = resolveRg(configuredRg, shimDir)
   return rg === undefined ? { hostGrep } : { hostGrep, rg }

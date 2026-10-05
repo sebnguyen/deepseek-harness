@@ -1,5 +1,5 @@
 ---
-description: "PATH-shimmed grep-family wrappers running the vendored ripgrep binary, for users and maintainers choosing whether model shell calls search through ripgrep."
+description: "PATH-shimmed grep-family wrappers running the vendored ripgrep binary for `egrep`/`fgrep` while `grep` stays GNU grep, for users and maintainers choosing whether model shell calls search through ripgrep."
 kind: "package-reference"
 ---
 
@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`dsh-shell-search` makes every command a model shell call runs resolve `grep`, `egrep`, and `fgrep` to generated POSIX sh wrappers, prepended to `PATH` at boot under the Harness home. `dsh-base` ships the plugin beside `dsh-shell-env`, so every base-backed profile shadows the grep family out of the box. With a resolvable ripgrep — the vendored `@vscode/ripgrep` platform package first, then `rg` on `PATH` — the wrappers exec a generated Node translator that maps safe GNU flags onto ripgrep with ignore hygiene, hidden-file search, deterministic order, and line-length truncation; any unrecognized flag execs the host GNU grep verbatim. Without ripgrep the wrappers are GNU grep. Disposal removes the shims and restores `PATH`.
+`dsh-shell-search` makes every command a model shell call runs resolve `grep`, `egrep`, and `fgrep` to generated POSIX sh wrappers, prepended to `PATH` at boot under the Harness home. `dsh-base` ships the plugin beside `dsh-shell-env`, so every base-backed profile shadows the grep family out of the box. With a resolvable ripgrep — the vendored `@vscode/ripgrep` platform package first, then `rg` on `PATH` — the `egrep` and `fgrep` wrappers exec a generated Node translator that maps safe GNU flags onto ripgrep with grep-parity traversal, deterministic order, and line-length truncation; a token outside the table, a bare directory operand without `-r`, or a ripgrep usage or regex error execs the host GNU grep with the shim's dialect flag. ripgrep has no POSIX BRE dialect, so the `grep` wrapper always execs the host GNU grep for byte-identical BRE semantics, as every wrapper does without ripgrep. Disposal removes the shims and restores `PATH`.
 
 ## Table of Contents
 
@@ -31,7 +31,7 @@ kind: "package-reference"
 
 ### What the wrappers translate
 
-The fail-open table covers `-r`/`-R` (dropped, ripgrep recurses by default), `--include=`/`--exclude=`/`--exclude-dir=` (ripgrep globs), the shared flags `-E -F -i -n -l -c -o -w -q -v -x -s`, the value flags `-m -A -B -C -e` in attached and spaced spelling, and `--`. Translated invocations always carry `--hidden --sort=path --max-columns=500`.
+The fail-open table covers `-r`/`-R` (dropped, ripgrep recurses by default), `--include=`/`--exclude=`/`--exclude-dir=` (ripgrep globs), the shared flags `-E -F -i -n -l -c -o -w -q -v -x -s`, the value flags `-m -A -B -C -e` in attached and spaced spelling, and `--`. Translated invocations always carry `--no-ignore --hidden --sort=path --max-columns=500`, walking the same trees GNU grep walks. Three cases fail open to the host GNU grep with the shim's dialect flag (`-E` for `egrep`, `-F` for `fgrep`): flags outside the table or value flags missing their value; a bare directory operand without `-r`, where GNU grep errors but ripgrep would recurse; and ripgrep exit 2 — usage and regex-parse errors such as GNU `-E`'s backreference extension. The `grep` wrapper execs the host GNU grep in all cases: POSIX BRE escapes (`\+`, `\(`, `\{`) are literals in ripgrep's engine with no flag restoring BRE, so routing would silently change result sets.
 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
@@ -63,7 +63,7 @@ The fail-open table covers `-r`/`-R` (dropped, ripgrep recurses by default), `--
 
 #### What the model sees
 
-`grep`, `egrep`, and `fgrep` in shell calls resolve to the generated wrappers while the plugin is active; result text differs from GNU only where the translated defaults apply — hidden files included, `.gitignore`/`.ignore`-listed files excluded, lines over 500 bytes omitted, matched files in sorted order. Failed-open invocations return byte-identical GNU output. `DSH_SEARCH_BIN` names the shim directory among the managed environment facts.
+`grep` returns byte-identical GNU output. `egrep` and `fgrep` in shell calls resolve to the generated wrappers while the plugin is active; their result text differs from GNU only where the translated defaults apply — lines over 500 bytes omitted, matched files in sorted order — while hidden and ignore-listed files are searched as in GNU. Failed-open invocations return byte-identical GNU output. `DSH_SEARCH_BIN` names the shim directory among the managed environment facts.
 
 #### Token effect
 
@@ -78,5 +78,5 @@ Prefix-stable while the plugin stays mounted or unmounted across requests: activ
 <a id="known-limitations-and-deferred-work"></a>
 
 - **Windows skips the PATH prepend** — the wrappers are POSIX sh; win32 compositions generate them but never shadow the grep family.
-- **Regex dialect divergence is shipped, not translated** — patterns relying on GNU BRE metacharacter semantics (`\+`, `\(`, `\{`) match differently under ripgrep; the divergence is confined to the shadowed names in harness children.
+- **`grep` gains no ripgrep acceleration** — POSIX BRE has no ripgrep dialect and silent dialect drift would change result sets, so the `grep` wrapper execs the host GNU grep even when ripgrep resolves; only `egrep` (ERE) and `fgrep` (fixed strings) run on ripgrep.
 - **The shadow is PATH-wide** — every subprocess of the harness inherits it; scripts that must reach only ignored paths use the absolute-path escape hatch.

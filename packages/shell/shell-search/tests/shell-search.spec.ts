@@ -17,7 +17,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { ToolExecution } from '@deepseek-ai/dsh-tools'
 import * as ShellEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import * as ShellSearchPlugin from '@deepseek-ai/dsh-shell-search'
-import { MODE_FLAG, NODE_BIN, RG_DEFAULTS, SHIM_NAMES, findExecutable, renderShim, renderShims, renderTranslator } from '@deepseek-ai/dsh-shell-search/src/shims.ts'
+import { findExecutable, findHostGrep, MODE_FLAG, NODE_BIN, RG_DEFAULTS, SHIM_NAMES, renderShim, renderShims, renderTranslator } from '@deepseek-ai/dsh-shell-search/src/shims.ts'
 
 function execution(): ToolExecution {
   return {
@@ -36,7 +36,7 @@ let hostGrep: string
 let vendoredRg: string
 
 beforeAll(async () => {
-  sandbox = await mkdtemp(join(tmpdir(), 'dsh-shell-search-'))
+  sandbox = await mkdtemp(join(tmpdir(), 'dsh-shs-'))
   fixture = join(sandbox, 'fixture')
   mkdirSync(join(fixture, 'src'), { recursive: true })
   mkdirSync(join(fixture, 'junk'), { recursive: true })
@@ -48,7 +48,8 @@ beforeAll(async () => {
   writeFileSync(join(fixture, '.gitignore'), 'junk/\n')
   writeFileSync(join(fixture, '.ignore'), 'junk/\n')
   writeFileSync(join(fixture, 'longline.txt'), `needle ${'x'.repeat(900)}\n`)
-  hostGrep = findExecutable('grep') as string
+  writeFileSync(join(fixture, 'src', 'pair.txt'), 'aa\nab\n')
+  hostGrep = findHostGrep() as string
   vendoredRg = ShellSearchPlugin.resolveRg(undefined, sandbox) as string
   expect(hostGrep).toBeDefined()
   expect(vendoredRg).toBeDefined()
@@ -65,6 +66,24 @@ function stubPlatform(value: string): () => void {
   Object.defineProperty(process, 'platform', { value, configurable: true })
   return () => Object.defineProperty(process, 'platform', original)
 }
+
+describe('findHostGrep', () => {
+  it('skips overlay shim directories and unwalkable entries', () => {
+    const binDir = join(sandbox, 'hbin')
+    const shimLike = join(sandbox, 'old-shell-search', 'bin')
+    mkdirSync(binDir, { recursive: true })
+    mkdirSync(shimLike, { recursive: true })
+    for (const dir of [binDir, shimLike]) {
+      writeFileSync(join(dir, 'grep'), '#!/bin/sh\nexit 0\n')
+      chmodSync(join(dir, 'grep'), 0o755)
+    }
+    vi.stubEnv('PATH', `${shimLike}:/definitely-absent:${binDir}`)
+    expect(findHostGrep()).toBe(join(binDir, 'grep'))
+    expect(findHostGrep(binDir)).toBeUndefined()
+    vi.stubEnv('PATH', undefined)
+    expect(findHostGrep()).toBeUndefined()
+  })
+})
 
 describe('findExecutable', () => {
   it('finds an executable on PATH, skipping empties and the named directory', () => {
@@ -83,18 +102,22 @@ describe('findExecutable', () => {
 })
 
 describe('shim rendering', () => {
-  it('renders ripgrep-mode wrappers for the full family', () => {
+  it('renders ripgrep-mode wrappers only for the rg-compatible dialects', () => {
     const shims = renderShims({ rg: '/x/rg', hostGrep: '/x/grep' }, '/x/translate.mjs')
     expect([...Object.keys(shims)].toSorted()).toEqual([...SHIM_NAMES].toSorted())
-    for (const shimName of SHIM_NAMES) {
+    expect(shims.grep).toContain('exec \'/x/grep\' "$@"')
+    expect(shims.grep).not.toContain('translate')
+    for (const shimName of ['egrep', 'fgrep'] as const) {
       expect(shims[shimName]).toContain(`exec '${NODE_BIN}' '/x/translate.mjs' '${MODE_FLAG[shimName]}' '/x/rg' '/x/grep' "$@"`)
     }
   })
 
   it('renders a verbatim host-grep wrapper when no ripgrep backend exists', () => {
-    const text = renderShim('grep', { hostGrep: '/x/grep' }, '/x/translate.mjs')
-    expect(text).toContain('exec \'/x/grep\' "$@"')
-    expect(text).not.toContain('translate')
+    for (const shimName of SHIM_NAMES) {
+      const text = renderShim(shimName, { hostGrep: '/x/grep' }, '/x/translate.mjs')
+      expect(text).toContain('exec \'/x/grep\' "$@"')
+      expect(text).not.toContain('translate')
+    }
   })
 
   it('renders the translator with the fixed ripgrep defaults', () => {
@@ -106,6 +129,7 @@ describe('shim rendering', () => {
 
 describe('generated translator behavior', () => {
   let wrapper: string
+  let runNoRg: (args: string[]) => ReturnType<typeof spawnSync>
 
   beforeAll(() => {
     const translatePath = join(sandbox, 'translate.mjs')
@@ -113,15 +137,19 @@ describe('generated translator behavior', () => {
     wrapper = join(sandbox, 'grep-shim')
     writeFileSync(wrapper, `#!/bin/sh\nexec '${NODE_BIN}' '${translatePath}' '' '${vendoredRg}' '${hostGrep}' "$@"\n`)
     chmodSync(wrapper, 0o755)
+    const absentRg = join(sandbox, 'grep-shim-norg')
+    writeFileSync(absentRg, `#!/bin/sh\nexec '${NODE_BIN}' '${translatePath}' '-F' '/no-such-rg-binary' '${hostGrep}' "$@"\n`)
+    chmodSync(absentRg, 0o755)
+    runNoRg = (args: string[]) => spawnSync('sh', [absentRg, ...args], { cwd: fixture, encoding: 'utf8' })
   })
 
   const run = (args: string[]) => spawnSync('sh', [wrapper, ...args], { cwd: fixture, encoding: 'utf8' })
 
-  it('naive recursive search honors gitignore and hidden files', () => {
+  it('naive recursive search mirrors grep traversal over hidden and ignored files', () => {
     const out = run(['-rn', 'needle', '.'])
     expect(out.stdout).toContain('src/a.ts')
     expect(out.stdout).toContain('.hidden/h.txt')
-    expect(out.stdout).not.toContain('junk/j.txt')
+    expect(out.stdout).toContain('junk/j.txt')
   })
 
   it('truncates long matched lines instead of flooding', () => {
@@ -138,8 +166,8 @@ describe('generated translator behavior', () => {
   })
 
   it('passes value flags through in both spellings', () => {
-    expect(run(['-m', '1', '-n', 'needle', 'src']).stdout.match(/needle/g)).toHaveLength(2)
-    expect(run(['-m1', '-n', 'needle', 'src']).stdout.match(/needle/g)).toHaveLength(2)
+    expect(run(['-m', '1', '-n', 'needle', 'src/a.ts', 'src/b.txt']).stdout.match(/needle/g)).toHaveLength(2)
+    expect(run(['-m1', '-n', 'needle', 'src/a.ts', 'src/b.txt']).stdout.match(/needle/g)).toHaveLength(2)
     expect(run(['-C', '1', 'needleTs', 'src/a.ts']).stdout).toContain('const needleTs = 1')
     expect(run(['-e', 'needleTs', 'src/a.ts']).status).toBe(0)
   })
@@ -162,6 +190,26 @@ describe('generated translator behavior', () => {
     expect(run(['needle', 'src/a.ts']).status).toBe(0)
     expect(run(['absent-token', 'src/a.ts']).status).toBe(1)
     expect(run(['[', 'src/a.ts']).status).toBe(2)
+  })
+
+  it('fails open on a bare directory operand, mirroring GNU grep', () => {
+    const open = run(['needle', 'src'])
+    expect(open.status).toBe(2)
+    expect(open.stderr).toContain('Is a directory')
+    const rec = run(['-rn', 'needle', 'src'])
+    expect(rec.stdout).toContain('a.ts')
+  })
+
+  it('re-runs under GNU grep -E when ripgrep rejects the pattern', () => {
+    const out = run(['(a)\\1', 'src/pair.txt'])
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain('aa')
+  })
+
+  it('re-runs under GNU when the ripgrep binary fails to spawn', () => {
+    const out = runNoRg(['-Fn', 'needle', 'src/b.txt'])
+    expect(out.status).toBe(0)
+    expect(out.stdout).toContain('needle in txt')
   })
 })
 
@@ -227,7 +275,9 @@ describe('plugin lifecycle', () => {
     for (const shimName of SHIM_NAMES) {
       expect(statSync(join(binDir, shimName)).mode & 0o111).not.toBe(0)
     }
-    expect(readShim(binDir, 'grep')).toContain('translate.mjs')
+    expect(readShim(binDir, 'grep')).toContain(`exec '${hostGrep}' "$@"`)
+    expect(readShim(binDir, 'grep')).not.toContain('translate')
+    expect(readShim(binDir, 'egrep')).toContain('translate.mjs')
     expect(existsSync(join(resolve(home), 'shell-search', 'translate.mjs'))).toBe(true)
     expect(ctx.shellEnv.list().map(entry => entry.key)).toContain('DSH_SEARCH_BIN')
     const collected = ctx.shellEnv.collect(execution())

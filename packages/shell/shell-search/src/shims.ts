@@ -18,11 +18,16 @@ export const SHIM_NAMES = ['grep', 'egrep', 'fgrep'] as const
 /** One shimmed command name. */
 export type ShimName = (typeof SHIM_NAMES)[number]
 
-/** The ripgrep regex-mode flag making each shim match its GNU name's dialect. */
-export const MODE_FLAG: Record<ShimName, string> = { grep: '-G', egrep: '-E', fgrep: '-F' }
+/**
+ * The ripgrep routing per shimmed name. ripgrep has no POSIX BRE dialect, so
+ * `grep` carries `undefined` and its wrapper always execs the host GNU grep;
+ * `egrep`'s ERE is ripgrep's default engine (empty flag) and `fgrep` needs
+ * `-F`. The value is also the translator's mode token.
+ */
+export const MODE_FLAG: Record<ShimName, string | undefined> = { grep: undefined, egrep: '', fgrep: '-F' }
 
 /** Fixed ripgrep defaults every translated invocation carries. */
-export const RG_DEFAULTS = ['--hidden', '--sort=path', '--max-columns=500'] as const
+export const RG_DEFAULTS = ['--no-ignore', '--hidden', '--sort=path', '--max-columns=500'] as const
 
 /** Resolved binaries one shim generation targets. */
 export interface ShimBackend {
@@ -34,6 +39,30 @@ export interface ShimBackend {
 
 /** Absolute path of the `node` executable the wrappers exec the translator with. */
 export const NODE_BIN = process.execPath
+
+/**
+ * Locate the host GNU grep the fallback forms exec: the first executable
+ * `grep` on `PATH` outside the caller-named directory and outside any active
+ * shell-search shim directory, so a live overlay cannot stand in for GNU
+ * semantics nor shadow its own successor generation.
+ *
+ * @param skipDir - directory excluded from the search.
+ * @returns the absolute executable path, or `undefined` when none is found.
+ */
+export function findHostGrep(skipDir?: string): string | undefined {
+  for (const dir of (process.env.PATH ?? '').split(':')) {
+    if (dir === '' || dir === skipDir || dir.includes('shell-search')) continue
+    const candidate = join(dir, 'grep')
+    try {
+      accessSync(candidate, constants.X_OK)
+    } catch {
+      // ENOENT or EACCES: this PATH entry lacks the executable; the next entry decides.
+      continue
+    }
+    return candidate
+  }
+  return undefined
+}
 
 /**
  * Locate the first executable file named `name` on the current `PATH`,
@@ -60,10 +89,11 @@ export function findExecutable(name: string, skipDir?: string): string | undefin
 }
 
 /**
- * Render the wrapper script for one grep-family name. With a ripgrep backend
- * the wrapper execs the generated translator in the name's GNU compatibility
- * mode; without one the wrapper execs the host grep verbatim, keeping
- * byte-for-byte GNU semantics with no translator hop.
+ * Render the wrapper script for one grep-family name. Names whose GNU regex
+ * dialect ripgrep honors (`egrep`, `fgrep`) exec the generated translator in
+ * that dialect's mode when a ripgrep backend exists; `grep` (POSIX BRE, which
+ * ripgrep cannot parse) and backend-less generations exec the host grep
+ * verbatim, keeping byte-for-byte GNU semantics with no translator hop.
  *
  * @param shimName - the GNU command name the wrapper stands in for.
  * @param backend - the resolved binaries to embed.
@@ -71,9 +101,10 @@ export function findExecutable(name: string, skipDir?: string): string | undefin
  * @returns the complete wrapper script text.
  */
 export function renderShim(shimName: ShimName, backend: ShimBackend, translatePath: string): string {
-  const execLine = backend.rg === undefined
+  const mode = MODE_FLAG[shimName]
+  const execLine = backend.rg === undefined || mode === undefined
     ? `exec '${backend.hostGrep}' "$@"`
-    : `exec '${NODE_BIN}' '${translatePath}' '${MODE_FLAG[shimName]}' '${backend.rg}' '${backend.hostGrep}' "$@"`
+    : `exec '${NODE_BIN}' '${translatePath}' '${mode}' '${backend.rg}' '${backend.hostGrep}' "$@"`
   return `#!/bin/sh\n# dsh-shell-search: ${shimName} shim, generated at boot and removed at plugin disposal.\n${execLine}\n`
 }
 
@@ -95,10 +126,12 @@ export function renderShims(backend: ShimBackend, translatePath: string): Record
 /**
  * The generated Node translator source. It owns the fail-open table as
  * structured argv handling: a token outside the table, a value flag missing
- * its value, or a ripgrep binary absent at call time execs the host GNU grep
- * with the original argv, keeping script semantics byte-identical; a fully
- * translatable argv execs ripgrep with {@link RG_DEFAULTS}, the shim's mode
- * flag, and the translated tokens, passing stdio and the exit code through.
+ * its value, a bare directory operand without `-r` (GNU grep errors where
+ * ripgrep would recurse), or a ripgrep usage or regex-parse error (exit 2)
+ * execs the host GNU grep with the original argv plus the shim's dialect
+ * flag, keeping script semantics byte-identical; a fully translatable argv
+ * execs ripgrep with {@link RG_DEFAULTS}, the shim's mode flag, and the
+ * translated tokens, passing stdio and the exit code through.
  *
  * @returns the complete translator module text.
  */
@@ -106,19 +139,32 @@ export function renderTranslator(): string {
   const defaults = [...RG_DEFAULTS].map(f => JSON.stringify(f)).join(', ')
   return `#!/usr/bin/env node
 // dsh-shell-search translator, generated at boot and removed at plugin disposal.
-// Maps GNU grep argv (argv[2..]) onto ripgrep argv; any token outside the
-// fail-open table execs the host grep with the original argv, unchanged.
+// Maps GNU egrep/fgrep argv (argv[3..]) onto ripgrep argv; a token outside the
+// fail-open table, a bare directory operand without -r, or a ripgrep usage
+// error execs the host grep with the original argv and the shim's dialect
+// flag, unchanged.
 import { spawn } from 'node:child_process'
+import { statSync } from 'node:fs'
 
 const [mode, rgPath, hostGrep, ...argv] = process.argv.slice(2)
 const out = [${defaults}]
 if (mode !== '') out.push(mode)
+const gnuMode = mode === '-F' ? '-F' : '-E'
+
+const recursive = argv.some((t, i) => t === '--directories=recurse' || (t === '-d' && argv[i + 1] === 'recurse') || (/^-[^-]/.test(t) && (t.includes('r') || t.includes('R'))))
+const isDir = p => { try { return statSync(p).isDirectory() } catch { return false } }
 
 let open = false
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
-  if (a === '--') { out.push(...argv.slice(i)); break }
-  if (!a.startsWith('-')) { out.push(a); continue }
+  if (a === '--') {
+    if (!recursive && argv.slice(i + 1).some(isDir)) { open = true; break }
+    out.push(...argv.slice(i)); break
+  }
+  if (!a.startsWith('-')) {
+    if (!recursive && isDir(a)) { open = true; break }
+    out.push(a); continue
+  }
   let m = /^--include=(.+)$/.exec(a)
   if (m) { out.push('--glob=' + m[1]); continue }
   m = /^--exclude=(.+)$/.exec(a)
@@ -162,14 +208,17 @@ for (let i = 0; i < argv.length; i++) {
   break
 }
 
-function run(bin, args) {
-  const child = spawn(bin, args, { stdio: 'inherit' })
+function run(bin, args, quietStderr) {
+  const child = spawn(bin, args, { stdio: ['inherit', 'inherit', quietStderr ? 'ignore' : 'inherit'] })
   child.on('error', () => {
-    if (bin === rgPath) run(hostGrep, argv)
+    if (bin === rgPath) run(hostGrep, [gnuMode, ...argv], false)
     else process.exit(127)
   })
-  child.on('exit', (code, signal) => process.exit(code ?? (signal ? 141 : 1)))
+  child.on('exit', (code, signal) => {
+    if (bin === rgPath && code === 2) run(hostGrep, [gnuMode, ...argv], false)
+    else process.exit(code ?? (signal ? 141 : 1))
+  })
 }
-run(open ? hostGrep : rgPath, open ? argv : out)
+run(open ? hostGrep : rgPath, open ? [gnuMode, ...argv] : out, !open)
 `
 }
