@@ -31,6 +31,7 @@ import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
 import { TranscriptViewRow, type TranscriptViewRowInjected } from './settings/TranscriptViewRow.tsx'
+import { TokenEfficiencyEntry } from './settings/TokenEfficiencyEntry.tsx'
 import { createChatStore } from './stores.ts'
 import { TranscriptViewPolicy } from './transcript-view.ts'
 import { CHAT_SETTINGS_NAMESPACE, type ChatSettings } from '../chat-settings.ts'
@@ -93,6 +94,13 @@ export function apply(ctx: Context): void {
       setTranscriptView: (mode) => { transcriptView.setMode(mode) },
     }),
   }, TranscriptViewRow))
+
+  ctx.slots.inject('settings.trigger-item', () => ctx.slots.register({
+    name: 'settings.trigger-item',
+    id: 'token-efficiency',
+    order: 0,
+    locale: NS,
+  }, TokenEfficiencyEntry))
 
   ctx.slots.inject('conversation.view', () => {
     const disposeView = ctx.slots.register({

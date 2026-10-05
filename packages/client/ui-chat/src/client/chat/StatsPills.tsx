@@ -23,7 +23,8 @@ import type { ChatViewSlotProps } from '../contract/slots.ts'
 import type { ChatSnapshot } from '../contract/snapshot.ts'
 import { formatTokensPerSecond } from './message-chrome.ts'
 import { assistantStepReading } from '../contract/turn-metrics.ts'
-import { formatCacheHitPercent, formatExactTokens, formatTokens, formatUsdMicros } from './token-format.ts'
+import { perMillionMicros, sortedSpendEntries, spendTokens } from '../contract/cost-metrics.ts'
+import { formatCacheHitPercent, formatExactTokens, formatTokens, formatUsdMicros } from '../contract/token-format.ts'
 import { MEASURE_STYLE, useStatDialog, type StatDialogSeat } from './stat-dialog.ts'
 import css from './StatsPills.module.css'
 import dialogCss from './stat-dialog.module.css'
@@ -142,28 +143,6 @@ export function cacheHitPercent(usage: TokenUsageProjection): string | null {
  */
 export function billedInputTokens(usage: TokenUsageProjection): number {
   return usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens
-}
-
-/**
- * Sum the four billed token buckets of one model's spend fold.
- * @param spend - one model's folded usage and spend.
- * @returns total billed tokens.
- */
-function spendTokens(spend: CostModelSpend): number {
-  return spend.uncachedInputTokens + spend.outputTokens + spend.cacheReadTokens + spend.cacheWriteTokens
-}
-
-/**
- * The live blended spend per million billed tokens: the folded micros spread
- * over the folded token total, so the current cache-hit share and the
- * uncached/cached input and output mix set the figure request by request.
- * @param costMicros - folded spend in USD micros.
- * @param totalTokens - folded billed tokens across all four buckets.
- * @returns USD micros per million tokens, or null with no billed tokens.
- */
-function perMillionMicros(costMicros: number, totalTokens: number): number | null {
-  if (totalTokens === 0) return null
-  return (costMicros / totalTokens) * 1_000_000
 }
 
 /** Props: the conversation-snapshot selector plus the projection read seat. */
@@ -505,17 +484,6 @@ function costRollup(
     if (childCost !== undefined) maps.push(childCost.perModel)
   }
   return { merged: mergeSpend(maps), descendants: ids.length - 1 }
-}
-
-/**
- * Per-model spend entries most expensive first, micros ties by model id.
- * @param merged - merged per-model spend map.
- * @returns the sorted entries.
- */
-function sortedSpendEntries(merged: Record<string, CostModelSpend>): Array<[string, CostModelSpend]> {
-  return Object.entries(merged)
-    .sort(([leftModel, left], [rightModel, right]) => right.costMicros - left.costMicros
-      || leftModel.localeCompare(rightModel))
 }
 
 function CostPill({ cost, rollup, t, dialog }: {
