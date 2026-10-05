@@ -80,6 +80,18 @@ export const CORE_RULE_CLOSE_THE_IDLE_TURN_SECTION = 'harness:core-rule:close-th
 export const CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT =
   'Core Rule: Close The Idle Turn - Background work calls back to the session when it settles, and each callback opens its own turn, so a turn held open waiting on it earns nothing and invites polling. A command promoted past the shell timeout, a background job, and a delegated subagent all deliver their result as an in-session notice; none needs you watching. When nothing pending remains that you can act on now, finish the reply and end the turn, and the notice arrives as a new turn with the work done. A check or reply you still owe is pending work, not waiting. Example: a build exceeded the timeout and became a background job with nothing else actionable, so end the turn on a one-line status; the completion notice starts the next turn.'
 
+export const CORE_RULE_REUSE_BEFORE_EXTRACT_SECTION = 'harness:core-rule:reuse-before-extract'
+
+/** @remarks Model-visible verbatim; snapshots pin this text. */
+export const CORE_RULE_REUSE_BEFORE_EXTRACT_TEXT =
+  'Core Rule: Reuse Before Extract - A helper born beside its one call site usually already exists with a consumer and a test, so name the behavior the code needs, then search the package exports and the workspace for that behavior before writing it: adopting the maintained function is cheaper than owning a twin, and a dependency that deletes the helper beats writing one by hand. When nothing existing fits and the call site is still alone, fold the body into the caller until a second call site, an export, or a body too large to read inline earns the name. Example: before writing a local formatDate, grep the date utilities by behavior, read the match, and call it instead.'
+
+export const CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION = 'harness:core-rule:explore-through-explorers'
+
+/** @remarks Model-visible verbatim; snapshots pin this text. */
+export const CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT =
+  'Core Rule: Explore Through Explorers - Reading broad territory in your own context re-sends every page on each later turn and loses detail to compression, so send discovery to explorer readers that write nothing and report findings only: parallel readers return sooner (speed), each hands back capped verified findings instead of your own fading memory of long files (correctness), and the capped handoff is paid once at its flat rate while pages read in session echo at the cache rate on every later turn (cost). One explore call may carry several prompts as a `tasks` array whose children run in parallel; the per-turn cap counts every child, so a batch spends the whole budget in one call. Convert accepted handoffs into todo items before acting on them. Example: three unknown modules earn one explore call carrying three `tasks` entries, and the plan cites their handoffs instead of a private reading log.'
+
 /** Built-in core rule sections in prompt order (prove-it included; text is conditional on tool availability). */
 export const CORE_RULE_SECTIONS: ReadonlyArray<{ readonly name: string; readonly text: string }> = [
   { name: CORE_RULE_CONCISE_SECTION, text: CORE_RULE_CONCISE_TEXT },
@@ -93,6 +105,8 @@ export const CORE_RULE_SECTIONS: ReadonlyArray<{ readonly name: string; readonly
   { name: CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_SECTION, text: CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT },
   { name: CORE_RULE_CLOSE_THE_DECISION_SECTION, text: CORE_RULE_CLOSE_THE_DECISION_TEXT },
   { name: CORE_RULE_CLOSE_THE_IDLE_TURN_SECTION, text: CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT },
+  { name: CORE_RULE_REUSE_BEFORE_EXTRACT_SECTION, text: CORE_RULE_REUSE_BEFORE_EXTRACT_TEXT },
+  { name: CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION, text: CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT },
 ]
 
 /** Section names registered by default core guidance (for tests and oracles). */
@@ -106,15 +120,22 @@ export const BUILT_IN_CORE_GUIDANCE_SECTION_NAMES: readonly string[] = [
  * @param options - omit personality or rules for suppression tests.
  * @returns paragraphs to join with blank lines.
  */
-export function coreGuidanceParagraphs(options?: { personality?: boolean; rules?: boolean; proveIt?: boolean }): string[] {
+export function coreGuidanceParagraphs(options?: {
+  personality?: boolean
+  rules?: boolean
+  proveIt?: boolean
+  explore?: boolean
+}): string[] {
   const personality = options?.personality ?? true
   const rules = options?.rules ?? true
   const proveIt = options?.proveIt ?? true
+  const explore = options?.explore ?? true
   const parts: string[] = []
   if (personality) parts.push(CORE_PERSONALITY_TEXT)
   if (rules) {
     for (const rule of CORE_RULE_SECTIONS) {
       if (rule.name === CORE_RULE_PROVE_IT_SECTION && !proveIt) continue
+      if (rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION && !explore) continue
       parts.push(rule.text)
     }
   }

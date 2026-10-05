@@ -188,7 +188,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.systemPrompt.section({
     name: 'tool:goal',
     order: ctx.systemPrompt.getSectionOrder('TOOL_GOAL'),
-    text: guidance(resolved.blockedAfterConsecutiveRounds),
+    text: ({ scope }) => ctx.tools.get('create_goal', scope) === undefined
+      ? ''
+      : guidance(resolved.blockedAfterConsecutiveRounds),
   })
 
   ctx.tools.register(defineTool({

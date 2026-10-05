@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DSH session events without a designated UI — sketch</title>
+<style>
+  /* Token sheets copied from packages/client/ui-theme/src/styles/*.css so the
+     sketch renders on the live theme; dark mode flips the same
+     body[data-ds-dark-theme] attribute the ui-layout theme presenter sets. */
+  :root {
+    --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+      'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+    --dsh-content-font-size: 14px;
+    --dsh-content-font-delta: 0px;
+    --dsh-content-font-size-secondary: 13px;
+    --dsw-shadow-lv2: 0 4px 12px 0 rgba(0, 0, 0, 0.02), 0 2px 8px 0 rgba(0, 0, 0, 0.04);
+    --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
+    --dsw-elevation-stroke: 0 0 0 0.5px var(--dsw-elevation-stroke-color);
+    --dsw-font-markdown-h1: 700 21px/30px var(--dsw-font-family);
+    --dsw-font-markdown-h2: 700 19px/28px var(--dsw-font-family);
+    --dsw-font-markdown-h4: 600 14px/24px var(--dsw-font-family);
+    --dsw-font-markdown-base: 14px/24px var(--dsw-font-family);
+    --dsw-font-markdown-small: 12px/20px var(--dsw-font-family);
+    --dsw-font-markdown-table: 13px/22px var(--dsw-font-family);
+    --dsw-font-markdown-table-head: 500 13px/22px var(--dsw-font-family);
+    --dsw-font-markdown-code-block-small: 11px/16px var(--ds-font-family-code);
+  }
+  body {
+    --dsw-static-amber-100: rgb(254, 245, 231);
+    --dsw-static-amber-400: rgb(247, 173, 49);
+    --dsw-static-amber-500: rgb(245, 158, 11);
+    --dsw-static-amber-600: rgb(221, 134, 41);
+    --dsw-static-amber-900: rgb(39, 36, 31);
+    --dsw-static-blue-400: rgb(96, 165, 250);
+    --dsw-static-blue-900: rgb(14, 48, 116);
+    --dsw-static-deepseek-100: rgb(228, 237, 253);
+    --dsw-static-deepseek-200: rgb(211, 226, 255);
+    --dsw-static-deepseek-400: rgb(103, 158, 254);
+    --dsw-static-deepseek-450: rgb(86, 134, 254);
+    --dsw-static-deepseek-500: rgb(65, 118, 230);
+    --dsw-static-deepseek-50: rgb(237, 243, 254);
+    --dsw-static-deepseek-800: rgb(52, 65, 91);
+    --dsw-static-deepseek-900: rgb(40, 49, 66);
+    --dsw-static-green-100: rgb(230, 250, 237);
+    --dsw-static-green-400: rgb(78, 209, 126);
+    --dsw-static-green-500: rgb(34, 197, 94);
+    --dsw-static-green-900: rgb(35, 60, 44);
+    --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+    --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+    --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+    --dsw-static-neutral-bluish-150: rgb(233, 236, 242);
+    --dsw-static-neutral-bluish-200: rgb(225, 229, 238);
+    --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+    --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+    --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+    --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+    --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+    --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+    --dsw-static-neutral-bluish-75: rgb(241, 243, 245);
+    --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+    --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+    --dsw-static-neutral-bluish-875: rgb(35, 35, 36);
+    --dsw-static-neutral-bluish-900: rgb(27, 27, 28);
+    --dsw-static-neutral-bluish-950: rgb(21, 21, 23);
+    --dsw-static-red-400: rgb(242, 90, 90);
+    --dsw-static-red-600: rgb(236, 19, 19);
+    --dsw-static-red-900: rgb(87, 12, 12);
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-border-l1: rgba(0, 0, 0, 0.04);
+    --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+    --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+    --dsw-alias-border-l4: rgba(0, 0, 0, 0.16);
+    --dsw-alias-button-floating-fill: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+    --dsw-alias-interactive-bg-hover-danger: rgba(236, 19, 19, 0.05);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-75);
+    --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+    --dsw-alias-link: var(--dsw-static-deepseek-500);
+    --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-markdown-inline-code: var(--dsw-static-neutral-50, rgb(250, 250, 250));
+    --dsw-alias-state-error-primary: var(--dsw-static-red-600);
+    --dsw-alias-state-error-secondary: var(--dsw-static-red-400);
+    --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+    --dsw-alias-state-success-secondary: var(--dsw-static-green-400);
+    --dsw-alias-state-success-tertiary: var(--dsw-static-green-100);
+    --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
+    --dsw-specific-bubble: var(--dsw-static-deepseek-50);
+    --dsh-state-ongoing: var(--dsw-static-deepseek-450);
+  }
+  body[data-ds-dark-theme] {
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+    --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+    --dsw-alias-border-l1: rgba(255, 255, 255, 0.06);
+    --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+    --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+    --dsw-alias-border-l4: rgba(255, 255, 255, 0.2);
+    --dsw-alias-button-floating-fill: var(--dsw-static-neutral-bluish-850);
+    --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+    --dsw-alias-interactive-bg-hover-danger: rgba(242, 90, 90, 0.15);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-600);
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-link: var(--dsw-static-deepseek-400);
+    --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-900);
+    --dsw-alias-markdown-inline-code: var(--dsw-static-neutral-bluish-800, rgb(41, 41, 41));
+    --dsw-alias-state-error-primary: var(--dsw-static-red-400);
+    --dsw-alias-state-error-secondary: var(--dsw-static-red-400);
+    --dsw-alias-state-success-primary: var(--dsw-static-green-500);
+    --dsw-alias-state-success-tertiary: var(--dsw-static-green-900);
+    --dsw-alias-state-warn-primary: var(--dsw-static-amber-500);
+    --dsw-specific-bubble: var(--dsw-static-neutral-bluish-850);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--dsw-alias-bg-base);
+    color: var(--dsw-alias-label-primary);
+    font: var(--dsw-font-markdown-base);
+    -webkit-font-smoothing: antialiased;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 40px 20px 96px; }
+  h1 { font: var(--dsw-font-markdown-h1); margin: 0 0 8px; }
+  h2 { font: var(--dsw-font-markdown-h2); margin: 56px 0 4px;
+       border-bottom: 1px solid var(--dsw-alias-border-l1); padding-bottom: 8px; }
+  h3 { font: var(--dsw-font-markdown-h4); margin: 32px 0 2px; }
+  code {
+    font-family: var(--ds-font-family-code); font-size: 11px;
+    color: var(--dsw-alias-link);
+    background: var(--dsw-alias-markdown-code-block);
+    border-radius: 4px; padding: 1px 5px;
+  }
+  p.note { color: var(--dsw-alias-label-secondary); max-width: 80ch; }
+  .sub { font: var(--dsw-font-markdown-small); color: var(--dsw-alias-label-tertiary); max-width: 60ch; }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 10;
+    font: var(--dsw-font-markdown-small); color: var(--dsw-alias-label-secondary);
+    background: var(--dsw-alias-button-floating-fill);
+    border: none; border-radius: 999px; padding: 6px 14px;
+    box-shadow: var(--dsw-elevation-stroke), var(--dsw-shadow-lv2); cursor: pointer;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .tag {
+    font-family: var(--ds-font-family-code); font-size: 11px; line-height: 16px;
+    border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 999px;
+    padding: 2px 9px; color: var(--dsw-alias-label-secondary);
+    background: var(--dsw-alias-bg-base);
+  }
+  .tag.ext { color: var(--dsw-alias-label-primary); font-weight: 600; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 8px; }
+  @media (max-width: 860px) { .pair { grid-template-columns: 1fr; } }
+  .col {
+    min-width: 0;
+    padding: 10px 12px 12px;
+    border: 0.5px solid var(--dsw-alias-border-l2);
+    border-radius: 12px;
+    background: var(--dsw-alias-button-floating-fill);
+  }
+  .col.prop { border-color: var(--dsw-alias-border-l3); }
+  .colhead {
+    font-family: var(--ds-font-family-code); font-size: 11px; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--dsw-alias-label-caption); margin: 0 0 8px;
+  }
+  .col.prop .colhead { color: var(--dsw-alias-link); }
+  .how { color: var(--dsw-alias-label-tertiary); font-size: 12.5px; margin: 6px 0 26px; max-width: 92ch; }
+  .how b { color: var(--dsw-alias-link); font-weight: 600; }
+
+  /* ---- DisclosureRow chrome (ui-primitives/DisclosureRow + ToolRow metrics) ---- */
+  .trow {
+    position: relative; overflow: hidden; display: flex; align-items: center;
+    height: 24px; min-width: 0; border-radius: 6px; margin: 2px 0;
+  }
+  .trow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .lead {
+    position: relative; flex: none; width: 16px; height: 16px; margin-right: 6px;
+    display: inline-flex; align-items: center; justify-content: center;
+    color: var(--dsw-alias-label-tertiary);
+  }
+  .lead svg { width: 14px; height: 14px; display: block; }
+  .lead .chev {
+    position: absolute; inset: 0; margin: auto; opacity: 0;
+    color: var(--dsw-alias-label-secondary); transition: opacity 100ms ease;
+  }
+  .lead .idle { transition: opacity 100ms ease; display: inline-flex; }
+  .trow:hover .idle { opacity: 0; }
+  .trow:hover .chev { opacity: 1; }
+  .ttitle {
+    flex: none; font-size: 13px; line-height: 24px;
+    color: var(--dsw-alias-label-secondary); white-space: nowrap;
+  }
+  .ttitle.strong { color: var(--dsw-alias-label-primary); }
+  .ttitle.link {
+    color: var(--dsw-alias-label-secondary);
+    text-decoration: underline dotted; text-decoration-color: var(--dsw-alias-label-tertiary);
+    text-underline-offset: 3px;
+  }
+  .tdot { flex: none; width: 2px; height: 2px; border-radius: 1px; margin: 0 8px; background: var(--dsw-alias-label-caption); }
+  .tsum {
+    flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 13px; line-height: 24px; color: var(--dsw-alias-label-tertiary);
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 24px), transparent);
+  }
+  .tsum.err { color: var(--dsw-alias-state-error-primary); }
+  .tsuffix {
+    flex: none; margin-left: 10px; font-family: var(--ds-font-family-code);
+    font-size: 11px; color: var(--dsw-alias-label-caption); white-space: nowrap;
+  }
+  /* StateDot halo + core */
+  .sdot { position: relative; display: inline-block; flex: none; width: 10px; height: 10px; }
+  .sdot::before { content: ''; position: absolute; inset: 0; border-radius: 50%; background: currentColor; opacity: .1; }
+  .sdot::after { content: ''; position: absolute; inset: 20%; border-radius: 50%; background: currentColor; }
+  .sdot.ok { color: var(--dsw-alias-state-success-primary); }
+  .sdot.warn { color: var(--dsw-alias-state-warn-primary); }
+  .sdot.err { color: var(--dsw-alias-state-error-primary); }
+  .sdot.run { color: var(--dsh-state-ongoing); }
+
+  .subcalls {
+    display: flex; flex-direction: column; gap: 4px;
+    margin: 4px 0 2px 22px; padding-left: 8px;
+    border-left: 0.5px solid var(--dsw-alias-border-l2);
+  }
+  /* Expanded IN/OUT card (ToolRow ioCard) */
+  .iocard {
+    display: flex; flex-direction: column; margin: 4px 0 4px 4px;
+    border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 12px;
+    background: var(--dsw-alias-markdown-code-block);
+    font: var(--dsw-font-markdown-code-block-small);
+  }
+  .ioSection {
+    display: grid; grid-template-columns: max-content 1fr; column-gap: 14px;
+    align-items: baseline; padding: 12px 16px; max-height: 150px; overflow-y: auto;
+  }
+  .ioLabel { color: var(--dsw-alias-label-caption); }
+  .ioDivider { flex: none; height: 0.5px; background: var(--dsw-alias-border-l2); }
+  .ioText { min-width: 0; white-space: pre-wrap; word-break: break-word; color: var(--dsw-alias-label-secondary); }
+  .ioText.err { color: var(--dsw-alias-state-error-primary); }
+  /* Terminal card */
+  .termcard {
+    margin: 4px 0 4px 4px; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 8px;
+    background: var(--dsw-alias-markdown-code-block); overflow: hidden;
+    font: var(--dsw-font-markdown-code-block-small);
+  }
+  .termbanner {
+    display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+    border-bottom: 0.5px solid var(--dsw-alias-border-l1);
+    color: var(--dsw-alias-label-secondary);
+  }
+  .termbanner .sdot { margin-left: auto; }
+  .termbody { padding: 10px 12px; color: var(--dsw-alias-label-secondary); white-space: pre; overflow: hidden; }
+  .termbody .ok { color: var(--dsw-alias-state-success-primary); }
+  .termbody .dim { color: var(--dsw-alias-label-caption); }
+  /* Context injection expanded body (ContextInjectionRow panel) */
+  .codepanel {
+    margin: 4px 0 0 22px; max-height: 141px; overflow: auto;
+    padding: 10px 16px 12px 12px; border-radius: 8px;
+    background: var(--dsw-alias-markdown-code-block);
+    color: var(--dsw-alias-label-tertiary);
+    font: var(--dsw-font-markdown-code-block-small);
+  }
+  .codepanel .file { color: var(--dsw-alias-label-secondary); }
+  .codepanel .add { color: var(--dsw-alias-state-success-primary); }
+  .codepanel .upd { color: var(--dsw-alias-state-warn-primary); }
+  .codepanel .del { color: var(--dsw-alias-state-error-primary); }
+  /* Diff block */
+  .diffcard { margin: 4px 0 4px 4px; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 8px; overflow: hidden; font: var(--dsw-font-markdown-code-block-small); }
+  .diffcard .add { padding: 2px 12px; background: var(--dsw-alias-state-success-tertiary); color: var(--dsw-alias-label-secondary); }
+  .diffcard .del { padding: 2px 12px; background: var(--dsw-alias-interactive-bg-hover-danger); color: var(--dsw-alias-state-error-secondary); }
+  /* User bubble (MessageItem userRow/bubble) */
+  .userCol { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin: 6px 0; }
+  .bubble {
+    max-width: 70%; background: var(--dsw-specific-bubble); border-radius: 22px;
+    padding: 10px 16px; font-size: 14px; line-height: 22px;
+    color: var(--dsw-alias-label-primary); white-space: pre-wrap; word-break: break-word;
+  }
+  /* Dim boundary rows (compaction/end-seed chrome) */
+  .dimrow {
+    display: flex; align-items: center; height: 24px; border-radius: 6px;
+    color: var(--dsw-alias-label-caption); margin: 6px 0;
+  }
+  .dimrow:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .dimrow .lead { color: var(--dsw-alias-label-secondary); }
+  .dimrule { flex: 1; border-top: 1px dashed var(--dsw-alias-border-l2); margin: 0 10px; }
+  /* Inspect pill (ToolRow inspectButton) */
+  .inspect {
+    display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 2px 4px;
+    padding: 2px 8px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: 999px;
+    background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-secondary);
+    font-size: 11px; line-height: 16px; cursor: pointer; opacity: 0; transition: opacity 100ms ease;
+  }
+  .mock:hover .inspect { opacity: 1; }
+  /* Step ticks */
+  .tick {
+    display: inline-block; font-family: var(--ds-font-family-code); font-size: 10px;
+    color: var(--dsw-alias-label-tertiary);
+    border-left: 2px solid var(--dsw-static-deepseek-400);
+    padding-left: 6px; margin-right: 10px;
+  }
+  table { border-collapse: collapse; width: 100%; font: var(--dsw-font-markdown-table); margin: 10px 0; }
+  th, td { border: 1px solid var(--dsw-alias-border-l1); padding: 5px 9px; text-align: left; vertical-align: top; }
+  th { font: var(--dsw-font-markdown-table-head); color: var(--dsw-alias-label-tertiary); }
+  td code { font-size: 11px; }
+</style>
+</head>
+<body>
+<button class="theme-toggle" id="theme-toggle" aria-pressed="false" aria-label="Toggle dark theme">theme</button>
+<main>
+<h1>Session events without a designated UI — today vs. proposed</h1>
+<p class="note">
+Mock rows reuse the rendered chat chrome — the DisclosureRow tool/context row, its
+expanded surfaces, the user bubble — drawn from <code>ui-tool</code>,
+<code>ui-chat</code>, and <code>ui-primitives</code>. The left column is what the
+transcript renders today; the right proposes changes inside that same chrome. The
+page renders on the live <code>--dsw-*</code> token sheets; the button flips the
+same <code>data-ds-dark-theme</code> attribute the app sets.
+</p>
+<div class="legend">
+  <span class="tag ext">EXT node-slot</span><span class="tag">keyed renderer on conversation.chat.node</span>
+  <span class="tag ext">EXT toolview</span><span class="tag">keyed renderer on tool.call.toolview</span>
+  <span class="tag ext">EXT node-def</span><span class="tag">new ConversationNodeDefinition folding log-only events</span>
+  <span class="tag ext">EXT form</span><span class="tag">presentation keyed off existing form / source fields</span>
+</div>
+
+<h2>0. The complaint: three different things in the same chrome</h2>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="mock">
+      <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">explore</span><span class="tdot"></span><span class="tsum">{"tasks":[{"description":"Map session events…","prompt":"In the repo…"}]}</span></div>
+      <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">root AGENTS.md</span></div>
+      <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-system-prompt</span></div>
+      <div class="userCol"><div class="bubble">these tool call and context injections all kinda look the same…</div></div>
+    </div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — same chrome, discriminants on the row</div>
+    <div class="mock">
+      <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle strong">Explore</span><span class="tdot"></span><span class="tsum">2 children · mapped event vocab</span><span class="tsuffix">2m</span></div>
+      <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">root AGENTS.md · instructions · updated</span><span class="tsuffix">+1 file</span></div>
+      <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">build finished · nightly replay passed</span></div>
+      <div class="userCol"><div class="bubble">these tool call and context injections all kinda look the same…</div></div>
+    </div>
+  </div>
+</div>
+<p class="how">One 24px row grammar everywhere; identity moves onto it: StateDot
+outcomes, the producer/form words in the summary, mono suffixes for counts and
+durations. Sections below itemize every case with its extension point.</p>
+
+<h2>1. Visible today, but rendered generically</h2>
+
+<h3 data-event="user/message">1a. <code>user/message</code> — human prompt vs. steering vs. goal continuation</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="userCol"><div class="bubble">fix the flaky websocket test</div></div>
+    <div class="userCol"><div class="bubble">while you're at it, also rename the helper</div></div>
+    <div class="userCol"><div class="bubble">New work turn (turn 4). Use declare_claim…</div></div>
+    <div class="sub">steering reuses the human bubble; the goal round reads like a
+    human prompt.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="userCol"><div class="bubble">fix the flaky websocket test</div></div>
+    <div class="trow"><span class="lead"><span class="sdot warn"></span></span><span class="ttitle">Steer @ turn 3</span><span class="tdot"></span><span class="tsum">also rename the helper</span></div>
+    <div class="dimrow"><span class="dimrule"></span>goal round 4 · revision 2 · autonomous<span class="dimrule"></span></div>
+    <div class="how" style="margin:0"><b>EXT node-slot</b> — dedicated keyed renderer
+    for the existing <code>steering</code> key instead of UserMessageNodeView; goal
+    rounds key off the merged <code>MessageSourceMap['goal']</code>
+    (goalId / revision / round) already on the <code>user/message</code> source.</div>
+  </div>
+</div>
+
+<h3 data-event="steering/message">1b. <code>steering/message</code> inbox occurrence</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="userCol"><div class="bubble">queued message · waiting for next step</div></div>
+    <div class="sub">Pre-admission queue chip and post-admission steering row share
+    the human bubble chrome; nothing says "arrived mid-turn".</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="sdot run"></span></span><span class="ttitle">Inbox</span><span class="tdot"></span><span class="tsum">also rename the helper</span><span class="tsuffix">→ admits step 2</span></div>
+    <div class="how" style="margin:0"><b>EXT form</b> — the node carries the stable
+    messageId shared with its inbox occurrence; render queue→admission as one
+    marginal row, not two human-looking bubbles.</div>
+  </div>
+</div>
+
+<h3 data-event="form:instructions">1c. context form <code>instructions</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today (collapsed)</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">packages/AGENTS.md</span></div>
+    <div class="sub">Collapsed row names only the producer; the file list and its
+    set/replace/remove actions live behind the 141px expand.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — actions lifted to the row, diff-colored</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum"><span class="file">packages/AGENTS.md</span> <span class="upd">updated</span> · <span class="file">docs/testing.md</span> <span class="add">added</span></span></div>
+    <div class="codepanel"><span class="file">packages/AGENTS.md</span> <span class="upd">replace</span> d41c…
+<span class="file">docs/testing.md</span> <span class="add">set</span> 9b2e…
+<span class="file">old/ROADMAP.md</span> <span class="del">remove</span></div>
+    <div class="how"><b>EXT form</b> — <code>source.changes[]</code> (set/replace/remove
+    + path + digest) already exists; print it in the masked summary with the same
+    state colors the diff body uses.</div>
+  </div>
+</div>
+
+<h3 data-event="form:catalog">1d. context form <code>catalog</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today (collapsed)</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-skill</span></div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-skill · catalog</span><span class="tsuffix">12 · +1</span></div>
+    <div class="how"><b>EXT form</b> — entry count and republish delta computed against
+    the previous catalog node's <code>source.entries</code>;
+    <code>update: true</code> becomes the ± suffix.</div>
+  </div>
+</div>
+
+<h3 data-event="form:snapshot">1e. context form <code>snapshot</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today (collapsed)</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-system-prompt</span></div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">runtime snapshot · context, time, workspace</span><span class="tsuffix">supersedes #212</span></div>
+    <div class="how"><b>EXT form</b> — <code>source.sections</code> names the
+    contributors in the summary; the supersede suffix targets the earlier snapshot
+    node's seq.</div>
+  </div>
+</div>
+
+<h3 data-event="form:notice">1f. context form <code>notice</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-schedule</span><span class="tdot"></span><span class="tsum">nightly replay passed</span></div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — outcome dot leads</div>
+    <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">nightly replay passed</span><span class="tsuffix">3m 12s</span></div>
+    <div class="how"><b>EXT form</b> — the bound <code>summary</code> already rides the
+    collapsed row; a StateDot outcome (success/warn/error from the producer's
+    source fields) makes it readable without the icon-vs-dot ambiguity.</div>
+  </div>
+</div>
+
+<h3 data-event="form:relay">1g. context form <code>relay</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today (collapsed)</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">dsh-subagent</span></div>
+    <div class="sub">Sender is an opaque session id, shown only when expanded.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — sender as a dotted-underline link</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle link">from “refactor-auth”</span><span class="tdot"></span><span class="tsum">relay</span></div>
+    <div class="how"><b>EXT form</b> — resolve <code>senderSessionId</code> to its title
+    the way ToolRow's fileLink resolves paths; same dotted affordance, same
+    open-in-default behavior, raw id fallback.</div>
+  </div>
+</div>
+
+<h3 data-event="form:recall">1h. context form <code>recall</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today (collapsed)</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="4.5" width="9" height="9" rx="2"/><path d="M6 4.5V4a2 2 0 0 1 2-2h5.5v9"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context recall</span><span class="tdot"></span><span class="tsum">perf audit</span></div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — completeness on the row</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="4.5" width="9" height="9" rx="2"/><path d="M6 4.5V4a2 2 0 0 1 2-2h5.5v9"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context recall</span><span class="tdot"></span><span class="tsum">perf audit</span><span class="tsuffix">14 kept · 6 omitted</span></div>
+    <div class="how"><b>EXT form</b> — retained/omitted counts are durable in
+    <code>source.references[]</code>; loss is the fact a reader needs first, in the
+    same mono caption tier as diff totals.</div>
+  </div>
+</div>
+
+<h3 data-event="form:opaque">1i. formless / unknown context (opaque fallback)</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">some-plugin</span></div>
+    <div class="sub">Indistinguishable from a well-formed context row.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M4 2.5h8v11H4z"/><path d="M8 5v5M5.8 8.2L8 10.4l2.2-2.2"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">Context injection</span><span class="tdot"></span><span class="tsum">some-plugin</span><span class="tsuffix">raw</span></div>
+    <div class="how"><b>EXT form</b> — the documented opaque default gets the mono
+    caption it deserves, so "this UI can't parse it" stops looking identical to
+    "parsed fine".</div>
+  </div>
+</div>
+
+<h3 data-event="tool/call">1j. <code>tool/call</code> + <code>tool/result</code> with no registered toolview</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today — generic card expanded</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2.5"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">terminal_session</span><span class="tdot"></span><span class="tsum">make -C native test</span></div>
+    <div class="iocard">
+      <div class="ioSection"><span class="ioLabel">IN</span><span class="ioText">{"command":"make -C native test","cwd":"/home/snguyen/dev/dsh"}</span></div>
+      <span class="ioDivider"></span>
+      <div class="ioSection"><span class="ioLabel">OUT</span><span class="ioText">… 4,812 chars of ANSI-dense stdout …</span></div>
+    </div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — family terminal card</div>
+    <div class="mock">
+      <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 4l4 4-4 4M9 12h4"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle strong">Bash</span><span class="tdot"></span><span class="tsum">make -C native test</span><span class="tsuffix">exit 0 · 12s</span></div>
+      <div class="termcard">
+        <div class="termbanner">make -C native test<span class="sdot ok"></span></div>
+        <div class="termbody"><span class="dim">…</span>
+<span class="ok">42 passed, 0 failed</span> <span class="dim">· exit 0 · 12s</span></div>
+      </div>
+      <button class="inspect" type="button">⌕ Inspect</button>
+    </div>
+    <div class="how"><b>EXT toolview</b> — family views (shell → terminal card, file
+    mutation → diff card off <code>meta</code>, subagent/workflow → tree off
+    <code>subCalls</code>) before the generic card; GenericToolCard itself gains a
+    schema-shaped argument table instead of raw JSON.</div>
+  </div>
+</div>
+
+<h3 data-event="unknown-surface">1k. unknown surface event (merge-extended by a newer build)</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="iocard"><div class="ioSection"><span class="ioLabel">RAW</span><span class="ioText">unknown surface event
+{"type":"answer/delivered","seq":812,…}</span></div></div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="mock">
+      <div class="trow"><span class="lead"><span class="sdot warn"></span></span><span class="ttitle">answer/delivered</span><span class="tdot"></span><span class="tsum">surface event this build does not know</span><span class="tsuffix">seq 812</span></div>
+      <button class="inspect" type="button">⌕ Inspect</button>
+    </div>
+    <div class="how"><b>EXT node-def</b> — keep the raw body, but give the row the type
+    badge, the <code>ignorable</code> flag, and the Inspect pill deep-linking into
+    the trajectory table.</div>
+  </div>
+</div>
+
+<h2>2. Logged, but invisible in the transcript today</h2>
+
+<h3 data-event="assistant/attempt">2a. <code>assistant/attempt</code> — failed attempts</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Nothing. turn-process drops attempts; the failed stream exists
+    only in trajectory.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — chip beside the retry row</div>
+    <div class="trow"><span class="lead"><span class="sdot err"></span></span><span class="ttitle">2 attempts dropped</span><span class="tdot"></span><span class="tsum err">rate_limit · overload</span></div>
+    <div class="how" style="margin:0"><b>EXT node-def</b> — fold into the turn-tail
+    lifecycle that already consumes attempts for state; error codes on the row,
+    streamed prefixes in the expansion.</div>
+  </div>
+</div>
+
+<h3 data-event="request/header">2b. <code>request/header</code> — what the model was asked with</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Trajectory table only; the transcript never names the model,
+    route, or tool count of a turn.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — per-turn strip in row chrome</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="3" y="3" width="10" height="4" rx="1.5"/><rect x="3" y="9" width="10" height="4" rx="1.5"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle strong">deepseek-v4-pro</span><span class="tdot"></span><span class="tsum">tools 34 · thinking high</span><span class="tsuffix">reason initial</span></div>
+    <div class="how" style="margin:0"><b>EXT node-def</b> — collapsed DisclosureRow at
+    each turn head; <code>reason</code> (initial/resume/change/series) drives the
+    delta suffix when a later header differs.</div>
+  </div>
+</div>
+
+<h3 data-event="request/context">2c. <code>request/context</code> — route capability changes</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Trajectory only; a mid-session route downgrade is invisible.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="sdot warn"></span></span><span class="ttitle">Route</span><span class="tdot"></span><span class="tsum">in-history prompt now supported</span><span class="tsuffix">from step 5</span></div>
+    <div class="how" style="margin:0"><b>EXT node-def</b> — appended exactly when the
+    route changes, so each occurrence earns one warn-led row.</div>
+  </div>
+</div>
+
+<h3 data-event="request/wire">2d. <code>request/wire</code> — exact provider body</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">A verbatim trajectory row; no entry point from the transcript.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <button class="inspect" type="button" style="opacity:1">⌕ Wire</button>
+    <div class="how"><b>EXT node-def</b> — not a row of its own: the Inspect pill on the
+    2b strip and attempt rows opens the existing JsonBlock inspector with the
+    serialized body.</div>
+  </div>
+</div>
+
+<h3 data-event="session/end-seed">2e. <code>session/end-seed</code> — resume / fork boundary</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Invisible; a resumed log reads as if this process wrote the
+    seed history.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — compaction-row divider</div>
+    <div class="dimrow"><span class="lead"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 8h11"/><circle cx="8" cy="8" r="2"/></svg></span>end of seed · inherited from resume point<span class="dimrule"></span></div>
+    <div class="how" style="margin:0"><b>EXT node-def</b> — one dim divider at
+    <code>firstLiveSeq</code>; the <code>inherited</code> fork variant adds a
+    "from parent session" suffix.</div>
+  </div>
+</div>
+
+<h3 data-event="step/start">2f. <code>step/start</code> / <code>step/end</code> — step boundaries</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Folded silently into the turn-process row; multi-step turns
+    read as one blob.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — ticks on the turn rail</div>
+    <div class="dimrow"><span class="tick">S1 8s</span><span class="tick">S2 41s</span><span class="tick">S3 5s</span><span class="sub" style="margin:0">per-step tokens on hover</span></div>
+    <div class="how" style="margin:0"><b>EXT form</b> — the turn-process node already
+    matches both events; surface them as mono ticks instead of hiding them inside
+    the spinner.</div>
+  </div>
+</div>
+
+<h3 data-event="system/message">2g. <code>system/message</code> replacements + <code>system-prompt/assemble</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Only the live prompt head renders; emptied nodes and replace
+    ops are invisible, so a mid-session prompt change goes unnoticed.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — revision row + diff card</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M8 2v12M3 5l10 6M13 5L3 11"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle">System prompt</span><span class="tdot"></span><span class="tsum">rev 3</span><span class="tsuffix">+120 −40</span></div>
+    <div class="diffcard"><div class="add">+ ## New work turn rules</div><div class="del">- ## Legacy retry policy</div></div>
+    <div class="how"><b>EXT node-def</b> — SurfaceOp replace carries
+    <code>sourceEventSeqs</code>, so both texts are in the log; the ± totals reuse
+    the diff-row's suffix grammar.</div>
+  </div>
+</div>
+
+<h3 data-event="compaction/prune">2h. <code>compaction/prune</code> — tool-result pruning</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">No chat definition; pruned results keep their original cards
+    with no marker of what the model still sees.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 4l4 4-4 4M9 12h4"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle strong">Bash</span><span class="tdot"></span><span class="tsum">long output</span><span class="tsuffix">pruned −3.2k @ 901</span></div>
+    <div class="how" style="margin:0"><b>EXT node-def</b> — the prune event names the
+    affected result seqs; stamp those cards with a warn suffix and roll the total
+    into the compaction marker's shadowed counts.</div>
+  </div>
+</div>
+
+<h3 data-event="hook/invoked">2i. <code>hook/invoked</code> / <code>hook/result</code></h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Invisible; hook interference with a tool call is only
+    debuggable from the raw log.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — nested on the owning card, verbose only</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M3 4l4 4-4 4M9 12h4"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle strong">Bash</span><span class="tdot"></span><span class="tsum">run lint --fix</span></div>
+    <div class="subcalls">
+      <div class="trow"><span class="lead"><span class="sdot warn"></span></span><span class="ttitle">pre-hook lint</span><span class="tdot"></span><span class="tsum">blocked → warn</span></div>
+    </div>
+    <div class="how"><b>EXT node-def</b> — the events carry the call correlation; nest
+    them like <code>data-subcalls</code>, hidden unless the verbose toggle is on.</div>
+  </div>
+</div>
+
+<h3 data-event="tools/execute">2j. <code>tools/execute</code>, pre/post-execute, <code>tool/ptc-dispatch</code>*</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">Invisible executor diagnostics; PTC child calls reach the
+    transcript only through the generic subCalls tree.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — labeled child rail</div>
+    <div class="trow"><span class="lead"><span class="idle"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M5 3l-3 5 3 5M11 3l3 5-3 5M9 3l-2 10"/></svg></span><span class="chev"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 6l4 4 4-4"/></svg></span></span><span class="ttitle strong" style="color:var(--dsw-alias-link)">run_code</span><span class="tdot"></span><span class="tsum">dispatch #7 · policy sandbox</span></div>
+    <div class="subcalls">
+      <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">read</span><span class="tdot"></span><span class="tsum">src/loop.ts</span></div>
+      <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">str_replace_editor</span><span class="tdot"></span><span class="tsum">src/loop.ts</span></div>
+      <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">bash</span><span class="tdot"></span><span class="tsum">pnpm test loop</span></div>
+    </div>
+    <div class="how"><b>EXT node-def</b> — dispatch events (parent callId present)
+    label the child rail inside the dispatching card instead of an
+    undifferentiated nest; the execute/pre/post triple feeds a debug drawer.</div>
+  </div>
+</div>
+
+<h3 data-event="todo/write">2k. <code>todo/write</code> — durable todo state</h3>
+<div class="pair">
+  <div class="col">
+    <div class="colhead">Today</div>
+    <div class="sub">The todo toolview shows the latest list; the state event's
+    history is invisible, so per-turn progress is lost.</div>
+  </div>
+  <div class="col prop">
+    <div class="colhead">Proposed — delta on the row</div>
+    <div class="trow"><span class="lead"><span class="sdot ok"></span></span><span class="ttitle">Todo</span><span class="tdot"></span><span class="tsum">“write sketch” done</span><span class="tsuffix">3 → 2 open</span></div>
+    <div class="how" style="margin:0"><b>EXT form</b> — consecutive
+    <code>todo/write</code> payloads diff into the same mono suffix the todo row's
+    parallel-active count already uses.</div>
+  </div>
+</div>
+
+<h2>3. Appendix — deliberately not transcript rows</h2>
+<table>
+<tr><th>Events</th><th>Current designated UI (non-transcript)</th><th>Sketch note</th></tr>
+<tr><td><code>approval/request|asked|decided|policy</code></td><td>approval card + input bar state</td><td>correctly outside the flow; keep.</td></tr>
+<tr><td><code>plan/mode</code>, <code>sandbox/mode</code>, <code>model/selection</code>, <code>agent-preset/selected</code>, <code>permission/preset</code></td><td>header chips / banner fed from the fixture projection</td><td>state, not history; chips already designated.</td></tr>
+<tr><td><code>session/title</code>, <code>goal/change(d)</code>, <code>schedule/change</code></td><td>sidebar label, goal banner, schedule panel</td><td>panels own them; no transcript row wanted.</td></tr>
+<tr><td><code>feedback/*</code>, <code>claim/*</code>, <code>user-questions/request</code>, <code>deliverables/presented</code></td><td>message reactions, claim chips, question cards, turn-tail rows</td><td>already surfaced where they matter.</td></tr>
+<tr><td><code>command/run|done</code>, <code>llm/retry|retry-started</code>, <code>compaction/summary|start|end</code>, <code>agent/inbox/spliced</code></td><td>command rows, retry rows, compaction markers, inbox queue</td><td>designated transcript nodes exist.</td></tr>
+<tr><td><code>gateway/*</code>, <code>session/created|disposed|flush|conflict</code>, <code>workspace/*</code>, <code>credential/rejected</code>, <code>settings/*</code>, <code>directory-picker/*</code>, <code>llm/model-discovery-rejected</code>, <code>session/title-llm-request</code>, <code>web/deepseek-search-llm-request</code>, <code>subagent/*</code> diagnostics, <code>tool-workflow/*</code></td><td>none (host/operational)</td><td>group into one per-session “diagnostics” drawer, not the transcript.</td></tr>
+</table>
+<p class="note">Vocabulary stays semantic end to end: every proposal keys off
+durable discriminants (event type, <code>source.kind</code>, the
+<code>ContextForm</code> vocabulary, tool name, <code>meta</code>) and draws the
+answer with the existing primitives — DisclosureRow, StateDot, ioCard,
+TerminalBlock, Inspect pill — because the design already knows how to present
+each of these shapes.</p>
+</main>
+<script>
+(function () {
+  var dark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  if (dark) document.body.toggleAttribute('data-ds-dark-theme', true)
+  var button = document.getElementById('theme-toggle')
+  var sync = function () {
+    button.setAttribute('aria-pressed', String(document.body.hasAttribute('data-ds-dark-theme')))
+  }
+  sync()
+  button.addEventListener('click', function () {
+    document.body.toggleAttribute('data-ds-dark-theme')
+    sync()
+  })
+})()
+</script>
+</body>
+</html>

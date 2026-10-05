@@ -11,7 +11,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { assertObjectJsonSchema, defineTool } from '@deepseek-ai/dsh-tools'
+import type { ObjectJsonSchema, ParameterSchemaSpec } from '@deepseek-ai/dsh-tools'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -64,6 +65,16 @@ export interface Config {
    */
   enableRunInBackground?: boolean
   /**
+   * Expose the `tasks` array as the spawn parameter in place of `prompt`
+   * (default false): one call runs one independent foreground child per
+   * entry in parallel, each entry carrying its own description and prompt,
+   * and a batched call rejects background execution. Child defaults
+   * (provider, persona, tool filter, model route, step budget, output
+   * schema, sandbox mode) apply per entry; failures stay per-child in the
+   * returned `results` unless every child fails, which fails the whole call.
+   */
+  enableBatchTasks?: boolean
+  /**
    * Background execution policy (default `one-shot`). `one-shot` defaults calls
    * to foreground; `continuable` defaults them to background, requires a provider
    * with the `prepareContinuable` capability, and returns the durable child id.
@@ -100,6 +111,23 @@ export interface Config {
    * budget belongs to the child runtime or its own deployment.
    */
   maxDepth?: number | 'provider-managed'
+  /**
+   * Deployment-owned object JSON Schema attached to every child start as
+   * `outputSchema`: never a model choice. Requires the provider's
+   * `outputSchema` capability; validated with `assertObjectJsonSchema` at
+   * load and loud-rejected there on violation.
+   */
+  outputSchema?: ObjectJsonSchema
+  /**
+   * Per-child accepted-step budget threaded as `maxSteps`. Requires the
+   * provider's `stepBudget` capability.
+   */
+  maxSteps?: number
+  /**
+   * The child session's initial sandbox confinement, written as its first
+   * sandbox event. Requires the provider's `childSandboxMode` capability.
+   */
+  childSandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
 }
 
 export const Config: z<Config> = z.object({
@@ -107,6 +135,7 @@ export const Config: z<Config> = z.object({
   toolName: z.string().default('subagent'),
   modelSelectionSettings: z.boolean().default(false),
   enableRunInBackground: z.boolean().default(true),
+  enableBatchTasks: z.boolean().default(false),
   backgroundMode: z.union(['one-shot', 'continuable'] as const).default('one-shot'),
   // Prevent Schemastery from materializing omitted agentOptions as `{}`.
   agentOptions: z.object({
@@ -127,6 +156,11 @@ export const Config: z<Config> = z.object({
     deny: z.array(z.string()).default(undefined as unknown as string[]),
   }).default(undefined as unknown as { allow: string[]; deny: string[] }),
   maxDepth: z.union([z.natural().max(Number.MAX_SAFE_INTEGER), z.const('provider-managed' as const)]).default(3),
+  // Deployment authority only: the model-facing tool schema never exposes these.
+  // Preserve omission; apply() validates it as an object JSON Schema itself.
+  outputSchema: z.any<ObjectJsonSchema>().default(undefined as unknown as ObjectJsonSchema),
+  maxSteps: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+  childSandboxMode: z.union(['read-only', 'workspace-write', 'danger-full-access'] as const),
 })
 
 /** Render text blocks from the canonical JSON block array without trusting arbitrary values. */
@@ -198,6 +232,68 @@ type ForegroundToolResult = {
   readonly kind: 'foreground'
   readonly runId: SubagentRun['id']
   readonly output: JsonValue[]
+  /** The child's validated `outputSchema` capture, when one was requested. */
+  readonly structured?: JsonValue
+}
+
+/** One entry of a `tasks` batch argument. */
+interface BatchTask {
+  readonly description: string
+  readonly prompt: string
+}
+
+/**
+ * Explicit view of the tool argument: `prompt` stays optional because the
+ * `tasks`-enabled parameters spec omits its `required: true` authoring key.
+ */
+interface DelegationToolArgs extends DelegationModelRequest {
+  readonly description: string
+  /** Present only on instances without `enableBatchTasks`. */
+  readonly prompt?: string
+  /** Present only on `enableBatchTasks` instances, where it replaces `prompt`. */
+  readonly tasks?: ReadonlyArray<BatchTask>
+  readonly run_in_background?: boolean
+}
+
+/** One per-child outcome of a `tasks` batch, as returned in `results`. */
+interface BatchResultEntry {
+  readonly description: string
+  readonly status: 'ok' | 'error'
+  readonly output?: JsonValue[]
+  readonly structured?: JsonValue
+  readonly error?: string
+}
+
+/**
+ * Render one batch entry: its heading, then the error, the `outputSchema`
+ * capture, or the child's final text.
+ * @param entry - one per-child batch outcome.
+ * @returns the entry's two-line rendered section.
+ */
+function renderBatchEntry(entry: BatchResultEntry): string {
+  const body = entry.status === 'error'
+    ? `Error: ${entry.error ?? 'unknown error'}`
+    : entry.structured !== undefined
+      ? JSON.stringify(entry.structured, null, 2)
+      : outputValueText(entry.output ?? [])
+  return `## ${entry.description}\n${body}`
+}
+
+/**
+ * Render a settled foreground value: the per-child sections of a `tasks` batch
+ * when `results` is present, else the single-child capture or text.
+ * @param value - the foreground tool value.
+ * @returns the model-facing result text.
+ */
+function renderForegroundValue(value: {
+  readonly output: JsonValue[]
+  readonly structured?: JsonValue
+  readonly results?: ReadonlyArray<BatchResultEntry>
+}): string {
+  if (value.results !== undefined) return value.results.map(renderBatchEntry).join('\n\n')
+  return value.structured !== undefined
+    ? JSON.stringify(value.structured, null, 2)
+    : outputValueText(value.output)
 }
 
 /**
@@ -219,6 +315,9 @@ async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResu
         // Content blocks already cross durable JSON boundaries elsewhere;
         // the registry performs the authoritative lossless snapshot here.
         output: result.output as unknown as JsonValue[],
+        ...result.structured !== undefined
+          ? { structured: result.structured as JsonValue }
+          : {},
       }
     }),
   ])
@@ -314,12 +413,14 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
   // Direct apply() bypasses Schemastery's numeric constraints. A direct-apply
   // omission stays capless (the schema default only runs through the loader).
   if (config.maxDepth !== 'provider-managed') assertSubagentMaxDepth(config.maxDepth)
+  if (config.outputSchema !== undefined) assertObjectJsonSchema(config.outputSchema)
   // Reject an empty explicit filter at load instead of failing every delegation.
   if (config.toolFilter !== undefined && config.toolFilter.allow === undefined && config.toolFilter.deny === undefined) {
     throw new Error('tool-subagent: `toolFilter` is configured but names neither `allow` nor `deny` — remove the key or fill the filter')
   }
   const backgroundEnabled = config.enableRunInBackground !== false
   const continuable = (config.backgroundMode ?? 'one-shot') === 'continuable'
+  const batchEnabled = config.enableBatchTasks === true
   const toolName = config.toolName ?? 'subagent'
 
   const modelSelectionCapable = config.modelSelectionSettings === true
@@ -345,6 +446,21 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
     if (continuable && subagentProvider.prepareContinuable === undefined) {
       throw new Error(
         `tool-subagent: provider "${subagentProvider.name}" does not support \`backgroundMode: continuable\``,
+      )
+    }
+    if (config.outputSchema !== undefined && !subagentProvider.capabilities.outputSchema) {
+      throw new Error(
+        `tool-subagent: provider "${subagentProvider.name}" does not support child outputSchema`,
+      )
+    }
+    if (config.maxSteps !== undefined && !subagentProvider.capabilities.stepBudget) {
+      throw new Error(
+        `tool-subagent: provider "${subagentProvider.name}" cannot enforce maxSteps (no stepBudget capability)`,
+      )
+    }
+    if (config.childSandboxMode !== undefined && !subagentProvider.capabilities.childSandboxMode) {
+      throw new Error(
+        `tool-subagent: provider "${subagentProvider.name}" cannot confine the child session (no childSandboxMode capability)`,
       )
     }
   }
@@ -376,6 +492,68 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
           + (subagentProvider.inheritsParentContext
             ? ' Changing the route can prevent provider-side reuse of the inherited conversation prefix.'
             : '')
+      // Hoisted so the conditional prompt/tasks authoring stays one typed
+      // literal; the schema compiler rejects `required: false` outright, so the
+      // `tasks`-enabled shape omits the key instead.
+      const parameters = {
+        description: {
+          type: 'string',
+          required: true,
+          description: 'A short (3-5 word) description of the delegated task, for display.',
+        },
+        ...batchEnabled ? {} : { prompt: { type: 'string', required: true, description: wording.promptDescription } },
+        ...batchEnabled ? {
+          tasks: {
+            type: 'array' as const,
+            required: true,
+            description: 'The spawn parameter: one foreground call runs one independent child per entry in parallel, replacing several separate delegation calls. Each entry starts one child exactly as a single call would (same provider, persona, tool filter, model route, output schema, and step budget) and counts against the deployment\'s per-turn delegation cap.',
+            items: {
+              type: 'object' as const,
+              additionalProperties: false,
+              properties: {
+                description: {
+                  type: 'string' as const,
+                  required: true,
+                  description: 'A short (3-5 word) description of this child, for display.',
+                },
+                prompt: {
+                  type: 'string' as const,
+                  required: true,
+                  description: wording.promptDescription,
+                },
+              },
+            },
+          },
+        } : {},
+        ...modelSelectionEnabled ? {
+          provider: {
+            type: 'string' as const,
+            description: providerRouteDefaults !== undefined
+              ? 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or this provider\'s route defaults.'
+              : 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or inherit the parent route.',
+          },
+          model: {
+            type: 'string' as const,
+            description: providerRouteDefaults !== undefined
+              ? 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or this provider\'s route defaults.'
+              : 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or inherit the parent route.',
+          },
+          reasoning_effort: {
+            type: 'string' as const,
+            description: providerRouteDefaults !== undefined
+              ? 'Adapter-owned reasoning effort for the effective child route. Omit to use a compatible configured effort or the selected model\'s default.'
+              : 'Adapter-owned reasoning effort for the effective child route. Omit to inherit a compatible configured/parent effort or use a newly selected model\'s default.',
+          },
+        } : {},
+        ...backgroundEnabled ? {
+          run_in_background: {
+            type: 'boolean' as const,
+            description: continuable
+              ? 'Whether to run in the background and return a durable subagent id immediately. Defaults to true. Set false to wait for the result when your next action depends on it.'
+              : 'Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill.',
+          },
+        } : {},
+      } as const satisfies ParameterSchemaSpec
       const disposeTool = runtimeCtx.tools.register(defineTool({
         name: toolName,
         description: wording.description + (backgroundEnabled
@@ -385,47 +563,11 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
           ? continuable
             ? ' This tool runs in the background by default, immediately returns a durable subagent id, and keeps the child conversation available for later turns. When that run settles, the runtime sends the parent a notice containing its outcome and any final assistant message; `send_message` steers the child\'s nearest step while it is running and starts a turn while it is idle. Set `run_in_background: false` only when your next action depends on receiving the result.'
             : ' This call waits for the result by default. Set `run_in_background: true` to return a job id; collect with `job_output` and stop with `job_kill`.'
-          : ' This call waits for the subagent and returns its result.') + choiceDescription,
-        parameters: {
-          description: {
-            type: 'string',
-            required: true,
-            description: 'A short (3-5 word) description of the delegated task, for display.',
-          },
-          prompt: {
-            type: 'string',
-            required: true,
-            description: wording.promptDescription,
-          },
-          ...modelSelectionEnabled ? {
-            provider: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or this provider\'s route defaults.'
-                : 'LLM provider route for the child. Supply together with model; omit both to use configured child defaults or inherit the parent route.',
-            },
-            model: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or this provider\'s route defaults.'
-                : 'Model id interpreted by provider. Supply together with provider; omit both to use configured child defaults or inherit the parent route.',
-            },
-            reasoning_effort: {
-              type: 'string' as const,
-              description: providerRouteDefaults !== undefined
-                ? 'Adapter-owned reasoning effort for the effective child route. Omit to use a compatible configured effort or the selected model\'s default.'
-                : 'Adapter-owned reasoning effort for the effective child route. Omit to inherit a compatible configured/parent effort or use a newly selected model\'s default.',
-            },
-          } : {},
-          ...backgroundEnabled ? {
-            run_in_background: {
-              type: 'boolean' as const,
-              description: continuable
-                ? 'Whether to run in the background and return a durable subagent id immediately. Defaults to true. Set false to wait for the result when your next action depends on it.'
-                : 'Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill.',
-            },
-          } : {},
-        },
+          : ' This call waits for the subagent and returns its result.')
+          + (batchEnabled
+            ? ' This call spawns its children through the `tasks` array: every entry starts one independent foreground child with its own description and prompt, each counts against the deployment\'s per-turn delegation cap, and the result reports each child separately.'
+            : '') + choiceDescription,
+        parameters,
         output: {
           schema: {
             oneOf: [
@@ -452,6 +594,24 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
                   kind: { type: 'string', required: true, const: 'foreground' },
                   runId: { type: 'string', required: true },
                   output: { type: 'array', required: true, items: { type: 'json' } },
+                  structured: { type: 'json' },
+                  ...batchEnabled ? {
+                    results: {
+                      type: 'array' as const,
+                      description: 'Per-child outcome of a `tasks` batch, in task order.',
+                      items: {
+                        type: 'object' as const,
+                        additionalProperties: false,
+                        properties: {
+                          description: { type: 'string' as const, required: true },
+                          status: { type: 'string' as const, required: true },
+                          output: { type: 'array' as const, items: { type: 'json' as const } },
+                          structured: { type: 'json' as const },
+                          error: { type: 'string' as const },
+                        },
+                      },
+                    },
+                  } : {},
                 },
               },
             ],
@@ -462,7 +622,11 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
               ? `started background subagent job ${value.jobId}`
               : value.kind === 'continuable'
                 ? `started subagent ${value.subagentId}`
-                : outputValueText(value.output),
+                : renderForegroundValue(value as unknown as {
+                  readonly output: JsonValue[]
+                  readonly structured?: JsonValue
+                  readonly results?: ReadonlyArray<BatchResultEntry>
+                }),
           }],
         },
         // Children never mutate the parent session; the one parent-owned write
@@ -475,7 +639,10 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
             throw new Error('subagent tool requires a calling agent (exec.agent was undefined)')
           }
 
-          const modelRequest = args as DelegationModelRequest
+          // The parameters spec authors `prompt` as required only when `tasks`
+          // is absent, so the inferred argument union needs one explicit view.
+          const argsIn = args as unknown as DelegationToolArgs
+          const modelRequest = argsIn
           const parentOptions = parentAgentOptionsForDelegation(parent)
           const requiresRoutePreflight = hasDelegationModelRequest(modelRequest)
             || hasConfiguredLlmSelection(config.agentOptions)
@@ -511,18 +678,78 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
             }
           }
           exec.signal.throwIfAborted()
+          const batchTasks = argsIn.tasks
+          if (batchEnabled) {
+            if (batchTasks === undefined || batchTasks.length === 0) {
+              throw new Error('`tasks` must contain at least one entry with a description and a prompt')
+            }
+          }
+          else if (argsIn.prompt === undefined) {
+            throw new Error('prompt is required')
+          }
           const maxDepth = typeof config.maxDepth === 'number' ? config.maxDepth : undefined
-          const request = {
-            label: args.description,
-            prompt: [{ type: 'text', text: args.prompt }] as ContentBlock[],
+          const childDefaults = {
             parent,
             ...requestedChildAgentOptions !== undefined ? { agentOptions: requestedChildAgentOptions } : {},
             ...config.persona !== undefined ? { persona: config.persona } : {},
             ...config.toolFilter !== undefined ? { toolFilter: config.toolFilter } : {},
             ...maxDepth !== undefined ? { maxDepth } : {},
+            ...config.outputSchema !== undefined ? { outputSchema: config.outputSchema } : {},
+            ...config.maxSteps !== undefined ? { maxSteps: config.maxSteps } : {},
+            ...config.childSandboxMode !== undefined ? { childSandboxMode: config.childSandboxMode } : {},
           }
 
           const runSpec = resolveDelegationRun(args, { backgroundEnabled, continuable })
+          if (batchTasks !== undefined) {
+            if (runSpec.runInBackground) {
+              throw new Error('a `tasks` batch runs in the foreground; use a single `prompt` call for background execution')
+            }
+            let firstRunId: SubagentRun['id'] | undefined
+            const results = await Promise.all(batchTasks.map(async (task) => {
+              try {
+                const run = await runtimeCtx.subagents.start(config.provider, {
+                  ...childDefaults,
+                  label: task.description,
+                  prompt: [{ type: 'text', text: task.prompt }] as ContentBlock[],
+                  signal: exec.signal,
+                })
+                const settled = await settleForegroundRun(run)
+                firstRunId ??= run.id
+                return {
+                  description: task.description,
+                  status: 'ok' as const,
+                  output: settled.output,
+                  ...settled.structured !== undefined ? { structured: settled.structured } : {},
+                }
+              }
+              catch (error) {
+                return {
+                  description: task.description,
+                  status: 'error' as const,
+                  error: String(error instanceof Error ? error.message : error),
+                }
+              }
+            }))
+            const failures = results.filter(result => result.status === 'error')
+            if (failures.length === batchTasks.length) {
+              throw new AggregateError(
+                failures.map(failure => new Error(`${failure.description}: ${(failure as { error?: string }).error ?? 'unknown error'}`)),
+                `all ${batchTasks.length} batched children failed`,
+              )
+            }
+            if (firstRunId === undefined) throw new Error('batch settled with successful children but no run id was captured')
+            return {
+              kind: 'foreground' as const,
+              runId: firstRunId,
+              output: results.flatMap(result => 'output' in result ? result.output : []),
+              results,
+            }
+          }
+          const request = {
+            ...childDefaults,
+            label: args.description,
+            prompt: [{ type: 'text', text: args.prompt as string }] as ContentBlock[],
+          }
           if (runSpec.runInBackground) {
             if (continuable) {
               // Resolves at inbox acceptance: the child owns its own turns from

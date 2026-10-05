@@ -9,6 +9,8 @@
  * @module dsh-llm-deepseek/types
  */
 
+import type { StructuredOutputSchema } from '@deepseek-ai/dsh-llm'
+
 /** Request body for `POST {baseURL}/chat/completions`. */
 export interface WireRequest {
   model: string
@@ -27,6 +29,15 @@ export interface WireRequest {
    * produces any one of these strings. Mapped from `GenerateOptions.stop`.
    */
   stop?: string[]
+  /**
+   * Native grammar decoding (OpenAI-compat `response_format`): the provider
+   * returns JSON matching `json_schema.schema`. Mapped from
+   * `GenerateOptions.structuredOutput`; absent when the request carried none.
+   */
+  response_format?: {
+    type: 'json_schema'
+    json_schema: { name: string; schema: StructuredOutputSchema }
+  }
 }
 
 /** System-role message: a single string of instructions. */

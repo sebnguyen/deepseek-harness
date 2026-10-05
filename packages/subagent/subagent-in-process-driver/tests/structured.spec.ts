@@ -246,17 +246,19 @@ describe('in-process structured output', () => {
     await run.dispose()
   })
 
-  it('a clean finish without a capture is an immediate error to the parent — deliberately NO re-prompt', async () => {
+  it('a capture-less finish is given exactly one schema-forced consolidation step, then errors', async () => {
     const { ctx, parent, adapter } = await setup([
       textResponse('here is my answer in prose'),
+      textResponse('still prose after the consolidation steer'),
       textResponse('MUST NOT BE CONSUMED'),
     ])
     const run = await ctx.subagents.start('spawn', structuredRequest(parent))
     const result = await run.result
     expect(result.stopReason).toBe('error')
     expect(result.structured).toBeUndefined()
-    // Exactly one model request and one caller-supplied user message: no nudge turn exists.
-    expect(adapter.requests.length).toBe(1)
+    // The prose settling triggers one steered consolidation request carrying
+    // the schema; the second bare settling errors without a third step.
+    expect(adapter.requests.length).toBe(2)
     const child = ctx.agents.get(run.id)!
     expect(child.session.snapshotEvents().filter(e => e.type === 'user/message' && e.data.source.kind !== 'plugin').length).toBe(1)
     await run.dispose()
@@ -307,6 +309,7 @@ describe('in-process structured output', () => {
     const { ctx, parent, adapter } = await setup([
       toolCallResponse('c1', STRUCTURED_OUTPUT_TOOL, { answer: 7 }),
       textResponse('continues after the blocked capture'),
+      textResponse('consolidation also fails to capture'),
     ])
     // A PostToolUse-style hook turns the tool body's provisional success into
     // the authoritative final error observed by the commit notification.
@@ -327,8 +330,9 @@ describe('in-process structured output', () => {
     expect(results[0]!.data.message.content[0].isError).toBe(true)
     expect(JSON.stringify(results[0]!.data.message.content)).toContain('capture rejected by hook')
     // ...and the turn CONTINUED past the blocked call (no captured veto):
-    // the model got to react to the failure with a second step.
-    expect(adapter.requests.length).toBe(2)
+    // the model got to react to the failure, and the capture-less settling
+    // then received its one schema-forced consolidation step.
+    expect(adapter.requests.length).toBe(3)
     await run.dispose()
   })
 
@@ -421,6 +425,7 @@ describe('in-process structured output', () => {
     const { ctx, parent, adapter } = await setup([
       toolCallResponse('c1', RUN_CODE_NAME, { code: 'await tools.structured_output({ answer: 12 }); throw new Error("boom")', description: 'Capture then fail the program' }),
       textResponse('outer code failed'),
+      textResponse('consolidation also fails to capture'),
     ], {
       toolMode: 'ptc',
       codeRun: async (request) => {
@@ -438,7 +443,7 @@ describe('in-process structured output', () => {
     const result = await run.result
     expect(result.structured).toBeUndefined()
     expect(result.stopReason).toBe('error')
-    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests).toHaveLength(3)
     const child = ctx.agents.get(run.id)!
     const outer = child.session.snapshotEvents().find(event =>
       event.type === 'tool/result' && event.data.message.source.callId === ToolCallId('c1'))
@@ -450,6 +455,7 @@ describe('in-process structured output', () => {
     const { ctx, parent, adapter } = await setup([
       toolCallResponse('c1', RUN_CODE_NAME, { code: 'return await tools.structured_output({ answer: 12 })', description: 'Capture the structured answer' }),
       textResponse('outer code was blocked'),
+      textResponse('consolidation also fails to capture'),
     ], {
       toolMode: 'ptc',
       codeRun: async (request) => {
@@ -467,7 +473,7 @@ describe('in-process structured output', () => {
     const result = await run.result
     expect(result.structured).toBeUndefined()
     expect(result.stopReason).toBe('error')
-    expect(adapter.requests).toHaveLength(2)
+    expect(adapter.requests).toHaveLength(3)
     await run.dispose()
   })
 

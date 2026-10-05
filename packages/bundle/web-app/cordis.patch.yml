@@ -82,13 +82,87 @@
 
     # Whole-log turn/step counts for the chat stats strip (the sessionStats
     # projection key); the projection registry itself is a base-layer row.
-    - id: session-stats
-      name: '@deepseek-ai/dsh-session-stats'
 
     # Whole-log turn outline for the chat turn rail (the turnOutline
     # projection key): every turn stays navigable before its events page in.
     - id: session-turn-outline
       name: '@deepseek-ai/dsh-session-turn-outline'
+
+    # Whole-log turn/step counts for the chat stats strip (the sessionStats
+    # projection key); the projection registry itself is a base-layer row.
+    # The pricing row is the per-scope cost chip's switch: DeepSeek V3 list
+    # rates here; deployment overlays re-rate the row by overriding its
+    # config in a later patch layer, and omitting pricing disables the chip.
+    - id: session-stats
+      name: '@deepseek-ai/dsh-session-stats'
+      config:
+        pricing:
+          inputPerMillionUsd: 0.27
+          outputPerMillionUsd: 1.1
+          cacheReadPerMillionUsd: 0.027
+          cacheWritePerMillionUsd: 0.27
+          # DO serverless inference per-model rates (docs verified 2026-10-01).
+          models:
+            'glm-5.3-flash':
+              inputPerMillionUsd: 0.15
+              outputPerMillionUsd: 0.5
+              cacheReadPerMillionUsd: 0.03
+              cacheWritePerMillionUsd: 0
+            'glm-5.3':
+              inputPerMillionUsd: 1.4
+              outputPerMillionUsd: 4.4
+              cacheReadPerMillionUsd: 0.26
+              cacheWritePerMillionUsd: 0
+            'minimax-m2.5':
+              inputPerMillionUsd: 0.3
+              outputPerMillionUsd: 1.2
+              cacheReadPerMillionUsd: 0.06
+              cacheWritePerMillionUsd: 0
+            'mimo-v2.5-pro':
+              inputPerMillionUsd: 0.8
+              outputPerMillionUsd: 3
+              cacheReadPerMillionUsd: 0.16
+              cacheWritePerMillionUsd: 0
+            'kimi-k2.6':
+              inputPerMillionUsd: 0.95
+              outputPerMillionUsd: 4
+              cacheReadPerMillionUsd: 0.19
+              cacheWritePerMillionUsd: 0
+            'qwen3.8-max':
+              inputPerMillionUsd: 2
+              outputPerMillionUsd: 6
+              cacheReadPerMillionUsd: 0.2
+              cacheWritePerMillionUsd: 0
+            'gemma-4-31B-it':
+              inputPerMillionUsd: 0.18
+              outputPerMillionUsd: 0.5
+              cacheReadPerMillionUsd: 0.036
+              cacheWritePerMillionUsd: 0
+            'deepseek-v4.1-flash':
+              inputPerMillionUsd: 0.3
+              outputPerMillionUsd: 1.2
+              cacheReadPerMillionUsd: 0.006
+              cacheWritePerMillionUsd: 0
+            'deepseek-v4-flash-0731':
+              inputPerMillionUsd: 0.14
+              outputPerMillionUsd: 0.28
+              cacheReadPerMillionUsd: 0.028
+              cacheWritePerMillionUsd: 0
+            'deepseek-v4-pro-0813':
+              inputPerMillionUsd: 1.32
+              outputPerMillionUsd: 3.96
+              cacheReadPerMillionUsd: 0.044
+              cacheWritePerMillionUsd: 0
+            'deepseek-v4-pro':
+              inputPerMillionUsd: 1.74
+              outputPerMillionUsd: 3.48
+              cacheReadPerMillionUsd: 0.348
+              cacheWritePerMillionUsd: 0
+            'deepseek-v4-flash':
+              inputPerMillionUsd: 0.14
+              outputPerMillionUsd: 0.28
+              cacheReadPerMillionUsd: 0.028
+              cacheWritePerMillionUsd: 0
 
     # Resolve bind host, SSH launch, and display once at boot, then mount the
     # matching dual-face directory picker. Mount -native or -browse directly in
@@ -143,13 +217,11 @@
 
     # Web glue owned by this bundle: resolves the built frontend dist (an
     # assembly fact of dsh-web-app, never user config), mounts the
-    # frontend-static fallback owner, registers the web-surface prompt
-    # section and the bash runtime variable, prints the URL line, and opens the
-    # canonical local URL after the full tree settles. The webStartup provider
-    # supplies invocation-only values; after the server binds, this row samples
-    # LAN trust once and provides `webRuntime`. A complete agent-preset persona
-    # suppresses the prompt section for that agent while retaining the host-owned
-    # shell variable.
+    # frontend-static fallback owner, registers the bash runtime variable,
+    # prints the URL line, and opens the canonical local URL after the full
+    # tree settles. The webStartup provider supplies invocation-only values;
+    # after the server binds, this row samples LAN trust once and provides
+    # `webRuntime`. `surfaceContext` gates the shell variable.
     - id: web-runtime
       name: '@deepseek-ai/dsh-web-app'
       inject: [webStartup]

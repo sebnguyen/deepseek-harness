@@ -1125,7 +1125,7 @@ describe('scope-aware filesystem guidance', () => {
 })
 /** Preserve default core guidance and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
-  return [...coreGuidanceParagraphs({ proveIt: false }), ...sections].join('\n\n')
+  return [...coreGuidanceParagraphs({ proveIt: false, explore: false }), ...sections].join('\n\n')
 }
 
 /** Schema assembly only: these cases never execute user code. */

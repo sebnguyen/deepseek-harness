@@ -199,6 +199,15 @@ export interface PreparedAdapterCall {
  */
 export abstract class LlmAdapter {
   /**
+   * Whether this adapter feeds `GenerateOptions.structuredOutput` to the
+   * provider's native structured output (`response_format`). Unset adapters
+   * never receive the field: the runtime strips it so `lastOptions`-style
+   * observers and replays cannot mistake a request for a schema-forced one.
+   * @returns false / unset when the provider cannot grammar-decode.
+   */
+  structuredOutputOnRequest?: boolean
+
+  /**
    * Describe one provider route owned by this adapter.
    * @param provider - a route passed to `registerAdapter()` for this instance.
    * @returns detached display metadata whose id must equal `provider`.
@@ -978,8 +987,10 @@ export class LlmRuntime extends TypertRemoteService {
         source: { kind: 'model', provider: source.provider, model: source.model },
       })
     })
-    if (messages.every((message, index) => message === options.messages[index])) return options
+    const stripsStructuredOutput = !adapter.structuredOutputOnRequest && options.structuredOutput !== undefined
+    if (messages.every((message, index) => message === options.messages[index]) && !stripsStructuredOutput) return options
     const filtered = { ...options, messages }
+    if (!adapter.structuredOutputOnRequest) delete filtered.structuredOutput
     return Object.isFrozen(options) ? deepFreeze(filtered) : filtered
   }
 

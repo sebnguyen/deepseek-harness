@@ -12,6 +12,8 @@ import type { ContextSnapshotSection, ToolSchema } from '@deepseek-ai/dsh-llm'
 import {
   CORE_PERSONALITY_SECTION,
   CORE_PERSONALITY_TEXT,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT,
   CORE_RULE_PROVE_IT_SECTION,
   CORE_RULE_PROVE_IT_TEXT,
   CORE_RULE_SECTIONS,
@@ -40,8 +42,12 @@ export {
   CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT,
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_SECTION,
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT,
   CORE_RULE_PROVE_IT_SECTION,
   CORE_RULE_PROVE_IT_TEXT,
+  CORE_RULE_REUSE_BEFORE_EXTRACT_SECTION,
+  CORE_RULE_REUSE_BEFORE_EXTRACT_TEXT,
   CORE_RULE_SECTIONS,
   CORE_RULE_STRUCTURE_YOUR_SEARCH_SECTION,
   CORE_RULE_STRUCTURE_YOUR_SEARCH_TEXT,
@@ -176,6 +182,8 @@ const SECTION_ORDERS = {
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING: 100,
   CORE_RULE_CLOSE_THE_DECISION: 110,
   CORE_RULE_CLOSE_THE_IDLE_TURN: 120,
+  CORE_RULE_REUSE_BEFORE_EXTRACT: 130,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS: 140,
   PLAN_POLICY: 500,
   TEAM_POLICY: 600,
   PTC_ONLY: 800,
@@ -188,7 +196,6 @@ const SECTION_ORDERS = {
   TOOL_GREP: 1030,
   TOOL_BASH: 1050,
   TOOL_PWSH: 1060,
-  TOOL_JOBS: 1600,
   TOOL_PTY: 1700,
   TOOL_WEB_SEARCH: 2000,
   TOOL_WEB_FETCH: 2100,
@@ -211,9 +218,6 @@ const SECTION_ORDERS = {
   TOOLS_SDK: 5000,
   DELIVERABLE_FILE_REFERENCES: 9000,
   STRUCTURED_OUTPUT: 9900,
-  // Local paths and endpoints follow reusable instructions.
-  HARNESS_SOURCE: 10000,
-  WEB_SURFACE: 10100,
   DEPLOYMENT_PERSONA_SUFFIX: 10200,
 } as const
 
@@ -232,6 +236,8 @@ const CORE_RULE_ORDER_BY_SECTION: Record<string, PromptSectionOrderName> = {
   'harness:core-rule:diagnose-before-switching': 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING',
   'harness:core-rule:close-the-decision': 'CORE_RULE_CLOSE_THE_DECISION',
   'harness:core-rule:close-the-idle-turn': 'CORE_RULE_CLOSE_THE_IDLE_TURN',
+  'harness:core-rule:reuse-before-extract': 'CORE_RULE_REUSE_BEFORE_EXTRACT',
+  'harness:core-rule:explore-through-explorers': 'CORE_RULE_EXPLORE_THROUGH_EXPLORERS',
 }
 
 const CONTEXT_ORDERS = {
@@ -561,7 +567,15 @@ export class SystemPrompt extends Service {
               if (names === undefined) return ''
               return names.has('declare_claim') && names.has('run_claim') ? CORE_RULE_PROVE_IT_TEXT : ''
             }
-            : rule.text,
+            : rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
+              ? (assemblyContext) => {
+                const names = assemblyContext.registeredToolNames
+                if (names === undefined) return ''
+                return names.has('subagent') || names.has('explore') || names.has('delegate')
+                  ? CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT
+                  : ''
+              }
+              : rule.text,
         })
       }
     }

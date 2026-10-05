@@ -380,6 +380,9 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
  * map to `ABORTED`; the configured per-read idle watchdog maps to `TIMEOUT`.
  */
 export class DeepSeekAdapter extends LlmAdapter {
+  /** The DeepSeek gateway grammar-decodes `response_format.json_schema`. */
+  override readonly structuredOutputOnRequest = true
+
   private readonly files: DeepSeekFileStore
 
   constructor(private readonly config: DeepSeekAdapterOptions) {

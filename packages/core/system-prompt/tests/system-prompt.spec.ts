@@ -9,6 +9,7 @@ import SystemPrompt, {
   CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT,
   CORE_RULE_CONTEXT_OVER_INFERENCE_TEXT,
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT,
+  CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION,
   CORE_RULE_PROVE_IT_SECTION,
   CORE_RULE_SECTIONS,
   PromptAssembly,
@@ -23,28 +24,28 @@ import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-a
  * Tests about registry MECHANICS strip them with {@link contributed}.
  */
 const BUILT_IN = ['deployment:persona-prefix', ...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES, 'deployment:persona-suffix']
-const CORE_GUIDANCE = coreGuidanceParagraphs({ proveIt: false }).join('\n\n')
+const CORE_GUIDANCE = coreGuidanceParagraphs({ proveIt: false, explore: false }).join('\n\n')
 const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
   'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH',
   'CORE_RULE_ASK_USER', 'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING',
   'CORE_RULE_PROVE_IT', 'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
-  'CORE_RULE_CLOSE_THE_IDLE_TURN',
+  'CORE_RULE_CLOSE_THE_IDLE_TURN', 'CORE_RULE_REUSE_BEFORE_EXTRACT', 'CORE_RULE_EXPLORE_THROUGH_EXPLORERS',
   'PLAN_POLICY', 'TEAM_POLICY', 'PTC_ONLY', 'FILE_REFERENCE', 'TOOL_READ',
   'TOOL_WRITE', 'TOOL_GLOB', 'TOOL_GREP', 'TOOL_BASH',
-  'TOOL_PWSH', 'TOOL_JOBS', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
+  'TOOL_PWSH', 'TOOL_PTY', 'TOOL_WEB_SEARCH', 'TOOL_WEB_FETCH',
   'TOOL_LSP', 'TOOL_LSP_COVERAGE', 'TOOL_LSP_MAP', 'TOOL_SESSION_QUERY', 'TOOL_GOAL', 'TOOL_CLAIM',
   'TOOL_CORDIS', 'TOOL_WORKFLOW', 'TOOL_RALPH', 'TOOL_SUBAGENT', 'TOOL_REPORT', 'TOOLS_SDK',
   'DELIVERABLE_FILE_REFERENCES', 'STRUCTURED_OUTPUT',
-  'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
+  'DEPLOYMENT_PERSONA_SUFFIX',
 ] as const satisfies readonly PromptSectionOrderName[]
 const BUILT_IN_ORDER_EXCLUDED = new Set<PromptSectionOrderName>([
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX', 'CORE_PERSONALITY', 'CORE_RULE_CONCISE',
   'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH', 'CORE_RULE_ASK_USER',
   'CORE_RULE_CONTEXT_OVER_INFERENCE', 'CORE_RULE_ACTION_OVER_THINKING', 'CORE_RULE_PROVE_IT',
   'CORE_RULE_BATCH', 'CORE_RULE_DIAGNOSE_BEFORE_SWITCHING', 'CORE_RULE_CLOSE_THE_DECISION',
-  'CORE_RULE_CLOSE_THE_IDLE_TURN',
-  'HARNESS_SOURCE', 'WEB_SURFACE', 'DEPLOYMENT_PERSONA_SUFFIX',
+  'CORE_RULE_CLOSE_THE_IDLE_TURN', 'CORE_RULE_REUSE_BEFORE_EXTRACT', 'CORE_RULE_EXPLORE_THROUGH_EXPLORERS',
+  'DEPLOYMENT_PERSONA_SUFFIX',
 ])
 const CONTEXT_ORDER_NAMES = [
   'SANDBOX_POLICY', 'APPROVAL_POLICY', 'SUBAGENT_DELEGATION',
@@ -89,11 +90,12 @@ describe('SystemPrompt', () => {
       for (const name of [...reusable].reverse()) {
         ctx.systemPrompt.section({ name, order: ctx.systemPrompt.getSectionOrder(name), text: name })
       }
+      // Unreserved context orders after the reusable instruction range.
       ctx.systemPrompt.section({
-        name: 'source', order: ctx.systemPrompt.getSectionOrder('HARNESS_SOURCE'), text: () => environment.source,
+        name: 'source', order: 10000, text: () => environment.source,
       })
       ctx.systemPrompt.section({
-        name: 'web', order: ctx.systemPrompt.getSectionOrder('WEB_SURFACE'), text: () => environment.url,
+        name: 'web', order: 10100, text: () => environment.url,
       })
       const first = renderPrompt(await ctx.systemPrompt.assemble())
       environment = { model: 'model-a', cwd: 'C:/bob/project', platform: 'win32', source: 'C:/bob/dsh', url: 'http://127.0.0.1:4080' }
@@ -210,6 +212,17 @@ describe('SystemPrompt', () => {
         .not.toBe('')
     })
 
+    it('omits explore-through-explorers core rule text until a delegation tool is registered', async () => {
+      const ctx = new Context()
+      await ctx.plugin(SystemPrompt)
+      const exploreText = async (): Promise<string | undefined> =>
+        (await ctx.systemPrompt.assemble()).sections
+          .find(section => section.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION)?.text
+      expect(await exploreText()).toBe('')
+      ctx.systemPrompt.tools(() => ({ schemas: [{ name: 'explore', description: '', parameters: {} }] }))
+      expect(await exploreText()).not.toBe('')
+    })
+
     it('can suppress runtime context without evaluating providers or accepting waterfall additions', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt, { includeRuntimeContext: false })
@@ -258,7 +271,8 @@ describe('SystemPrompt', () => {
       'deployment:persona-suffix',
     ])
     const expectedRuleTexts = CORE_RULE_SECTIONS.map(rule =>
-      rule.name === CORE_RULE_PROVE_IT_SECTION ? '' : rule.text)
+      rule.name === CORE_RULE_PROVE_IT_SECTION || rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
+        ? '' : rule.text)
     expect(assembly.sections.map(s => s.text)).toEqual([
       'You are DeepSeek Harness.',
       CORE_PERSONALITY_TEXT,
@@ -791,6 +805,8 @@ describe('SystemPrompt', () => {
       'harness:core-rule:diagnose-before-switching': 619,
       'harness:core-rule:close-the-decision': 549,
       'harness:core-rule:close-the-idle-turn': 744,
+      'harness:core-rule:reuse-before-extract': 676,
+      'harness:core-rule:explore-through-explorers': 910,
     }
     const SECTIONS = [
       { name: 'harness:core-personality', text: CORE_PERSONALITY_TEXT },
@@ -808,7 +824,7 @@ describe('SystemPrompt', () => {
     it('keeps the recorded ceilings complete and the aggregate within its total', () => {
       expect(Object.keys(CEILINGS).sort()).toEqual(SECTIONS.map(section => section.name).sort())
       const total = SECTIONS.reduce((sum, section) => sum + section.text.length, 0)
-      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(8322)
+      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(9908)
     })
   })
 })
