@@ -69,7 +69,8 @@
   .track { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.06); cursor: help; }
   .track i { display: block; height: 100%; border-radius: 4px; background: var(--bar); }
   .models { cursor: help; border-bottom: .5px dotted var(--label-3); }
-  tr.child td:first-child { padding-left: 26px; color: var(--label-3); }
+  tr.child td:first-child { padding-left: 40px; color: var(--label-3); }
+  td .caret { color: var(--label-3); font-size: 10px; margin-right: 4px; }
   .tag { color: var(--label-3); font-size: 11px; margin: 28px 0 8px; }
   .tip { position: absolute; background: var(--menu); border-radius: 12px;
          padding: 12px 16px; width: 264px;
@@ -100,10 +101,10 @@
         <h1>Token efficiency</h1>
         <span class="close">✕</span>
       </div>
-      <p class="sub">Blended spend per million billed tokens, one row per priced session. The bar lives in a fixed-width track and only marks magnitude; its hover names the max it is scaled against.</p>
+      <p class="sub">Blended spend per million billed tokens. Each root session pools its subagent tree; rows hold one caret per accordion level, collapsed by default. The bar lives in a fixed-width track and only marks magnitude; its hover names the max it is scaled against.</p>
       <div class="headchips">
-        <span>2+ model sessions pooled <b>$0.56/M tok</b></span>
-        <span>1-model sessions pooled <b>$0.91/M tok</b></span>
+        <span>2+ model sessions pooled <b>$0.77/M tok</b></span>
+        <span>1-model sessions pooled <b>$0.60/M tok</b></span>
         <span>· 4 priced sessions</span>
       </div>
       <table>
@@ -119,34 +120,34 @@
         </thead>
         <tbody>
           <tr>
-            <td>Nightly audit sweep</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="caret">▸</span>Nightly audit sweep</td><td class="cnt"><span class="models">1</span></td>
             <td><span class="track"><i style="width:100%"></i></span></td>
-            <td class="num">$2.36</td><td class="num">$5.38</td><td class="num">6%</td>
+            <td class="num">$2.36</td><td class="num">$2.36</td><td class="num">6%</td>
           </tr>
           <tr>
-            <td>Refactor auth to session-stats</td><td class="cnt"><span class="models">2</span></td>
-            <td><span class="track"><i style="width:31%"></i></span></td>
-            <td class="num">$0.74</td><td class="num">$3.72</td><td class="num">89%</td>
+            <td><span class="caret">▾</span>Refactor auth to session-stats</td><td class="cnt"><span class="models">2</span></td>
+            <td><span class="track"><i style="width:33%"></i></span></td>
+            <td class="num">$0.770</td><td class="num">$4.81</td><td class="num">88%</td>
           </tr>
           <tr class="child">
-            <td>↳ act: apply migration</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="caret"></span>↳ act: apply migration</td><td class="cnt"><span class="models">1</span></td>
             <td><span class="track"><i style="width:81%"></i></span></td>
-            <td class="num">$1.90</td><td class="num">$0.95</td><td class="num">74%</td>
+            <td class="num">$1.90</td><td class="num">$0.950</td><td class="num">74%</td>
           </tr>
           <tr class="child">
-            <td>↳ explore: repo orientation</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="caret"></span>↳ explore: repo orientation</td><td class="cnt"><span class="models">1</span></td>
             <td><span class="track"><i style="width:6%"></i></span></td>
-            <td class="num">$0.15</td><td class="num">$0.14</td><td class="num">92%</td>
+            <td class="num">$0.150</td><td class="num">$0.150</td><td class="num">92%</td>
           </tr>
           <tr>
-            <td>Docs Q&amp;A with codebase explore</td><td class="cnt"><span class="models">3</span></td>
-            <td><span class="track"><i style="width:14%"></i></span></td>
-            <td class="num">$0.34</td><td class="num">$1.38</td><td class="num">83%</td>
+            <td><span class="caret">▸</span>Docs Q&amp;A with codebase explore</td><td class="cnt"><span class="models">3</span></td>
+            <td><span class="track"><i style="width:16%"></i></span></td>
+            <td class="num">$0.368</td><td class="num">$1.36</td><td class="num">90%</td>
           </tr>
           <tr>
-            <td>Refactor auth (v4 only)</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="caret">▸</span>Refactor auth (v4 only)</td><td class="cnt"><span class="models">1</span></td>
             <td><span class="track"><i style="width:6%"></i></span></td>
-            <td class="num">$0.14</td><td class="num">$0.63</td><td class="num">85%</td>
+            <td class="num">$0.140</td><td class="num">$0.630</td><td class="num">85%</td>
           </tr>
         </tbody>
       </table>

@@ -25,6 +25,7 @@ export function TokenEfficiencyEntry({ useSessions, t, wide }: TokenEfficiencyEn
   const button = useRef<HTMLButtonElement | null>(null)
   const close = (): void => {
     setOpen(false)
+    /* v8 ignore next -- ref-null guard: close fires only while the entry is mounted, and its button holds the ref. */
     button.current?.focus()
   }
   return (

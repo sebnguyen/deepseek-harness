@@ -6,12 +6,15 @@
 // hover opens the per-model spend listing. Rows ladder under their
 // parentId roots; pooled micros-over-tokens rates headline the groups.
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { IconCloseOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import {
-  efficiencyReading, orderEfficiencyReadings, pooledRates, spendTokens,
+  IconChevronDownOutline14, IconChevronRightOutline14, IconCloseOutline16, Tooltip,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { CostModelSpend } from '@deepseek-ai/dsh-session-stats/client'
+import {
+  displayedRate, efficiencyReading, orderEfficiencyReadings, pooledRates, spendTokens,
   type EfficiencyReading, type IndentedReading,
 } from '../contract/cost-metrics.ts'
 import { formatTokens, formatUsdMicros } from '../contract/token-format.ts'
@@ -26,15 +29,22 @@ interface WindowProps {
 }
 
 /**
- * The Models-cell tooltip text: one spend-not-rates line per logged model,
- * most expensive first — the spend dialog's model rows for this session.
- * @param reading - the row's efficiency reading.
+ * The Models-cell tooltip text: one pooled spend line per model the
+ * session family logged, most expensive first — root plus subagents.
+ * @param title - the row's session title.
+ * @param count - distinct logged models in the displayed scope.
+ * @param entries - the displayed per-model spend rows.
  * @param t - chat locale seat.
  * @returns multi-line label (the bubble renders pre-line).
  */
-function modelsTipText(reading: EfficiencyReading, t: ChatViewSlotProps['t']): string {
-  const lines = [t('efficiency.modelsTitle', { title: reading.title, count: reading.models })]
-  for (const [model, spend] of reading.spendEntries) {
+function modelsTipText(
+  title: string,
+  count: number,
+  entries: ReadonlyArray<[string, CostModelSpend]>,
+  t: ChatViewSlotProps['t'],
+): string {
+  const lines = [t('efficiency.modelsTitle', { title, count })]
+  for (const [model, spend] of entries) {
     lines.push(t('efficiency.modelLine', {
       model: model === '' ? t('stats.costModelUnknown') : model,
       amount: formatUsdMicros(spend.costMicros, t),
@@ -53,12 +63,12 @@ function modelsTipText(reading: EfficiencyReading, t: ChatViewSlotProps['t']): s
  * @returns the two-line label.
  */
 function barTipText(
-  reading: EfficiencyReading,
+  rate: number | null,
   maxRate: number | null,
   t: ChatViewSlotProps['t'],
 ): string {
-  const percent = maxRate !== null && maxRate > 0 && reading.rateMicros !== null
-    ? Math.round((reading.rateMicros / maxRate) * 100)
+  const percent = maxRate !== null && maxRate > 0 && rate !== null
+    ? Math.round((rate / maxRate) * 100)
     : 0
   return [
     `${t('efficiency.barValue')} — ${t('efficiency.barShare', { percent })}`,
@@ -66,28 +76,59 @@ function barTipText(
   ].join('\n')
 }
 
+/** The row's display values: the family rollup on roots, the own fold below. */
+function viewOf(row: IndentedReading) {
+  return row.family ?? {
+    micros: row.costMicros,
+    tokens: row.tokens,
+    rate: row.rateMicros,
+    models: row.models,
+    cacheHit: row.cacheHit,
+    entries: row.spendEntries,
+  }
+}
+
 /** One table row of the efficiency listing. */
-function TableRow({ row, maxRate, t }: {
+function TableRow({ row, maxRate, t, canExpand, open, onToggle }: {
   row: IndentedReading
   maxRate: number | null
   t: ChatViewSlotProps['t']
+  canExpand: boolean
+  open: boolean
+  onToggle: (id: string) => void
 }) {
-  const widthPercent = row.rateMicros !== null && maxRate !== null && maxRate > 0
-    ? Math.round((row.rateMicros / maxRate) * 100)
+  const view = viewOf(row)
+  const widthPercent = view.rate !== null && maxRate !== null && maxRate > 0
+    ? Math.round((view.rate / maxRate) * 100)
     : 0
   return (
     <tr className={row.depth > 0 ? css.child : undefined}>
       <td className={css.name}>
-        {row.depth > 0 && <span aria-hidden>{t('efficiency.childPrefix')}</span>}
+        {canExpand
+          ? (
+            <button
+              type="button"
+              className={css.caret}
+              aria-expanded={open}
+              aria-label={open
+                ? t('efficiency.collapse', { title: row.title })
+                : t('efficiency.expand', { title: row.title })}
+              onClick={() => { onToggle(row.id) }}
+            >
+              {open ? <IconChevronDownOutline14 /> : <IconChevronRightOutline14 />}
+            </button>
+          )
+          : <span className={css.caretSlot} aria-hidden="true" />}
+        {Array.from({ length: row.depth }, (_, index) => <span key={index} aria-hidden>{t('efficiency.childPrefix')}</span>)}
         {row.title}
       </td>
       <td className={css.cnt}>
-        <Tooltip label={() => modelsTipText(row, t)} side="top">
-          <span className={css.dotted} tabIndex={0}>{row.models}</span>
+        <Tooltip label={() => modelsTipText(row.title, view.models, view.entries, t)} side="top">
+          <span className={css.dotted} tabIndex={0}>{view.models}</span>
         </Tooltip>
       </td>
       <td>
-        <Tooltip label={() => barTipText(row, maxRate, t)} side="top">
+        <Tooltip label={() => barTipText(view.rate, maxRate, t)} side="top">
           <span
             className={css.track}
             tabIndex={0}
@@ -97,9 +138,9 @@ function TableRow({ row, maxRate, t }: {
           </span>
         </Tooltip>
       </td>
-      <td className={css.num}>{formatUsdMicros(row.rateMicros ?? 0, t)}</td>
-      <td className={css.num}>{formatUsdMicros(row.costMicros, t)}</td>
-      <td className={css.num}>{row.cacheHit !== null ? `${row.cacheHit}%` : ''}</td>
+      <td className={css.num}>{formatUsdMicros(view.rate ?? 0, t)}</td>
+      <td className={css.num}>{formatUsdMicros(view.micros, t)}</td>
+      <td className={css.num}>{view.cacheHit !== null ? `${view.cacheHit}%` : ''}</td>
     </tr>
   )
 }
@@ -121,17 +162,40 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
     return list
   }, [byId])
   const ordered = useMemo(() => orderEfficiencyReadings(readings), [readings])
-  const pooled = useMemo(() => pooledRates(readings), [readings])
+  const pooled = useMemo(() => pooledRates(ordered), [ordered])
   const maxRate = useMemo(
     () => ordered.reduce<number | null>(
-      (max, row) => row.rateMicros !== null && (max === null || row.rateMicros > max)
-        ? row.rateMicros
-        : max,
+      (max, row) => {
+        const rate = displayedRate(row)
+        return rate !== null && (max === null || rate > max) ? rate : max
+      },
       null,
     ),
     [ordered],
   )
   const closeButton = useRef<HTMLButtonElement | null>(null)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
+  const hasChildren = useMemo(() => {
+    const ids = new Set<string>()
+    for (const reading of readings) {
+      if (reading.parentId !== null) ids.add(reading.parentId)
+    }
+    return ids
+  }, [readings])
+  // A row renders when every ancestor above it is expanded: roots always,
+  // descendants under their nearest ladder root's accordion state.
+  const visible = useMemo(() => {
+    const shown = new Map<string, boolean>()
+    return ordered.filter((row) => {
+      const isShown = row.depth === 0
+        || (shown.get(row.parentId ?? '') === true && expanded.has(row.parentId ?? ''))
+      shown.set(row.id, isShown)
+      return isShown
+    })
+  }, [ordered, expanded])
+  const toggle = (id: string): void => {
+    setExpanded(prev => new Set(prev.has(id) ? [...prev].filter(x => x !== id) : [...prev, id]))
+  }
   // Entering the dialog focuses the close button.
   useEffect(() => { closeButton.current?.focus() }, [])
   useEffect(() => {
@@ -190,8 +254,16 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
                 </tr>
               </thead>
               <tbody>
-                {ordered.map(row => (
-                  <TableRow key={row.id} row={row} maxRate={maxRate} t={t} />
+                {visible.map(row => (
+                  <TableRow
+                    key={row.id}
+                    row={row}
+                    maxRate={maxRate}
+                    t={t}
+                    canExpand={hasChildren.has(row.id)}
+                    open={expanded.has(row.id)}
+                    onToggle={toggle}
+                  />
                 ))}
               </tbody>
             </table>

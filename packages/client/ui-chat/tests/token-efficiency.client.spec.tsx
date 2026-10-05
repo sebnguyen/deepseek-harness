@@ -4,6 +4,7 @@
  * rates, fixed-column readings with bar-scale and per-model hovers, the
  * parent ladder, the unpriced empty state, and the rail/wide forms.
  */
+import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionCostProjection } from '@deepseek-ai/dsh-session-stats/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, within } from '@testing-library/react'
@@ -12,7 +13,7 @@ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TokenEfficiencyEntry, type TokenEfficiencyEntryProps } from '../src/client/settings/TokenEfficiencyEntry.tsx'
 import {
-  orderEfficiencyReadings, perMillionMicros, pooledRates, type EfficiencyReading,
+  efficiencyReading, orderEfficiencyReadings, perMillionMicros, pooledRates, type EfficiencyReading,
 } from '../src/client/contract/cost-metrics.ts'
 import { en, zh } from '../src/client/locale.ts'
 
@@ -50,7 +51,15 @@ function cost(micros: number, perModel: Record<string, SpendSpec>): SessionCostP
 }
 
 /** One sessions-list row; only displayTitle, parentId, and sessionCost are read. */
-function row(id: string, title: string, parentId: string | undefined, sessionCost: SessionCostProjection | undefined) {
+function row(id: string, title: string, parentId: string | undefined, sessionCost: SessionCostProjection | undefined): {
+  id: string
+  displayTitle: string
+  running: boolean
+  blank: boolean
+  updatedAt: number
+  parentId?: string
+  projectionValues?: { sessionCost: SessionCostProjection }
+} {
   return {
     id, displayTitle: title, running: false, blank: false, updatedAt: 0,
     ...(parentId === undefined ? {} : { parentId }),
@@ -73,6 +82,9 @@ function pricedRows() {
     })),
     explore: row('explore', 'explore: repo orientation', 'refactor', cost(150_000, {
       v4: { buckets: [80_000, 0, 920_000, 0], micros: 150_000 },
+    })),
+    deep: row('deep', 'explore: deep dive', 'explore', cost(20_000, {
+      v4: { buckets: [50_000, 0, 50_000, 0], micros: 20_000 },
     })),
     docs: row('docs', 'Docs Q&A', undefined, cost(1_360_000, {
       a: { buckets: [100_000, 0, 1_000_000, 0], micros: 400_000 },
@@ -120,6 +132,7 @@ describe('cost metrics', () => {
     cacheHit: null,
     models: 1,
     spendEntries: [],
+    promptBuckets: { uncached: 0, cacheRead: 0, cacheWrite: 0 },
   })
 
   it('blends micros over tokens and refuses an unbilled fold', () => {
@@ -150,14 +163,45 @@ describe('cost metrics', () => {
   })
 
   it('pools micros over tokens per model-count group, never averaging rates', () => {
-    const pooled = pooledRates([
-      { ...reading('s1', 1_000_000), costMicros: 1_000_000, tokens: 1_000_000 },
-      { ...reading('s2', 3_000_000), costMicros: 3_000_000, tokens: 1_000_000 },
-      { ...reading('m1', 100_000), costMicros: 200_000, tokens: 1_000_000, models: 2 },
+    const spend = (model: string): [string, import('@deepseek-ai/dsh-session-stats/client').CostModelSpend] => [
+      model,
+      { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 1, costMicros: 1 },
+    ]
+    const root = (id: string, models: number, micros: number, tokens: number) => ({
+      ...reading(id, micros / tokens),
+      costMicros: micros,
+      tokens,
+      models,
+      spendEntries: Array.from({ length: models }, (_, i) => spend(`${id}-${i}`)),
+    })
+    const ordered = orderEfficiencyReadings([
+      root('s1', 1, 1_000_000, 1_000_000),
+      root('s2', 1, 3_000_000, 1_000_000),
+      root('m1', 2, 200_000, 1_000_000),
     ])
+    const pooled = pooledRates(ordered)
+    // Family micros over family tokens per group, divided once.
     expect(pooled.single).toMatchObject({ micros: 4_000_000, tokens: 2_000_000, rate: 2_000_000, sessions: 2 })
     expect(pooled.multi).toMatchObject({ micros: 200_000, tokens: 1_000_000, rate: 200_000, sessions: 1 })
     expect(pooled.priced).toBe(3)
+  })
+
+  it('rolls a session family over root plus subagent tree', () => {
+    const asSummary = (summaryRow: ReturnType<typeof row>): SessionSummary =>
+      summaryRow as unknown as SessionSummary
+    const ordered = orderEfficiencyReadings([
+      efficiencyReading('refactor', asSummary(pricedRows().refactor), pricedRows().refactor.projectionValues!.sessionCost),
+      efficiencyReading('act', asSummary(pricedRows().act), pricedRows().act.projectionValues!.sessionCost),
+      efficiencyReading('explore', asSummary(pricedRows().explore), pricedRows().explore.projectionValues!.sessionCost),
+    ])
+    const family = ordered[0]!.family!
+    // Four distinct models across the tree, pooled spend per model.
+    expect(family.models).toBe(4)
+    expect(family.micros).toBe(4_800_000)
+    expect(family.tokens).toBe(6_500_000)
+    expect(family.entries.map(([model]) => model)).toEqual(['qwen3.8-max', 'qwen', 'deepseek-v4', 'v4'])
+    // Children carry no family; the root rows alone do.
+    expect(ordered[1]!.family).toBeNull()
   })
 })
 
@@ -188,14 +232,47 @@ describe('TokenEfficiencyEntry', () => {
     expect(dialog.querySelector('table')).toBeNull()
   })
 
-  it('lists priced sessions by blended rate with children laddered under roots', () => {
+  it('nests subagent rows recursively under expanded ancestors only', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    // Pooled micros over tokens per model-count group; never rate averages.
-    expect(dialog.textContent).toContain('2+ model sessions pooled $0.582/M tok')
-    expect(dialog.textContent).toContain('1-model sessions pooled $0.584/M tok')
-    expect(dialog.textContent).toContain('6 priced session(s)')
+    const refactorCaret = view.getByRole('button', { name: 'Expand Refactor auth to session-stats' })
+    const exploreCaret = () => view.getByRole('button', { name: 'Expand explore: repo orientation' })
+    // The grandchild stays hidden while its own parent is folded, even
+    // after the root unfolds one level.
+    fireEvent.click(refactorCaret)
+    expect([...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent))
+      .not.toContain('explore: deep dive')
+    fireEvent.click(exploreCaret())
     const titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
+    expect(titles.indexOf('↳ ↳ explore: deep dive')).toBe(titles.indexOf('↳ explore: repo orientation') + 1)
+    // Folding the root folds the whole subtree, expanded child included.
+    fireEvent.click(refactorCaret)
+    expect([...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent))
+      .not.toContain('↳ ↳ explore: deep dive')
+  })
+
+  it('lists session families by blended rate, collapsed to roots until expanded', () => {
+    const view = mount(pricedRows())
+    const dialog = open(view)
+    // Pooled family micros over tokens per model-count group; never rate
+    // averages; sessions count roots.
+    expect(dialog.textContent).toContain('2+ model sessions pooled $0.620/M tok')
+    expect(dialog.textContent).toContain('1-model sessions pooled $0.544/M tok')
+    expect(dialog.textContent).toContain('4 priced session(s)')
+    // Collapsed by default: the four roots only.
+    let titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
+    expect(titles).toEqual([
+      'Nightly audit sweep',
+      'Refactor auth to session-stats',
+      'Docs Q&A',
+      'Refactor auth (v4 only)',
+    ])
+    // Expanding the refactor family ladders its subagent rows beneath it,
+    // deepest rates first; collapsing folds them away again.
+    const caret = view.getByRole('button', { name: 'Expand Refactor auth to session-stats' })
+    fireEvent.click(caret)
+    expect(caret.getAttribute('aria-expanded')).toBe('true')
+    titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
     expect(titles).toEqual([
       'Nightly audit sweep',
       'Refactor auth to session-stats',
@@ -205,15 +282,20 @@ describe('TokenEfficiencyEntry', () => {
       'Refactor auth (v4 only)',
     ])
     const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
-    expect(rates).toEqual(['$2.36', '$0.740', '$1.90', '$0.150', '$0.368', '$0.140'])
+    expect(rates).toEqual(['$2.36', '$0.730', '$1.90', '$0.150', '$0.368', '$0.140'])
     const spends = [...dialog.querySelectorAll('tbody td:nth-child(5)')].map(td => td.textContent)
-    expect(spends).toEqual(['$2.36', '$3.70', '$0.950', '$0.150', '$1.36', '$0.630'])
-    // The models column holds logged model counts per session.
+    expect(spends).toEqual(['$2.36', '$4.82', '$0.950', '$0.150', '$1.36', '$0.630'])
+    // The models column: session-family model counts on roots (subagents
+    // pooled into their root), own-fold counts on detail rows.
     const models = [...dialog.querySelectorAll('tbody td:nth-child(2)')].map(td => td.textContent)
-    expect(models).toEqual(['1', '2', '1', '1', '3', '1'])
-    // Cache hit rides each fold's own prompt-side buckets.
+    expect(models).toEqual(['1', '4', '1', '1', '3', '1'])
+    // Cache hit rides the displayed buckets: pooled on roots, own below.
     const hits = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
-    expect(hits).toEqual(['6%', '89%', '74%', '92%', '90%', '85%'])
+    expect(hits).toEqual(['6%', '82%', '74%', '92%', '90%', '85%'])
+    fireEvent.click(caret)
+    expect(caret.getAttribute('aria-expanded')).toBe('false')
+    titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
+    expect(titles).toHaveLength(4)
   })
 
   it('opens the per-model listing when the Models cell is hovered', () => {
@@ -222,8 +304,9 @@ describe('TokenEfficiencyEntry', () => {
     const mixedCell = [...dialog.querySelectorAll('tbody td:nth-child(2) span')][1]!
     fireEvent.mouseOver(mixedCell)
     const tip = view.getByRole('tooltip')
-    expect(tip.textContent).toContain('Refactor auth to session-stats · 2 model(s) logged')
+    expect(tip.textContent).toContain('Refactor auth to session-stats · 4 model(s) logged')
     expect(tip.textContent).toContain('qwen3.8-max — $3.50 · 2.8M')
+    expect(tip.textContent).toContain('qwen — $0.950 · 500K')
     expect(tip.textContent).toContain('deepseek-v4 — $0.200 · 2.2M')
     fireEvent.mouseOut(mixedCell)
     expect(view.queryByRole('tooltip')).toBeNull()
@@ -232,7 +315,8 @@ describe('TokenEfficiencyEntry', () => {
   it('names the bar scale value and max when the track is hovered', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    const docsTrack = [...dialog.querySelectorAll('tbody td:nth-child(3) span')][4]!
+    // Collapsed roots: audit 0, refactor 1, docs 2, v4only 3.
+    const docsTrack = [...dialog.querySelectorAll('tbody td:nth-child(3) span')][2]!
     fireEvent.mouseOver(docsTrack)
     const tip = view.getByRole('tooltip')
     // The docs row's 0.368 rate is a 16% share of the 2.36 max.
@@ -261,7 +345,41 @@ describe('TokenEfficiencyEntry', () => {
     const view = mount(pricedRows(), true, tZh)
     const dialog = open(view, '效能')
     expect(dialog.getAttribute('aria-label')).toBe('Token 效能')
-    expect(dialog.textContent).toContain('2+ 模型会话综合 $0.582/M tok')
+    expect(dialog.textContent).toContain('2+ 模型会话综合 $0.620/M tok')
     expect(dialog.textContent).toContain('会话')
+  })
+
+  it('zero-bars a priced row that billed spend but no tokens', () => {
+    const view = mount({
+      zero: row('zero', 'Zero-token charge', undefined, cost(500_000, {
+        m: { buckets: [0, 0, 0, 0], micros: 500_000 },
+      })),
+      zero2: row('zero2', 'Another zero', undefined, cost(200_000, {
+        m: { buckets: [0, 0, 0, 0], micros: 200_000 },
+      })),
+    })
+    const dialog = open(view)
+    const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
+    expect(rates).toEqual(['$0.00', '$0.00'])
+    const hits = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
+    expect(hits).toEqual(['', ''])
+    // The bar reports the scale honestly: zero of an absent max.
+    const track = dialog.querySelector('tbody td:nth-child(3) span')!
+    fireEvent.mouseOver(track)
+    const tip = view.getByRole('tooltip')
+    expect(tip.textContent).toContain('value — 0% of max')
+    expect(tip.textContent).toContain('max — $0.00/M tok')
+    fireEvent.mouseOut(track)
+  })
+
+  it('names the unlogged model in the per-model listing', () => {
+    const view = mount({ odd: row('odd', 'Odd fold', undefined, cost(100_000, {
+      '': { buckets: [10_000, 0, 0, 0], micros: 100_000 },
+    })) })
+    const dialog = open(view)
+    const cell = dialog.querySelector('tbody td:nth-child(2) span')!
+    fireEvent.mouseOver(cell)
+    expect(view.getByRole('tooltip').textContent).toContain('unlogged model — $0.100 · 10K')
+    fireEvent.mouseOut(cell)
   })
 })
