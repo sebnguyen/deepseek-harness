@@ -1,11 +1,12 @@
 /**
  * Per-turn staged escalation: an explore-then-act gate that denies act-stage
  * tools (never hides them, keeping the tool catalog and prompt cache clean)
- * until the turn logs successful lower-stage activity, clamps the sandbox
- * fence narrow-only while locked, and offers `request_escalation` as the
- * affirmative crossing. The current stage is a pure fold of this turn's
- * session log, so every user message re-arms the ladder and a resumed session
- * re-derives it with no hidden state.
+ * until `request_escalation` crosses on logged lower-stage evidence, clamps
+ * the sandbox fence narrow-only while locked, and offers
+ * `request_escalation` as the affirmative crossing. The granted stage is a
+ * pure fold of this turn's session log, so every user message re-arms the
+ * ladder and a resumed session re-derives it with no hidden state; explore
+ * evidence feeds the mechanical answerer, never the fold.
  *
  * The step-1 reminder and promotion replies render each stage's configured
  * `description` verbatim under a `You are in the "<name>" stage.` header, so
@@ -79,7 +80,7 @@ export const Config: z<Config> = z.object({
   turnStartReminder: z.boolean().default(true),
 })
 
-export const CORE_RULE = "Core Rule: Explore Before You Act - A guess about the workspace is cheap to verify and expensive to act on: the unknowns a turn ignores do not vanish, they only move into failed runs, overwritten files, and replies the user must correct, while a read or a question settles them at the price of tokens. The deployment therefore names two phases in every turn, explore then act: explorer subagents bring broad ground truth in one round trip, reads, grep, and glob pin the exact files a change will touch, searches fetch what the repository does not hold, and ask_user_question turns an ambiguous request into a specification — so the writing and running that follow carry confidence instead of guesses. An act call the turn's evidence does not yet justify returns a single-line staged Error naming the explore moves that would justify it, a detour of one step, and request_escalation crosses the border with its stage and reason when evidence genuinely cannot precede the act; the question re-arms with each user message, because each new task brings its own unverified premises. Example: an ambiguous numeric asks one ask_user_question rather than receiving one invented file, and the first write of a file the turn just read is the shape of an act phase that cost nothing to earn."
+export const CORE_RULE = 'Core Rule: Explore Before You Act - A guess about the workspace is cheap to verify and expensive to act on: the unknowns a turn ignores do not vanish, they only move into failed runs, overwritten files, and replies the user must correct, while a read or a question settles them at the price of tokens. The deployment therefore names two phases in every turn, explore then act: explorer subagents bring broad ground truth in one round trip, reads, grep, and glob pin the exact files a change will touch, searches fetch what the repository does not hold, and ask_user_question turns an ambiguous request into a specification — so the writing and running that follow carry confidence instead of guesses. An act call the turn has not crossed to returns a single-line staged Error naming the explore moves that would justify it, and one request_escalation call crosses with its stage and reason — granted mechanically once the evidence lands, answered by a judge or human where it genuinely cannot precede the act — so every crossing stays visible; the question re-arms with each user message, because each new task brings its own unverified premises. Example: an ambiguous numeric asks one ask_user_question rather than receiving one invented file, and the first write of a file the turn just read rides one visible request_escalation call.'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -132,7 +133,7 @@ export function declineText(stageName: string): string {
  * @returns the reminder body.
  */
 export function reminderText(current: Stage, locked: Stage): string {
-  return `[staging] You are in the "${current.name}" stage.\n\n${current.description}\n\nLocked next: "${locked.name}" — ${locked.description}\nUntil this turn records one "${current.name}" move, later-stage tools return a staged Error instead of executing and the file and shell fences hold at ${current.sandbox}; the stages restart with each user message.`
+  return `[staging] You are in the "${current.name}" stage.\n\n${current.description}\n\nLocked next: "${locked.name}" — ${locked.description}\nLater-stage tools return a staged Error until request_escalation crosses on this turn's logged evidence; the file and shell fences hold at ${current.sandbox}; the stages restart with each user message.`
 }
 
 /**
@@ -154,10 +155,42 @@ const GRANT_HEADER = /^\[staging\] You are in the "([^"]+)" stage\./
 const BASH_ESCALATION_MODE = /^escalate sandbox to (read-only|workspace-write|danger-full-access):/
 
 /**
+ * The tier the turn's logged explore evidence supports: any successful
+ * turn-local call lifts it one tier above that call's own tier. Feeds the
+ * mechanical escalation answerer; the gate itself unfolds only grants.
+ * @param stages - the validated ladder.
+ * @param session - the calling session to fold.
+ * @returns the tier the turn's evidence satisfies.
+ */
+export function evidenceStage(stages: readonly Stage[], session: Session): number {
+  let evidence = 0
+  const pending = new Map<ToolCallId, string>()
+  for (const event of session.snapshotEvents()) {
+    if (event.type === 'turn/start') {
+      evidence = 0
+      pending.clear()
+      continue
+    }
+    if (event.type === 'tool/call') {
+      pending.set(event.data.callId, event.data.name)
+      continue
+    }
+    if (event.type !== 'tool/result') continue
+    const block = event.data.message.content[0]
+    const name = pending.get(block.toolCallId)
+    pending.delete(block.toolCallId)
+    if (name === undefined || name === 'request_escalation' || block.isError === true) continue
+    const tier = stageOfTool(stages, name)
+    if (tier >= 0 && tier + 1 > evidence) evidence = Math.min(stages.length - 1, tier + 1)
+  }
+  return evidence
+}
+
+/**
  * The current stage as a pure fold of the session log since the last
- * `turn/start`: any successful turn-local call lifts the turn one tier above
- * that call's own tier, and a logged `request_escalation` grant lifts it to
- * the granted tier.
+ * `turn/start`: only a logged `request_escalation` grant lifts the turn, so
+ * every crossing names its stage and reason. A resumed session re-derives
+ * the grant from the log with no hidden state.
  * @param stages - the validated ladder.
  * @param session - the calling session to fold.
  * @returns the tier index the turn currently sits in.
@@ -182,16 +215,11 @@ export function currentStage(stages: readonly Stage[], session: Session): number
     const block = event.data.message.content[0]
     const name = pending.get(block.toolCallId)
     pending.delete(block.toolCallId)
-    if (name === undefined || block.isError === true) continue
-    if (name === 'request_escalation') {
-      const text = block.content.find(part => part.type === 'text')
-      const granted = text?.type === 'text' ? GRANT_HEADER.exec(text.text)?.[1] : undefined
-      const tier = granted === undefined ? -1 : stages.findIndex(stage => stage.name === granted)
-      if (tier > current) current = tier
-      continue
-    }
-    const tier = stageOfTool(stages, name)
-    if (tier >= 0 && tier + 1 > current) current = Math.min(stages.length - 1, tier + 1)
+    if (name !== 'request_escalation' || block.isError === true) continue
+    const text = block.content.find(part => part.type === 'text')
+    const granted = text?.type === 'text' ? GRANT_HEADER.exec(text.text)?.[1] : undefined
+    const tier = granted === undefined ? -1 : stages.findIndex(stage => stage.name === granted)
+    if (tier > current) current = tier
   }
   return current
 }
@@ -239,8 +267,10 @@ export function apply(ctx: Context, config: Config): void {
     if (exec.agent === undefined) return next()
     // A schema child's `structured_output` call is its return statement, not a
     // staged act: denying it would cost the child its only result channel, so
-    // the completion channel rides above the ladder on every turn.
-    if (exec.name === STRUCTURED_OUTPUT_TOOL) return next()
+    // the completion channel rides above the ladder on every turn. The
+    // escalation tool itself is the crossing the ladder demands; gating it
+    // would make the border uncrossable by design.
+    if (exec.name === STRUCTURED_OUTPUT_TOOL || exec.name === 'request_escalation') return next()
     const current = currentStage(stages, exec.agent.session)
     if (stageOfTool(stages, exec.name) <= current) return next()
     return { kind: 'deny', reason: denyReason(stageAt(current).name) }
@@ -275,12 +305,13 @@ export function apply(ctx: Context, config: Config): void {
       const pending = pendingEscalations.get(callId)
       if (pending !== undefined) {
         pendingEscalations.delete(callId)
-        return currentStage(stages, req.agent.session) >= pending ? 'allowed-once' : next()
+        return evidenceStage(stages, req.agent.session) >= pending ? 'allowed-once' : next()
       }
     }
     // Mechanical answerer for the shared `sandbox_permissions` path: a
-    // pre-evidence bash escalation is allowed-once exactly when the turn's
-    // fold already sits at a stage whose sandbox admits the requested mode.
+    // widening ask is allowed-once exactly when the turn already carries an
+    // escalation grant whose sandbox admits the requested mode, so the
+    // crossing stays a visible request_escalation call.
     const mode = BASH_ESCALATION_MODE.exec(req.reason ?? '')?.[1] as SandboxMode | undefined
     if (mode === undefined) return next()
     const stageMode = stageAt(currentStage(stages, req.agent.session)).sandbox

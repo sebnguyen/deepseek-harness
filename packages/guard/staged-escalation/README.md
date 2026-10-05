@@ -7,7 +7,7 @@ kind: "package"
 
 ## Summary
 
-Staged escalation names two phases in every turn — explore then act — and enforces the border with friction, not security: until the turn logs a successful explore-tier call, act-tier tools return a staged Error (the catalog and prompt cache are untouched — deny, never hide) and the `sandbox-policy/resolve` waterfall clamps the file and shell fences narrow-only. `request_escalation` is the affirmative crossing: it routes through the shared approval seam, and the plugin's mechanical answerer grants when the turn's fold already satisfies the requested stage. The current stage is a pure fold of the turn's session log, so each user message re-arms the ladder and a resumed session re-derives it with no hidden state.
+Staged escalation names two phases in every turn — explore then act — and enforces the border with friction, not security: act-tier tools return a staged Error (the catalog and prompt cache are untouched — deny, never hide) until `request_escalation` crosses on logged explore evidence, and the `sandbox-policy/resolve` waterfall clamps the file and shell fences narrow-only while locked. `request_escalation` is the one crossing, visible on every act turn: it routes through the shared approval seam, and the plugin's mechanical answerer grants when the turn's explore evidence satisfies the requested stage, so the articulation costs one tool call and no human round trip on the ordinary path. The granted stage is a pure fold of the turn's session log, so each user message re-arms the ladder and a resumed session re-derives it with no hidden state.
 
 ## Contents
 
@@ -30,4 +30,4 @@ The tool catalog is byte-identical across lock, unlock, and restart: the gate de
 <a id="invariant"></a>
 ## Invariant
 
-This package ships no `./invariant` module and no wiring: the reminder, the denial, the sandbox clamp, and the escalation answerer all read the same `currentStage` fold over the same session log, so there is no second observation whose divergence a runtime check could detect; the cross-seam agreement (pre-execute deny and resolve clamp) is pinned by the behavior specs instead.
+This package ships no `./invariant` module and no wiring: the reminder, the denial, the sandbox clamp, and the escalation answerer all read the same two folds over the same session log — `currentStage` (logged grants) for the gate and clamp, `evidenceStage` (successful explore calls) for the mechanical answerer — so there is no second observation whose divergence a runtime check could detect; the cross-seam agreement (pre-execute deny, resolve clamp, answerer grant) is pinned by the behavior specs instead.
