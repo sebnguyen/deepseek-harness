@@ -126,5 +126,5 @@ export function Level({ path, tree }: { path: string; tree: TreeContext }): Reac
  * @returns the root level's list.
  */
 export function TreeList({ root, tree }: { root: string; tree: TreeContext }): ReactNode {
-  return <ul className={css.level}><Level path={root} tree={tree} /></ul>
+  return <ul className={clsx(css.level, css.rootLevel)}><Level path={root} tree={tree} /></ul>
 }

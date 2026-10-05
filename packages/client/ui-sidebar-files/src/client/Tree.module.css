@@ -13,6 +13,14 @@
   padding-left: 18px;
 }
 
+/* The root level sizes to its widest row, so the owner's scroller pans sideways
+   instead of the indents squeezing the names; while the tree is narrower than
+   the pane, the min-width keeps the rows' hover fill at the pane's width. */
+.rootLevel {
+  width: max-content;
+  min-width: 100%;
+}
+
 .item {
   margin: 0;
   padding: 0;
@@ -22,6 +30,7 @@
   display: flex;
   gap: 6px;
   align-items: center;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   /* Rows abut, so the hover fill is the whole row; the tree's air is this

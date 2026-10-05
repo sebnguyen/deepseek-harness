@@ -4,7 +4,7 @@
  */
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import { describe, expect, it } from 'vitest'
-import { createEditorExtensions, languageFor, saveCommand } from '../src/client/editor.ts'
+import { createEditorExtensions, editorHighlight, editorTheme, isMarkdownPath, languageFor, saveCommand } from '../src/client/editor.ts'
 import { en } from '../src/client/locales.ts'
 import { decodeText, failureLine, sessionFileOf } from '../src/client/rpc.ts'
 
@@ -60,10 +60,26 @@ describe('languageFor', () => {
   })
 })
 
+describe('isMarkdownPath', () => {
+  it('claims exactly the Markdown suffixes', () => {
+    expect(isMarkdownPath('a/b.md')).toBe(true)
+    expect(isMarkdownPath('b.MARKDOWN')).toBe(true)
+    expect(isMarkdownPath('c.txt')).toBe(false)
+    expect(isMarkdownPath('md')).toBe(false)
+  })
+})
+
 describe('createEditorExtensions', () => {
   it('extends the base with or without a grammar', () => {
-    expect(createEditorExtensions(() => {})).toHaveLength(3)
-    expect(createEditorExtensions(() => {}, languageFor('a.ts'))).toHaveLength(4)
+    expect(createEditorExtensions(() => {})).toHaveLength(6)
+    expect(createEditorExtensions(() => {}, languageFor('a.ts'))).toHaveLength(7)
+  })
+})
+
+describe('editorTheme and editorHighlight', () => {
+  it('build one extension each', () => {
+    expect(editorTheme()).toBeDefined()
+    expect(editorHighlight()).toBeDefined()
   })
 })
 

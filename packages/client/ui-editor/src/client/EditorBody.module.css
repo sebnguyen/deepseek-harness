@@ -1,18 +1,24 @@
+/* The tab body fills its pane: the banner and footer frame the body, which
+   owns the remaining height in either display mode. Every color is a design
+   token, so the editor follows the appearance flip. */
 .root {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  background: var(--dsw-alias-bg-layer-1);
 }
 
+/* The conflict and failure banner: the warn ramp, one quiet row. */
 .banner {
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--borderColor-default, #ccc);
-  background: var(--backgroundColor-warning, #fff3cd);
+  padding: 6px 16px;
+  color: var(--dsw-alias-state-warn-label);
   font-size: 12px;
+  background: var(--dsw-alias-state-warn-tertiary);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
 }
 
 .bannerText {
@@ -23,47 +29,115 @@
 .banner button {
   border: none;
   background: none;
+  color: inherit;
   cursor: pointer;
   font-size: 12px;
   text-decoration: underline;
 }
 
+.banner button:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
 .error {
   flex: 1;
-  padding: 12px;
+  padding: 12px 16px;
+  color: var(--dsw-alias-state-error-primary);
   font-size: 13px;
 }
 
+/* The CodeMirror view mounts here and owns its own scrollport. */
 .host {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
+/* The rendered Markdown display; the page scrolls here. */
+.preview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 14px 24px 40px;
+  overflow: auto;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 1.7;
+  white-space: normal;
+}
+
+/* The status row: the display-mode control, the status line, and the save
+   actions, all on the panel tone so the code view above reads as the page. */
 .footer {
   display: flex;
-  align-items: center;
   gap: 8px;
-  padding: 4px 10px;
-  border-top: 1px solid var(--borderColor-default, #ccc);
+  align-items: center;
+  padding: 5px 12px;
+  color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  border-top: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 .status {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.footer button {
-  border: 1px solid var(--borderColor-default, #ccc);
-  border-radius: 3px;
-  background: none;
+/* The Preview/Edit control as one segmented pill. */
+.modeToggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  border-radius: 6px;
+}
+
+.modeToggle button {
+  padding: 2px 10px;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
-  padding: 2px 8px;
   font-size: 12px;
+  line-height: 18px;
 }
 
-.footer button:disabled {
+.modeToggle button:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.modeToggle button[data-editor-mode-active] {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-elevated-fill);
+}
+
+.modeToggle button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.footer > button {
+  padding: 3px 10px;
+  color: var(--dsw-alias-label-secondary);
+  background: transparent;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.footer > button:hover:not(:disabled) {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.footer > button:disabled {
   cursor: default;
   opacity: 0.5;
 }
