@@ -37,6 +37,9 @@ function resolveWorkspaceRoot(path: string): string {
   return resolvePath(canonicalPath(path))
 }
 
+/** Ordinal width of the three modes, for the narrow-only resolve clamp. */
+const MODE_RANK: Record<SandboxMode, number> = { 'read-only': 0, 'workspace-write': 1, 'danger-full-access': 2 }
+
 /** Render the policy without claiming which capabilities are mounted. */
 function renderPolicyContext(policy: SandboxExecutionPolicy): string {
   switch (policy.mode) {
@@ -51,6 +54,27 @@ function renderPolicyContext(policy: SandboxExecutionPolicy): string {
       const mode: never = policy.mode
       throw new Error(`unreachable sandbox mode: ${String(mode)}`)
     }
+  }
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * Narrow (never widen) the standing policy for one capability call.
+     * Listeners receive the standing resolution plus the calling session and
+     * return the policy the call must run under; `resolveClamped` enforces the
+     * narrow-only rule — a returned mode wider than the standing mode is capped
+     * back to the standing mode inside the service, so a nonconforming listener
+     * cannot widen policy. Returning without `next()` short-circuits the chain.
+     * @param policy - the standing resolution for this call.
+     * @param session - the calling session, or `undefined` for sessionless calls.
+     * @mode waterfall
+     */
+    'sandbox-policy/resolve'(
+      policy: SandboxExecutionPolicy,
+      session: Session | undefined,
+      next: () => Promise<SandboxExecutionPolicy>,
+    ): Promise<SandboxExecutionPolicy>
   }
 }
 
@@ -157,6 +181,9 @@ export class SandboxPolicyService extends Service {
    * deployment default. A session cwd is its workspace-write boundary; the
    * configured root is the fallback for agentless calls and sessions without a
    * cwd.
+   * This is the STANDING policy: the model-facing `sandbox:policy` context
+   * renders it so prompt bytes stay identical across per-call clamps, and
+   * capability layers read {@link resolveClamped} for enforcement.
    * @param request - optional session and approved mode override.
    * @returns the fully resolved per-call mode and absolute workspace root.
    */
@@ -167,6 +194,25 @@ export class SandboxPolicyService extends Service {
       workspaceRoot: resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot),
       ...session === undefined ? {} : { sessionId: session.id },
     }
+  }
+
+  /**
+   * Resolve the enforceable policy for one capability call: the standing
+   * resolution passed through the `sandbox-policy/resolve` waterfall, then
+   * capped so a listener can only narrow. A denied-to-narrower mode keeps the
+   * standing `workspaceRoot` and identity fields of the listener's return.
+   * @param request - optional session and approved mode override.
+   * @returns the narrowest policy any listener claimed, never wider than standing.
+   */
+  async resolveClamped(request: SandboxPolicyRequest = {}): Promise<SandboxExecutionPolicy> {
+    const standing = this.resolve(request)
+    const proposed = await this.ctx.waterfall(
+      'sandbox-policy/resolve', standing, request.session,
+      () => Promise.resolve(standing),
+    )
+    return MODE_RANK[proposed.mode] > MODE_RANK[standing.mode]
+      ? { ...proposed, mode: standing.mode }
+      : proposed
   }
 
   /**

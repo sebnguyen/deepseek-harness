@@ -443,6 +443,12 @@
         thresholds: [3, 5, 8]
         argumentsPreviewChars: 500
 
+    # Per-turn explore-then-act escalation gate: denies act-stage tools with
+    # one-line guidance until turn-local evidence lands and clamps the file
+    # and shell fences narrow-only; request_escalation crosses with a reason.
+    - id: staged-escalation
+      name: '@deepseek-ai/dsh-staged-escalation'
+
     # The shared base enables the stable model-facing web_search and web_fetch
     # tools. The Web app disables this host row and composes both tools per agent
     # preset; products with a stricter network policy override tool-web. SearXNG

@@ -1947,7 +1947,7 @@ export interface Config {
 
 Depends on: [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/sandbox/sandbox-policy/src/index.ts:70`](../packages/sandbox/sandbox-policy/src/index.ts)
+Source: [`packages/sandbox/sandbox-policy/src/index.ts:94`](../packages/sandbox/sandbox-policy/src/index.ts)
 
 <a id="deepseek-aidsh-sdk-app"></a>
 
@@ -2461,6 +2461,38 @@ export interface Config {
 ```
 
 Source: [`packages/spill/spill-policy/src/index.ts:61`](../packages/spill/spill-policy/src/index.ts)
+
+<a id="deepseek-aidsh-staged-escalation"></a>
+
+## `@deepseek-ai/dsh-staged-escalation`
+
+Requires: `tools` · `systemPrompt`
+
+```ts config-catalog
+/** Plugin config: the stage ladder and the reminder switch. */
+export interface Config {
+  /** The ladder; index is tier, stage 0 hosts the probes and reads. */
+  stages?: Stage[]
+  /** Inject the step-1 reminder on locked turns (default true). */
+  turnStartReminder?: boolean
+}
+
+/** One rung of the escalation ladder; the array index is the tier. */
+export interface Stage {
+  /** Tool names admitted at this tier; `'*'` alone on the last stage admits all. */
+  allow: string[]
+  /** The widest sandbox fence this tier may run under (clamped narrow-only). */
+  sandbox: SandboxMode
+  /** Marker vocabulary every rendering carries. */
+  name: string
+  /** Rationale-led encouragement paragraph, injected verbatim by the reminder. */
+  description: string
+}
+```
+
+Depends on: [`SandboxMode`](subsystems/sandbox.md)
+
+Source: [`packages/guard/staged-escalation/src/index.ts:42`](../packages/guard/staged-escalation/src/index.ts)
 
 <a id="deepseek-aidsh-storage-domain"></a>
 
