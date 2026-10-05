@@ -7,21 +7,24 @@ type ChatActions = {
     draft: ChatStoreState,
     turn: number,
     answerStep: number | null,
+    group: number,
     open: boolean,
   ) => void
 }
 
 /**
- * Resolve the manually expanded answer for one Turn.
+ * Resolve the manually expanded process group for one Turn.
  * @param state - Chat store snapshot.
  * @param turn - owning Turn.
- * @returns the Turn's stored entry, when present.
+ * @param group - group boundary seq (0 for the live head control).
+ * @returns the Turn's stored entry for that group, when present.
  */
 export function storedTurnProcessEntry(
   state: Readonly<ChatStoreState>,
   turn: number,
+  group: number,
 ): Readonly<TurnProcessViewEntry> | undefined {
-  return state.turnProcesses.find(entry => entry.turn === turn)
+  return state.turnProcesses.find(entry => entry.turn === turn && entry.group === group)
 }
 
 /**
@@ -32,13 +35,13 @@ export function createChatStore(): EngineStoreHandle<ChatStoreState, ChatActions
   return defineStore({
     init: (): ChatStoreState => ({ turnProcesses: [] }),
     actions: {
-      setTurnProcessOpen: (draft, turn, answerStep, open) => {
-        const index = draft.turnProcesses.findIndex(entry => entry.turn === turn)
+      setTurnProcessOpen: (draft, turn, answerStep, group, open) => {
+        const index = draft.turnProcesses.findIndex(entry => entry.turn === turn && entry.group === group)
         if (!open) {
           if (index >= 0) draft.turnProcesses.splice(index, 1)
           return
         }
-        const next = { turn, answerStep } satisfies TurnProcessViewEntry
+        const next = { turn, answerStep, group } satisfies TurnProcessViewEntry
         if (index < 0) draft.turnProcesses.push(next)
         else draft.turnProcesses[index] = next
       },

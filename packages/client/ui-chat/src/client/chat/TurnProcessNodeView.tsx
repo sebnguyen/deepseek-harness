@@ -1,38 +1,36 @@
 import { memo } from 'react'
+import type { ReactNode } from 'react'
 import { IconChevronDownOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ChatNodeViewProps } from '../contract/slots.ts'
 import css from './TurnProcessNodeView.module.css'
 
-/** Turn-level process disclosure controller. */
-export const TurnProcessNodeView = memo(function TurnProcessNodeView({
-  node, turnProcess, t,
-}: ChatNodeViewProps<'turn-process'>) {
-  if (turnProcess === undefined) throw new Error('turn-process node requires Turn process owner state')
-  if (!turnProcess.foldable) return null
-  const open = turnProcess.open
+/** One collapsible group's toggle button; ChatNodeSeat places it per group. */
+export const TurnProcessDisclosure = memo(function TurnProcessDisclosure({
+  turn, toolCalls, subagents, open, setOpen, t,
+}: {
+  turn: number
+  toolCalls: number
+  subagents: number
+  open: boolean
+  setOpen(open: boolean): void
+  t: PropsLocale<'chat'>['t']
+}): ReactNode {
   const labels: string[] = []
-  if (node.data.toolCallCount > 0) {
+  if (toolCalls > 0) {
     labels.push(t(
-      node.data.toolCallCount === 1
+      toolCalls === 1
         ? 'message.turnProcess.toolCalls.one'
         : 'message.turnProcess.toolCalls.other',
-      { count: node.data.toolCallCount },
+      { count: toolCalls },
     ))
   }
-  if (node.data.messageCount > 0) {
+  if (subagents > 0) {
     labels.push(t(
-      node.data.messageCount === 1
-        ? 'message.turnProcess.messages.one'
-        : 'message.turnProcess.messages.other',
-      { count: node.data.messageCount },
-    ))
-  }
-  if (node.data.subagentCount > 0) {
-    labels.push(t(
-      node.data.subagentCount === 1
+      subagents === 1
         ? 'message.turnProcess.subagents.one'
         : 'message.turnProcess.subagents.other',
-      { count: node.data.subagentCount },
+      { count: subagents },
     ))
   }
   const label = labels.length === 0
@@ -43,18 +41,27 @@ export const TurnProcessNodeView = memo(function TurnProcessNodeView({
       type="button"
       className={css.root}
       data-open={open || undefined}
-      data-turn-process={node.data.turn}
-      data-turn-process-messages={node.data.messageCount}
-      data-turn-process-tool-calls={node.data.toolCallCount}
-      data-turn-process-subagents={node.data.subagentCount}
+      data-turn-process={turn}
+      data-turn-process-tool-calls={toolCalls}
+      data-turn-process-subagents={subagents}
       aria-expanded={open}
       onClick={(event) => {
         event.currentTarget.focus()
-        turnProcess.setOpen(!open)
+        setOpen(!open)
       }}
     >
       <span className={css.label}>{label}</span>
       <IconChevronDownOutline14 className={css.chevron} />
     </button>
   )
+})
+
+/**
+ * The Turn-process row declines its own seat: ChatNodeSeat renders the group
+ * disclosures so each collapse sits exactly where its folded run begins.
+ */
+export const TurnProcessNodeView = memo(function TurnProcessNodeView(
+  _props: ChatNodeViewProps<'turn-process'>,
+): ReactNode {
+  return null
 })

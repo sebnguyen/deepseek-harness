@@ -70,6 +70,18 @@ export interface ChatLocationNodeIndex {
   getStep(turn: number, step: number): readonly string[]
 }
 
+/** One collapsible run of process rows terminated by a visible reply. */
+export interface TurnProcessGroup {
+  /** anchorSeq where this group's rows begin. */
+  readonly start: number
+  /** anchorSeq of the reply row that terminates the group. */
+  readonly boundary: number
+  /** Foldable rows hidden while the group is closed. */
+  readonly members: number
+  readonly toolCalls: number
+  readonly subagents: number
+}
+
 /** Cross-Node presentation facts derived for one Turn process. */
 export interface ChatTurnProcessPresentation {
   readonly turn: number
@@ -77,6 +89,8 @@ export interface ChatTurnProcessPresentation {
   readonly turnClosed: boolean
   readonly hasExternalProcess: boolean
   readonly compactAnswer: boolean
+  /** Fold groups; empty while the Turn still runs (live single control). */
+  readonly groups: readonly TurnProcessGroup[]
 }
 
 /** Compatibility projection backing StatsPills and the legacy top-level snapshot fields. */

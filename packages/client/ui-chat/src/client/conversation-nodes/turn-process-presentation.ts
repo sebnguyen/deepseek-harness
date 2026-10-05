@@ -1,12 +1,32 @@
 import type { ChatNode } from '../contract/chat-nodes.ts'
 import type {
   ChatLocationNodeIndex, ChatNodeStore, ChatTurnProcessPresentation,
+  TurnProcessGroup,
 } from '../contract/snapshot.ts'
-import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
+import { hasAssistantReplyContent } from '../contract/assistant-content.ts'
+import {
+  isSubagentDelegationTool, TURN_PROCESS_INDEPENDENT_KINDS,
+} from '../contract/turn-process.ts'
 
 function nodeTurn(node: ChatNode | undefined): number | undefined {
   const location = node?.location
   return location?.kind === 'turn' || location?.kind === 'step' ? location.turn.turn : undefined
+}
+
+function sameGroups(
+  left: readonly TurnProcessGroup[],
+  right: readonly TurnProcessGroup[],
+): boolean {
+  return left.length === right.length
+    && left.every((group, index) => {
+      const other = right[index]
+      return other !== undefined
+        && group.start === other.start
+        && group.boundary === other.boundary
+        && group.members === other.members
+        && group.toolCalls === other.toolCalls
+        && group.subagents === other.subagents
+    })
 }
 
 function samePresentation(
@@ -18,7 +38,8 @@ function samePresentation(
     && left.turn === right.turn
     && left.turnClosed === right.turnClosed
     && left.hasExternalProcess === right.hasExternalProcess
-    && left.compactAnswer === right.compactAnswer)
+    && left.compactAnswer === right.compactAnswer
+    && sameGroups(left.groups, right.groups))
 }
 
 function derivePresentation(
@@ -46,6 +67,20 @@ function derivePresentation(
 
   let hasExternalProcess = false
   let compactAnswer = true
+  // Fold groups: runs of foldable evidence terminated by a visible Assistant
+  // reply, which stays rendered between the collapses.
+  const groups: TurnProcessGroup[] = []
+  let groupStart = spec.processStartSeq
+  let members = 0
+  let toolCalls = 0
+  let subagents = 0
+  const closeGroup = (boundary: number): void => {
+    if (members > 0) groups.push({ start: groupStart, boundary, members, toolCalls, subagents })
+    members = 0
+    toolCalls = 0
+    subagents = 0
+    groupStart = boundary
+  }
   for (const key of keys) {
     const node = nodes.get(key) as ChatNode | undefined
     if (node === undefined || node.kind === 'turn-process') continue
@@ -57,16 +92,29 @@ function derivePresentation(
     if (TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)
       || node.anchorSeq < spec.processStartSeq
       || (spec.answerAnchorSeq !== null && node.anchorSeq >= spec.answerAnchorSeq)) continue
-    if (node.kind !== 'assistant-step' || spec.answerStep === null || node.data.step !== spec.answerStep) {
-      hasExternalProcess = true
+    if (node.kind === 'assistant-step'
+      && hasAssistantReplyContent(node.data.blocks)) {
+      closeGroup(node.anchorSeq)
+      continue
+    }
+    hasExternalProcess = hasExternalProcess
+      || node.kind !== 'assistant-step' || spec.answerStep === null || node.data.step !== spec.answerStep
+    members += 1
+    if (node.kind === 'tool-call') {
+      const root = node.data.root
+      const rootName = 'kind' in root ? root.call?.name ?? '' : root.name
+      if (isSubagentDelegationTool(rootName)) subagents += 1
+      else toolCalls += 1
     }
   }
+  closeGroup(spec.answerAnchorSeq ?? 0)
   return {
     turn,
     spec,
     turnClosed: location.turn.status === 'closed',
     hasExternalProcess,
     compactAnswer,
+    groups,
   }
 }
 

@@ -1360,40 +1360,39 @@ describe('ChatView', () => {
       turnEnds: new Map([[1, 6]]),
     })
     const view = render(<h.ChatView {...h.props} />)
-    const toggle = view.getByRole('button', { name: '1 次工具调用 · 1 条消息 · 1 个 subagent' })
+    const toggle = view.getByRole('button', { name: '1 次工具调用 · 1 个 subagent' })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(toggle.getAttribute('data-turn-process-tool-calls')).toBe('1')
-    expect(toggle.getAttribute('data-turn-process-messages')).toBe('1')
     expect(toggle.getAttribute('data-turn-process-subagents')).toBe('1')
+    // The intermediate reply stays rendered between the control and the answer.
+    expect(view.getByText('earlier reply')).toBeTruthy()
     const members = [...view.container.querySelectorAll<HTMLElement>('[data-turn-process-member]')]
-    expect(members).toHaveLength(3)
+    expect(members).toHaveLength(2)
     expect(members.map(member => member.getAttribute('hidden')))
-      .toEqual(['until-found', 'until-found', 'until-found'])
-    expect(members[0]?.textContent).toContain('inspect the repository')
-    expect(members[1]?.textContent).toContain('bash:a')
-    expect(members[2]?.textContent).toContain('subagent:b')
+      .toEqual(['until-found', 'until-found'])
+    expect(members[0]?.textContent).toContain('bash:a')
+    expect(members[1]?.textContent).toContain('subagent:b')
     expect(view.getByText('final answer')).toBeTruthy()
 
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(members.map(member => member.getAttribute('hidden'))).toEqual([null, null, null])
+    expect(members.map(member => member.getAttribute('hidden'))).toEqual([null, null])
 
     fireEvent.click(toggle)
     expect(members.map(member => member.getAttribute('hidden')))
-      .toEqual(['until-found', 'until-found', 'until-found'])
+      .toEqual(['until-found', 'until-found'])
     fireEvent(members[1]!, new Event('beforematch'))
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    expect(members.map(member => member.getAttribute('hidden'))).toEqual([null, null, null])
+    expect(members.map(member => member.getAttribute('hidden'))).toEqual([null, null])
 
     act(() => { h.set({ nodes: [user(1, 'question'), first] }) })
+    // The lone reply becomes the answer; its reasoning rides a 已思考 control.
     expect(view.getByRole('button', { name: '已思考' }).getAttribute('aria-expanded')).toBe('false')
-    expect(members[0]?.getAttribute('hidden')).toBeNull()
     act(() => { h.set({
       nodes: [user(1, 'question'), first, toolResult(3, 'a'), toolResult(4, 'b', 'subagent'), second],
     }) })
-    const renewedToggle = view.getByRole('button', { name: '1 次工具调用 · 1 条消息 · 1 个 subagent' })
+    const renewedToggle = turnProcessControl(view.container)!
     expect(renewedToggle.getAttribute('aria-expanded')).toBe('true')
-    expect(members[0]?.getAttribute('hidden')).toBeNull()
   })
 
   it('folds injected Context in place with the rest of the Turn process', () => {
@@ -1494,7 +1493,6 @@ describe('ChatView', () => {
 
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
     expect(toggle.getAttribute('data-turn-process-tool-calls')).toBe('0')
-    expect(toggle.getAttribute('data-turn-process-messages')).toBe('0')
     expect(toggle.getAttribute('data-turn-process-subagents')).toBe('0')
     expect(contextRow?.getAttribute('hidden')).toBe('until-found')
     fireEvent.click(toggle)
@@ -1536,7 +1534,7 @@ describe('ChatView', () => {
   })
 
   it('folds a live Turn under the streaming disclosure and widens it on demand', () => {
-    const process = assistant(2, 'inspect', 1, 1)
+    const process = reasoningAssistant(2, 'inspect', 1, 1)
     const h = makeHarness({
       nodes: [user(1, 'question'), process],
       partial: { turn: 1, step: 2, blocks: [{ kind: 'text', text: 'streaming answer' }] },
@@ -1566,7 +1564,7 @@ describe('ChatView', () => {
   })
 
   it('switches completed Turns between the persisted Normal and Compact modes', () => {
-    const process = assistant(2, 'inspect', 1, 1)
+    const process = reasoningAssistant(2, 'inspect', 1, 1)
     const h = makeHarness({
       nodes: [user(1, 'question'), process, assistant(4, 'final answer', 1, 2)],
       turnEnds: new Map([[1, 5]]),
@@ -1596,32 +1594,39 @@ describe('ChatView', () => {
     }
     const h = makeHarness({ nodes: [user(1, 'question'), final], turnEnds: new Map([[1, 4]]) })
     const view = render(<h.ChatView {...h.props} />)
+    // The reply renders on its own; its reasoning hides behind the 已思考
+    // control riding the answer row.
     const toggle = view.getByRole('button', { name: '已思考' })
-    const reasoning = view.container.querySelector<HTMLElement>('[data-turn-process-inline]')
+    const inline = view.container.querySelector<HTMLElement>('[data-turn-process-inline]')
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(reasoning?.getAttribute('hidden')).toBe('until-found')
+    expect(inline?.getAttribute('hidden')).toBe('until-found')
     expect(view.getByText('final answer')).toBeTruthy()
     fireEvent.click(toggle)
     expect(view.getByText('private analysis')).toBeTruthy()
   })
 
   it('folds a completed Turn even while the reader is away from the tail', () => {
-    const first = assistant(2, 'first answer', 1, 1)
-    const h = makeHarness({ nodes: [user(1, 'question'), first], running: true })
+    const first = assistant(3, 'first answer', 1, 2)
+    const h = makeHarness({
+      nodes: [user(1, 'question'), context(2, 'runtime policy', 1), first],
+      running: true,
+    })
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     Object.defineProperty(scroller, 'scrollHeight', { value: 1_000, writable: true })
     Object.defineProperty(scroller, 'clientHeight', { value: 300, writable: true })
     const firstRow = view.getByText('first answer').closest('[data-chat-flow-kind="assistant-step"]') as HTMLElement
+    const contextRow = view.container.querySelector<HTMLElement>('[data-chat-flow-kind="context"]') as HTMLElement
     readerScroll(scroller, 100)
 
     act(() => { h.set({
-      nodes: [user(1, 'question'), first, assistant(4, 'new answer', 1, 2)],
+      nodes: [user(1, 'question'), context(2, 'runtime policy', 1), first, assistant(4, 'new answer', 1, 3)],
       turnEnds: new Map([[1, 5]]),
     }) })
     const toggle = turnProcessControl(view.container)!
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(firstRow.getAttribute('hidden')).toBe('until-found')
+    expect(contextRow.getAttribute('hidden')).toBe('until-found')
+    expect(firstRow.getAttribute('hidden')).toBeNull()
     expect(view.getByLabelText('回到底部')).toBeTruthy()
   })
 
@@ -1804,9 +1809,9 @@ describe('ChatView', () => {
     Object.defineProperty(host, 'scrollTop', { value: 0, writable: true, configurable: true })
     document.body.appendChild(host)
     try {
-      const first = assistant(2, 'first answer', 1, 1)
+      const first = assistant(3, 'first answer', 1, 2)
       const h = makeHarness({
-        nodes: [user(1, 'question'), first, assistant(4, 'new answer', 1, 2)],
+        nodes: [user(1, 'question'), context(2, 'runtime policy', 1), first, assistant(4, 'new answer', 1, 3)],
         turnEnds: new Map([[1, 5]]),
       })
       const view = render(<h.ChatView {...h.props} />, { container: host })
