@@ -81,16 +81,15 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     ? groups.find(group => routedNode.anchorSeq >= group.start
       && (group.boundary === null || routedNode.anchorSeq < group.boundary))
     : undefined
-  // A reply row hosts the collapse of the run that ends at it beside the
-  // collapse of a live run that starts right after it; the turn-process row
-  // hosts the run that opens the Turn.
+  // Every group's start lands on a row that never folds itself: the Turn
+  // control for the run that opens the window, the reply ending the previous
+  // run for every later one. The control sits in the visible column just
+  // above its rows and expands downward.
   const ownedGroups = routedNode === undefined || processSpec === undefined
     ? NO_GROUPS
-    : routedNode.kind === 'turn-process'
-      ? groups.filter(group => group.start === processSpec.processStartSeq)
-      : groups.filter(group => group.start !== processSpec.processStartSeq
-        && (group.boundary === routedNode.anchorSeq
-          || (group.boundary === null && group.start === routedNode.anchorSeq)))
+    : groups.filter(group => group.start === processSpec.processStartSeq
+      ? routedNode.kind === 'turn-process'
+      : group.start === routedNode.anchorSeq)
   const processAnswer = routedNode !== undefined
     && closedReady
     && routedNode.kind === 'assistant-step'
@@ -181,19 +180,17 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-turn-process-hidden={processHidden || undefined}
       data-turn-process-answer={compactAnswer || undefined}
     >
-      {processSpec !== undefined
-        && [...ownedGroups, ...inlineControl !== undefined ? [inlineControl] : []].map(group => (
-          <TurnProcessDisclosure
-            key={group.start}
-            turn={processSpec.turn}
-            toolCalls={group.toolCalls}
-            subagents={group.subagents}
-            running={group.boundary === null}
-            open={storedEntries.some(entry => entry.group === group.start)}
-            setOpen={open => setGroupOpen(group.start, open)}
-            t={t}
-          />
-        ))}
+      {processSpec !== undefined && inlineControl !== undefined && (
+        <TurnProcessDisclosure
+          turn={processSpec.turn}
+          toolCalls={inlineControl.toolCalls}
+          subagents={inlineControl.subagents}
+          running={false}
+          open={inlineOpen}
+          setOpen={inlineSetOpen}
+          t={t}
+        />
+      )}
       {renderSlot('conversation.chat.node', routedOwner, {
         entryKey: routedNode.kind,
         hookContext: turnData,
@@ -205,6 +202,18 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
           />
         ),
       })}
+      {processSpec !== undefined && ownedGroups.map(group => (
+        <TurnProcessDisclosure
+          key={group.start}
+          turn={processSpec.turn}
+          toolCalls={group.toolCalls}
+          subagents={group.subagents}
+          running={group.boundary === null}
+          open={storedEntries.some(entry => entry.group === group.start)}
+          setOpen={open => setGroupOpen(group.start, open)}
+          t={t}
+        />
+      ))}
     </div>
   )
 })

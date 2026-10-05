@@ -68,7 +68,10 @@ function derivePresentation(
   let hasExternalProcess = false
   let compactAnswer = true
   // Fold groups: runs of foldable evidence terminated by a visible Assistant
-  // reply, which stays rendered between the collapses.
+  // reply, which stays rendered between the collapses. Only the run that
+  // opens the Turn starts inside the process window; every later run starts
+  // at the reply that ended the previous one, and those replies never fold,
+  // so each group's start row stays visible and hosts its disclosure.
   const groups: TurnProcessGroup[] = []
   let groupStart = spec.processStartSeq
   let members = 0
