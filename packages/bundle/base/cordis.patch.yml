@@ -244,6 +244,13 @@
     - id: shell-env
       name: '@deepseek-ai/dsh-shell-env'
 
+    # grep/egrep/fgrep in model shell calls resolve to the vendored ripgrep
+    # through PATH shims; where no ripgrep resolves the wrappers exec GNU
+    # grep, so the row degrades to the unshimmed shell. Host plane beside
+    # shell-env: the effect mutates process PATH before any session exists.
+    - id: shell-search
+      name: '@deepseek-ai/dsh-shell-search'
+
     - id: tool-bash
       name: '@deepseek-ai/dsh-tool-bash'
       disabled: !!js process.platform === 'win32'
@@ -435,6 +442,12 @@
       config:
         thresholds: [3, 5, 8]
         argumentsPreviewChars: 500
+
+    # Per-turn explore-then-act escalation gate: denies act-stage tools with
+    # one-line guidance until turn-local evidence lands and clamps the file
+    # and shell fences narrow-only; request_escalation crosses with a reason.
+    - id: staged-escalation
+      name: '@deepseek-ai/dsh-staged-escalation'
 
     # The shared base enables the stable model-facing web_search and web_fetch
     # tools. The Web app disables this host row and composes both tools per agent

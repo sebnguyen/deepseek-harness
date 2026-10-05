@@ -5,12 +5,22 @@ import { cleanup, render } from '@testing-library/react'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { AssistantMarkdown, type AssistantMarkdownProps } from '../src/client/chat/AssistantMarkdown.tsx'
-import { StatsPills } from '../src/client/chat/StatsPills.tsx'
+import { StatsPills, type StatsPillsProps } from '../src/client/chat/StatsPills.tsx'
 import { zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 const t: AssistantMarkdownProps['t'] = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
+
+// StatsPills reads only the list's byId for its spend rollup; an empty list
+// keeps the cost popover scoped to the viewed session. One stable object:
+// useSyncExternalStore re-renders on every getSnapshot identity change.
+const EMPTY_SESSION_LIST = { byId: {} }
+const useEmptySessions: StatsPillsProps['useSessions'] = bindSnapshotSelector({
+  subscribe: () => () => {},
+  getSnapshot: () => EMPTY_SESSION_LIST,
+} as never)
 
 afterEach(() => {
   cleanup()
@@ -49,6 +59,8 @@ describe('render branch tails', () => {
         t={t}
         useChat={bindSnapshotSelector(source)}
         useProjection={() => undefined}
+        useSessions={useEmptySessions}
+        sessionId={'tail' as SessionId}
       />,
     )
     expect(view.container.textContent).toBe('2 轮 3 步')

@@ -103,7 +103,7 @@ Read these pages when the tool-level contract is not enough. They move from the 
 
 #### What the model sees
 
-Every parent request in this plugin's registration scope receives the workflow guidance below. A scoped tool restriction can hide the schema without removing this independently registered guidance.
+The workflow guidance below renders only while the tool is visible in the assembly scope; a scoped restriction hides the guidance together with the schema.
 
 ##### Workflow guidance
 

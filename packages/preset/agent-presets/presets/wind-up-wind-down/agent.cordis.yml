@@ -1,0 +1,106 @@
+# The `wind-up-wind-down` agent preset: the phase-split composition from the
+# proposed Agent Note (.agents/notes/proposed/architecture/2026-10-02-wind-up-wind-down-phase-split.md).
+#
+# AGENT-PLANE composition, same mounting rules as `standard`: service rows sit
+# off the isolate realm, persona rows shadow the deployment persona, and the
+# wind-up/wind-down switch is the shipped `plan/mode` event — plan mode's own
+# `section` config carries the wind-up discipline while active, while the
+# constant discipline persona carries the wind-down output prose in both
+# phases (harmless during wind-up).
+#
+# No experimental glue package: every row names shipped machinery plus the
+# phase-split fields this stack adds (`outputSchema`, `maxSteps`,
+# `childSandboxMode` on tool-subagent; the delegation-cap guard).
+
+# ── phase text ──────────────────────────────────────────────────────────────
+
+# Wind-up guidance renders only while plan mode is active; the exit tool's
+# approval checkpoint is therefore the phase boundary.
+- id: plan-mode
+  name: '@deepseek-ai/dsh-plan-mode'
+  config:
+    section: >-
+      You are in wind-up. Explore only: read, search, and run read-only commands.
+      Every unknown class gets at most one `explore` child; do not explore the same
+      territory in your own context in parallel. Your turn ends by presenting the
+      plan; the plan cites only handoffs, never repeating a child's raw results.
+
+# Constant discipline (the wind-down prose): outputters, not explorers.
+- id: discipline-persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    suffix: Your working directory is {{cwd}}.
+    prefix: >-
+      You are a coding agent powered by the {{model}} model. Emit patch hunks, not
+      whole files; run tests and reads without restating their output; cite the
+      explorer handoffs that back each step; your final message references
+      deliverables instead of repeating them. Convert accepted handoffs into todo
+      items before acting on them. When a step depends on an assumption you
+      cannot settle by inspection, ask the user with ask_user_question instead of
+      reasoning through a long chain of guesses.
+
+# ── delegation ──────────────────────────────────────────────────────────────
+
+# Ordinary delegation stays default-shaped.
+- id: delegate
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: delegate
+
+# The explorer: read-only catalog, foreground wait, no children of its own,
+# deployment-owned handoff schema, step budget, and read-only confinement.
+# The handoff schema lives in this file as a literal so the wire grammar and the
+# capture validator read one byte-stable document.
+- id: explore
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: spawn
+    toolName: explore
+    toolFilter:
+      allow: [read, read_image, glob, grep, lsp, symbols, bash, web_fetch, web_search]
+    enableRunInBackground: false
+    maxDepth: 1
+    backgroundMode: one-shot
+    childSandboxMode: read-only
+    maxSteps: 24
+    outputSchema:
+      type: object
+      additionalProperties: false
+      required: [handoff, findings, unknowns]
+      properties:
+        handoff:
+          type: string
+        findings:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required: [subject, fact, evidence]
+            properties:
+              subject: { type: string }
+              fact: { type: string }
+              evidence: { type: string }
+        unknowns:
+          type: array
+          items: { type: string }
+    persona: >-
+      You are an explorer. Read the named unknown with read-only tools and return
+      the findings in under the handoff ceiling. You write nothing; your report
+      is your only product.
+    agentOptions:
+      model: deepseek-v4-flash
+
+# The spree brake: at most twenty delegation starts per turn (a batched
+# explore call counts one per `tasks` entry), the twenty-first denied with
+# the advice to convert handoffs into todos.
+- id: delegation-cap
+  name: '@deepseek-ai/dsh-delegation-cap'
+  config:
+    tools: [delegate, explore]
+    maxDelegationsPerTurn: 20
+
+# ── housekeeping ────────────────────────────────────────────────────────────
+
+- id: todo
+  name: '@deepseek-ai/dsh-tool-todo'

@@ -27,6 +27,8 @@ describe('NO_START_CAPABILITIES', () => {
       depthLimit: false,
       toolFilter: false,
       persona: false,
+      stepBudget: false,
+      childSandboxMode: false,
     })
     expect(Object.isFrozen(NO_START_CAPABILITIES)).toBe(true)
   })

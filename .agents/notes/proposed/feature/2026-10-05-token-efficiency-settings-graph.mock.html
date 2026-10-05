@@ -1,0 +1,174 @@
+<!doctype html>
+<!-- Static visual mock for the proposed Token efficiency window. A new rail
+     entry sits above the Settings trigger in the sidebar foot; it opens its
+     own window (dialog), not a settings section. Rows are a fixed-column
+     table — name / models / bar track / rate / spend / cache hit — so the
+     bar column keeps one width and only the fill inside the track moves.
+     The Models cell shows the fold's logged model count; hovering it opens
+     the per-model popover. Hovering the bar shows its value as a share of
+     the max plus the max blended rate the fill's 100% scales against.
+     Data is hand-rolled but internally consistent with the cost fold:
+     rate = micros over the four buckets' token sum x 1M; pooled group
+     figures pool micros and tokens per group (1 model vs 2+). Colors
+     approximate the --dsw-* alias tokens; the shipped surface must consume
+     the real tokens, not these literals. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Token efficiency — trigger-above-settings mock</title>
+<style>
+  :root {
+    --menu: #1c1c1e;          /* --dsw-specific-menu */
+    --panel: #252528;
+    --rail: #1a1a1c;
+    --stroke: rgba(255,255,255,.12);
+    --label-1: rgba(255,255,255,.92);
+    --label-2: rgba(255,255,255,.66);
+    --label-3: rgba(255,255,255,.42);
+    --sep: rgba(255,255,255,.24);
+    --bar: #6e8ef2;
+  }
+  body { margin: 0; background: #111113; color: var(--label-2);
+         font: 13px/20px -apple-system, "Segoe UI", sans-serif; }
+  .scene { display: flex; min-height: 100vh; }
+  .sidebar { width: 216px; background: var(--rail); border-right: .5px solid var(--stroke);
+             display: flex; flex-direction: column; }
+  .spacer { flex: 1; }
+  .foot { padding: 8px; border-top: .5px solid var(--stroke); }
+  .foot button { display: flex; align-items: center; gap: 8px; width: 100%;
+                 padding: 6px 10px; border: 0; border-radius: 6px; background: none;
+                 color: var(--label-2); font: inherit; cursor: pointer; }
+  .foot button:hover { background: var(--menu); color: var(--label-1); }
+  .foot button.on { background: var(--menu); color: var(--label-1); }
+  .foot .ic { width: 14px; height: 14px; border-radius: 3px; flex: none;
+              background: repeating-linear-gradient(45deg, var(--bar) 0 2px, transparent 2px 4px); }
+  .foot .gear { width: 14px; height: 14px; border-radius: 50%; flex: none;
+                border: 2px solid var(--label-3); box-sizing: border-box; }
+  main { flex: 1; position: relative; }
+  .chat { opacity: .25; padding: 40px; }
+  .window { position: absolute; inset: 24px 32px; background: var(--panel);
+            border: .5px solid var(--stroke); border-radius: 12px;
+            box-shadow: 0 16px 48px rgba(0,0,0,.5); padding: 20px 24px; overflow: auto; }
+  .winhead { display: flex; justify-content: space-between; align-items: baseline; }
+  h1 { font-size: 14px; font-weight: 500; color: var(--label-1); margin: 0; }
+  .close { color: var(--label-3); }
+  .sub { color: var(--label-3); margin: 4px 0 14px; }
+  .headchips { display: flex; gap: 16px; color: var(--label-3); font-size: 12px; margin-bottom: 14px; }
+  .headchips b { color: var(--label-2); font-weight: 500; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th { text-align: left; font-weight: 500; font-size: 11px; letter-spacing: .04em;
+       text-transform: uppercase; color: var(--label-3); padding: 0 8px 6px;
+       border-bottom: .5px solid var(--stroke); }
+  td { padding: 7px 8px; border-bottom: .5px solid rgba(255,255,255,.06);
+       color: var(--label-2); font-variant-numeric: tabular-nums;
+       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  th.num, td.num { text-align: right; }
+  th.cnt, td.cnt { text-align: center; }
+  col.c-name { width: 28%; } col.c-models { width: 9%; } col.c-bar { width: 21%; }
+  col.c-rate { width: 14%; } col.c-spend { width: 12%; } col.c-hit { width: 16%; }
+  .track { display: block; height: 8px; border-radius: 4px; background: rgba(255,255,255,.06); cursor: help; }
+  .track i { display: block; height: 100%; border-radius: 4px; background: var(--bar); }
+  .models { cursor: help; border-bottom: .5px dotted var(--label-3); }
+  tr.child td:first-child { padding-left: 40px; color: var(--label-3); }
+  td .caret { color: var(--label-3); font-size: 10px; margin-right: 4px; }
+  .tag { color: var(--label-3); font-size: 11px; margin: 28px 0 8px; }
+  .tip { position: absolute; background: var(--menu); border-radius: 12px;
+         padding: 12px 16px; width: 264px;
+         box-shadow: 0 8px 24px rgba(0,0,0,.5); font-size: 12px; line-height: 18px; }
+  .tip .t { color: var(--label-1); font-weight: 500; margin-bottom: 6px; }
+  .tip dl { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; margin: 0; }
+  .tip dt { color: var(--label-3); }
+  .tip dd { margin: 0; color: var(--label-2); text-align: right; font-variant-numeric: tabular-nums; }
+  .tip.models-tip { left: 24%; top: 47%; }
+  .tip.bar-tip { left: 46%; top: 66%; width: 232px; }
+  .empty { border: .5px dashed var(--stroke); border-radius: 12px;
+           padding: 28px; text-align: center; color: var(--label-3); margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="scene">
+  <aside class="sidebar">
+    <div class="spacer"></div>
+    <div class="foot">
+      <button class="on"><span class="ic"></span>Efficiency</button>
+      <button><span class="gear"></span>Settings</button>
+    </div>
+  </aside>
+  <main>
+    <div class="chat">…the active conversation stays behind the window…</div>
+    <div class="window" role="dialog" aria-label="Token efficiency">
+      <div class="winhead">
+        <h1>Token efficiency</h1>
+        <span class="close">✕</span>
+      </div>
+      <p class="sub">Blended spend per million billed tokens. Each root session pools its subagent tree; rows hold one caret per accordion level, collapsed by default. The bar lives in a fixed-width track and only marks magnitude; its hover names the max it is scaled against.</p>
+      <div class="headchips">
+        <span>2+ model sessions pooled <b>$0.77/M tok</b></span>
+        <span>1-model sessions pooled <b>$0.60/M tok</b></span>
+        <span>· 4 priced sessions</span>
+      </div>
+      <table>
+        <colgroup>
+          <col class="c-name"><col class="c-models"><col class="c-bar">
+          <col class="c-rate"><col class="c-spend"><col class="c-hit">
+        </colgroup>
+        <thead>
+          <tr>
+            <th>Session</th><th class="cnt">Models</th><th>Rate vs max</th>
+            <th class="num">$/M tok</th><th class="num">Spend</th><th class="num">Cache hit</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="caret">▸</span>Nightly audit sweep</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="track"><i style="width:100%"></i></span></td>
+            <td class="num">$2.36</td><td class="num">$2.36</td><td class="num">6%</td>
+          </tr>
+          <tr>
+            <td><span class="caret">▾</span>Refactor auth to session-stats</td><td class="cnt"><span class="models">2</span></td>
+            <td><span class="track"><i style="width:33%"></i></span></td>
+            <td class="num">$0.770</td><td class="num">$4.81</td><td class="num">88%</td>
+          </tr>
+          <tr class="child">
+            <td><span class="caret"></span>↳ act: apply migration</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="track"><i style="width:81%"></i></span></td>
+            <td class="num">$1.90</td><td class="num">$0.950</td><td class="num">74%</td>
+          </tr>
+          <tr class="child">
+            <td><span class="caret"></span>↳ explore: repo orientation</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="track"><i style="width:6%"></i></span></td>
+            <td class="num">$0.150</td><td class="num">$0.150</td><td class="num">92%</td>
+          </tr>
+          <tr>
+            <td><span class="caret">▸</span>Docs Q&amp;A with codebase explore</td><td class="cnt"><span class="models">3</span></td>
+            <td><span class="track"><i style="width:16%"></i></span></td>
+            <td class="num">$0.368</td><td class="num">$1.36</td><td class="num">90%</td>
+          </tr>
+          <tr>
+            <td><span class="caret">▸</span>Refactor auth (v4 only)</td><td class="cnt"><span class="models">1</span></td>
+            <td><span class="track"><i style="width:6%"></i></span></td>
+            <td class="num">$0.140</td><td class="num">$0.630</td><td class="num">85%</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="tip models-tip">
+        <div class="t">Refactor auth to session-stats · 2 models logged</div>
+        <dl>
+          <dt>qwen3.8-max</dt><dd>$3.52 · 2.8M tok</dd>
+          <dt>deepseek-v4-pro</dt><dd>$0.20 · 2.2M tok</dd>
+        </dl>
+      </div>
+      <div class="tip bar-tip">
+        <div class="t">Bar scale</div>
+        <dl>
+          <dt>value</dt><dd>14% of max</dd>
+          <dt>max</dt><dd>$2.36/M tok</dd>
+        </dl>
+      </div>
+      <p class="tag">Unpriced deployments get the empty state instead — same presence rule as the composer cost pill; the rail entry still renders so the surface is findable:</p>
+      <div class="empty">No priced sessions yet. Declare per-million-token rates under the deployment's cost pricing to light this table up.</div>
+    </div>
+  </main>
+</div>
+</body>
+</html>

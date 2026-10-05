@@ -133,6 +133,9 @@ export interface SubagentCapabilities {
   readonly depthLimit: boolean
   readonly toolFilter: boolean
   readonly persona: boolean
+  /** Optional start-time flags, omitted by providers predating them. */
+  readonly stepBudget?: boolean
+  readonly childSandboxMode?: boolean
 }
 
 /**
@@ -175,6 +178,23 @@ export interface SubagentStartRequest {
    * a successful child returns the matching value as {@link SubagentResult.structured}.
    */
   readonly outputSchema?: ObjectJsonSchema
+  /**
+   * Optional accepted-step budget for the child: a positive safe integer.
+   * Requires {@link SubagentCapabilities.stepBudget}; providers without it
+   * reject the start. The in-process driver steers a finishing directive when
+   * the budget is exhausted and denies steps beyond one consolidation step,
+   * so auto-compaction cannot turn a capped child into a runaway.
+   */
+  readonly maxSteps?: number
+  /**
+   * Optional initial sandbox confinement written as the child session's
+   * FIRST sandbox event at child composition, so later session-event
+   * precedence is untouched. Mirrors @deepseek-ai/dsh-sandbox-policy's
+   * `SandboxMode` field-for-field (subagent must not depend on the sandbox
+   * package for a three-literal union). Requires
+   * {@link SubagentCapabilities.childSandboxMode}.
+   */
+  readonly childSandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
   /**
    * Optional absolute delegation-depth cap for the child being started: its
    * computed depth must be less than or equal to this non-negative safe

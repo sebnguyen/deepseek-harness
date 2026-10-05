@@ -195,9 +195,9 @@ export function apply(ctx: Context, config: Config = {}): void {
   if (defaultMode !== undefined && sandboxPolicy === undefined) {
     throw new Error('tool-bash: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   }
-  /** Resolve the complete standing policy for this call when a confining executor is mounted. */
-  const resolveSandboxPolicy = (exec: ToolExecution): SandboxExecutionPolicy | undefined =>
-    sandboxPolicy?.resolve(exec.agent === undefined ? {} : { session: exec.agent.session })
+  /** Resolve the complete per-call policy (clamped by any narrowing listener) when a confining executor is mounted. */
+  const resolveSandboxPolicy = async (exec: ToolExecution): Promise<SandboxExecutionPolicy | undefined> =>
+    sandboxPolicy === undefined ? undefined : sandboxPolicy.resolveClamped(exec.agent === undefined ? {} : { session: exec.agent.session })
 
   /**
    * Resolve a sandbox-escalation request through `ctx.approval` BEFORE
@@ -336,7 +336,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     async execute(args: BashToolArgs, exec) {
       validateBashArgs(args)
       // Description is display metadata; workdir defaults to the caller's session.
-      const standingPolicy = resolveSandboxPolicy(exec)
+      const standingPolicy = await resolveSandboxPolicy(exec)
       const approvedMode = args.sandbox_permissions !== undefined && args.justification !== undefined
         ? await approveBashEscalation(args.sandbox_permissions, args.justification, exec, standingPolicy)
         : undefined

@@ -8,7 +8,7 @@ import { IconClockOutline16, IconDatabaseOutline16 } from '@deepseek-ai/dsh-clie
 import type { TurnTokenUsage } from '../contract/chat-nodes.ts'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { formatLatencySeconds, formatRunDuration, formatTokensPerSecond } from './message-chrome.ts'
-import { formatCacheHitPercent, formatExactTokens, formatTokens } from './token-format.ts'
+import { formatCacheHitPercent, formatExactTokens, formatTokens } from '../contract/token-format.ts'
 import { MEASURE_STYLE, useStatDialog } from './stat-dialog.ts'
 import css from './TurnUsagePanel.module.css'
 import dialogCss from './stat-dialog.module.css'

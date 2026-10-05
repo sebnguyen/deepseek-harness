@@ -415,6 +415,37 @@ export interface ToolSchema {
   parameters: Record<string, unknown>
 }
 
+/**
+ * One raw JSON Schema node in the structured-output subset a requester may
+ * attach to `GenerateOptions`. Mirrors @deepseek-ai/dsh-tools' enforced
+ * subset field-for-field so an asserted `ObjectJsonSchema` is assignable
+ * without llm importing tools (tools imports llm for `ToolSchema`).
+ * Adapters that lack a native grammar pass the field through untouched:
+ * the caller's capture path stays authoritative.
+ */
+export interface StructuredOutputSchema {
+  /** Omit with no constraints for any JSON value, or use `oneOf`. */
+  type?: 'object' | 'array' | 'string' | 'number' | 'integer' | 'boolean' | 'null'
+  /** Exactly one branch must validate; at least two branches are required. */
+  oneOf?: StructuredOutputSchema[]
+  /** Nested property schemas (`type: 'object'` only). */
+  properties?: Record<string, StructuredOutputSchema>
+  /** Required property names; each must appear in `properties`. */
+  required?: string[]
+  /** `false` rejects undeclared keys; absent/`true` follows JSON Schema's open default. */
+  additionalProperties?: boolean
+  /** Item schema (`type: 'array'` only); absent accepts any JSON item. */
+  items?: StructuredOutputSchema
+  /** Allowed values for a scalar node. */
+  enum?: ReadonlyArray<string | number | boolean | null>
+  /** The single allowed value for a scalar node. */
+  const?: string | number | boolean | null
+  /** Annotation, ignored for validation. */
+  description?: string
+  /** Annotation, ignored for validation. */
+  title?: string
+}
+
 /** A single model request, fully assembled. */
 export interface GenerateOptions {
   /** Registered provider route selecting the adapter instance. */
@@ -456,4 +487,12 @@ export interface GenerateOptions {
    * generation policy. Ordinary conversation requests leave it unset.
    */
   purpose?: 'compaction' | 'session-title'
+  /**
+   * Object JSON Schema the adapter SHOULD grammar-decode on the wire (native
+   * `response_format` where the provider supports it). Adapters that cannot
+   * natively enforce ignore it; adapters without `structuredOutputOnRequest`
+   * never even see it, because the runtime strips the field for them. The
+   * caller's own capture validation remains authoritative either way.
+   */
+  structuredOutput?: StructuredOutputSchema
 }

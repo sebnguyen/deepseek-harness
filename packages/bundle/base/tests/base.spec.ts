@@ -49,6 +49,8 @@ describe('dsh-base bundle', () => {
     expect(rows.find(row => row.id === 'claim-settlement')?.name).toBe('@deepseek-ai/dsh-claim-settlement')
     expect(rows.find(row => row.id === 'tool-claim')?.name).toBe('@deepseek-ai/dsh-tool-claim')
     expect(rows.find(row => row.id === 'knowledge-notes')?.name).toBe('@deepseek-ai/dsh-knowledge-notes')
+    expect(rows.find(row => row.id === 'shell-search')?.name).toBe('@deepseek-ai/dsh-shell-search')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-shell-search')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')

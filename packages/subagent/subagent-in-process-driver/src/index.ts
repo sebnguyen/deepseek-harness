@@ -36,10 +36,13 @@ import type {
   SubagentRun,
   SubagentStopReason,
 } from '@deepseek-ai/dsh-subagent'
+import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
+import { validateJsonSchemaValue, type ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
 import {
   attachStructuredRuntime,
   type StructuredAttachment,
 } from './structured.ts'
+import { attachStepBudget } from './step-budget.ts'
 
 export {
   STRUCTURED_OUTPUT_TOOL,
@@ -128,6 +131,16 @@ export async function startInProcessRun(
     if (request.outputSchema !== undefined) {
       structured = attachStructuredRuntime(childCtx, request.outputSchema)
     }
+    if (request.childSandboxMode !== undefined) {
+      setSandboxMode(child.session, request.childSandboxMode)
+    }
+    if (request.maxSteps !== undefined || request.outputSchema !== undefined) {
+      attachStepBudget(childCtx, child, {
+        maxSteps: request.maxSteps ?? Number.MAX_SAFE_INTEGER,
+        ...request.outputSchema !== undefined ? { schema: request.outputSchema } : {},
+        captured: () => structured?.captured() !== undefined,
+      })
+    }
     attachDescriptorAppend(childCtx, request.descriptor)
   }
 
@@ -148,6 +161,7 @@ export async function startInProcessRun(
     childId,
     activationBoundary,
     structured,
+    request.outputSchema,
   )
 }
 
@@ -162,6 +176,7 @@ function drivePublishedRun(
   childId: SessionId,
   boundary: SessionLogOffsetType,
   structured: StructuredAttachment | undefined,
+  outputSchema?: ObjectJsonSchema,
 ): SubagentRun {
   const child = handle.agent
   const flags = { cancelled: false }
@@ -186,6 +201,7 @@ function drivePublishedRun(
         boundary,
         flags.cancelled,
         structured ? { captured: structured.captured() } : undefined,
+        outputSchema,
       )
     } finally {
       signal.removeEventListener('abort', onAbort)
@@ -214,6 +230,7 @@ function readResult(
   boundary: SessionLogOffsetType,
   cancelled: boolean,
   structured?: { captured?: { value: unknown } | undefined },
+  schema?: ObjectJsonSchema,
 ): SubagentResult {
   // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   const own = child.session.snapshotEvents(boundary)
@@ -232,7 +249,31 @@ function readResult(
     if (structured.captured !== undefined) {
       return { output, structured: structured.captured.value, stopReason }
     }
-    if (stopReason === 'completed') return { output, stopReason: cancelled ? 'aborted' : 'error' }
+    if (stopReason === 'completed') {
+      // Grammar-decoded consolidation: the schema-forced request returned the
+      // handoff as its final text when the tool capture never fired.
+      const parsed = schema !== undefined ? parseStructuredOutput(output, schema) : undefined
+      if (parsed !== undefined) return { output, structured: parsed, stopReason }
+      return { output, stopReason: cancelled ? 'aborted' : 'error' }
+    }
   }
   return { output, stopReason }
+}
+
+/** Validate one assistant answer as the requested object schema, or nothing. */
+function parseStructuredOutput(output: ContentBlock[], schema: ObjectJsonSchema): unknown {
+  const text = output
+    .filter((block): block is { type: 'text'; text: string } =>
+      typeof block === 'object' && block !== null && !Array.isArray(block)
+      && (block as { type?: unknown }).type === 'text'
+      && typeof (block as { text?: unknown }).text === 'string')
+    .map(block => block.text)
+    .join('')
+  if (text.trim().length === 0) return undefined
+  try {
+    const value: unknown = JSON.parse(text)
+    return validateJsonSchemaValue(schema, value).length === 0 ? value : undefined
+  } catch {
+    return undefined
+  }
 }

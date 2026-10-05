@@ -44,21 +44,27 @@ Load the subagent service, an in-process or remote backend, and this tool; then 
 | `toolName` | `subagent` | Model-facing tool name; distinct for every loaded instance |
 | `modelSelectionSettings` | `false` | Sample the Host's exact-route authorization preference for each top-level Session; a standing preset observes matching Sessions, while direct Agent setup passes its Session explicitly; requires provider `agentOptions` support |
 | `enableRunInBackground` | `true` | Expose `run_in_background`; disabling also rejects forced background calls |
+| `enableBatchTasks` | `false` | Replace `prompt` with the required `tasks` array: one foreground call runs one independent child per entry |
 | `backgroundMode` | `one-shot` | Background policy: `one-shot` defaults calls to foreground; `continuable` defaults them to background and requires the provider's `prepareContinuable` capability |
 | `agentOptions` | — | Configured child `provider`, `model`, adapter-owned `reasoningEffort`, and positive `maxTokens` defaults; requires provider `agentOptions` support and overlays any provider-owned route defaults |
 | `persona` | — | Per-child persona; requires the provider's `persona` capability |
 | `toolFilter` | — | Per-child global-tool restriction; requires the `toolFilter` capability |
 | `maxDepth` | `3` | Absolute delegation-depth cap (`0` forbids delegation); `'provider-managed'` sends no cap to an out-of-process provider |
+| `outputSchema` | — | Deployment-owned object JSON Schema attached to every child start; validated at load and never a model choice; requires the provider's `outputSchema` capability |
+| `maxSteps` | — | Per-child accepted-step budget (positive integer); the driver steers a finish at the cap, keeps exactly one schema-forced consolidation step when a cap-exhausted child would settle bare, and denies later exploration steps; requires the provider's `stepBudget` capability |
+| `childSandboxMode` | — | The child session's initial sandbox confinement, written as its first `sandbox/mode` event so later session-event precedence is untouched; requires the provider's `childSandboxMode` capability |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-subagent) is the exhaustive source for every accepted field and its JSDoc.
 
 ### Foreground and background modes
 
-Under `one-shot` policy, an omitted `run_in_background` waits in the foreground and returns the child's final text; `run_in_background: true` starts a plain parent-owned background job and returns `started background subagent job <id>`, collected with `job_output` and stopped with `job_kill`.
+Under `one-shot` policy, an omitted `run_in_background` waits in the foreground and returns the child's final text — or the deployment-requested `outputSchema` capture as indented JSON when the child produced one; `run_in_background: true` starts a plain parent-owned background job and returns `started background subagent job <id>`, collected with `job_output` and stopped with `job_kill`.
+
+With `enableBatchTasks`, `tasks` is the spawn parameter in place of `prompt`: one required array of `{description, prompt}` entries, one foreground child per entry, started in parallel with the same per-child defaults a single call applies, and an empty or absent array rejected. `run_in_background` inside a batched call is rejected because the batched route only collects per-child results. A single child is one `tasks` entry, keeping one spawner in the schema. The value reports `results` in task order, each entry carrying its `description`, `status` `ok`/`error`, the child's text or `outputSchema` capture, or its error; the render prints one `## <description>` section per child. One failed child stays an error entry beside its siblings, while a batch where every child fails throws every error as an AggregateError. Per-child dispatch cuts no cap of its own: `dsh-delegation-cap`'s `batchParameter` counts a batched call as one start per entry, so a batch spends the deployment's per-turn budget in one call.
 
 Under `continuable` policy, an omitted or `true` `run_in_background` starts a durable child and returns `started subagent <childId>` without waiting for a result; the runtime delivers one settlement notice when the child's Activation ends, and the optional `send_message` tool sends it more work. Set `run_in_background: false` to wait for the result in the foreground.
 
-`maxDepth` caps recursion (default `3`; `0` forbids delegation) and requires a provider with the `depthLimit` capability; `'provider-managed'` leaves the budget to an out-of-process provider. `persona` and `toolFilter` configure every child when the provider supports them, and the tool stays visible at the cap — each attempted start checks the calling agent's current depth and rejects with an errored result.
+`maxDepth` caps recursion (default `3`; `0` forbids delegation) and requires a provider with the `depthLimit` capability; `'provider-managed'` leaves the budget to an out-of-process provider. `persona` and `toolFilter` configure every child when the provider supports them, and the tool stays visible at the cap — each attempted start checks the calling agent's current depth and rejects with an errored result. `outputSchema`, `maxSteps`, and `childSandboxMode` are deployment authority on the same instance fields: a provider without the matching capability fails the mount, and the model-facing schema never exposes them.
 
 ### Selecting a child LLM
 
@@ -175,7 +181,7 @@ Prefix-stable while the section text and tool presence are unchanged; removing t
 
 #### What the model sees
 
-The call retains the description and prompt. Success contains only the child's final text; other outcomes become `Error: <stop reason>`, followed by a safe provider diagnostic when present and then any partial assistant text. Intermediate child steps stay out of the parent.
+The call retains the description and prompt. Success contains the instance's validated `outputSchema` capture as indented JSON when the child settled with one, else only the child's final text; other outcomes become `Error: <stop reason>`, followed by a safe provider diagnostic when present and then any partial assistant text. Intermediate child steps stay out of the parent.
 
 #### Token effect
 

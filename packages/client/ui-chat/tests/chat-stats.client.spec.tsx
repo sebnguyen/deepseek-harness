@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import type { SessionCostProjection } from '@deepseek-ai/dsh-session-stats/client'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type {
@@ -11,7 +13,8 @@ import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts
 import {
   StatsPills, deriveStats, formatDuration, lastRequestTps, type StatsPillsProps,
 } from '../src/client/chat/StatsPills.tsx'
-import { formatTokens } from '../src/client/chat/token-format.ts'
+import { formatUsdMicros } from '../src/client/contract/token-format.ts'
+import { formatTokens } from '../src/client/contract/token-format.ts'
 import { en, zh } from '../src/client/locale.ts'
 import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
@@ -22,6 +25,31 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
 })
+
+/**
+ * A served sessionCost value: one model route is declared beside the
+ * fallback, and the per-model fold carries the same totals. The buckets sum
+ * to exactly one million billed tokens, so the blended per-million figure
+ * equals the headline amount's figure.
+ */
+function COST_FIXTURE(micros: number): SessionCostProjection {
+  return {
+    uncachedInputTokens: 250_000,
+    outputTokens: 500_000,
+    cacheReadTokens: 250_000,
+    cacheWriteTokens: 0,
+    costMicros: micros,
+    perModel: {
+      'qwen3.8-max': { uncachedInputTokens: 250_000, outputTokens: 500_000, cacheReadTokens: 250_000, cacheWriteTokens: 0, costMicros: micros },
+    },
+    rates: {
+      fallback: { inputPerMillionUsd: 0.14, outputPerMillionUsd: 0.28, cacheReadPerMillionUsd: 0.028, cacheWritePerMillionUsd: 0 },
+      models: {
+        'qwen3.8-max': { inputPerMillionUsd: 2, outputPerMillionUsd: 6, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 0 },
+      },
+    },
+  }
+}
 
 const assistant = (seq: number, turn: number, usage?: unknown): AssistantMessageNode => ({
   kind: 'assistant', seq, time: seq * 1_000, turn, step: seq, blocks: [{ kind: 'text', text: `t${seq}` }],
@@ -148,6 +176,15 @@ describe('formatters', () => {
     expect(formatTokens(1_230_000, tEn)).toBe('1.2M')
   })
 
+  it('forms compact USD spend text from micro dollars', () => {
+    expect(formatUsdMicros(0, tEn)).toBe('$0.00')
+    expect(formatUsdMicros(34_200, tEn)).toBe('$0.0342')
+    expect(formatUsdMicros(850_000, tEn)).toBe('$0.850')
+    expect(formatUsdMicros(1_850_000, tEn)).toBe('$1.85')
+    expect(formatUsdMicros(12_345_000, tEn)).toBe('$12.35')
+    expect(formatUsdMicros(1_234_567_000, tEn)).toBe('$1,234.57')
+  })
+
   it('formats durations under and over a minute', () => {
     expect(formatDuration(45_230, tEn)).toBe('45.2s')
     expect(formatDuration(162_000, tEn)).toBe('2m42s')
@@ -170,11 +207,27 @@ describe('StatsPills', () => {
     return (key: string) => values[key]
   }
 
+  /** Stub the sessions-list seat: only the byId rows are read. */
+  function sessionsList(rows: Record<string, unknown>): StatsPillsProps['useSessions'] {
+    const snap = { byId: rows }
+    return bindSnapshotSelector({
+      getSnapshot: () => snap,
+      subscribe: () => () => {},
+    }) as unknown as StatsPillsProps['useSessions']
+  }
+
   function props(
     source: { getSnapshot(): ChatSnapshot; subscribe(fn: () => void): () => void },
     values: Record<string, unknown> = { tokenUsage: USAGE },
+    rows: Record<string, unknown> = {},
   ): StatsPillsProps {
-    return { useChat: bindSnapshotSelector(source), useProjection: projections(values), t: tEn }
+    return {
+      useChat: bindSnapshotSelector(source),
+      useProjection: projections(values),
+      useSessions: sessionsList(rows),
+      sessionId: 'root' as SessionId,
+      t: tEn,
+    }
   }
 
   function tokenUsage(cacheReadTokens: number, uncachedInputTokens: number) {
@@ -466,6 +519,188 @@ describe('StatsPills', () => {
     // A session that did write cache keeps the row, exact.
     fireEvent.click(view.getAllByRole('button')[0]!)
     expect(view.getByRole('dialog').textContent).toContain('Cache write100 tok')
+  })
+
+  it.each([
+    { micros: 0, expected: 'Cost $0.00' },
+    { micros: 34_200, expected: 'Cost $0.0342' },
+    { micros: 850_000, expected: 'Cost $0.850' },
+    { micros: 1_850_000, expected: 'Cost $1.85' },
+  ])('renders the cost pill with the live blended rate ($expected)', ({ micros, expected }) => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: COST_FIXTURE(micros),
+    })} />)
+    // The rate segment spreads the same figure over the fixture's one million
+    // billed tokens, so per-million equals the headline amount.
+    expect(view.container.textContent).toContain(`${expected}·${expected.slice('Cost '.length)}/M tok`)
+  })
+
+  it('click-opens the spend dialog carrying the blended rate, cache hit, and per-model rows', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: COST_FIXTURE(1_000_000),
+    })} />)
+    // The row renders several pills; the cost one is the button showing the amount.
+    const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
+    expect(costPill.getAttribute('aria-haspopup')).toBe('dialog')
+    expect(view.queryByRole('dialog')).toBeNull()
+    fireEvent.click(costPill)
+    expect(costPill.getAttribute('aria-expanded')).toBe('true')
+    const dialog = view.getByRole('dialog')
+    expect(dialog.getAttribute('aria-label')).toBe('Spend')
+    // Portaled out of the composer dock, headline amount in the title row.
+    expect(dialog.parentElement).toBe(document.body)
+    expect(dialog.firstChild?.textContent).toBe('Spend$1.00')
+    const details = dialog.querySelector('[data-session-stats-cost]') as HTMLElement
+    expect(details).toBeTruthy()
+    expect(details.textContent).toContain('Per 1M tok$1.00/M tok')
+    // 250K cache read of 500K prompt-side tokens.
+    expect(details.textContent).toContain('Cache hit50%')
+    expect(details.textContent).toContain('qwen3.8-max$1.00 · 1M')
+    // No descendants: no rollup row.
+    expect(details.textContent).not.toContain('Subagent sessions')
+  })
+
+  it('lists an unlogged-model spend row and breaks micros ties by model name', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const unlogged: SessionCostProjection = {
+      ...COST_FIXTURE(600_000),
+      perModel: {
+        '': { uncachedInputTokens: 3, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costMicros: 300_000 },
+        mock: { uncachedInputTokens: 2, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costMicros: 300_000 },
+      },
+    }
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: unlogged,
+    })} />)
+    fireEvent.click([...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!)
+    const text = view.getByRole('dialog').textContent
+    // Equal micros order by model name: the empty key's replacement sorts first.
+    expect(text.indexOf('unlogged model$0.300 · 4')).toBeLessThan(text.indexOf('mock$0.300 · 3'))
+  })
+
+  /** One list row; only parentId and projectionValues are read by the rollup. */
+  function costRow(parentId: string | undefined, cost: SessionCostProjection | undefined): Record<string, unknown> {
+    return {
+      id: 'row', displayTitle: 'row', running: false, blank: false, updatedAt: 0,
+      ...(parentId === undefined ? {} : { parentId }),
+      ...(cost === undefined ? {} : { projectionValues: { sessionCost: cost } }),
+    }
+  }
+
+  it('rolls descendant subagent sessions into the spend dialog', () => {
+    const child: SessionCostProjection = {
+      ...COST_FIXTURE(700_000),
+      perModel: {
+        'qwen3.8-max': { uncachedInputTokens: 100_000, outputTokens: 100_000, cacheReadTokens: 100_000, cacheWriteTokens: 0, costMicros: 200_000 },
+        'deepseek-v4': { uncachedInputTokens: 200_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costMicros: 500_000 },
+      },
+    }
+    const grand: SessionCostProjection = {
+      ...COST_FIXTURE(100_000),
+      perModel: {
+        'deepseek-v4': { uncachedInputTokens: 100_000, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, costMicros: 100_000 },
+      },
+    }
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: COST_FIXTURE(1_000_000),
+    }, {
+      root: costRow(undefined, undefined),
+      child: costRow('root', child),
+      grand: costRow('child', grand),
+      unpriced: costRow('root', undefined),
+    })} />)
+    fireEvent.click([...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!)
+    const text = view.getByRole('dialog').textContent
+    // Shared model keys merge across the tree; the rest keep their own row.
+    expect(text).toContain('qwen3.8-max$1.20 · 1.3M')
+    expect(text).toContain('deepseek-v4$0.600 · 300K')
+    // Most expensive first.
+    expect(text.indexOf('qwen3.8-max')).toBeLessThan(text.indexOf('deepseek-v4'))
+    // Two priced descendants plus one unpriced one all count as included.
+    expect(text).toContain('Subagent sessions3')
+  })
+
+  it('cuts a cyclic parent chain instead of looping', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: COST_FIXTURE(1_000_000),
+    }, {
+      // The viewed session's own row loops back through its descendants.
+      root: costRow('c2', undefined),
+      c1: costRow('root', COST_FIXTURE(100_000)),
+      c2: costRow('c1', undefined),
+    })} />)
+    fireEvent.click([...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!)
+    expect(view.getByRole('dialog').textContent).toContain('Subagent sessions2')
+  })
+
+  it('drops the blended-rate reading when the fold billed no tokens', () => {
+    const zero: SessionCostProjection = {
+      ...COST_FIXTURE(0), uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, perModel: {},
+    }
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: zero,
+    })} />)
+    const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
+    expect(costPill.textContent).toBe('Cost $0.00')
+    fireEvent.click(costPill)
+    const details = view.getByRole('dialog').querySelector('[data-session-stats-cost]') as HTMLElement
+    expect(details.textContent).not.toContain('Per 1M tok')
+    expect(details.textContent).not.toContain('Cache hit')
+  })
+
+  it('keeps the blended rate but drops the cache-hit row on output-only spend', () => {
+    const outOnly: SessionCostProjection = {
+      ...COST_FIXTURE(500_000),
+      uncachedInputTokens: 0,
+      cacheReadTokens: 0,
+      perModel: {
+        'qwen3.8-max': { uncachedInputTokens: 0, outputTokens: 500_000, cacheReadTokens: 0, cacheWriteTokens: 0, costMicros: 500_000 },
+      },
+    }
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: outOnly,
+    })} />)
+    const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
+    expect(costPill.textContent).toBe('Cost $0.500·$1.00/M tok')
+    fireEvent.click(costPill)
+    const details = view.getByRole('dialog').querySelector('[data-session-stats-cost]') as HTMLElement
+    expect(details.textContent).toContain('Per 1M tok$1.00/M tok')
+    expect(details.textContent).not.toContain('Cache hit')
+  })
+
+  it('takes the spend pill and dialog copy from the active locale', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source, {
+      tokenUsage: USAGE,
+      sessionCost: COST_FIXTURE(1_000_000),
+    })} t={t} />)
+    const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
+    expect(costPill.textContent).toBe('费用 $1.00·$1.00/百万 tok')
+    fireEvent.click(costPill)
+    const dialog = view.getByRole('dialog')
+    expect(dialog.getAttribute('aria-label')).toBe('花费')
+    const details = dialog.querySelector('[data-session-stats-cost]') as HTMLElement
+    expect(details.textContent).toContain('每百万 tok$1.00/百万 tok')
+    expect(details.textContent).toContain('缓存命中50%')
+  })
+
+  it('renders no cost pill when the deployment declared no rates', () => {
+    const { source } = makeSource({ nodes: [assistant(1, 1)] })
+    const view = render(<StatsPills {...props(source)} />)
+    expect(view.container.textContent).not.toContain('Cost $')
   })
 
   it('renders ZERO times during streaming chunk frames (RFC hard acceptance)', () => {

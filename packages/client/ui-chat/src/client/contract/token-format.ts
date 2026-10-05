@@ -29,6 +29,28 @@ export function formatExactTokens(value: number, t: ChatViewSlotProps['t']): str
   return groups.join(t('number.groupSeparator'))
 }
 
+/**
+ * Compact USD display of a micro-dollar spend: under ten cents keeps four
+ * decimals, under a dollar three, otherwise two, with locale-owned digit
+ * grouping on the whole part.
+ * @param micros - non-negative spend in millionths of a dollar.
+ * @param t - Chat locale seat.
+ * @returns display string like $0.0342.
+ */
+export function formatUsdMicros(micros: number, t: ChatViewSlotProps['t']): string {
+  const dollars = micros / 1_000_000
+  const decimals = dollars === 0 ? 2 : dollars < 0.1 ? 4 : dollars < 1 ? 3 : 2
+  const text = dollars.toFixed(decimals)
+  const dot = text.indexOf('.')
+  const whole = text.slice(0, dot)
+  const fraction = text.slice(dot + 1)
+  const groups: string[] = []
+  for (let end = whole.length; end > 0; end -= 3) {
+    groups.unshift(whole.slice(Math.max(0, end - 3), end))
+  }
+  return `${t('number.usdSymbol')}${groups.join(t('number.groupSeparator'))}.${fraction}`
+}
+
 /** Round a cache-read ratio to exact percentage units, with positive ties rounded up. */
 function roundedPercentUnits(cacheReadTokens: number, denominator: number, decimalPlaces: 0 | 1): number {
   const unitsPerPercent = decimalPlaces === 0 ? 1 : 10

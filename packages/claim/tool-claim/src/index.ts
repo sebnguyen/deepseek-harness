@@ -75,17 +75,30 @@ export const CLAIM_DEMAND =
 const CLAIM_SOURCE: MessageSource = { kind: 'plugin', plugin: 'tool-claim' }
 
 /**
- * Render the turn-boundary declaration reminder. A first-step pre-step
- * injection marks each new turn model-visibly, so the agent never has to
- * infer a turn boundary from the transcript; the loop's pre-step positions
- * are one-based, so step 1 is the turn's first step.
+ * Render the turn-boundary reminder. A first-step pre-step injection marks
+ * each new turn model-visibly, so the agent never has to infer a turn
+ * boundary from the transcript; the loop's pre-step positions are
+ * one-based, so step 1 is the turn's first step. Each line binds to its own
+ * tool: the declaration line to `declare_claim`, the exploration line to
+ * `explore`, so a scope hiding both receives no reminder at all.
+ * @param claims - whether the declaration line's tools are visible.
+ * @param exploration - whether the exploration line's tools are visible.
  */
-function renderTurnReminder(turn: number): string {
-  return `New work turn (turn ${turn}). Use declare_claim only if this turn will edit, create, or delete repository `
-    + 'files or run a verification script for a code change; otherwise skip claims and answer directly. When claims '
-    + 'apply, declare this turn\'s claims with declare_claim — one claim per independent condition, each with a short '
-    + 'title, a full description, and one bound shell check — before changing anything, and settle them with '
-    + 'run_claim before you end the turn.'
+function renderTurnReminder(turn: number, claims: boolean, exploration: boolean): string {
+  const claimLine = claims
+    ? ' Use declare_claim only if this turn will edit, create, or delete repository '
+      + 'files or run a verification script for a code change; otherwise skip claims and answer directly. When claims '
+      + 'apply, declare this turn\'s claims with declare_claim — one claim per independent condition, each with a short '
+      + 'title, a full description, and one bound shell check — before changing anything, and settle them with '
+      + 'run_claim before you end the turn.'
+    : ''
+  const exploreLine = exploration
+    ? ' When the turn must read broad unknown territory, send the discovery to `explore` instead of paging through it '
+      + 'in your own context: one call may carry several standalone prompts as a `tasks` array whose children run in '
+      + 'parallel and hand back capped verified findings; convert accepted handoffs into todo items before acting on '
+      + 'them.'
+    : ''
+  return `New work turn (turn ${turn}).${claimLine}${exploreLine}`
 }
 
 /** Compact status the model reads back after either tool call. */
@@ -252,15 +265,18 @@ export function apply(ctx: Context, config: Config = {}): void {
   ctx.systemPrompt.section({
     name: 'tool:claim',
     order: ctx.systemPrompt.getSectionOrder('TOOL_CLAIM'),
-    text: CLAIM_DEMAND,
+    text: ({ scope }) => ctx.tools.get('declare_claim', scope) === undefined ? '' : CLAIM_DEMAND,
   })
 
   ctx.on('agent/pre-step', async ({ agent, turn, step }, next) => {
     const decision = await next()
     if (decision.kind !== 'enter' || step !== 1) return decision
     if (ctx.agents.get(agent.id) !== agent) return decision
+    const claimsVisible = ctx.tools.get('declare_claim', agent) !== undefined
+    const exploreVisible = ctx.tools.get('explore', agent) !== undefined
+    if (!claimsVisible && !exploreVisible) return decision
     const reminder = createUserMessage({
-      content: [{ type: 'text', text: renderTurnReminder(turn) }],
+      content: [{ type: 'text', text: renderTurnReminder(turn, claimsVisible, exploreVisible) }],
       source: CLAIM_SOURCE,
     })
     return { ...decision, messages: [...decision.messages, reminder] }

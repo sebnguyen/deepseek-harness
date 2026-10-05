@@ -1,8 +1,8 @@
 /**
  * Web runtime glue behavior: dist resolution through the bundle's own hook,
- * the frontend-static child claiming the fallback seat, the web-surface
- * prompt section and bash runtime variables, and readiness publication through
- * the URL line and default-browser handoff.
+ * the frontend-static child claiming the fallback seat, the bash runtime
+ * variables, and readiness publication through the URL line and
+ * default-browser handoff.
  */
 
 import { EventEmitter } from 'node:events'
@@ -152,12 +152,8 @@ describe('web-app runtime glue', () => {
       'open:http://127.0.0.1:4567/?token=test-token',
     ])
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections.find(entry => entry.name === 'harness:source')?.text).toContain('DeepSeek Harness implementation checkout')
-    const section = assembly.sections.find(entry => entry.name === 'app:web-surface')
-    expect(section?.text).toContain('http://127.0.0.1:4567')
-    // The single update contract: the receiver is always on; no-refresh
-    // reloads additionally need the rebuild watcher.
-    expect(section?.text).toContain('pnpm run dev:web')
+    expect(assembly.sections.some(entry => entry.name === 'harness:source')).toBe(false)
+    expect(assembly.sections.some(entry => entry.name === 'app:web-surface')).toBe(false)
     const webRuntime = contributions.find(contribution => contribution.name === 'web-runtime')
     expect(webRuntime?.resolve()).toEqual({ DSH_WEB_URL: 'http://127.0.0.1:4567' })
     await ctx.fiber.dispose()
@@ -177,8 +173,7 @@ describe('web-app runtime glue', () => {
     expect(log).not.toHaveBeenCalled()
     expect(openBrowser).not.toHaveBeenCalled()
     const assembly = await ctx.systemPrompt.assemble()
-    expect(assembly.sections.find(entry => entry.name === 'app:web-surface')?.text)
-      .toContain('rebuilding the affected Web artifacts')
+    expect(assembly.sections.some(entry => entry.name === 'app:web-surface')).toBe(false)
     await ctx.fiber.dispose()
   })
 
@@ -313,19 +308,28 @@ describe('web-app runtime glue', () => {
     await torn.fiber.dispose()
   })
 
-  it('fails loud when the prompt section resolves against a portless webserver', async () => {
+  it('fails loud when the shell variable resolves against a portless webserver', async () => {
     stageDist()
     const ctx = new Context()
     // A webserver whose bound port is gone (torn down mid-request): the
-    // section must throw, never render a URL with an undefined port.
+    // variable resolver must throw, never render a URL with an undefined port.
     const { server } = fakeHttpServer()
     Object.defineProperty(server, 'port', { get: () => undefined })
     ctx.provide('webServer', server)
     provideConnection(ctx)
+    const contributions: BashContribution[] = []
+    ctx.provide('shellEnv', {
+      register: (contribution: BashContribution) => {
+        contributions.push(contribution)
+        return () => {}
+      },
+    } as never)
     apply(ctx, new Config({ openBrowser: false, printUrl: false, surfaceContext: true, trustedHosts: [] }))
     await ctx.plugin(SystemPrompt, { personaPrefix: '' })
     await new Promise(resolve => setTimeout(resolve, 0))
-    await expect(ctx.systemPrompt.assemble()).rejects.toThrow('webServer service missing')
+    const webRuntime = contributions.find(contribution => contribution.name === 'web-runtime')
+    expect(webRuntime === undefined ? undefined : () => webRuntime.resolve())
+      .toThrow('webServer service missing')
     await ctx.fiber.dispose()
   })
 

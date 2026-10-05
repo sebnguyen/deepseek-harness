@@ -12,6 +12,7 @@ import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import { createMessage } from '@deepseek-ai/dsh-llm'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
@@ -82,5 +83,39 @@ describe('real Loader composition', () => {
     // A default export beside the named form makes the Loader discard the
     // namespace (postmortem 0001) — pin its absence.
     expect('default' in SessionStatsPlugin).toBe(false)
+  })
+
+  it('registers sessionCost from the shipped pricing YAML and prices per logged model', async () => {
+    const loaded = await loadYaml([
+      "- name: '@deepseek-ai/dsh-session'",
+      "- name: '@deepseek-ai/dsh-session-projection'",
+      "- name: '@deepseek-ai/dsh-session-stats'",
+      '  config:',
+      '    pricing:',
+      '      inputPerMillionUsd: 1',
+      '      outputPerMillionUsd: 1',
+      '      cacheReadPerMillionUsd: 0',
+      '      cacheWritePerMillionUsd: 0',
+      '      models:',
+      "        'qwen3.8-max':",
+      '          inputPerMillionUsd: 2',
+      '          outputPerMillionUsd: 6',
+      '          cacheReadPerMillionUsd: 0',
+      '          cacheWritePerMillionUsd: 0',
+    ])
+
+    const session = loaded.sessions.create(SessionId('priced-yaml'))
+    const message = (model: string) => session.append('assistant/message', {
+      stream: [],
+      turn: 1,
+      step: 1,
+      usage: { inputTokens: 1_000_000, outputTokens: 0 },
+      message: createMessage({ role: 'assistant', content: [], source: { kind: 'model', provider: 'digitalocean', model } }),
+    }, { surfaceOp: 'append' })
+    message('qwen3.8-max')
+    message('unlisted-route')
+    const cost = loaded.sessionProjections.snapshot(session).values.sessionCost as
+      { costMicros: number } | undefined
+    expect(cost?.costMicros).toBe(2_000_000 + 1_000_000)
   })
 })

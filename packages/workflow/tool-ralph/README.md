@@ -106,7 +106,7 @@ Read these pages when the tool-level contract is not enough. They move from the 
 
 #### What the model sees
 
-Every parent request in this plugin's registration scope receives the fixed routing guidance below.
+The fixed routing guidance below renders only while the ralph tool is visible in the assembly scope.
 
 ##### Ralph guidance
 

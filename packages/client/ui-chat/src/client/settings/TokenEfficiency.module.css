@@ -1,0 +1,238 @@
+/* Efficiency rail entry (sidebar foot, above the Settings trigger) and its
+   portaled window. The entry button mirrors the settings shell's trigger
+   chrome; the window panel wears the settings overlay tokens. */
+
+/* Rail entry, wide form: same 42px hover row as the Settings trigger. */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  margin: 0;
+  padding: 0 10px 0 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.entry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Rail form: the same 36x36 circle as the trigger's rail control. */
+.entry.rail {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.entryLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Window overlay: mask tokens match the settings panel modal layer. */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: min(860px, calc(100vw - 48px));
+  max-height: min(800px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px 24px;
+  border: 0;
+  border-radius: 32px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-elevation-prominent);
+  /* Elevated surface: scrollbar thumb rebinding matches the settings panel. */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.headTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.sub {
+  margin: 4px 0 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.chips {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+}
+
+/* Fixed-column table: declared column widths keep content from ever
+   resizing a column; the bar track owns the only flexible visual. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.table th {
+  padding: 0 8px 6px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.table td {
+  padding: 7px 8px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num { text-align: right; }
+
+.cnt { text-align: center; }
+
+.cName { width: 28%; }
+
+.cModels { width: 9%; }
+
+.cBar { width: 21%; }
+
+.cRate { width: 14%; }
+
+.cSpend { width: 12%; }
+
+.cHit { width: 16%; }
+
+/* The bar lives in a fixed-width track; only the fill inside scales. */
+.track {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-3);
+  cursor: help;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--dsw-alias-button-primary-fill);
+}
+
+.dotted {
+  cursor: help;
+  border-bottom: 0.5px dotted var(--dsw-alias-label-tertiary);
+}
+
+.child .name {
+  padding-left: 40px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Accordion caret column: rows without children keep the same indent so
+   siblings after an expanded tree stay aligned. */
+.caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-right: 4px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  vertical-align: -3px;
+}
+
+.caret:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+.caretSlot {
+  display: inline-block;
+  flex: none;
+  width: 18px;
+  margin-right: 4px;
+}
+
+.empty {
+  margin-top: 16px;
+  padding: 28px;
+  border: 0.5px dashed var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+}

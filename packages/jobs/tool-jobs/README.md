@@ -23,7 +23,7 @@ Use `dsh-tool-jobs` to inspect and control background commands, PTY work, and su
 <a id="use-this-package"></a>
 ## Use this package
 
-Load this plugin in any composition where the agent should start, observe, and stop background jobs: it registers the three tools, attaches the controller producers need, and delivers completion notices. It requires the `ctx.tools`, `ctx.jobs`, and `ctx.systemPrompt` services from the composed harness.
+Load this plugin in any composition where the agent should start, observe, and stop background jobs: it registers the three tools, attaches the controller producers need, and delivers completion notices. It requires the `ctx.tools` and `ctx.jobs` services from the composed harness.
 
 ### The three tools
 
@@ -117,21 +117,15 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Every request in this plugin's registration scope contains this guidance. Agent-scoped tool filtering may hide the tools without removing the independently registered prompt section.
-
-##### Background-job guidance
-
-```markdown
-Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job's work. Before giving a final answer, collect every still-relevant job with job_output (every read blocks until the job settles or its timeout — 10s by default, capped at 60s — and a timed-out read returns the live state for the notice to follow), and job_kill jobs that stopped mattering.
-```
+Nothing: this plugin registers no prompt section. Completion notices reach the owning agent as plugin-sourced messages, and the tool schemas carry their own descriptions.
 
 #### Token effect
 
-Small fixed input cost per request while active.
+No prompt contribution; a notice costs one short message only when a job settles.
 
 #### KV Cache effect
 
-Prefix-stable while the plugin scope and guidance text are unchanged. Activation or disposal may invalidate reuse from this prompt section.
+No request-prefix contribution from this plugin.
 
 ### Tool schemas
 

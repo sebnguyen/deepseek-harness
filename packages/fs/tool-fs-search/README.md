@@ -25,7 +25,7 @@ Use `dsh-tool-fs-search` to give models `glob` file discovery and `grep` content
 
 Mount the tools after a `ctx.subprocess` backend; no host `rg` install is needed, and no filesystem provider is required. The model then gets modification-time-ordered file discovery and line-oriented content search, each bounded and timeout-guarded.
 
-No shipped composition mounts this pair. The base bundle and the `standard`, `cordis`, and `ptc` presets leave text search to the shell, because the order-40 core rule states search as a method rather than a tool roster and a shipped session's shell reaches the same files. Mount it when a deployment wants bounded, spill-recoverable search results inside the catalog instead of parsing shell output — the [Structure Your Search Agent Note](../../../.agents/notes/implemented/feature/2026-09-25-structure-your-search.md) records that decision.
+No shipped composition mounts this pair. The base bundle and the `standard`, `cordis`, and `ptc` presets leave text search to the shell, because the order-40 core rule states search as a method rather than a tool roster and a shipped session's shell reaches the same files — and, since `dsh-base` mounts `dsh-shell-search`, that shell resolves its grep family through the vendored ripgrep shims ([note](../../../.agents/notes/implemented/architecture/2026-10-05-shell-search-ship-in-base.md)). Mount it when a deployment wants bounded, spill-recoverable search results inside the catalog instead of parsing shell output — the [Structure Your Search Agent Note](../../../.agents/notes/implemented/feature/2026-09-25-structure-your-search.md) records that decision.
 
 ### Minimal composition
 

@@ -23,6 +23,14 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'settings.trigger': { kind: 'single'; scope: 'root'; owner: SettingsTriggerOwnerProps }
     /**
+     * Optional rail entries stacked above the Settings trigger in the
+     * sidebar foot: feature-owned siblings of the Settings button (a
+     * spend-analysis window, say). Each entry owns its button, copy, and
+     * any window it opens; the shell supplies only the stack site and the
+     * rail/wide fact, mirroring settings.trigger's split.
+     */
+    'settings.trigger-item': { kind: 'list'; scope: 'root'; owner: SettingsTriggerItemOwnerProps }
+    /**
      * The panel title text seat. Content renders inside the nav heading row;
      * the dialog's accessible name points at that node via aria-labelledby.
      * Absent contribution leaves the heading empty.
@@ -104,6 +112,12 @@ export interface SettingsPluginsTabOwnerProps {
 /** Owner share of the trigger content seat: the sidebar column state. */
 export interface SettingsTriggerOwnerProps {
   /** Whether the sidebar renders wide content (false = 56px rail, icon only). */
+  wide: boolean
+}
+
+/** Owner share of a sidebar-foot entry above the Settings trigger. */
+export interface SettingsTriggerItemOwnerProps {
+  /** Whether the sidebar renders wide content (false = 36px rail, icon only). */
   wide: boolean
 }
 

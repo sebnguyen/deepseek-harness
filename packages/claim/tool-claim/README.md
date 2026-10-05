@@ -91,7 +91,7 @@ Mount `dsh-tool-claim` beside `dsh-claim`, a shell executor, and `dsh-claim-sett
 
 #### What the model sees
 
-One prompt section, always present, stating when claims apply (coding turns only), how to declare one or more claims with `declare_claim` — one claim per independent condition — bind the check that proves each one, keep a claim's content immutable once declared, settle claims itself with `run_claim`, abandon a claim once its check has run and the condition itself was wrong, call `list_claims` when the transcript no longer shows what the turn declared, and expect one steered repair round for any claim it never runs. Each turn's first step also receives a short plugin-sourced reminder naming the turn, when to skip claims, and when to declare and settle them. The package also contributes the four tool schemas.
+One prompt section, rendered only while `declare_claim` is visible in the assembly scope, stating when claims apply (coding turns only), how to declare one or more claims with `declare_claim` — one claim per independent condition — bind the check that proves each one, keep a claim's content immutable once declared, settle claims itself with `run_claim`, abandon a claim once its check has run and the condition itself was wrong, call `list_claims` when the transcript no longer shows what the turn declared, and expect one steered repair round for any claim it never runs. The first step of each turn where the claim tools are visible also receives a short plugin-sourced reminder naming the turn, when to skip claims, and when to declare and settle them; where `explore` is visible the same reminder adds one line routing broad unknown reads to `explore` and its one-call `tasks` fan-out, so each reminder line binds to its own tool and a scope hiding both receives none. The package also contributes the four tool schemas.
 
 #### Token effect
 
@@ -124,7 +124,7 @@ These limits define when the package needs special care. They are current constr
 - **The demand is a prompt, not an enforcement.** Nothing forces the agent to call `declare_claim`; an agent that ignores it simply ends the turn without a claim. The group is deliberately advisory about ordering.
 - **No claim editing.** The tools can open, run, list, and abandon a claim but not revise one, matching the service's immutability.
 - **Recovery is model-initiated.** Nothing re-injects the roster when a transcript is compacted mid-turn; the demand section and the tool schema are the only cues to call `list_claims`, so a model that never calls it still loses the turn's claim ids.
-- **The reminder fires on every turn's first step.** There is no work-turn discrimination; a chat-shaped turn receives the reminder too, and it pays one short appended message per turn.
+- **The reminder fires on the first step of every turn where the claim or explore tools are visible.** There is no work-turn discrimination; a chat-shaped turn receives the reminder too, and it pays one short appended message per turn.
 
 **Runtime invariant:** No companion is published. This package owns no durable event stream of its own; every state change it causes is a `claim/*` event validated by the `dsh-claim` fold, so an independent observation here would duplicate that fold rather than diverge from it.
 

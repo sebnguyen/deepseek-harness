@@ -18,7 +18,7 @@ import type { JobSnapshot } from '@deepseek-ai/dsh-jobs'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 
 export const name = 'tool-jobs'
-export const inject = ['tools', 'jobs', 'systemPrompt']
+export const inject = ['tools', 'jobs']
 
 /**
  * How an unreported completion reaches an owner that is already idle: `wakeup`
@@ -257,13 +257,6 @@ export function apply(ctx: Context, config: Config): void {
 
   // Producers may start work only while a controller is attached.
   ctx.jobs.attachController('tool-jobs')
-
-  // Cross-call guidance follows the filesystem sections and precedes product sections.
-  ctx.systemPrompt.section({
-    name: 'tool:jobs',
-    order: ctx.systemPrompt.getSectionOrder('TOOL_JOBS'),
-    text: 'Track every background job id you start. You are notified in-session when a job finishes — do not busy-poll or sleep on one; keep working on independent steps and do not duplicate a running job\'s work. Before giving a final answer, collect every still-relevant job with job_output (every read blocks until the job settles or its timeout — 10s by default, capped at 60s — and a timed-out read returns the live state for the notice to follow), and job_kill jobs that stopped mattering.',
-  })
 
   // Use the exact lifecycle owner; reusable ids could resolve to a replacement.
   // A busy owner is injected: the notice waits in its next-step inbox, which

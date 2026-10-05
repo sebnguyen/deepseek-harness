@@ -38,9 +38,106 @@ export interface SessionStatsProjection {
   decodeTokens: number
 }
 
+/**
+ * Deployment-declared USD per-million-token rates the `sessionCost` fold
+ * prices provider usage under. All four rates are required once pricing is
+ * opted in: silently leaving a bucket unpriced would understate the spend.
+ */
+export interface CostPricing {
+  /** USD per million uncached input tokens. */
+  inputPerMillionUsd: number
+  /** USD per million output tokens. */
+  outputPerMillionUsd: number
+  /** USD per million cache-read tokens. */
+  cacheReadPerMillionUsd: number
+  /** USD per million cache-write tokens. */
+  cacheWritePerMillionUsd: number
+  /**
+   * Per-model rates keyed by the model id the provider logs on
+   * `assistant/message` (`message.source.model`). A recorded event whose
+   * model is absent from the map prices under the flat rates above.
+   */
+  models?: Record<string, CostModelPricing>
+}
+
+/**
+ * One model's USD per-million-token rates; every bucket is required so no
+ * route can price at zero by omission.
+ */
+export interface CostModelPricing {
+  /** USD per million uncached input tokens for this model. */
+  inputPerMillionUsd: number
+  /** USD per million output tokens for this model. */
+  outputPerMillionUsd: number
+  /** USD per million cache-read tokens for this model. */
+  cacheReadPerMillionUsd: number
+  /** USD per million cache-write tokens for this model. */
+  cacheWritePerMillionUsd: number
+}
+
+/**
+ * One model's folded provider usage and the spend priced from it; the four
+ * token buckets mirror the whole-log totals so a client can show tokens
+ * beside the amount. Each entry rounds its micros independently, so a sum
+ * over entries can differ from `costMicros` by a fraction of a cent.
+ */
+export interface CostModelSpend {
+  /** Provider uncached input tokens billed to this model. */
+  uncachedInputTokens: number
+  /** Provider output tokens billed to this model. */
+  outputTokens: number
+  /** Provider cache-read tokens billed to this model. */
+  cacheReadTokens: number
+  /** Provider cache-write tokens billed to this model. */
+  cacheWriteTokens: number
+  /** Estimated spend under the configured rates, USD micros. */
+  costMicros: number
+}
+
+/**
+ * The rate table the fold prices under, served beside the totals so a
+ * client can show WHICH rates produced the figure.
+ */
+export interface SessionCostRates {
+  /** Rates pricing models absent from `models`.
+   */
+  fallback: CostModelPricing
+  /** Per-model rates keyed by the provider-logged model id. */
+  models: Record<string, CostModelPricing>
+}
+
+/**
+ * Whole-log provider usage priced under the deployment's configured rates.
+ * Every session folds its own log, so a child subagent session renders its
+ * own spend independently of its parent's — per-scope cost without any
+ * cross-session scan.
+ */
+export interface SessionCostProjection {
+  /** Provider uncached input tokens folded so far. */
+  uncachedInputTokens: number
+  /** Provider output tokens folded so far. */
+  outputTokens: number
+  /** Provider cache-read tokens folded so far. */
+  cacheReadTokens: number
+  /** Provider cache-write tokens folded so far. */
+  cacheWriteTokens: number
+  /** Estimated spend under the configured rates, USD micros. */
+  costMicros: number
+  /**
+   * Per-model spend keyed by the provider-logged model id; events without a
+   * logged model accumulate under the empty string. Entries sum to the four
+   * token totals above.
+   */
+  perModel: Record<string, CostModelSpend>
+  /** The rate table these totals were priced under. */
+  rates: SessionCostRates
+}
+
 declare module '@deepseek-ai/dsh-session-projection/types' {
   interface SessionProjectionMap {
     /** Whole-log turn/step counts and wall times; see {@link SessionStatsProjection}. */
     sessionStats: SessionStatsProjection
+    /** Whole-log provider usage priced under configured rates; see {@link SessionCostProjection}. */
+    sessionCost: SessionCostProjection
   }
 }

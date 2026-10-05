@@ -61,6 +61,8 @@ Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` 
 
 On macOS and Linux you get the bash shell tools; on Windows you get the PowerShell twins instead, so exactly one shell stack is available per machine. The safety behavior is identical on every platform. A Windows host that prefers the unconfined PowerShell executor can switch the shell rows in its profile patch — the switch must disable both PowerShell rows and re-enable both bash rows, otherwise the profile fails to load.
 
+Every shell call on every platform inherits the `dsh-shell-search` shims: `grep`, `egrep`, and `fgrep` resolve to the vendored ripgrep where it resolves, ignore-aware and truncating, and fall back to the host GNU grep where it does not; disable the `shell-search` row to restore the unshadowed grep family.
+
 ### Changing the defaults
 
 To change what a profile built on this core provides — a different default model, a stricter permission mode, extra or fewer tools — edit your profile's `cordis.patch.yml` or add a later bundle. Each patch entry replaces the target's whole configuration, so restate every setting you want to keep. Keep the sandboxed filesystem provider as the single file-write path: adding the plain filesystem provider on top of it makes the profile fail to load.
