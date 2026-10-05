@@ -1395,6 +1395,43 @@ describe('ChatView', () => {
     expect(renewedToggle.getAttribute('aria-expanded')).toBe('true')
   })
 
+  it('renders one collapse per tool run with the replies visible between them', () => {
+    const h = makeHarness({
+      nodes: [
+        user(1, 'question'),
+        assistant(2, 'plan', 1, 1),
+        toolResult(3, 'a'),
+        assistant(4, 'found it', 1, 2),
+        toolResult(5, 'b'),
+        assistant(6, 'final answer', 1, 3),
+      ],
+      turnEnds: new Map([[1, 7]]),
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    // One collapse per tool run: the head control folds the first run and a
+    // control riding the answer folds the second; replies stay visible
+    // between them.
+    const toggles = [...view.container.querySelectorAll<HTMLElement>('button[data-turn-process]')]
+    expect(toggles).toHaveLength(2)
+    expect(toggles.map(toggle => toggle.getAttribute('data-turn-process-tool-calls')))
+      .toEqual(['1', '1'])
+    for (const text of ['plan', 'found it', 'final answer']) {
+      const row = view.getByText(text).closest('[data-chat-flow-key]') as HTMLElement
+      expect(row.getAttribute('hidden')).toBeNull()
+      expect(row.hasAttribute('data-turn-process-member')).toBe(false)
+    }
+    const rows = [...view.container.querySelectorAll<HTMLElement>('[data-turn-process-member]')]
+    expect(rows.map(row => row.textContent)).toEqual([expect.stringContaining('bash:a'), expect.stringContaining('bash:b')])
+    expect(rows.map(row => row.getAttribute('hidden'))).toEqual(['until-found', 'until-found'])
+
+    // Expanding one run reveals only its own rows.
+    fireEvent.click(toggles[1]!)
+    expect(rows.map(row => row.getAttribute('hidden'))).toEqual(['until-found', null])
+    fireEvent.click(toggles[0]!)
+    expect(rows.map(row => row.getAttribute('hidden'))).toEqual([null, null])
+    expect(toggles.map(toggle => toggle.getAttribute('aria-expanded'))).toEqual(['true', 'true'])
+  })
+
   it('folds injected Context in place with the rest of the Turn process', () => {
     const h = makeHarness({
       nodes: [
