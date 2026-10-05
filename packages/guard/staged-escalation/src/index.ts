@@ -22,6 +22,7 @@ import { createUserMessage, type ToolCallId, type UserMessage } from '@deepseek-
 import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import '@deepseek-ai/dsh-sandbox-policy'
 import type { Session } from '@deepseek-ai/dsh-session'
+import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent-in-process-driver'
 import '@deepseek-ai/dsh-system-prompt'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-user-approval'
@@ -236,6 +237,10 @@ export function apply(ctx: Context, config: Config): void {
 
   ctx.on('tools/pre-execute', async (exec, next) => {
     if (exec.agent === undefined) return next()
+    // A schema child's `structured_output` call is its return statement, not a
+    // staged act: denying it would cost the child its only result channel, so
+    // the completion channel rides above the ladder on every turn.
+    if (exec.name === STRUCTURED_OUTPUT_TOOL) return next()
     const current = currentStage(stages, exec.agent.session)
     if (stageOfTool(stages, exec.name) <= current) return next()
     return { kind: 'deny', reason: denyReason(stageAt(current).name) }

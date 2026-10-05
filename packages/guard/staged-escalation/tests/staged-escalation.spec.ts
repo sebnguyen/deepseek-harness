@@ -15,6 +15,13 @@ import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-ses
 import { createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import type { ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
+import InvariantRegistry from '@deepseek-ai/dsh-invariants'
+import * as SessionInvariant from '@deepseek-ai/dsh-session/invariant'
+import * as AgentInvariant from '@deepseek-ai/dsh-agent/invariant'
+import * as AgentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
+import SubagentRuntime, { type SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import { startInProcessRun, STRUCTURED_OUTPUT_TOOL } from '../../../subagent/subagent-in-process-driver/src/index.ts'
 import { MockAdapter, toolCallResponse, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import * as StagedEscalation from '../src/index.ts'
 import { currentStage, type StagedEscalationSource } from '../src/index.ts'
@@ -218,6 +225,41 @@ describe('staged-escalation gate', () => {
     expect(await loadMessage({ stages: LADDER })).toBe('')
   })
 
+
+  it('never denies the structured-output completion channel of a schema child', async () => {
+    const ctx = new Context()
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(InvariantRegistry)
+    await ctx.plugin(SessionInvariant)
+    await ctx.plugin(AgentInvariant)
+    await ctx.plugin(AgentLoopInvariant)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    await ctx.plugin(SubagentRuntime)
+    ctx.subagents.registerProvider({
+      name: 'spawn',
+      capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: false, persona: false },
+      inheritsParentContext: false,
+      start: request => startInProcessRun(request, {}),
+    })
+    await ctx.plugin(StagedEscalation, {})
+    const adapter = new MockAdapter([
+      toolCallResponse('s1', STRUCTURED_OUTPUT_TOOL, { answer: 7 }),
+    ] as never)
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const parent = await ctx.agentLoop.create(SessionId('schema-parent'), { provider: 'mock', model: 'mock' })
+    const request: SubagentStartRequest = {
+      label: 'answer',
+      prompt: [{ type: 'text', text: 'answer' }],
+      parent,
+      signal: new AbortController().signal,
+      outputSchema: { type: 'object', properties: { answer: { type: 'number' } }, required: ['answer'] } as ObjectJsonSchema,
+    }
+    const run = await ctx.subagents.start('spawn', request)
+    const result = await run.result
+    expect(result.stopReason).toBe('completed')
+    expect(result.structured).toEqual({ answer: 7 })
+    await run.dispose()
+  })
 
   it('folds grants and evidence into the current stage', () => {
     const sessionId = SessionId('fold')

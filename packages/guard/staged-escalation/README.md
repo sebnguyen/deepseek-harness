@@ -20,7 +20,7 @@ Staged escalation names two phases in every turn — explore then act — and en
 <a id="model-experience"></a>
 ## Model experience
 
-The tool catalog is byte-identical across lock, unlock, and restart: the gate denies through `tools/pre-execute`, fires no `tools/change` event, and never calls `tools.restrict`. Locked turns receive one synthetic reminder user message at step 1, sourced `staged-escalation`, whose body is the current stage's configured `description` verbatim under a `You are in the "<name>" stage.` header. Denials are one line: `This tool is blocked due to your "<stage>" stage — trigger request_escalation when you are ready to proceed to the next stage.` The static Core Rule section `staging:core-rule` ships exactly where the gate composes.
+The tool catalog is byte-identical across lock, unlock, and restart: the gate denies through `tools/pre-execute`, fires no `tools/change` event, and never calls `tools.restrict`. Locked turns receive one synthetic reminder user message at step 1, sourced `staged-escalation`, whose body is the current stage's configured `description` verbatim under a `You are in the "<name>" stage.` header. Denials are one line: `This tool is blocked due to your "<stage>" stage — trigger request_escalation when you are ready to proceed to the next stage.` The one exempt call is a schema child's `structured_output` — the child's return statement, not a staged act — so the gate never denies a child its only result channel. The static Core Rule section `staging:core-rule` ships exactly where the gate composes.
 
 <a id="the-stage-ladder"></a>
 ## The stage ladder

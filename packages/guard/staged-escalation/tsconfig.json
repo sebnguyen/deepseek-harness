@@ -33,6 +33,9 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../subagent/subagent-in-process-driver"
+    },
+    {
       "path": "../../sandbox/sandbox"
     },
     {
