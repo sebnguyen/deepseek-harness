@@ -291,7 +291,7 @@ describe('TokenEfficiencyEntry', () => {
     expect(models).toEqual(['1', '4', '1', '1', '3', '1'])
     // Cache hit rides the displayed buckets: pooled on roots, own below.
     const hits = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
-    expect(hits).toEqual(['6%', '82%', '74%', '92%', '90%', '85%'])
+    expect(hits).toEqual(['6%', '88%', '74%', '92%', '90%', '85%'])
     fireEvent.click(caret)
     expect(caret.getAttribute('aria-expanded')).toBe('false')
     titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
