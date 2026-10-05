@@ -732,9 +732,12 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
             }))
             const failures = results.filter(result => result.status === 'error')
             if (failures.length === batchTasks.length) {
+              // The tool-error surface prints only the thrown message, so the
+              // summary alone hides why every child died; list each cause.
+              const lines = failures.map(failure => `- ${failure.description}: ${(failure as { error?: string }).error ?? 'unknown error'}`)
               throw new AggregateError(
-                failures.map(failure => new Error(`${failure.description}: ${(failure as { error?: string }).error ?? 'unknown error'}`)),
-                `all ${batchTasks.length} batched children failed`,
+                lines.map(line => new Error(line)),
+                `all ${batchTasks.length} batched children failed\n${lines.join('\n')}`,
               )
             }
             if (firstRunId === undefined) throw new Error('batch settled with successful children but no run id was captured')

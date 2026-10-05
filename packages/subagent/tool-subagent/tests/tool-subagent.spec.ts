@@ -948,6 +948,9 @@ describe('dsh-tool-subagent batch tasks', () => {
     })
     expect(failed.isError).toBe(true)
     expect(JSON.stringify(failed.content)).toContain('all 2 batched children failed')
+    // The thrown message lists each child's cause, not just the summary.
+    expect(JSON.stringify(failed.content)).toContain('budget out')
+    expect(JSON.stringify(failed.content)).toContain('first reader')
   })
 })
 
