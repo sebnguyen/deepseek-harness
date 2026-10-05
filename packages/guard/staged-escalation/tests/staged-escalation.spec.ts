@@ -292,7 +292,7 @@ describe('staged-escalation gate', () => {
   it('resolves the shipped act stage at the standing mode, never above it', async () => {
     const sessionAtAct = () => {
       const sessionId = SessionId('default-fence')
-      const meta = { version: SESSION_FORMAT_VERSION, id: sessionId, createdAt: 0, isSeeded: false }
+      const meta = { version: SESSION_FORMAT_VERSION, id: sessionId, createdAt: 0, isSeeded: false } as const
       const session = Session.create(sessionId, undefined, meta)
       session.append('turn/start', { turn: 1 })
       session.append('tool/call', { turn: 1, step: 1, callId: ToolCallId('g1'), name: 'request_escalation', arguments: '{"stage":"act"}' })
