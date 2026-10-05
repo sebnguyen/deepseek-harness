@@ -14,6 +14,13 @@ Every tool-usage policy shipped as an unconditionally registered prompt section,
 
 **Cross-tool guidance uses the shared `Advice:` style.** `web_search`, `web_fetch`, and the ui-deliverables final-response guidance render through `adviceLine`/`Advice: ` like every other tool paragraph; their scope binding follows the same presence rule (`ui:deliverable-file-references` additionally binds `present`).
 
+## Consequences
+
+- Model request prefixes in tool-less and PTC scopes shrink by every removed or hidden tool paragraph, and Web session prefixes lose the checkout-path and GUI-update orientation, so provider KV-cache reuse shifts once at rollout and then stabilizes around the shorter prefix.
+- Orientation facts deleted from the global prompt (`harness:source`, `app:web-surface`) survive only in the deployment persona's working-directory line; a deployment that wants richer GUI orientation must source it per deployment, not per repo.
+- `dsh-tool-jobs` job protocol rides entirely on completion notices and tool descriptions, so any future prose addition to job tooling has an owner-checked home instead of a prompt section.
+- Keyless replay pins the shorter prefixes; the browser-driven web sidecars stay stale until refreshed on a browser-capable host, where they regenerate to the same presence-bound form.
+
 ## Alternatives considered
 
 **Keep the sections, accept the fixed cost.** Rejected: the bytes are inert in tool-less scopes and the GUI orientation taught the model facts about a checkout and a dev watcher that do not exist for installed deployments.

@@ -24,6 +24,13 @@ Parallel exploration depended on the model batching several delegation tool call
 
 **Counting a batched call as one cap start.** Rejected: the cap bounds children spawned per turn, not tool calls; a counted call carrying N children would otherwise start N children for one cap charge.
 
+## Consequences
+
+- Batched exploration is enforced by schema in the shipped explorer row: one `explore` call spends the per-turn cap on `1 + entries.length` starts, so the model gets parallel discovery in one blocking wait without a route around the delegation cap.
+- Batch results stay task-ordered with per-entry failure isolation, and all-children failure surfaces as a single AggregateError, keeping a failed child's siblings usable in the same tool result.
+- The turn-boundary reminder now carries the exploration line beside the claims line, so model-visible prompt prefixes including both tools grow by one line; keyless replay pins the new prefix.
+- Deployments that want the old single-`prompt` spawner keep it by leaving `enableBatchTasks` unset — the two shapes never coexist on one instance, by configuration rather than by schema policing.
+
 ## Verification
 
 Unit specs cover the required `tasks` shape of batch-enabled instances, per-child results in task order with per-entry render sections, empty- and batched-background rejections, per-child failure isolation beside a sibling, whole-call failure only when every child fails, the cap counting a two-entry batched call as three starts with the following single call denied, and the turn-boundary reminder's exploration line binding to `explore`. The `Explore Through Explorers` core rule states the `tasks` array and that the cap counts every child; the keyless snapshot refresh rewrites the prompt sidecars to it and the keyless replay verifies them, leaving only the pre-existing environment drifts (fs-edit, session-query-spill, subagent-tool-filter, image-compaction) and the pwsh-scenario sidecars that a pwsh-less host skips rather than refreshes. No recorded session registers the explore tool, so keyless fixtures never freeze its schema.
