@@ -29,7 +29,6 @@ The experimental group contains prototype capabilities whose contracts can chang
 | [`code-runtime-python`](code-runtime-python/README.md) | CPython subprocess backend for the code-execution seam | `ctx.codeRuntime` |
 | [`inspector`](inspector/README.md) | Cross-realm CDP hub for Host debugging, Client Runtime inspection, network capture, and Cordis trees | `ctx.inspector` |
 | [`reasoning-prefetch`](reasoning-prefetch/README.md) | Opt-in speculative prefetch of files a reasoning stream names, staged as next-step context | registers `agent/assistant-stream` and `agent/pre-step` listeners |
-| [`staged-escalation`](staged-escalation/README.md) | Per-turn explore-then-act gate: deny-not-hide act denials, narrow-only sandbox clamp, `request_escalation` crossing | registers `tools/pre-execute`, `agent/pre-step`, `sandbox-policy/resolve`, and `approval/request` listeners plus the `request_escalation` tool |
 | [`tool-agent-team`](tool-agent-team/README.md) | Nine tools that let the model create, message, and coordinate teammates | registers scoped tools on `ctx.tools` |
 | [`webworker-packer`](webworker-packer/README.md) | Builds the gzip-compressed VFS image consumed by the browser worker preview | library and CLI — no ctx key |
 | [`webworker-runtime`](webworker-runtime/README.md) | Runs the harness plugin tree inside a dedicated browser worker | library and worker entry — no ctx key |

@@ -2,11 +2,13 @@
   "name": "@deepseek-ai/dsh-staged-escalation",
   "description": "Per-turn staged escalation: an explore-then-act gate that denies (never hides) act tools until turn-local evidence, and clamps the sandbox fence narrow-only",
   "version": "0.1.0-rc.1",
-  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/experimental/staged-escalation"
+    "directory": "packages/guard/staged-escalation"
   },
   "type": "module",
   "main": "lib/index.js",

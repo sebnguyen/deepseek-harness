@@ -2404,7 +2404,7 @@ export interface Stage {
 
 Depends on: [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/experimental/staged-escalation/src/index.ts:42`](../packages/experimental/staged-escalation/src/index.ts)
+Source: [`packages/guard/staged-escalation/src/index.ts:42`](../packages/guard/staged-escalation/src/index.ts)
 
 <a id="deepseek-aidsh-storage-domain"></a>
 
