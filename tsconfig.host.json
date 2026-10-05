@@ -314,6 +314,7 @@
     { "path": "./packages/experimental/webworker-packer" },
     { "path": "./packages/experimental/inspector/tsconfig.host.json" },
     { "path": "./packages/experimental/reasoning-prefetch" },
+    { "path": "./packages/experimental/staged-escalation" },
     { "path": "./packages/subagent/subagent" },
     { "path": "./packages/subagent/tool-subagent" },
     { "path": "./packages/subagent/tool-subagent-control" },
