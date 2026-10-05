@@ -12,7 +12,7 @@ import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-goal'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria, compareOrRefreshGolden,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -111,7 +111,7 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
   async function launch(): Promise<void> {
     sessionEvents = []
     scaffold = await launchWebScaffold(
-      MODE === 'record' ? {} : { replayFixture: FIXTURE, replayOverride: OVERRIDE },
+      { replayFixture: FIXTURE, replayOverride: OVERRIDE },
     )
     await seedPackageInventory(scaffold.workspaceCwd)
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
@@ -133,14 +133,7 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     return settled
   }
 
-  it.skipIf(MODE !== 'record')('records the two-round Goal through the real model', async () => {
-    await launch()
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-goal-multi-turn-actions-record'))
-    const sessionId = await runGoal(360_000)
-    await recordFixture(scaffold!, sessionId, FIXTURE)
-  }, 380_000)
-
-  it.skipIf(MODE === 'record')('keeps actions on both completed Goal turn tails', async () => {
+  it('keeps actions on both completed Goal turn tails', async () => {
     const fixtureEvents = parseSessionLog(await readFile(FIXTURE, 'utf8'))
     expect(createdObjectives(fixtureEvents)).toEqual([PROMPT])
     expect(goalRounds(fixtureEvents)).toEqual([1, 2])
@@ -176,7 +169,7 @@ describe('web e2e: Goal keeps one assistant action row per completed turn', () =
     expect(tripwire.warnings).toEqual([])
   }, 140_000)
 
-  it.skipIf(MODE === 'record')('keeps a closed fixture inventory', async () => {
+  it('keeps a closed fixture inventory', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'replay.override.json', 'session.v3.jsonl', 'ui.expected.md', 'ui-expanded.expected.md',
     ])

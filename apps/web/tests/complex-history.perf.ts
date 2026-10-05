@@ -31,7 +31,6 @@ import {
   launchWebScaffold,
   seedSession,
   watchConsole,
-  webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage } from './support.ts'
@@ -1199,9 +1198,6 @@ describe('manual web performance: complex workspace and history', () => {
   let browser: Browser
 
   beforeAll(async () => {
-    if (webSnapshotMode() === 'record') {
-      throw new Error('manual web performance runs only with deterministic replay')
-    }
     browser = await chromium.launch()
   })
 

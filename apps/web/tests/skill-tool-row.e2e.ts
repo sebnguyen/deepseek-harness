@@ -19,7 +19,7 @@ const MODE = webSnapshotMode()
 const SEED_ID = 'skill-tool-row-web-e2e'
 const PROMPT = 'Load the editing-cordis-compositions skill with the skill tool, then reply DONE.'
 
-describe.skipIf(MODE === 'record')('web e2e: dedicated Skill tool row', () => {
+describe('web e2e: dedicated Skill tool row', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

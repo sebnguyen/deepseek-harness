@@ -331,7 +331,7 @@ describe('web e2e: composer draft scrolling', () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['geometry.expected.md'])
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', () => {
+  it('issued zero model calls and stayed clean', () => {
     expect(tripwire.warnings).toEqual([])
     expect(tripwire.pageErrors).toEqual([])
   })

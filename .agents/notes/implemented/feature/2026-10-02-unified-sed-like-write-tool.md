@@ -26,4 +26,4 @@ Entries are structured JSON; the repo schema DSL's closed oneOf branches enforce
 
 ## Consequences
 
-`edit.ts` is gone; `str_replace_editor` dispatches the new write-intent arity; the base bundle drops `fs-observation-policy` (the package survives as the opt-in strict flavor; its README says so); system-prompt retires `TOOL_EDIT` and reflows `TOOL_GLOB`/`TOOL_GREP`; snapshot sidecars and generated catalogs (tool-catalog, cordis surface, doc graphs) are regenerated against the single tool. Keyed `test:snapshot:record` remains a follow-up where recorded model-visible bodies embed old text.
+`edit.ts` is gone; `str_replace_editor` dispatches the new write-intent arity; the base bundle drops `fs-observation-policy` (the package survives as the opt-in strict flavor; its README says so); system-prompt retires `TOOL_EDIT` and reflows `TOOL_GLOB`/`TOOL_GREP`; snapshot sidecars and generated catalogs (tool-catalog, cordis surface, doc graphs) are regenerated against the single tool. Keyed `test:snapshot:record` was retired with the record mode; recorded model-visible bodies that embed old text are refreshed keylessly or hand-authored.

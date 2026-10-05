@@ -16,12 +16,10 @@ import {
   launchWebScaffold,
   seedSession,
   watchConsole,
-  webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
 import { conversationContextKey, expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
-const MODE = webSnapshotMode()
 const SESSION_ID = 'chat-long-interactions-e2e'
 const FIXTURE_TURNS = 88
 const TOOL_TURN = FIXTURE_TURNS
@@ -171,7 +169,7 @@ describe('web e2e: long Chat interaction contract', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'long Chat interaction cleanup failed')
   })
 
-  it.skipIf(MODE === 'record')('keeps heterogeneous rows and their actions bound to exact semantic identities', async () => {
+  it('keeps heterogeneous rows and their actions bound to exact semantic identities', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-chat-long-interactions'))
     await expect.poll(
       () => scaffold.ctx.agents.get(SessionId(SESSION_ID)) !== undefined,

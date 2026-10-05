@@ -2,7 +2,6 @@ version: 1
 scenario: both-mode-turn
 profile: headless
 composition: both
-recording: live
 header:
   class: both
   pin: true

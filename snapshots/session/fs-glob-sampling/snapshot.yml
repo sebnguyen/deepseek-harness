@@ -2,7 +2,6 @@ version: 1
 scenario: fs-glob-sampling
 profile: headless
 composition: fs-search
-recording: live
 header:
   class: fs-search
   pin: true

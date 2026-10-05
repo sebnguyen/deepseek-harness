@@ -219,7 +219,7 @@ describe('web e2e: plugin configuration section', () => {
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['section.expected.md'])
   })

@@ -21,7 +21,7 @@ const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/declared-reasoning', impo
 const UI_EXPECTED = fileURLToPath(new URL('./expected/declared-reasoning/ui.expected.md', import.meta.url))
 const MODE = webSnapshotMode()
 
-describe.skipIf(MODE === 'record')('web e2e: declared reasoning efforts reach the composer', () => {
+describe('web e2e: declared reasoning efforts reach the composer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

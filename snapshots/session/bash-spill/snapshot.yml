@@ -2,6 +2,5 @@ version: 1
 scenario: bash-spill
 profile: headless
 composition: fs
-recording: authored
 header:
   class: fs

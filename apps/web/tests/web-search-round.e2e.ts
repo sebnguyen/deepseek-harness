@@ -15,7 +15,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { WEB_SEARCH_MAX_RESULTS } from '@deepseek-ai/dsh-tool-web'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -154,7 +154,7 @@ describe('web e2e: shipped default web search', () => {
         baseURL: search.baseURL,
         apiKeyEnv: SEARCH_CREDENTIAL_REF,
       },
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 }),
+      ...{ replayFixture: FIXTURE, paceMs: 15 },
     })
     await scaffold.ctx.credentials.set(SEARCH_CREDENTIAL_REF, SEARCH_CREDENTIAL)
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
@@ -183,19 +183,16 @@ describe('web e2e: shipped default web search', () => {
 
   it('drives the recorded search to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-drive'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     const settled = scaffold.whenTurnSettled()
     await input.fill(PROMPT)
     await input.press('Enter')
-    const sessionId = await settled
-    if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
+    await settled
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('uses the real provider and persists the capped structured result', () => {
+  it('uses the real provider and persists the capped structured result', () => {
     expect(searchRequests).toHaveLength(QUERIES.length)
     for (const query of QUERIES) {
       const request = searchRequests.find(candidate => JSON.stringify(candidate.body).includes(query))
@@ -260,7 +257,7 @@ describe('web e2e: shipped default web search', () => {
     })
   })
 
-  it.skipIf(MODE === 'record')('matches the settled search card aria golden', async () => {
+  it('matches the settled search card aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-aria'))
     await expect.poll(() => page.getByText('SEARCH_DONE', { exact: true }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
@@ -271,7 +268,7 @@ describe('web e2e: shipped default web search', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('scrolls the capped source list inside the fixed-height container', async () => {
+  it('scrolls the capped source list inside the fixed-height container', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-sources-scroll'))
     const row = page.locator('[data-tool="web_search"] [data-expandable]').first()
     await expandOwningTurnProcess(page, row)
@@ -301,7 +298,7 @@ describe('web e2e: shipped default web search', () => {
     expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight)
   })
 
-  it.skipIf(MODE === 'record')('reserves marker room a scroll container cannot clip back', async () => {
+  it('reserves marker room a scroll container cannot clip back', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-search-marker-room'))
     await expandOwningTurnProcess(page, page.locator('[data-tool="web_search"]'))
     // `overflow-y: auto` clips inline-start overflow with no way to scroll it
@@ -321,7 +318,7 @@ describe('web e2e: shipped default web search', () => {
     expect(marker.paddingLeft).toBeGreaterThanOrEqual(marker.widest)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean and kept the exact fixture inventory', async () => {
+  it('stayed clean and kept the exact fixture inventory', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.v3.jsonl', 'ui.expected.md'])

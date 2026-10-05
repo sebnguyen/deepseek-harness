@@ -15,14 +15,12 @@ import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import {
   launchWebScaffold,
   watchConsole,
-  webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
 import {
   connectFreshWorkspace, conversationContextKey, expandOwningTurnProcess, newEnglishPage, saveFailureShot,
 } from './support.ts'
 
-const MODE = webSnapshotMode()
 const TURN_COUNT = 12
 const TOOL_TURNS = [4, 9] as const
 const STREAM_PACE_MS = 10
@@ -216,7 +214,7 @@ describe('web e2e: continuous conversation grown through the composer', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'continuous Chat e2e cleanup failed')
   })
 
-  it.skipIf(MODE === 'record')('keeps twelve generated turns and tool rows bound to one live session', async () => {
+  it('keeps twelve generated turns and tool rows bound to one live session', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-chat-continuous-conversation'))
     const composer = page.locator('[data-composer-input][contenteditable="true"]').last()
     await composer.waitFor({ timeout: 15_000 })

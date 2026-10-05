@@ -17,7 +17,7 @@ const SEED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/sessio
 const SEED_ID = 'open-in-app-ssh-web-e2e'
 const MODE = webSnapshotMode()
 
-describe.skipIf(MODE === 'record')('web e2e: Open In under SSH', () => {
+describe('web e2e: Open In under SSH', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

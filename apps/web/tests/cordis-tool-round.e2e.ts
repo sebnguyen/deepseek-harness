@@ -16,7 +16,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -76,7 +76,7 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     scaffold = await launchWebScaffold({
       cordisTools: true,
       compareReplaySession: true,
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 }),
+      ...{ replayFixture: FIXTURE, paceMs: 15 },
     })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     scaffold.ctx.sessionProjections.onChanged((_session, key, value, seq) => {
@@ -103,9 +103,7 @@ describe('web e2e: Cordis tools use their owned cards', () => {
 
   it('drives the recorded Cordis lifecycle to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-drive'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT, STOP_PROMPT])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT, STOP_PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     const runTurnSettled = scaffold.whenTurnSettled()
@@ -120,7 +118,7 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     // NOT the plugin running. Until a person answers, the browser half has not
     // been fetched, evaluated, or mounted anywhere on this page.
     expect(await page.locator('[data-snapshot-probe]').count()).toBe(0)
-    const sessionId = await runTurnSettled
+    await runTurnSettled
     // Approving from idle makes the run-outcome steer a distinct continuation
     // turn, matching the recorded replay and keeping turn grouping deterministic.
     const approvalTurnSettled = scaffold.whenTurnSettled()
@@ -144,19 +142,13 @@ describe('web e2e: Cordis tools use their owned cards', () => {
           && String(event.data.message.source.callId) === String(stop.data.callId),
       )
     }, { timeout: 15_000 }).toBe(true)
-    if (MODE === 'record') {
-      assertCompleteCordisLifecycle(sessionEvents)
-      await expect.poll(() => page.getByText('CORDIS_UI_DONE', { exact: true }).count(), { timeout: 15_000 })
-        .toBeGreaterThanOrEqual(1)
-      await recordFixture(scaffold, sessionId, FIXTURE)
-    }
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('the durable log carries one complete Cordis lifecycle', () => {
+  it('the durable log carries one complete Cordis lifecycle', () => {
     assertCompleteCordisLifecycle(sessionEvents)
   })
 
-  it.skipIf(MODE === 'record')('renders localized Cordis lifecycle cards', async () => {
+  it('renders localized Cordis lifecycle cards', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-rows'))
     await expect.poll(() => page.getByText('CORDIS_UI_DONE', { exact: true }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
@@ -192,7 +184,7 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     await expect.poll(() => page.locator('[data-snapshot-probe]').count(), { timeout: 15_000 }).toBe(0)
   })
 
-  it.skipIf(MODE === 'record')('matches the conversation aria golden', async () => {
+  it('matches the conversation aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-cordis-aria'))
     console.log('MODEL_TRACE', { modelChanges, frameCount: modelFrames.length, modelFrames })
     // Final Assistant text precedes turn/end. Three footers prove every turn
@@ -211,7 +203,7 @@ describe('web e2e: Cordis tools use their owned cards', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean: no page errors or reconnect churn', () => {
+  it('stayed clean: no page errors or reconnect churn', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

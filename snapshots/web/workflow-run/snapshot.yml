@@ -2,7 +2,6 @@ version: 1
 scenario: workflow-run
 profile: web
 composition: default
-recording: authored
 header:
   class: default
 session:

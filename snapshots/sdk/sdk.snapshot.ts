@@ -4,8 +4,7 @@
  * `@deepseek-ai/dsh-sdk-client`, drives one turn over stdio JSON-RPC,
  * and pins the SDK `RunResult`, the complete notification stream, and the
  * persisted session logs. Replay serves recorded model
- * responses via `llm-replay` (`cordis.snapshot.yml`); `DSH_SNAPSHOT=record`
- * re-records against the live API; `DSH_SNAPSHOT=refresh` replays committed
+ * responses via `llm-replay` (`cordis.snapshot.yml`); `DSH_SNAPSHOT=refresh` replays committed
  * fixtures and rewrites expected outputs.
  */
 
@@ -75,9 +74,8 @@ const MINIMAL_BASH_DESCRIPTION = `Run commands in a bash shell
 * Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.`
 
 const mode = process.env.DSH_SNAPSHOT ?? 'replay'
-const recording = mode === 'record'
 const refreshing = mode === 'refresh'
-const sessionWriteMode = recording ? 'record' : refreshing ? 'refresh' : 'replay'
+const sessionWriteMode: 'replay' | 'refresh' = refreshing ? 'refresh' : 'replay'
 const RUNTIME_WORKSPACE_ENTRIES = [
   '.agents',
   '.child-dsh',
@@ -173,7 +171,6 @@ interface CorpusScenario {
   readonly dir: string
   readonly manifest: SnapshotManifest & {
     composition: string
-    recording: 'live' | 'authored'
     header: NonNullable<SnapshotManifest['header']>
   }
 }
@@ -188,12 +185,12 @@ async function collectCorpus(): Promise<CorpusScenario[]> {
       const manifestPath = join(dir, 'snapshot.yml')
       if (!existsSync(manifestPath)) continue
       const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
-      if (manifest.composition === undefined || manifest.recording === undefined || manifest.header === undefined) continue
+      if (manifest.composition === undefined || manifest.header === undefined) continue
       scenarios.push({
         key: `${profile}/${entry.name}`,
         name: entry.name,
         dir,
-        manifest: { ...manifest, composition: manifest.composition, recording: manifest.recording, header: manifest.header },
+        manifest: { ...manifest, composition: manifest.composition, header: manifest.header },
       })
     }
   }
@@ -511,16 +508,16 @@ async function waitForRootEvent(
   }
 }
 
-function authoredPatches(scenario: CorpusScenario, replaying: boolean): string[] {
+function authoredPatches(scenario: CorpusScenario): string[] {
   const owner = compositionOwner(scenario)
   if (scenario.manifest.composition.startsWith('sdk-')) {
-    return [join(owner.dir, 'cordis.yml'), ...(replaying ? [join(owner.dir, 'cordis.snapshot.yml')] : [])]
+    return [join(owner.dir, 'cordis.yml'), join(owner.dir, 'cordis.snapshot.yml')]
   }
   const base = compositionOwners.get('default')
   if (base === undefined) throw new Error('SDK corpus has no default transport-neutral composition')
   return [
     join(base.dir, 'cordis.yml'),
-    ...owner === base && !replaying ? [] : [join(owner.dir, replaying ? 'cordis.snapshot.yml' : 'cordis.yml')],
+    join(owner.dir, 'cordis.snapshot.yml'),
     join(base.dir, 'model.cordis.yml'),
   ]
 }
@@ -538,7 +535,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
   const cwd = await mkdtemp(join(tmpdir(), `sdk-snapshot-${scenario.name}-`))
   const dshHome = join(cwd, '.dsh')
   const sessionsRoot = join(dshHome, 'sessions')
-  const replayFixtures = recording ? [] : await hydrateReplayFixtures(scenario, cwd)
+  const replayFixtures = await hydrateReplayFixtures(scenario, cwd)
   const fixtureContents = await Promise.all((await fixtureFiles(scenario)).map(file => readFile(file, 'utf8')))
   const primaryFixture = fixtureContents[0]
   if (primaryFixture === undefined) throw new Error(`${scenario.name}: no primary session fixture`)
@@ -546,7 +543,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
   const patchRoot = join(cwd, '.snapshot-patches')
   await mkdir(patchRoot, { recursive: true })
   const assertions = SDK_ASSERTIONS[scenario.name] ?? {}
-  const patches = [...authoredPatches(scenario, !recording), ...assertions.patches ?? []]
+  const patches = [...authoredPatches(scenario), ...assertions.patches ?? []]
     .map((patch, index) => materializeProfilePatch(patch, cwd, patchRoot, index))
   let childSessionsRoot: string | undefined
   let childEnvironment: Record<string, string> = {}
@@ -582,7 +579,7 @@ async function runScenario(scenario: CorpusScenario): Promise<{
       DSH_SNAPSHOT_FILE: parentFixture,
       ...childFixtures.length > 0 ? { DSH_SNAPSHOT_CHILD_FILES: childFixtures.join(delimiter) } : {},
     },
-    ...!recording && scenario.manifest.replay?.override === true
+    ...scenario.manifest.replay?.override === true
       ? { DSH_SNAPSHOT_OVERRIDE: join(scenario.dir, 'replay.override.json') }
       : {},
     ...scenario.manifest.environment,
@@ -597,6 +594,9 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     processCwd: cwd,
     env,
     requestTimeoutMs: 110_000,
+    // Profile boots contend with the whole keyless lane running uncapped;
+    // the product's 10s handshake bound is for interactive callers.
+    initializeTimeoutMs: 60_000,
     cwd,
     provider: route.provider,
     model: route.model,
@@ -789,10 +789,7 @@ async function verifyHeaders(
 
 describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
   for (const scenario of sdkScenarios) {
-    const scenarioTest = recording
-      && (scenario.manifest.recording === 'authored' || scenario.manifest.sessionFormat !== undefined)
-      ? it.skip
-      : it
+    const scenarioTest = it
     scenarioTest(`${mode}s ${scenario.name} through dsh --profile sdk`, async () => {
       const scenarioDir = scenario.dir
       const retained = scenario.manifest.sessionFormat !== undefined
@@ -804,7 +801,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
 
       let files = await fixtureFiles(scenario)
       const replayContents = await Promise.all(files.map(file => readFile(file, 'utf8')))
-      if (!recording && !refreshing) {
+      if (!refreshing) {
         const writerFiles = (await readdir(scenarioDir)).filter(name => /^writer(?:\.[1-9]\d*)?\.expected\.jsonl$/u.test(name)).sort()
         expect(writerFiles, 'native writer oracle inventory').toEqual(retained
           ? files.map((_, index) => writerSnapshotName(index)).sort() : [])
@@ -812,7 +809,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       const { results, notifications, observedMethods, logs, initialWorkspace, finalWorkspace, cwd } = await runScenario(scenario)
       const ordered = orderLogs(
         logs,
-        recording ? logs.length : files.length,
+        files.length,
         assertions.dshSdkChild !== undefined,
       )
       const actualContext = contextOf(ordered, cwd)
@@ -828,13 +825,6 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       let expectedContents = retained && !refreshing
         ? await Promise.all(files.map((_, index) => readFile(join(scenarioDir, writerSnapshotName(index)), 'utf8')))
         : replayContents
-
-      if (recording) {
-        expectedContents = redactSessionSnapshotIds(stabilizeFixtureMessageIds(
-          ordered.map(log => scrubSessionSnapshot(tokenizeSessionFixtureCwd(log.content))),
-          expectedContents,
-        ))
-      }
 
       if (refreshing && (writesSessionFixtures || retained)) {
         const harvested = ordered.map((log): HarvestedLog => ({
@@ -891,7 +881,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         if (finalResult === undefined) throw new Error(`${scenario.name}: SDK wire golden has no run result`)
         const normalizedNotifications = normalizeNotifications(notifications, actualContext)
         const normalizedResult = normalizeResult(finalResult, actualContext)
-        if (recording || refreshing) {
+        if (refreshing) {
           await writeFile(notificationsExpectedPath, normalizedNotifications)
           await writeFile(resultExpectedPath, normalizedResult)
         }

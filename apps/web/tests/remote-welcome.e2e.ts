@@ -4,15 +4,12 @@ import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import {
-  acknowledgeReloadConnectionLoss, launchWebScaffold, watchConsole, webSnapshotMode,
-  WELCOME_NOTICE_COPY,
+  acknowledgeReloadConnectionLoss, launchWebScaffold, watchConsole, WELCOME_NOTICE_COPY,
   type WebScaffold,
 } from './scaffold.ts'
 import { ZH_BROWSER_LOCALE } from './support.ts'
 
-const MODE = webSnapshotMode()
-
-describe.skipIf(MODE === 'record')('web e2e: remote welcome notice', () => {
+describe('web e2e: remote welcome notice', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

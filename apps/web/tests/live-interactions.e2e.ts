@@ -25,7 +25,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria,
   compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -130,21 +130,13 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     return { settled }
   }
 
-  it.skipIf(MODE !== 'record')('records the base fixture live through the composer', async () => {
-    await launch()
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-interactions-record'))
-    const { settled } = await sendPrompt(180_000)
-    const sessionId = await settled
-    await recordFixture(scaffold!, sessionId, FIXTURE)
-  }, 200_000)
-
-  it.skipIf(MODE === 'record')('matches the canonical persisted session', async () => {
+  it('matches the canonical persisted session', async () => {
     await launch()
     const { settled } = await sendPrompt(30_000)
     await settled
   })
 
-  it.skipIf(MODE === 'record')('cancels a hung stream deterministically via the readyFile marker', async () => {
+  it('cancels a hung stream deterministically via the readyFile marker', async () => {
     expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     let marker = ''
     await launch((sidecarHome) => {
@@ -210,7 +202,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('surfaces a non-retryable AUTH failure without retrying', async () => {
+  it('surfaces a non-retryable AUTH failure without retrying', async () => {
     await launch(() => ({
       patches: [{ at: 0, entry: { kind: 'throw', chunks: [], message: AUTH_PROVIDER_MESSAGE, code: 'AUTH' } }],
     }))
@@ -239,7 +231,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('keeps a terminal request marker inside the trajectory table', async () => {
+  it('keeps a terminal request marker inside the trajectory table', async () => {
     await launch(() => ({
       patches: [{ at: 0, entry: { kind: 'throw', chunks: [], message: AUTH_PROVIDER_MESSAGE, code: 'AUTH' } }],
     }))
@@ -265,7 +257,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('recovers a transient SERVER failure through llm-retry and completes', async () => {
+  it('recovers a transient SERVER failure through llm-retry and completes', async () => {
     const derived = deriveReplayScript(parseSessionLog(await readFile(FIXTURE, 'utf8')))
     expect(derived).toHaveLength(1)
     await launch(() => ({
@@ -299,7 +291,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('surfaces the terminal turn error after transient retries exhaust', async () => {
+  it('surfaces the terminal turn error after transient retries exhaust', async () => {
     // A whole-script replacement: three throw entries cover the first request
     // plus both budgeted retries (patches cannot reach past the one-call
     // derived script). The scenario-owned policy keeps exhaustion fast and
@@ -332,7 +324,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'cancel.expected.md', 'cancel-expanded.expected.md',
       'loading.expected.md', 'running-draft.expected.md', 'error-auth.expected.md',

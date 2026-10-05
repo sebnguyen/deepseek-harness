@@ -83,7 +83,7 @@ function textCompletion(text: string): object {
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: composer interrupt for a running continuable child', () => {
+describe('web e2e: composer interrupt for a running continuable child', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

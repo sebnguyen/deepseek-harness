@@ -109,7 +109,7 @@ it('pins native DeepSeek Files offload and inline fallback in assembled requests
   try {
     const result = await runScenario(input, {
       agent: AGENT,
-      mode: 'record',
+      mode: 'live',
       configPath: IMAGE_OFFLOAD_CONFIG,
       fixtureFile: join(SNAPSHOTS_DIR, 'image-offload-request', 'session.jsonl'),
       workspaceDir: READ_IMAGE_WORKSPACE,
@@ -205,7 +205,7 @@ it('pins native DeepSeek Files offload and inline fallback in assembled requests
     rejectFiles = true
     const fallback = await runScenario(input, {
       agent: AGENT,
-      mode: 'record',
+      mode: 'live',
       configPath: IMAGE_OFFLOAD_CONFIG,
       fixtureFile: join(SNAPSHOTS_DIR, 'image-offload-request', 'session.jsonl'),
       workspaceDir: READ_IMAGE_WORKSPACE,

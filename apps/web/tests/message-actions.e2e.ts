@@ -171,7 +171,7 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('enables branch only on the completed transcript tail', async () => {
+  it('enables branch only on the completed transcript tail', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-actions'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })
@@ -204,7 +204,7 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await expect.poll(() => page.getByRole('button', { name: 'Edit' }).count(), { timeout: 5_000 }).toBe(0)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('matches the conversation aria golden with IconActions and clocks', async () => {
+  it('matches the conversation aria golden with IconActions and clocks', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-actions-aria'))
     await page.getByRole('button', { name: /^Select model, current/ })
       .waitFor({ timeout: 10_000 })
@@ -217,7 +217,7 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('forks through the settled-message and session-row actions', async () => {
+  it('forks through the settled-message and session-row actions', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-fork'))
     // The last message action belongs to the completed second-turn assistant.
     await page.getByRole('button', { name: 'Branch into a new conversation' }).last().click()
@@ -275,7 +275,7 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await compareOrRefreshGolden(FORK_EXPECTED, tree, MODE)
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and kept a closed inventory', async () => {
+  it('issued zero model calls and kept a closed inventory', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['fork.expected.md', 'ui.expected.md'])

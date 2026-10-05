@@ -21,7 +21,7 @@ const DISMISSED_EXPECTED = join(SNAPSHOT_DIR, 'dismissed.expected.md')
 const MODE = webSnapshotMode()
 const CREDENTIAL_STEP = '添加一个 API Key 开始使用'
 
-describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-run onboarding', () => {
+describe('web e2e: another usable provider ends first-run onboarding', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

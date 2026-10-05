@@ -6,9 +6,6 @@ import * as yaml from 'js-yaml'
 /** Public `dsh` profile used to control a recorded-session scenario. */
 export type SnapshotProfile = 'headless' | 'sdk' | 'acp' | 'web'
 
-/** How a canonical session may be regenerated. */
-export type SnapshotRecording = 'live' | 'authored'
-
 /** Request-header ownership metadata for one composition. */
 export interface SnapshotHeaderManifest {
   /** Stable class name shared only by byte-identical request headers. */
@@ -101,8 +98,6 @@ export interface SnapshotManifest {
   profile: SnapshotProfile
   /** Composition id whose sole pin owns its profile patches. */
   composition?: string
-  /** Whether the session is live-recordable or deliberately authored. */
-  recording?: SnapshotRecording
   /** Request-header class and sidecar ownership. */
   header?: SnapshotHeaderManifest
   /** Exceptional replay metadata absent for ordinary successful recordings. */
@@ -123,13 +118,13 @@ export interface SnapshotManifest {
   sessionFormat?: SnapshotSessionFormatManifest
 }
 
-/** Snapshot execution modes that may read or replace committed fixture generations. */
-export type SnapshotSessionWriteMode = 'replay' | 'record' | 'refresh'
+/** Snapshot execution modes that may replace committed fixture generations. */
+export type SnapshotSessionWriteMode = 'replay' | 'refresh'
 
 /**
  * Whether one run writes current-writer Session fixtures for this scenario.
- * Explicit historical generations remain immutable replay inputs; record and
- * refresh may still update their non-Session expected outputs.
+ * Explicit historical generations remain immutable replay inputs; refresh may
+ * still update their non-Session expected outputs.
  *
  * @param manifest - Parsed scenario ownership and retained-generation metadata.
  * @param mode - Snapshot execution mode.
@@ -143,7 +138,6 @@ export function writesCurrentSessionFixtures(
 }
 
 const PROFILES = new Set<SnapshotProfile>(['headless', 'sdk', 'acp', 'web'])
-const RECORDINGS = new Set<SnapshotRecording>(['live', 'authored'])
 const PLATFORMS = new Set<SnapshotPlatform>(['posix', 'pwsh'])
 const PERMISSIONS = new Set<SnapshotPermission>(['read-only', 'workspace-write', 'danger-full-access'])
 const SESSION_FORMAT_COVERAGE = new Set<SnapshotSessionFormatCoverage>([
@@ -211,7 +205,6 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
       'scenario',
       'profile',
       'composition',
-      'recording',
       'header',
       'replay',
       'platform',
@@ -231,14 +224,6 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
     const composition = root.composition === undefined
       ? undefined
       : name(root.composition, 'manifest.composition')
-    let recording: SnapshotRecording | undefined
-    if (root.recording !== undefined) {
-      if (typeof root.recording !== 'string' || !RECORDINGS.has(root.recording as SnapshotRecording)) {
-        throw new Error('manifest.recording must be live or authored')
-      }
-      recording = root.recording as SnapshotRecording
-    }
-
     let header: SnapshotHeaderManifest | undefined
     if (root.header !== undefined) {
       const value = record(root.header, 'manifest.header')
@@ -412,7 +397,6 @@ export function parseSnapshotManifest(source: string, path = 'snapshot.yml'): Sn
       ...(scenario === undefined ? {} : { scenario }),
       profile: root.profile as SnapshotProfile,
       ...(composition === undefined ? {} : { composition }),
-      ...(recording === undefined ? {} : { recording }),
       ...(header === undefined ? {} : { header }),
       ...(replay === undefined ? {} : { replay }),
       ...(platform === undefined ? {} : { platform }),

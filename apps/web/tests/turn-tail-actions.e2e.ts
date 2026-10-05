@@ -18,7 +18,7 @@ import type { ReplayOverrideDoc } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -74,16 +74,12 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
       overridePath = join(sidecarDir, 'replay.override.json')
       await writeFile(overridePath, JSON.stringify(buildOverride(sidecarDir)))
     }
-    scaffold = await launchWebScaffold(
-      MODE === 'record'
-        ? {}
-        : {
-          replayFixture: FIXTURE,
-          ...(overridePath === undefined ? {} : { replayOverride: overridePath }),
-          compareReplaySession: overridePath === undefined,
-          paceMs,
-        },
-    )
+    scaffold = await launchWebScaffold({
+      replayFixture: FIXTURE,
+      ...(overridePath === undefined ? {} : { replayOverride: overridePath }),
+      compareReplaySession: overridePath === undefined,
+      paceMs,
+    })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -103,21 +99,13 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     return { settled }
   }
 
-  it.skipIf(MODE !== 'record')('records the narrate-then-call turn live through the composer', async () => {
-    await launch()
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-record'))
-    const { settled } = await sendPrompt(180_000)
-    const sessionId = await settled
-    await recordFixture(scaffold!, sessionId, FIXTURE)
-  }, 200_000)
-
-  it.skipIf(MODE === 'record')('matches the canonical persisted session', async () => {
+  it('matches the canonical persisted session', async () => {
     await launch()
     const { settled } = await sendPrompt(30_000)
     await settled
   })
 
-  it.skipIf(MODE === 'record')('withholds the footer while the turn runs and grants it at turn/end', async () => {
+  it('withholds the footer while the turn runs and grants it at turn/end', async () => {
     expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     let marker = ''
     // Patch the SECOND call: the first one delivers the narration and the tool
@@ -168,7 +156,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('shows exact completed-Turn usage and expands its available facts', async () => {
+  it('shows exact completed-Turn usage and expands its available facts', async () => {
     await launch(undefined, 5)
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-usage-expanded'))
     const { settled } = await sendPrompt(120_000)
@@ -212,7 +200,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('folds the Turn process after the completed reply becomes the answer', async () => {
+  it('folds the Turn process after the completed reply becomes the answer', async () => {
     await launch(undefined, 5)
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-completed'))
     const { settled } = await sendPrompt()
@@ -234,7 +222,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('switches a completed Turn between Compact and Normal', async () => {
+  it('switches a completed Turn between Compact and Normal', async () => {
     await launch()
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-process-setting'))
     const { settled } = await sendPrompt()
@@ -268,7 +256,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps a focused process member open when the completed reply arrives', async () => {
+  it('keeps a focused process member open when the completed reply arrives', async () => {
     await launch(undefined, 200)
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-focused'))
     const { settled } = await sendPrompt()
@@ -288,7 +276,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps a closed fixture inventory', async () => {
+  it('keeps a closed fixture inventory', async () => {
     await assertFixtureInventory(
       SNAPSHOT_DIR,
       [

@@ -127,7 +127,7 @@ function targetSessionFixture(): string {
   ].join('\n')
 }
 
-describe.skipIf(MODE === 'record')('web e2e: file and session references through the real host', () => {
+describe('web e2e: file and session references through the real host', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

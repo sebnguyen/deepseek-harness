@@ -19,12 +19,10 @@ import {
   parseSeedFixture,
   seedSession,
   watchConsole,
-  webSnapshotMode,
   type WebScaffold,
 } from './scaffold.ts'
 import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
-const MODE = webSnapshotMode()
 const HISTORY_SESSION_ID = 'chat-scroll-history-e2e'
 const TOOL_SESSION_ID = 'chat-scroll-tool-e2e'
 const RESTORE_SESSION_A_ID = 'chat-scroll-restore-a-e2e'
@@ -506,7 +504,7 @@ describe('web e2e: long Chat scroll contract', () => {
     await browser?.close()
   })
 
-  it.skipIf(MODE === 'record')('preserves the reader anchor when history and streaming arrive concurrently', async () => {
+  it('preserves the reader anchor when history and streaming arrive concurrently', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-history-stream',
       replay: [replayEntry(textStream(LIVE_TEXT_FIRST, LIVE_TEXT_DONE, 120))],
@@ -587,7 +585,7 @@ describe('web e2e: long Chat scroll contract', () => {
     })
   }, 180_000)
 
-  it.skipIf(MODE === 'record')('offers every outline turn on the rail and jumps to an unloaded one', async () => {
+  it('offers every outline turn on the rail and jumps to an unloaded one', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-turn-rail-jump',
       seeds: [{ fixture: HISTORY_FIXTURE, id: RAIL_SESSION_ID }],
@@ -661,7 +659,7 @@ describe('web e2e: long Chat scroll contract', () => {
     })
   }, 180_000)
 
-  it.skipIf(MODE === 'record')('keeps streaming ownership and tool disclosure state across a long scroll-away cycle', async () => {
+  it('keeps streaming ownership and tool disclosure state across a long scroll-away cycle', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-live-tool',
       replay: [
@@ -752,7 +750,7 @@ describe('web e2e: long Chat scroll contract', () => {
     })
   }, 180_000)
 
-  it.skipIf(MODE === 'record')('restores tab/session position and keeps composer resizing on the correct scroll owner', async () => {
+  it('restores tab/session position and keeps composer resizing on the correct scroll owner', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-restore-composer',
       seeds: [
@@ -854,7 +852,7 @@ describe('web e2e: long Chat scroll contract', () => {
   // Keyboard is the only non-wheel device this lane's Chromium can drive for
   // real (see flingTranscript for the probe results on touch and scrollbars),
   // so it stands in for the whole hardware input pipeline here.
-  it.skipIf(MODE === 'record')('keyboard paging owns bottom-follow without wheel input', async () => {
+  it('keyboard paging owns bottom-follow without wheel input', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-keyboard',
       seeds: [{ fixture: INPUTS_FIXTURE, id: INPUTS_SESSION_ID }],
@@ -892,7 +890,7 @@ describe('web e2e: long Chat scroll contract', () => {
     })
   }, 180_000)
 
-  it.skipIf(MODE === 'record')('touch-style fling scrolling owns streaming bottom-follow without wheel input', async () => {
+  it('touch-style fling scrolling owns streaming bottom-follow without wheel input', async () => {
     await withScrollWorld({
       failureShot: 'web-e2e-chat-scroll-fling-stream',
       replay: [

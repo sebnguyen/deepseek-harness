@@ -80,7 +80,7 @@ describe('web e2e: goal bar clear convergence', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['active.expected.md', 'inactive.expected.md'])
   })
 })

@@ -9,10 +9,122 @@
           "command": {
             "type": "string",
             "description": "The bash command to run. Relative path is preferred in the command."
+          },
+          "run_in_background": {
+            "type": "boolean",
+            "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
           }
         },
         "required": [
           "command"
+        ]
+      }
+    },
+    {
+      "name": "abandon_claim",
+      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the declared condition was the wrong one."
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      }
+    },
+    {
+      "name": "declare_claim",
+      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
+          },
+          "description": {
+            "type": "string",
+            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
+          },
+          "script": {
+            "type": "string",
+            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
+          }
+        },
+        "required": [
+          "title",
+          "description",
+          "script"
+        ]
+      }
+    },
+    {
+      "name": "list_claims",
+      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
+      "parameters": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "read_note",
+      "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file whose note to read — the same path you would pass to `read`."
+          }
+        },
+        "required": [
+          "target"
+        ]
+      }
+    },
+    {
+      "name": "run_claim",
+      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      }
+    },
+    {
+      "name": "upsert_note",
+      "description": "Write, update, or remove the durable note for one source file. One note per file. State one fact worth knowing before changing the file; the harness stamps the note with the file's current content hash, so never compute or pass a hash. An empty `claim` removes the note.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Path of the source file the note describes — the same path you would pass to `read`."
+          },
+          "claim": {
+            "type": "string",
+            "description": "The one fact worth knowing, as prose that stands alone. The empty string removes the note."
+          }
+        },
+        "required": [
+          "target",
+          "claim"
         ]
       }
     }

@@ -62,14 +62,13 @@ const editingCordisSkill = join(
   'packages/preset/agent-presets/presets/cordis/skills/editing-cordis-compositions/SKILL.md',
 )
 
-type SnapshotMode = 'replay' | 'record' | 'refresh'
+type SnapshotMode = 'replay' | 'refresh'
 
 function snapshotMode(value: string | undefined): SnapshotMode {
   switch (value) {
     case undefined:
     case '':
     case 'replay': return 'replay'
-    case 'record': return 'record'
     case 'refresh': return 'refresh'
     default: throw new Error(`unknown DSH_SNAPSHOT mode: ${value}`)
   }
@@ -87,7 +86,6 @@ interface HeadlessScenario {
   readonly dir: string
   readonly manifest: SnapshotManifest & {
     composition: string
-    recording: 'live' | 'authored'
     header: NonNullable<SnapshotManifest['header']>
   }
 }
@@ -503,13 +501,13 @@ async function collectScenarios(): Promise<HeadlessScenario[]> {
     if (!existsSync(manifestPath)) continue
     const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
     if (manifest.profile !== 'headless' || manifest.composition === undefined) continue
-    if (manifest.recording === undefined || manifest.header === undefined) {
-      throw new Error(`${entry.name}: a headless corpus manifest needs recording and header metadata`)
+    if (manifest.header === undefined) {
+      throw new Error(`${entry.name}: a headless corpus manifest needs header metadata`)
     }
     scenarios.push({
       name: entry.name,
       dir,
-      manifest: { ...manifest, composition: manifest.composition, recording: manifest.recording, header: manifest.header },
+      manifest: { ...manifest, composition: manifest.composition, header: manifest.header },
     })
   }
   return scenarios.sort((left, right) => left.name.localeCompare(right.name))
@@ -550,32 +548,6 @@ function pinOf(scenario: HeadlessScenario): HeadlessScenario {
   return pin
 }
 
-/** Require successful verification and the complete canonical event before refresh can write a fixture. */
-async function verifySessionQuerySpill(log: string, spillRoot: string, locatorRoot: string): Promise<void> {
-  const events = parseSessionLog(log)
-  const results = events.flatMap(event => event.type === 'tool/result'
-    ? event.data.message.content.filter(block => block.type === 'tool-result')
-    : [])
-  const readResult = results.find(result => result.toolCallId === 'call_session_query_spill')
-  const verification = results.find(result => result.toolCallId === 'call_verify_session_query_spill')
-  expect(readResult?.isError).toBe(false)
-  expect(verification).toMatchObject({
-    isError: false,
-    content: [{ type: 'text', text: 'SPILL_CANONICAL_OK\n' }],
-  })
-  const preview = readResult?.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
-  const locator = preview?.match(/Full formatted result stored at: (.+-session_event_read\.txt)\. Use read/)
-  expect(locator).not.toBeNull()
-  expect(locator?.[1]).toBeDefined()
-  expect(locator![1]!.startsWith(locatorRoot + sep)).toBe(true)
-  const full = await readFile(join(spillRoot, relative(locatorRoot, locator![1]!)), 'utf8')
-  const json = full.match(/```json\n([\s\S]+)\n```/)
-  expect(json).not.toBeNull()
-  const header = events.find(event => event.type === 'request/header')
-  expect(header).toBeDefined()
-  expect(JSON.parse(json![1]!)).toEqual(header)
-  expect(full).toContain('session_event_search')
-}
 
 async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly SessionLog[], ctx: NormalizeContext): Promise<void> {
   const pin = pinOf(scenario)
@@ -819,7 +791,6 @@ describe('headless recorded-session snapshots', () => {
           scenario: 'retained-pin',
           profile: 'headless',
           composition: 'default',
-          recording: 'live',
           header: { class: 'default', pin: true },
           sessionFormat: { version: 1, coverage: ['adjacent-migration'] },
         },
@@ -873,8 +844,6 @@ describe('headless recorded-session snapshots', () => {
   for (const scenario of scenarios) {
     const skipped = scenario.manifest.platform === 'posix' && process.platform === 'win32'
       || scenario.manifest.platform === 'pwsh' && !hasPwsh
-      || mode === 'record' && scenario.manifest.recording === 'authored'
-      || mode === 'record' && scenario.manifest.sessionFormat !== undefined
     const scenarioTest = skipped ? it.skip : mode === 'replay' ? it.concurrent : it
     scenarioTest(`${mode}s ${scenario.name} through dsh --profile headless`, async () => {
       let fixtures = await fixtureSessions(scenario)
@@ -893,11 +862,10 @@ describe('headless recorded-session snapshots', () => {
       const baseComposition = compositionOwners.get('default')
       if (baseComposition === undefined) throw new Error('headless corpus has no default composition')
       let fixtureFiles = sessionFixtureNames(await readdir(scenario.dir))
-      const replaying = mode !== 'record'
-      const compositionPatch = join(composition.dir, replaying ? 'cordis.snapshot.yml' : 'cordis.yml')
+      const compositionPatch = join(composition.dir, 'cordis.snapshot.yml')
       const patchSources = [
         join(baseComposition.dir, 'cordis.yml'),
-        ...composition === baseComposition && !replaying ? [] : [compositionPatch],
+        compositionPatch,
         join(baseComposition.dir, 'model.cordis.yml'),
       ]
       const patchRoot = '.snapshot-patches'
@@ -929,16 +897,16 @@ describe('headless recorded-session snapshots', () => {
             ? 0
             : 1,
           env: {
-            DSH_SNAPSHOT: replaying ? 'replay' : 'record',
+            DSH_SNAPSHOT: 'replay',
             DSH_SNAPSHOT_PROVIDER: model.provider,
             DSH_SNAPSHOT_MODEL: model.model,
             DSH_SNAPSHOT_SPILL_ROOT: spillRoot,
             DSH_SNAPSHOT_SPILL_LOCATOR_ROOT: locatorRoot,
             DSH_SNAPSHOT_FILE: join(scenario.dir, fixtureFiles[0] as string),
-            ...(replaying && fixtureFiles.length > 1
+            ...(fixtureFiles.length > 1
               ? { DSH_SNAPSHOT_CHILD_FILES: fixtureFiles.slice(1).map(file => join(scenario.dir, file)).join(delimiter) }
               : {}),
-            ...(replaying && scenario.manifest.replay?.override === true
+            ...(scenario.manifest.replay?.override === true
               ? { DSH_SNAPSHOT_OVERRIDE: join(scenario.dir, 'replay.override.json') }
               : {}),
             ...(scenario.manifest.permission === undefined
@@ -963,9 +931,6 @@ describe('headless recorded-session snapshots', () => {
           },
           inspect: async (cwd) => {
             actualLogs = await persistedSessions(cwd)
-            if (scenario.name === 'session-query-spill') {
-              await verifySessionQuerySpill(actualLogs[0]!.content, spillRoot, locatorRoot)
-            }
             finalWorkspace = await captureWorkspaceSnapshot(cwd, {
               ignoredRootEntries: RUNTIME_WORKSPACE_ENTRIES,
             })

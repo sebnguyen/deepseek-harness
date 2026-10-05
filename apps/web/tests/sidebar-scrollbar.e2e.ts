@@ -417,7 +417,7 @@ describe('web e2e: sidebar session list scrollbar (reserved gutter / themed thum
     await assertFixtureInventory(SNAPSHOT_DIR, ['geometry.expected.md'])
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', () => {
+  it('issued zero model calls and stayed clean', () => {
     expect(tripwire.warnings).toEqual([])
     expect(tripwire.pageErrors).toEqual([])
   })

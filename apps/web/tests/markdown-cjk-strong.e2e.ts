@@ -108,7 +108,7 @@ describe('web e2e: CJK-adjacent Markdown strong emphasis', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('renders punctuation-terminated strong spans before adjacent CJK text', async () => {
+  it('renders punctuation-terminated strong spans before adjacent CJK text', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-cjk-strong'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

@@ -43,11 +43,8 @@ describe('snapshot manifest', () => {
     ].join('\n'))
 
     expect(writesCurrentSessionFixtures(current, 'replay')).toBe(false)
-    expect(writesCurrentSessionFixtures(current, 'record')).toBe(true)
     expect(writesCurrentSessionFixtures(current, 'refresh')).toBe(true)
-    expect(writesCurrentSessionFixtures(borrower, 'record')).toBe(false)
     expect(writesCurrentSessionFixtures(borrower, 'refresh')).toBe(false)
-    expect(writesCurrentSessionFixtures(retained, 'record')).toBe(false)
     expect(writesCurrentSessionFixtures(retained, 'refresh')).toBe(false)
   })
 
@@ -65,13 +62,12 @@ describe('snapshot manifest', () => {
     })
   })
 
-  it('parses composition, recording, header, and exceptional replay metadata', () => {
+  it('parses composition, header, and exceptional replay metadata', () => {
     expect(parseSnapshotManifest([
       'version: 1',
       'scenario: sdk-case',
       'profile: sdk',
       'composition: continuable-subagent',
-      'recording: authored',
       'header:',
       '  class: continuable-subagent',
       '  pin: true',
@@ -103,7 +99,6 @@ describe('snapshot manifest', () => {
       scenario: 'sdk-case',
       profile: 'sdk',
       composition: 'continuable-subagent',
-      recording: 'authored',
       header: {
         class: 'continuable-subagent',
         pin: true,
@@ -164,7 +159,7 @@ describe('snapshot manifest', () => {
     ['version: 1\nprofile: private\n', 'manifest.profile must be headless, sdk, acp, or web'],
     ['version: 1\nprofile: acp\nextra: true\n', 'manifest has unknown field(s): extra'],
     ['version: 1\nprofile: acp\ncomposition: Not_Safe\n', 'manifest.composition must be a lower-kebab-case name'],
-    ['version: 1\nprofile: acp\nrecording: maybe\n', 'manifest.recording must be live or authored'],
+    ['version: 1\nprofile: acp\nrecording: maybe\n', 'manifest has unknown field(s): recording'],
     ['version: 1\nprofile: acp\nheader: {}\n', 'manifest.header.class must be a lower-kebab-case name'],
     ['version: 1\nprofile: acp\nheader:\n  class: base\n  pin: false\n', 'manifest.header.pin must equal true when present'],
     ['version: 1\nprofile: acp\nheader:\n  class: base\n  childToolSchemas: [1, 1]\n', 'manifest.header.childToolSchemas must be an array of unique positive integers'],

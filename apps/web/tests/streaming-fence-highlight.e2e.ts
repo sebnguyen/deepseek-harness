@@ -101,7 +101,7 @@ async function fenceTree(block: ReturnType<Page['locator']>): Promise<FenceTree>
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: streaming code-fence highlighting', () => {
+describe('web e2e: streaming code-fence highlighting', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

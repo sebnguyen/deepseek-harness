@@ -2,8 +2,8 @@
 // overview, its local details inspector, and sidebar search, all over ONE rich
 // two-turn seeded fixture rendered purely from the log (the seeded-history
 // pattern: zero model calls in replay, so every surface here is the client
-// fold + host history RPC, not replay binding). The seed is recorded live
-// under the standard discipline: turn 1 produces a bash call plus two
+// fold + host history RPC, not replay binding). The seed is a committed
+// fixture: turn 1 produces a bash call plus two
 // parallel reads in one assistant message (tool-call density for the
 // trajectory ledger/timing lanes), turn 2 a markdown-rich reply.
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
@@ -14,10 +14,10 @@ import { chromium } from 'playwright'
 import { strFromU8, unzipSync } from 'fflate'
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, onTestFailed } from 'vitest'
 import { parseSessionLog } from '@deepseek-ai/dsh-llm-replay'
-import { SESSION_FORMAT_VERSION, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -93,12 +93,10 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await mkdir(sessionCwd, { recursive: true })
     await writeFile(join(sessionCwd, 'nav-a.md'), '# alpha nav\n')
     await writeFile(join(sessionCwd, 'nav-b.md'), '# beta nav\n')
-    if (MODE !== 'record') {
-      const raw = await readFile(SEED, 'utf8')
-      expect(fixtureUserPrompts(raw), 'seed fixture must carry exactly the two drive prompts')
-        .toEqual([PROMPT_TURN1, PROMPT_TURN2])
-      await seedSession(scaffold, raw, SEED_ID)
-    }
+    const raw = await readFile(SEED, 'utf8')
+    expect(fixtureUserPrompts(raw), 'seed fixture must carry exactly the two drive prompts')
+      .toEqual([PROMPT_TURN1, PROMPT_TURN2])
+    await seedSession(scaffold, raw, SEED_ID)
     browser = await chromium.launch()
   }, 120_000)
 
@@ -155,29 +153,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'navigation e2e cleanup failed')
   })
 
-  it.skipIf(MODE !== 'record')('records the two-turn seed live through the composer', async () => {
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-record'))
-    const input = page.locator('[data-composer-input]').first()
-    await input.waitFor({ timeout: 10_000 })
-    let sessionId: Awaited<ReturnType<WebScaffold['whenTurnSettled']>> | undefined
-    for (const prompt of [PROMPT_TURN1, PROMPT_TURN2]) {
-      const settled = scaffold.whenTurnSettled()
-      // Turn 2 types into the same composer once turn 1 unlocks it.
-      await expect.poll(() => input.isEnabled(), { timeout: 15_000 }).toBe(true)
-      await input.fill(prompt)
-      await input.press('Enter')
-      sessionId = await settled
-    }
-    await recordFixture(scaffold, sessionId!, SEED)
-    // Fixture honesty: the recording must contain the events the replay
-    // scenarios assert on: three calls in turn 1 and two closed turns.
-    const recorded = parseSessionLog(await readFile(SEED, 'utf8'))
-    expect(recorded.filter(e => e.type === 'turn/end')).toHaveLength(2)
-    const calls = recorded.filter((e): e is SessionEvent & { data: { name: string } } => e.type === 'tool/call')
-    expect(calls.map(e => e.data.name).sort()).toEqual(['bash', 'read', 'read'])
-  }, 400_000)
-
-  it.skipIf(MODE === 'record')('finds an unopened seeded session by message content and opens it', async () => {
+  it('finds an unopened seeded session by message content and opens it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-search'))
     // The API baselines can settle before React commits their projection. The
     // seeded Ungrouped bucket row is the final user-visible barrier before
@@ -216,7 +192,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => page.getByRole('heading', { name: 'Navigation Summary' }).count(), { timeout: 15_000 }).toBe(1)
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('renders the trajectory ledger and opens its local record inspector', async () => {
+  it('renders the trajectory ledger and opens its local record inspector', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-trajectory'))
     await ensureSeedOpen(page)
     await page.getByRole('tab', { name: 'Trajectory' }).click()
@@ -271,7 +247,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await details.getByRole('button', { name: 'Close details' }).click()
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('downloads through the Session Header and /export with one dialog', async () => {
+  it('downloads through the Session Header and /export with one dialog', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-export'))
     await ensureSeedOpen(page)
     const exportButton = page.getByRole('button', { name: 'More actions' })
@@ -367,7 +343,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     }
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('focuses the ledger by dragging an overview interval', async () => {
+  it('focuses the ledger by dragging an overview interval', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-timeline'))
     await ensureSeedOpen(page)
     await page.getByRole('tab', { name: 'Trajectory' }).click()
@@ -387,7 +363,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => page.locator('tr[data-timeline-focus]').count(), { timeout: 10_000 }).toBe(0)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('bash rows leave the right column at its rail; a file link opens the Sidebar', async () => {
+  it('bash rows leave the right column at its rail; a file link opens the Sidebar', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-rightbar'))
     await ensureSeedOpen(page)
     const bashRow = page.locator('[data-sample="bash"]').first()
@@ -415,7 +391,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     await expect.poll(() => frame.getAttribute('data-rightbar-collapsed'), { timeout: 5_000 }).toBe('true')
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('renders the bash row as a terminal card in the real browser', async () => {
+  it('renders the bash row as a terminal card in the real browser', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-navigation-terminal'))
     await ensureSeedOpen(page)
     // The card is expand-gated behind the whole-row toggle (the unified
@@ -501,7 +477,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('NAVIGATION_OK')
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the recorded fixture inventory exact', async () => {
+  it('keeps the recorded fixture inventory exact', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'search-results.expected.md', 'trajectory.expected.md',
       'terminal-card.expected.md',

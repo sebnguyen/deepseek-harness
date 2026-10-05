@@ -33,7 +33,7 @@ interface OtlpCapture {
 
 const PROMPT = 'Reply with the single word LIGHTHOUSE and stop.'
 
-describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 'feedback-mock'])('web e2e: feedback release for %s', (provider) => {
+describe.each(['deepseek-official', 'feedback-mock'])('web e2e: feedback release for %s', (provider) => {
   const official = provider === 'deepseek-official'
   let scaffold: WebScaffold
   let browser: Browser
@@ -117,7 +117,7 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
       // that shared source with this lane's feedback events. Persistence and
       // collector assertions belong to this lane.
       compareReplaySession: false,
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 5 }),
+      ...{ replayFixture: FIXTURE, paceMs: 5 },
     })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -148,10 +148,8 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
 
   it('drives the recorded prompt to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-release-drive'))
-    if (MODE !== 'record') {
-      // Drift guard: the shared fixture must carry exactly the drive prompt.
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    // Drift guard: the shared fixture must carry exactly the drive prompt.
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     if (!official) await selectModel('Feedback mock')
@@ -163,15 +161,13 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
     expect(agent?.session.requestHeader()?.config.provider).toBe(provider)
     expect(uploads).toEqual([])
     // Both routes render the same composer without changing the actual request header.
-    if (MODE !== 'record') {
-      await selectModel('Feedback mock')
-      await selectModel('DeepSeek-V4-Flash')
-    }
+    await selectModel('Feedback mock')
+    await selectModel('DeepSeek-V4-Flash')
     expect(agent?.session.requestHeader()?.config.provider).toBe(provider)
     expect(uploads).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('records feedback locally and acknowledges its session and anonymous user ids', async () => {
+  it('records feedback locally and acknowledges its session and anonymous user ids', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-release'))
     await page.getByText('LIGHTHOUSE', { exact: true }).waitFor({ timeout: 15_000 })
     expect(uploads).toEqual([])
@@ -195,7 +191,7 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('does not release command tails, provider changes, or browser reloads', async () => {
+  it('does not release command tails, provider changes, or browser reloads', async () => {
     const events = await readPersistedEvents(scaffold, sessionId)
     expect(events.at(-1)?.type).toBe('command/done')
     expect(events.at(-1)!.seq).toBeGreaterThan(authorized.at(-1)!.seq)
@@ -208,7 +204,7 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
     expect(captured()).toHaveLength(releasedCount)
   })
 
-  it.skipIf(MODE === 'record')('persists text, ratings, notes, and retractions in the canonical session', async () => {
+  it('persists text, ratings, notes, and retractions in the canonical session', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-release-suffix'))
     const input = page.locator('[data-composer-input]').first()
     await input.fill('/feedback the second remark')
@@ -274,7 +270,7 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
     }, null, 2), MODE)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('releases headerless feedback without capturing another session’s provider-change tail', async () => {
+  it('releases headerless feedback without capturing another session’s provider-change tail', async () => {
     await selectModel('Feedback mock')
     await selectModel('DeepSeek-V4-Flash')
     expect(captured()).toHaveLength(releasedCount)
@@ -304,7 +300,7 @@ describe.each(MODE === 'record' ? ['deepseek-official'] : ['deepseek-official', 
     expect(tripwire.warnings).toEqual([])
   })
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['ack.expected.md', 'ack-expanded.expected.md', 'feedback-release.expected.json'])
   })
 })

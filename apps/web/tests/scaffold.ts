@@ -6,8 +6,7 @@
 // snapshot way — so a real chromium exercises the real HTTP uplink/WebSocket
 // downlink, api-gateway, agent loop, tools, and persistence. Modes ride $DSH_SNAPSHOT:
 // replay (default, keyless: normally disables the llm-deepseek row and
-// inserts dsh-llm-replay in providers mode), record (real adapter + key,
-// harvests fixtures from live session memory), refresh (keyless replay that
+// inserts dsh-llm-replay in providers mode), refresh (keyless replay that
 // rewrites goldens). A first-run option keeps the real adapter mounted while
 // masking its credential, without making a model call.
 //
@@ -110,7 +109,7 @@ export const WELCOME_NOTICE_COPY = {
 } as const
 
 /** Snapshot mode for the lane, from $DSH_SNAPSHOT (same vocabulary as the other snapshot suites). */
-export type WebSnapshotMode = 'replay' | 'record' | 'refresh'
+export type WebSnapshotMode = 'replay' | 'refresh'
 
 /**
  * Resolve and validate the lane's snapshot mode.
@@ -119,8 +118,8 @@ export type WebSnapshotMode = 'replay' | 'record' | 'refresh'
 export function webSnapshotMode(): WebSnapshotMode {
   const value = process.env.DSH_SNAPSHOT
   if (value === undefined || value === '' || value === 'replay') return 'replay'
-  if (value === 'record' || value === 'refresh') return value
-  throw new Error(`DSH_SNAPSHOT must be replay, record, or refresh; got ${JSON.stringify(value)}`)
+  if (value === 'refresh') return value
+  throw new Error(`DSH_SNAPSHOT must be replay or refresh; got ${JSON.stringify(value)}`)
 }
 
 /**
@@ -175,7 +174,7 @@ export async function selectedSessionFixture(path: string, allowAbsent = false):
  */
 export function recordedSessionFixturePath(path: string, version: number): string {
   const fixture = parseSessionFixtureName(basename(path))
-  if (fixture === undefined) throw new Error(`record harvest: invalid Session fixture path ${path}`)
+  if (fixture === undefined) throw new Error(`replay harvest: invalid Session fixture path ${path}`)
   return join(dirname(path), sessionFixtureName(fixture.index, version))
 }
 
@@ -302,7 +301,7 @@ export interface LaunchOptions {
   extraInstallAnchors?: string[]
   /**
    * Replay fixture (session.jsonl) served by the inserted dsh-llm-replay row
-   * in replay/refresh modes; ignored in record mode (the real adapter
+   * in replay/refresh modes; keyless runs never call a live provider
    * answers). Omit for scenarios issuing no model calls — a stray stream then
    * fails loud with NO_ADAPTER (llm-deepseek is disabled and no replay row
    * mounts). With {@link replayProvidersOnly}, the fixture must record no
@@ -433,17 +432,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     : await Promise.all(options.replayChildFixtures.map(path => selectedSessionFixture(path)))
   const compareReplaySession = options.compareReplaySession ?? await ownsReplayFixture(replayFixture)
   const browserHost = options.remoteAuthority ?? '127.0.0.1'
-  if (mode === 'record') {
-    // Both owning vitest configs (web unconditionally, snapshot in record
-    // mode) load the repo-root .env before this file runs.
-    if (process.env.DEEPSEEK_API_KEY === undefined || process.env.DEEPSEEK_API_KEY.length === 0) {
-      throw new Error('web e2e record mode needs DEEPSEEK_API_KEY (env or repo-root .env)')
-    }
-  }
-  if (mode === 'record' && options.deepSeekMissingCredential === true) {
-    throw new Error('deepSeekMissingCredential is a keyless replay/refresh option')
-  }
-  const maskDeepSeekCredential = mode !== 'record' && options.deepSeekMissingCredential === true
+  const maskDeepSeekCredential = options.deepSeekMissingCredential === true
   const originalDeepSeekCredential = process.env.DEEPSEEK_API_KEY
   let credentialEnvironmentRestored = false
   const restoreCredentialEnvironment = (): void => {
@@ -518,7 +507,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     ...basePatches,
     ...surfacePatches,
     // Keyless scenarios retain the recorded default; explicit scenario overlays win.
-    ...mode === 'record' || options.deepSeekMissingCredential === true
+    ...options.deepSeekMissingCredential === true
       ? []
       : [{ id: 'agent-default-model', config: { provider: 'deepseek-official', model: 'deepseek-v4-flash' } }],
     ...extraOverlayPatches,
@@ -644,7 +633,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
           },
         }] },
       ],
-    ...mode === 'record' || options.deepSeekMissingCredential === true
+    ...options.deepSeekMissingCredential === true
       ? []
       : [{ id: 'llm-deepseek', disabled: true }],
   ]
@@ -769,7 +758,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
         throw new Error('replayProvidersOnly fixture must record no model calls')
       }
     }
-    if (mode !== 'record' && replayFixture !== undefined) {
+    if (replayFixture !== undefined) {
       replayHandle = installLlmReplay(ctx, {
         file: replayFixture,
         providers: (options.replayProviders ?? replayProviders(options.replayContextWindow)).map(provider => ({
@@ -780,7 +769,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
         ...(replayChildFixtures === undefined ? {} : { childFiles: replayChildFixtures }),
         ...(options.paceMs === undefined ? {} : { paceMs: options.paceMs }),
       })
-    } else if (mode !== 'record' && options.deepSeekMissingCredential !== true) {
+    } else if (options.deepSeekMissingCredential !== true) {
       // No fixture and no shipped adapter would leave the tree with ZERO
       // provider routes — a state no product composition has, and one the
       // composer refuses to type into. Register the same routes
@@ -831,7 +820,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     // Barrier stack: the in-process turn/end identifies the session, its
     // explicit flush makes the transcript durable, and the caller's browser
     // settled-poll comes last because host completion strictly precedes render.
-    whenTurnSettled(timeoutMs = mode === 'record' ? 180_000 : 30_000): Promise<SessionId> {
+    whenTurnSettled(timeoutMs = 30_000): Promise<SessionId> {
       return new Promise<SessionId>((resolveSettled, reject) => {
         const timer = setTimeout(() => {
           off()
@@ -848,8 +837,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
     },
     async close(): Promise<void> {
       const failures: unknown[] = []
-      if (mode !== 'record'
-        && replayFixture !== undefined
+      if (replayFixture !== undefined
         && options.replayProvidersOnly !== true
         && compareReplaySession) {
         try {
@@ -889,7 +877,7 @@ export async function launchWebScaffold(options: LaunchOptions = {}): Promise<We
 
 /**
  * Serialize a live session to the canonical raw session-JSONL layout — the
- * in-memory record-mode harvest, so the on-disk zstd default never matters.
+ * in-memory replay harvest, so the on-disk zstd default never matters.
  */
 function rawSessionLog(session: Session): string {
   const encodedEvents = (session.snapshotEvents() as unknown as readonly SessionFormatEvent[])
@@ -1092,33 +1080,6 @@ async function assertReplaySession(
   }
   expect(promptSnapshot, `${fixturePath}: system-prompt pin`).toBe(await readFile(promptPath, 'utf8'))
   expect(schemaSnapshot, `${fixturePath}: tool-schema pin`).toBe(await readFile(schemaPath, 'utf8'))
-}
-
-/**
- * Record-mode fixture write-back: harvest the live session, scrub the
- * system-prompt text to {{system}} and header tool schemas to {{tools}},
- * tokenize the run-local cwd, redact opaque identities with typed
- * relationship-preserving tokens, and write the fixture.
- * A manifest-retained historical generation makes the write-back a no-op.
- * @param scaffold - the record-mode scaffold.
- * @param sessionId - the driven session.
- * @param fixturePath - the committed session.jsonl target.
- */
-export async function recordFixture(scaffold: WebScaffold, sessionId: SessionId, fixturePath: string): Promise<void> {
-  const agent = scaffold.ctx.agents.get(sessionId)
-  if (agent === undefined) throw new Error(`record harvest: no live agent for ${sessionId}`)
-  const manifestPath = join(dirname(fixturePath), 'snapshot.yml')
-  const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
-  if (!writesCurrentSessionFixtures(manifest, 'record')) return
-  const target = recordedSessionFixturePath(fixturePath, agent.session.header.version)
-  const existingPath = existsSync(target) ? target : fixturePath
-  const existing = existsSync(existingPath) ? await readFile(existingPath, 'utf8') : ''
-  await writeFile(target, stableSessionFixture(
-    agent.session,
-    existing,
-    scaffold.workspaceCwd,
-    scaffold.harnessHome,
-  ))
 }
 
 /**

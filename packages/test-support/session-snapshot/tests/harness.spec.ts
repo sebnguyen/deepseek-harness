@@ -220,14 +220,14 @@ describe('runScenario', () => {
     ])
     const profileAgent: AgentUnderTest = { ...AGENT, configPath: basePatch, profile: 'acp' }
 
-    const live = launchAcpTestAgent({
+    const replay = launchAcpTestAgent({
       agent: profileAgent,
       cwd: dir,
       configPath: selectedPatch,
-      env: { DSH_SNAPSHOT: 'record', DSH_SNAPSHOT_FILE: fixtureFile },
+      env: { DSH_SNAPSHOT: 'replay', DSH_SNAPSHOT_FILE: fixtureFile },
     })
-    await live.spawned
-    await live.close()
+    await replay.spawned
+    await replay.close()
     const materializedRoot = join(dir, '.dsh-profile-patches')
     const materialized = await readFile(await materializedPatch(materializedRoot, '0-base.cordis.yml'), 'utf8')
     expect(materialized).toContain(pathToFileURL(join(patchDir, 'plugin.mjs')).href)
@@ -237,20 +237,20 @@ describe('runScenario', () => {
       .toBe(await realpath(packageDir))
     expect(await realpath(join(dir, '.dsh', 'profiles', 'node_modules', '@fixture', 'example-package')))
       .toBe(await realpath(scopedPackageDir))
-    expect(await readFile(await materializedPatch(materializedRoot, '1-selected.cordis.yml'), 'utf8')).toContain('[]')
-
-    const replay = launchAcpTestAgent({
-      agent: profileAgent,
-      cwd: dir,
-      configPath: selectedPatch,
-      env: { DSH_SNAPSHOT: 'replay', DSH_SNAPSHOT_FILE: fixtureFile },
-    })
-    await replay.spawned
-    await replay.close()
     expect(await readFile(await materializedPatch(materializedRoot, '1-selected.cordis.snapshot.yml'), 'utf8'))
       .toContain('[]')
     expect((await readdir(materializedRoot, { withFileTypes: true })).filter(entry => entry.isDirectory()))
-      .toHaveLength(2)
+      .toHaveLength(1)
+
+    const live = launchAcpTestAgent({
+      agent: profileAgent,
+      cwd: dir,
+      configPath: selectedPatch,
+      env: { DSH_SNAPSHOT: 'live', DSH_SNAPSHOT_FILE: fixtureFile },
+    })
+    await live.spawned
+    await live.close()
+    expect(await readFile(await materializedPatch(materializedRoot, '1-selected.cordis.yml'), 'utf8')).toContain('[]')
 
     const conflictPatch = join(dir, 'conflict.cordis.yml')
     const conflictPackage = join(dir, 'node_modules', 'conflict-package')
@@ -269,7 +269,7 @@ describe('runScenario', () => {
     expect(() => launchAcpTestAgent({
       agent: { ...profileAgent, configPath: conflictPatch },
       cwd: dir,
-      env: { DSH_SNAPSHOT: 'record', DSH_SNAPSHOT_FILE: fixtureFile },
+      env: { DSH_SNAPSHOT: 'replay', DSH_SNAPSHOT_FILE: fixtureFile },
     })).toThrow('snapshot profile package conflict-package resolves to two directories')
 
     const invalidPatch = join(dir, 'invalid.cordis.yml')
@@ -277,7 +277,7 @@ describe('runScenario', () => {
     expect(() => launchAcpTestAgent({
       agent: { ...profileAgent, configPath: invalidPatch },
       cwd: dir,
-      env: { DSH_SNAPSHOT: 'record', DSH_SNAPSHOT_FILE: fixtureFile },
+      env: { DSH_SNAPSHOT: 'replay', DSH_SNAPSHOT_FILE: fixtureFile },
     })).toThrow(`snapshot profile patch must be a top-level array: ${invalidPatch}`)
   })
 

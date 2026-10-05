@@ -2,7 +2,6 @@ version: 1
 scenario: present
 profile: web
 composition: web-ptc
-recording: live
 header:
   class: web-ptc
 workspace:

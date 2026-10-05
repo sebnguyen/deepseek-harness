@@ -186,11 +186,17 @@ export interface SessionScript {
   createdAt: number
   /** The per-`stream()`-call replay entries, in recorded call order. */
   entries: ReplayEntry[]
-  /**
-   * Whether this is the PRIMARY (parent) session. Breaks a `createdAt` tie in
+  /** Whether this is the PRIMARY (parent) session. Breaks a `createdAt` tie in
    * favor of the parent, which always issues the first model call.
    */
   primary: boolean
+  /**
+   * The first user-facing text of this session's own recorded conversation
+   * ('' for the primary). Bind matching prefers this over positional order,
+   * so concurrently spawned children bind their own script regardless of the
+   * timing of their first model call.
+   */
+  bindText: string
 }
 
 /**
@@ -801,7 +807,7 @@ function resolveReplayScript(
 /** Derive a script from an already migrated fixture, failing loud when it is absent. */
 function deriveScriptFromFixture(file: string, fixture: ParsedSessionFixture | undefined): ReplayEntry[] {
   if (fixture === undefined) {
-    throw new Error(`llm-replay: fixture not found: ${file} — run \`pnpm run test:snapshot:record\` first`)
+    throw new Error(`llm-replay: fixture not found: ${file} — commit the scenario's recorded session fixture before replay`)
   }
   return deriveReplayScript(fixture.events)
 }
@@ -821,12 +827,12 @@ export function loadSessionScripts(config: ReplayConfig): SessionScript[] {
   // override-only fixture (header-less) still orders first as the primary.
   const primaryHeader = primaryFixture ?? { id: '', createdAt: 0 }
   const primary: SessionScript = {
-    recordedId: primaryHeader.id, createdAt: primaryHeader.createdAt, entries: primaryEntries, primary: true,
+    recordedId: primaryHeader.id, createdAt: primaryHeader.createdAt, entries: primaryEntries, primary: true, bindText: '',
   }
   const children: SessionScript[] = []
   for (const childFile of config.childFiles ?? []) {
     if (!existsSync(childFile)) {
-      throw new Error(`llm-replay: child fixture not found: ${childFile} — re-record the scenario`)
+      throw new Error(`llm-replay: child fixture not found: ${childFile} — commit the scenario's recorded session fixture before replay`)
     }
     const text = readFileSync(childFile, 'utf8')
     const fixture = parseSessionFixture(text)
@@ -838,12 +844,39 @@ export function loadSessionScripts(config: ReplayConfig): SessionScript[] {
       createdAt: fixture.createdAt,
       entries: deriveReplayScript(ownEvents),
       primary: false,
+      bindText: firstOwnUserText(ownEvents),
     })
   }
-  // Synchronous children start in creation order; the id only stabilizes timestamp ties.
-  // XXX(concurrent-subagents): concurrent children need an explicit first-call ordinal.
+  // Bind matching prefers each child's recorded first user text; creation
+  // order then only fixes a stable token ordinal for unreferenced ties.
   children.sort((a, b) => a.createdAt - b.createdAt || a.recordedId.localeCompare(b.recordedId))
   return [primary, ...children]
+}
+
+/** The text blocks of a scenario's first own user-facing message, '' when it has none. */
+function firstOwnUserText(events: readonly { type?: unknown; data?: unknown }[]): string {
+  const textOf = (content: unknown): string => Array.isArray(content)
+    ? content.flatMap(block => (block as { type?: unknown; text?: unknown }).type === 'text' && typeof (block as { text?: unknown }).text === 'string'
+      ? [(block as { text: string }).text]
+      : [])
+      .join('')
+    : ''
+  for (const event of events) {
+    if (event.type === 'agent/inbox/spliced') {
+      const inserted = (event.data as { inserted?: unknown } | undefined)?.inserted
+      const text = Array.isArray(inserted)
+        ? inserted.map(entry => textOf((entry as { content?: unknown }).content)).join('')
+        : ''
+      if (text !== '') return text
+      continue
+    }
+    if (event.type !== 'user/message') continue
+    const data = event.data as { role?: unknown; content?: unknown } | undefined
+    if (data?.role !== 'user') continue
+    const text = textOf(data.content)
+    if (text !== '') return text
+  }
+  return ''
 }
 
 /** Replay adapter that makes a configured provider catalog discoverable without provider I/O. */
@@ -1022,15 +1055,31 @@ function providerAccepted(entry: ReplayEntry): boolean {
  * @param config - the resolved fixture paths (env-var defaulting is `apply`'s job).
  * @returns the {@link ReplayHandle} carrying the disposer and the teardown consumption check.
  */
+/** The text of a request's last user message; undefined when it carries none. */
+function lastUserText(options: GenerateOptions): string | undefined {
+  for (let index = options.messages.length - 1; index >= 0; index--) {
+    const message = options.messages[index]
+    if (message?.role !== 'user') continue
+    const text = Array.isArray(message.content)
+      ? message.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+      : ''
+    return text === '' ? undefined : text
+  }
+  return undefined
+}
+
 export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHandle {
   const paceMs = config.paceMs ?? 0
   if (!Number.isInteger(paceMs) || paceMs < 0) {
     throw new Error(`llm-replay: paceMs must be a non-negative integer, got ${String(config.paceMs)}`)
   }
   const scripts = loadSessionScripts(config)
-  // Live-session → its bound script + cursor. A new live session id claims the
-  // next not-yet-bound script (scripts are in bind order); `nextScript` is the
-  // index of the next unclaimed one.
+  // Live-session → its bound script + cursor. A new live session id binds the
+  // unconsumed script whose recorded opening user text matches the request
+  // (concurrently spawned children call in timing order, not creation order);
+  // positional order is the fallback and `nextScript` stays the lowest
+  // unconsumed index so positional binds stay compact.
+  const consumed: boolean[] = scripts.map(() => false)
   const bound = new Map<string, { entries: ReplayEntry[]; cursor: number }>()
   const liveSessionIds: (string | undefined)[] = Array.from({ length: scripts.length })
   let nextScript = 0
@@ -1040,7 +1089,15 @@ export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHand
     let state = bound.get(key)
     let unrecorded = false
     if (state === undefined) {
-      const script = scripts[nextScript]
+      const requestText = lastUserText(options)
+      let takenIndex = requestText === undefined
+        ? -1
+        : scripts.findIndex((script, index) => !consumed[index] && script.bindText !== '' && script.bindText === requestText)
+      if (takenIndex === -1) {
+        while (consumed[nextScript] === true) nextScript++
+        takenIndex = nextScript
+      }
+      const script = scripts[takenIndex]
       if (script === undefined) {
         // More distinct live sessions made calls than the scenario recorded —
         // an unrecorded subagent appeared. Defer the throw into the returned
@@ -1048,11 +1105,11 @@ export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHand
         unrecorded = true
         state = { entries: [], cursor: 0 }
       } else {
-        const scriptIndex = nextScript
-        nextScript++
+        consumed[takenIndex] = true
+        while (consumed[nextScript] === true) nextScript++
         state = { entries: script.entries, cursor: 0 }
         bound.set(key, state)
-        if (key !== ANON) liveSessionIds[scriptIndex] = key
+        if (key !== ANON) liveSessionIds[takenIndex] = key
       }
     }
     const boundState = state
@@ -1064,13 +1121,13 @@ export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHand
       if (unrecorded) {
         throw new Error(
           `llm-replay: a model call arrived from an unrecorded session (#${seenSessions + 1}); `
-          + `the scenario recorded only ${totalScripts} session(s) — re-record it`,
+          + `the scenario committed only ${totalScripts} session fixture(s) — commit the missing child fixture`,
         )
       }
       if (entry === undefined) {
         throw new Error(
           `llm-replay: script exhausted — session requested model call #${index + 1} `
-          + `but its script has only ${boundState.entries.length}; re-record the scenario`,
+          + `but its script has only ${boundState.entries.length}; extend the committed fixture`,
         )
       }
       inferStartedSubagents(options.messages, liveSessionIds)

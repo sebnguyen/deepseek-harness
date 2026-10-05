@@ -248,7 +248,7 @@ async function openSession(page: Page, title: string): Promise<void> {
     .waitFor({ timeout: 15_000 })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: conversational reminders', () => {
+describe('web e2e: conversational reminders', () => {
   let scaffold: WebScaffold
   let afterHandle: AgentHandle
   let atHandle: AgentHandle
@@ -597,7 +597,7 @@ describe.skipIf(MODE === 'record')('web e2e: conversational reminders', () => {
   })
 })
 
-describe.skipIf(MODE === 'record')('web e2e: active Schedule catalog', () => {
+describe('web e2e: active Schedule catalog', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

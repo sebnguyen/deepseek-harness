@@ -6,11 +6,10 @@ import { ToolCallId, createAssistantMessage, createToolResultMessage, createUser
 import { SESSION_FORMAT_VERSION, Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-title'
 import {
-  launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, seedSession, watchConsole, type WebScaffold,
 } from './scaffold.ts'
 import { newEnglishPage, saveFailureShot } from './support.ts'
 
-const MODE = webSnapshotMode()
 const SEED_ID = 'produced-file-mentions-web-e2e'
 const DONE = 'FILE_MENTION_DONE'
 
@@ -134,7 +133,7 @@ describe('web e2e: inline-code mentions of produced files', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('links the unique mention and leaves ambiguous and unknown code inert', async () => {
+  it('links the unique mention and leaves ambiguous and unknown code inert', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-produced-file-mentions'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

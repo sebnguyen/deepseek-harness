@@ -43,7 +43,6 @@ function snapshotMode(value: string | undefined): SnapshotSuiteOptions['mode'] {
     case undefined:
     case '':
     case 'replay': return 'replay'
-    case 'record': return 'record'
     case 'refresh': return 'refresh'
     default: throw new Error(`unknown DSH_SNAPSHOT mode: ${value}`)
   }
@@ -74,9 +73,9 @@ Spill scenarios save through the real local provider under a private temporary r
 
 Retained historical scenarios keep their canonical Session files unchanged and selected for replay, with no newer canonical sibling in the pinned directory. Their exact normalized native current-format output is recorded separately in `writer.expected.jsonl` for the parent and `writer.<ordinal>.expected.jsonl` for children; these are output oracles, not replay generations. Retained SDK scenarios use `notifications.current.expected.jsonl` for current protocol output. Comparisons neither project current events back into a historical format nor strip structural differences. Independent migration tests verify the official transform rather than treating native writer layout as its expected event sequence.
 
-### Record, replay, and refresh
+### Replay and refresh
 
-`pnpm run test:snapshot:record` calls the live LLM and writes the harvested current generation under its canonical versioned filename. Record and refresh never rename or delete a completed generation, including generations of a child role absent from a later run; reviewed source-tree curation removes a predecessor only after the same role has a verified current replacement. Scenarios with an explicit `sessionFormat` remain read-only in record mode. `pnpm run test:snapshot:refresh` stays keyless, runs the selected highest replay input, and writes stdout, owned prompt and tool-schema sidecars, and a fresh current-generation comparable Session output; retained historical scenarios write the separate writer-output oracles instead of a canonical current-format replay generation. Each composition owner keeps its replay patch beside its live patch; top-level `snapshots/` owns Session-driven scenarios, while other expected outputs stay beside their owning package. [`dsh-llm-replay`](../llm-replay/README.md) serves the recorded streams selected through `DSH_SNAPSHOT_*` environment values.
+`pnpm run test:snapshot` replays committed fixtures keylessly; committed sessions are the lane's only recorded input. `pnpm run test:snapshot:refresh` stays keyless, runs the selected highest replay input, and writes stdout, owned prompt and tool-schema sidecars, and a fresh current-generation comparable Session output; retained historical scenarios write the separate writer-output oracles instead of a canonical current-format replay generation. Refresh never renames or deletes a completed generation, including generations of a child role absent from a later run; reviewed source-tree curation removes a predecessor only after the same role has a verified current replacement. When a model-visible transcript must change, hand-author the Session fixture and refresh its derived expected outputs. Each composition owner keeps its replay patch beside its live patch; top-level `snapshots/` owns Session-driven scenarios, while other expected outputs stay beside their owning package. [`dsh-llm-replay`](../llm-replay/README.md) serves the recorded streams selected through `DSH_SNAPSHOT_*` environment values.
 
 ### Pinning request headers and system prompts
 

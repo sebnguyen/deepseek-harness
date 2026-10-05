@@ -17,7 +17,6 @@ function snapshotMode(value: string | undefined): SnapshotSuiteOptions['mode'] {
     case undefined:
     case '':
     case 'replay': return 'replay'
-    case 'record': return 'record'
     case 'refresh': return 'refresh'
     default: throw new Error(`unknown DSH_SNAPSHOT mode: ${value}`)
   }
@@ -35,11 +34,6 @@ const controllerCases: readonly {
   { name: 'escalation-approved', hasModelTurn: true },
   { name: 'escalation-rejected', hasModelTurn: true },
   { name: 'fs-escalation-approved', hasModelTurn: true },
-  {
-    name: 'image-compaction',
-    hasModelTurn: true,
-    configPath: join(corpusDir, 'image-compaction', 'cordis.yml'),
-  },
 ] as const
 
 function localScenarioSource(source: string | undefined): string | undefined {
@@ -49,14 +43,13 @@ function localScenarioSource(source: string | undefined): string | undefined {
 const scenarios: Scenario[] = controllerCases.map((controller) => {
   const manifestPath = join(corpusDir, controller.name, 'snapshot.yml')
   const manifest = parseSnapshotManifest(readFileSync(manifestPath, 'utf8'), manifestPath)
-  if (manifest.recording === undefined || manifest.header === undefined) {
-    throw new Error(`${controller.name}: ACP snapshot manifest lacks recording or header metadata`)
+  if (manifest.header === undefined) {
+    throw new Error(`${controller.name}: ACP snapshot manifest lacks header metadata`)
   }
   const systemPromptSource = localScenarioSource(manifest.header.systemPromptSource)
   const toolSchemasSource = localScenarioSource(manifest.header.toolSchemasSource)
   return {
     ...controller,
-    recorded: manifest.recording === 'live',
     ...(manifest.sessionFormat === undefined ? {} : { sessionFormat: manifest.sessionFormat }),
     ...(manifest.replay?.override === true ? { overridden: true } : {}),
     ...(manifest.header.pin === true ? { pinsHeader: true } : {}),

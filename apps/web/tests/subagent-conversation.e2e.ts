@@ -101,7 +101,6 @@ describe('web e2e: persisted subagent conversation and human continuation', () =
   const apiCalls: string[] = []
 
   beforeAll(async () => {
-    if (MODE === 'record') throw new Error('subagent conversation is a keyless assembled snapshot')
     const selectedBaseFixture = await selectedSessionFixture(BASE_FIXTURE)
     const baseFixture = prepareSessionSnapshotFixtureForComparison(
       await readFile(selectedBaseFixture, 'utf8'),

@@ -7,7 +7,7 @@
  * export-shape bug class stays guarded — see docs/postmortem/0001), drives it
  * over real ACP JSON-RPC stdio with a deterministic input script, tees raw
  * stdout (for the expected-output and purity checks) into an SDK client app,
- * and — in record mode — harvests the persisted session JSONL after a graceful
+ * and harvests the persisted session JSONL after a graceful
  * shutdown flush. The pure normalizers in ./normalize.ts turn the captured
  * stdout frames and the session-log events into stable, snapshot-able text.
  *
@@ -160,15 +160,20 @@ export interface RunResult {
   sessionLogs: HarvestedLog[]
 }
 
-/** How to run one scenario: the agent to boot, the mode, and the fixture wiring. */
+/** How to run one scenario: the agent to boot and the fixture wiring. */
 export interface RunOptions {
   /** The agent composition to boot. */
   agent: AgentUnderTest
-  /** `replay` (default, keyless) or `record` (real API, harvests the log). */
-  mode: 'replay' | 'record'
+  /**
+   * `replay` (default, keyless: model streams served by `dsh-llm-replay`) or
+   * `live` (the real provider adapter with caller-supplied credentials, used
+   * by expected-output specs that capture dispatched request bodies against
+   * a loopback fixture server).
+   */
+  mode?: 'replay' | 'live'
   /** Scenario-specific deployment environment layered into the subprocess. */
   env?: NodeJS.ProcessEnv
-  /** The recorded session JSONL fixture path (replay reads it; record writes near it). */
+  /** The recorded session JSONL fixture path (replay reads it). */
   fixtureFile: string
   /** Optional sidecar override path (replay). */
   overrideFile?: string
@@ -177,7 +182,7 @@ export interface RunOptions {
    * scenario ships one per child (`session.1.jsonl`, …); the harness forwards
    * them to `dsh-llm-replay` via `$DSH_SNAPSHOT_CHILD_FILES` so each child
    * session replays from its own recorded script. Empty for single-session
-   * scenarios. Ignored in record mode (children are harvested, not replayed).
+   * scenarios.
    */
   childFiles?: string[]
   /**
@@ -230,10 +235,10 @@ export function snapshotSpillRoot(
 /**
  * Run a scenario end-to-end against a freshly-spawned subprocess. Owns the
  * child and its generated dirs; always tears them down. Returns the captured stdout
- * and (record mode) the harvested session-log path.
+ * and the harvested session-log paths.
  *
  * @param input The scenario's input script (steps + optional permission answers).
- * @param opts The agent to boot, the mode, and the fixture wiring.
+ * @param opts The agent to boot and the fixture wiring.
  * @returns The captured stdout/stderr, session id, generated cwd, and harvested logs.
  */
 export async function runScenario(input: InputScript, opts: RunOptions): Promise<RunResult> {
@@ -266,7 +271,7 @@ export async function runScenario(input: InputScript, opts: RunOptions): Promise
       // host and record that proxy's error page as the expected output. `undefined` removes the
       // name from the child rather than setting it empty.
       ...clearedProxyEnv(),
-      DSH_SNAPSHOT: opts.mode,
+      DSH_SNAPSHOT: opts.mode === 'live' ? 'live' : 'replay',
       DSH_SNAPSHOT_FILE: opts.fixtureFile,
       DSH_SNAPSHOT_SESSIONS_ROOT: sessionsRoot,
       DSH_SNAPSHOT_SPILL_ROOT: spillRoot,
@@ -285,8 +290,8 @@ export async function runScenario(input: InputScript, opts: RunOptions): Promise
     // A scenario bug detected inside a client callback (a scripted permission
     // kind the agent never offered). It cannot fail the run from in there: a
     // callback throw only becomes a JSON-RPC error RESPONSE to the agent, and
-    // a tolerant agent treats that as a denial and carries on — the run (or
-    // worse, a record) would absorb the impossible selection silently. So the
+    // a tolerant agent treats that as a denial and carries on — the run would
+    // absorb the impossible selection silently. So the
     // callback answers `cancelled` (a well-defined path for the agent),
     // captures the error here, and the step loop fails the run on it.
     let scriptError: Error | undefined
@@ -804,7 +809,7 @@ async function harvestSessionLogs(root: string): Promise<HarvestedLog[]> {
   // strictly ordered; the recordedId tiebreak only keeps a degenerate
   // same-millisecond collision (unreachable here) deterministic. This harvest
   // order must match the replay load order in dsh-llm-replay's loadSessionScripts
-  // so session.<n>.jsonl maps to the same child on record and replay — replay
+  // so session.<n>.jsonl maps to the same child on every replay — replay
   // re-sorts childFiles by the same key, so the two stay consistent.
   logs.sort((a, b) => {
     const ap = Number(a.parentSession !== undefined)

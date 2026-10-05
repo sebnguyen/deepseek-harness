@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria,
   compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -34,7 +34,7 @@ describe('web e2e: /feedback command acknowledgement', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
       compareReplaySession: true,
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 5 }),
+      ...{ replayFixture: FIXTURE, paceMs: 5 },
     })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -53,10 +53,8 @@ describe('web e2e: /feedback command acknowledgement', () => {
 
   it('drives the recorded prompt to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-drive'))
-    if (MODE !== 'record') {
-      // Drift guard: the committed fixture must carry exactly the drive prompt.
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    // Drift guard: the committed fixture must carry exactly the drive prompt.
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     // Arm the turn-boundary waiter BEFORE sending, so a burst replay cannot
@@ -64,13 +62,10 @@ describe('web e2e: /feedback command acknowledgement', () => {
     const settled = scaffold.whenTurnSettled()
     await input.fill(PROMPT)
     await input.press('Enter')
-    const sessionId = await settled
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
-    }
+    await settled
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('records feedback and renders the acknowledgement with session and anonymous user ids', async () => {
+  it('records feedback and renders the acknowledgement with session and anonymous user ids', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-feedback-command'))
     // The drive test settled the recorded turn: the transcript is active (a
     // command row does not render while a fresh session is still blank) and
@@ -96,7 +91,7 @@ describe('web e2e: /feedback command acknowledgement', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'ack.expected.md', 'ack-expanded.expected.md',
     ])

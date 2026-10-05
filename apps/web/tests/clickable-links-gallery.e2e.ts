@@ -318,7 +318,7 @@ describe('web e2e: clickable links gallery', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('renders every clickable link and artifact form of the settled turn', async () => {
+  it('renders every clickable link and artifact form of the settled turn', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-clickable-links-gallery'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

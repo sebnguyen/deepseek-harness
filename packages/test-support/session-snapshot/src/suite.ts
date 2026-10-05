@@ -92,16 +92,7 @@ export interface Scenario {
    * that produces a non-trivial durable log without calling the model.
    */
   comparesLog?: boolean
-  /**
-   * Whether `test:snapshot:record` regenerates this scenario's current-version
-   * Session fixtures from the LIVE API. `recorded` scenarios are model-driven and reproducible;
-   * `authored` scenarios (fixtures hand-written or hand-harvested — e.g. a
-   * provider error or a cancel the live API can't be coaxed into
-   * deterministically, a deterministic hook scenario, or a scripted repetition
-   * a live model won't reproduce) are NEVER re-recorded.
-   */
-  recorded: boolean
-  /** Historical generation retained as a read-only migration fixture. */
+  /** Historical generation retained as an explicit migration fixture. */
   sessionFormat?: SnapshotSessionFormatManifest
   /**
    * Whether replay is driven by a hand-written `replay.override.json` sidecar
@@ -212,14 +203,11 @@ export interface Scenario {
 }
 
 /**
- * Whether a scenario's run test is skipped for this mode and host: record mode
- * skips authored (non-`recorded`) scenarios and explicit historical Session
- * generations, {@link Scenario.posixOnly} scenarios skip on Windows, and
- * {@link Scenario.pwshOnly} scenarios skip when the caller's `hasPwsh` probe
- * is false.
+ * Whether a scenario's run test is skipped for this host: {@link Scenario.posixOnly}
+ * scenarios skip on Windows, and {@link Scenario.pwshOnly} scenarios skip when
+ * the caller's `hasPwsh` probe is false.
  *
  * @param scenario The scenario whose run test is being registered.
- * @param recording Whether the suite runs in record mode.
  * @param platform The running Node platform, injectable for unit coverage.
  * @param hasPwsh The caller's pwsh-availability probe; `pwshOnly` scenarios
  *   skip unless it is true.
@@ -227,11 +215,9 @@ export interface Scenario {
  */
 export function scenarioSkipped(
   scenario: Scenario,
-  recording: boolean,
   platform: NodeJS.Platform = process.platform,
   hasPwsh?: boolean,
 ): boolean {
-  if (recording && (!scenario.recorded || scenario.sessionFormat !== undefined)) return true
   if (scenario.posixOnly === true && platform === 'win32') return true
   return scenario.pwshOnly === true && hasPwsh !== true
 }
@@ -267,13 +253,12 @@ export interface SnapshotSuiteOptions {
   /** The scenario table; exactly one entry per header class must set `pinsHeader`. */
   scenarios: Scenario[]
   /**
-   * `replay` (keyless, the default tier), `record` (live API; re-records the
-   * `recorded` scenarios' fixtures and refreshes the Vitest expected outputs under
-   * `--update`), or `refresh` (keyless replay that rewrites stdout expected outputs and
-   * comparable session fixtures from the replay run). The caller derives this
-   * from `$DSH_SNAPSHOT` — env reading stays outside this library.
+   * `replay` (keyless, the default tier) or `refresh` (keyless replay that rewrites
+   * stdout expected outputs and comparable session fixtures from the replay
+   * run). The caller derives this from `$DSH_SNAPSHOT` — env reading stays
+   * outside this library.
    */
-  mode: 'replay' | 'record' | 'refresh'
+  mode: 'replay' | 'refresh'
   /**
    * Whether a real `pwsh` executable is available on this host (the probe the
    * caller owns; `pwshOnly` scenarios skip when this is not true).
@@ -299,7 +284,7 @@ export interface NamedSnapshotContent {
 
 /**
  * Record one scenario's generated content for a shared snapshot source.
- * A later claimant must generate identical bytes; otherwise record/refresh
+ * A later claimant must generate identical bytes; otherwise refresh
  * would make the final file depend on scenario order.
  *
  * @param claims Claims already made in this suite run, keyed by source path.
@@ -1191,9 +1176,7 @@ export async function assertSessionFixtureStorage(dir: string, scenarioName: str
  */
 export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
   const { agent, snapshotsDir, scenarios, mode } = options
-  const RECORDING = mode === 'record'
   const REFRESHING = mode === 'refresh'
-  const childMode: 'replay' | 'record' = RECORDING ? 'record' : 'replay'
   const scenarioSuite = mode === 'replay' ? describe.concurrent : describe
 
   /** The class a scenario's header composition belongs to (see {@link Scenario.headerClass}). */
@@ -1270,36 +1253,32 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
 
   scenarioSuite('snapshot scenarios', () => {
     for (const scenario of scenarios) {
-      // In RECORD mode, only re-run the `recorded` (live-API) scenarios; the `authored` ones
-      // (sidecar-driven errors/cancel) are never re-recorded. `posixOnly` scenarios skip on Windows;
-      // `pwshOnly` scenarios skip when the caller's `hasPwsh` probe is false.
-      it.skipIf(scenarioSkipped(scenario, RECORDING, process.platform, options.hasPwsh))(`snapshot: ${scenario.name} matches the expected outputs`, async ({ expect }) => {
+      // `posixOnly` scenarios skip on Windows; `pwshOnly` scenarios skip when
+      // the caller's `hasPwsh` probe is false.
+      it.skipIf(scenarioSkipped(scenario, process.platform, options.hasPwsh))(`snapshot: ${scenario.name} matches the expected outputs`, async ({ expect }) => {
         const dir = join(snapshotsDir, scenario.name)
         const manifestPath = join(dir, 'snapshot.yml')
         const manifest = parseSnapshotManifest(await readFile(manifestPath, 'utf8'), manifestPath)
         const input = JSON.parse(await readFile(join(dir, 'input.json'), 'utf8')) as InputScript
         const overrideFile = join(dir, 'replay.override.json')
         const workspaceDir = join(dir, 'workspace')
-        // Replay/refresh need the committed inventory up front because those
-        // files drive the model scripts. Record mode creates that inventory
-        // from the harvested live logs, so it must also work for a brand-new
-        // scenario with no Session fixture yet.
-        let fixtureFiles = RECORDING ? [] : await sessionFixtures(dir)
+        // Replay and refresh need the committed inventory up front because
+        // those files drive the model scripts.
+        let fixtureFiles = await sessionFixtures(dir)
         const childFixtureFiles = fixtureFiles.slice(1)
         const primaryFixtureFile = fixtureFiles[0] ?? sessionFixtureName(0, 0)
-        // A retained historical generation is an immutable replay input: record
-        // and refresh never write or compare a current-writer session for it.
+        // A retained historical generation is an immutable replay input:
+        // refresh never writes or compares a current-writer session for it.
         const comparesLog = scenario.comparesLog ?? (scenario.hasModelTurn
           && manifest.sessionFormat === undefined)
         const result = await runScenario(input, {
           agent,
-          mode: childMode,
           fixtureFile: join(dir, primaryFixtureFile),
           ...scenario.env !== undefined ? { env: scenario.env } : {},
           ...existsSync(overrideFile) ? { overrideFile } : {},
-          // In REPLAY, forward the recorded child fixtures so each subagent session
-          // replays from its own script. In RECORD they are harvested, not read.
-          ...!RECORDING && childFixtureFiles.length > 0 ? { childFiles: childFixtureFiles.map(file => join(dir, file)) } : {},
+          // Forward the recorded child fixtures so each subagent session
+          // replays from its own script.
+          ...childFixtureFiles.length > 0 ? { childFiles: childFixtureFiles.map(file => join(dir, file)) } : {},
           ...existsSync(workspaceDir) ? { workspaceDir } : {},
           ...scenario.prepareWorkspace !== undefined ? { prepareWorkspace: scenario.prepareWorkspace } : {},
           ...scenario.workspaceParent !== undefined ? { workspaceParent: scenario.workspaceParent } : {},
@@ -1328,19 +1307,16 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
         const childSchemaPins = new Set(scenario.pinsChildToolSchemas ?? [])
         const childPromptPins = new Set(scenario.pinsChildSystemPrompts ?? [])
 
-        // Record writes live model fixtures; keyless refresh writes every comparable replayed
-        // fixture. Pinning JSONL keeps prefixes but moves prompts and schemas into sidecars.
+        // Keyless refresh writes every comparable replayed fixture. Pinning
+        // JSONL keeps prefixes but moves prompts and schemas into sidecars.
         const portableFixture = scenario.workspaceParent === undefined
           ? tokenizeSessionFixtureCwd
           : (log: string): string => log
-        const writesSessionFixtures = writesCurrentSessionFixtures(manifest, mode)
-          && ((RECORDING && scenario.recorded && scenario.hasModelTurn) || (REFRESHING && comparesLog))
+        const writesSessionFixtures = writesCurrentSessionFixtures(manifest, mode) && comparesLog
         if (writesSessionFixtures) {
           expect(result.sessionLogs.length, `${mode} produced no session log to harvest`).toBeGreaterThan(0)
-          if (REFRESHING) {
-            expect(result.sessionLogs.length, `expected ${fixtureFiles.length} session logs (parent + children)`)
-              .toBe(fixtureFiles.length)
-          }
+          expect(result.sessionLogs.length, `expected ${fixtureFiles.length} session logs (parent + children)`)
+            .toBe(fixtureFiles.length)
           const outputFixtureFiles = result.sessionLogs.map((log, index) => sessionFixtureName(
             index,
             sessionHeaderVersion(log.content, `harvested Session ${index}`),
@@ -1350,17 +1326,13 @@ export function defineAcpSnapshotSuite(options: SnapshotSuiteOptions): void {
             if (file === undefined) return ''
             return readFile(join(dir, file), 'utf8')
           }))
-          const refreshReplacements = REFRESHING
-            ? refreshFixtureReplacements(result.sessionLogs, existingFixtures)
-            : []
-          const freshFixtures = REFRESHING
-            ? result.sessionLogs.map((log, index) => scrubSessionSnapshot(portableFixture(stabilizeRefreshLog(
-              log.content,
-              existingFixtures[index] as string,
-              refreshReplacements,
-              ctx,
-            ))))
-            : result.sessionLogs.map(log => scrubSessionSnapshot(portableFixture(log.content)))
+          const refreshReplacements = refreshFixtureReplacements(result.sessionLogs, existingFixtures)
+          const freshFixtures = result.sessionLogs.map((log, index) => scrubSessionSnapshot(portableFixture(stabilizeRefreshLog(
+            log.content,
+            existingFixtures[index] as string,
+            refreshReplacements,
+            ctx,
+          ))))
           const outputFixtures = redactSessionSnapshotIds(stabilizeFixtureMessageIds(freshFixtures, existingFixtures))
           await Promise.all(outputFixtures.map((fixture, index) =>
             writeFile(join(dir, outputFixtureFiles[index] as string), fixture)))

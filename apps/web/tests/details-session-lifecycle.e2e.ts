@@ -122,7 +122,7 @@ async function dragSidebar(page: Page, target: number): Promise<void> {
   await expect.poll(() => sidebarTrack(page)).toBe(target)
 }
 
-describe.skipIf(MODE === 'record')('web e2e: details panel follows the current Session lifecycle', () => {
+describe('web e2e: details panel follows the current Session lifecycle', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

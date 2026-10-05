@@ -10,8 +10,7 @@ import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-tool-present/types'
 import {
   acknowledgeReloadConnectionLoss, assertFinalWorkspaceSnapshot, captureExpandedTurnProcessAria,
-  compareOrRefreshGolden, fixtureUserPrompts, launchWebScaffold, recordFixture,
-  watchConsole, webSnapshotMode, type WebScaffold,
+  compareOrRefreshGolden, fixtureUserPrompts, launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage } from './support.ts'
 
@@ -55,7 +54,7 @@ fs.appendFileSync(${JSON.stringify(openLog)}, JSON.stringify({ path, action, con
     scaffold = await launchWebScaffold({
       extraOverlayPath: fileURLToPath(new URL('./present.overlay.yml', import.meta.url)),
       agentPresets: { roots: [], default: 'ptc' }, compareReplaySession: true,
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE }),
+      ...{ replayFixture: FIXTURE },
     })
     disposeApproval = scaffold.ctx.on('approval/request', () => Promise.resolve('allowed-once'), { prepend: true })
     scaffold.ctx.on('session/event', (_session, event) => { events.push(event) })
@@ -83,7 +82,7 @@ fs.appendFileSync(${JSON.stringify(openLog)}, JSON.stringify({ path, action, con
   })
 
   it('declares nested deliveries even when the enclosing program subsequently fails', async () => {
-    if (MODE !== 'record') expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const settled = scaffold.whenTurnSettled()
     const input = page.locator('[data-composer-input]').first()
     await input.fill(PROMPT)
@@ -92,7 +91,6 @@ fs.appendFileSync(${JSON.stringify(openLog)}, JSON.stringify({ path, action, con
     const workspace = scaffold.ctx.agents.get(sessionId)?.session.header.cwd
     if (workspace === undefined) throw new Error('present Session has no workspace')
     cwd = workspace
-    if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
     await page.getByText(/^PRESENT_DONE\.?$/).waitFor({ timeout: 30_000 })
     await assertFinalWorkspaceSnapshot(DIR, cwd)
     expect(events.filter(event => event.type === 'deliverables/presented').flatMap(event => event.data.files.map(file => file.path)))
@@ -173,93 +171,91 @@ fs.appendFileSync(${JSON.stringify(openLog)}, JSON.stringify({ path, action, con
       { path: '说明.txt', description: 'delivered note' },
     ])
     expect(exported).not.toContain('EDITED_REPORT')
-    if (MODE !== 'record') {
-      const aria = await captureExpandedTurnProcessAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(join(DIR, 'ui.expected.md'), aria, MODE)
-      await page.locator('[data-turn-process]').click()
-      const failed = page.locator('[data-tool="present"][data-state="error"]')
-      const delivered = page.locator('[data-tool="present"][data-state="ok"]')
-      expect(await failed.count()).toBe(1)
-      expect(await delivered.count()).toBe(1)
-      expect(await failed.innerText()).toContain('Delivery failed')
-      expect(await delivered.innerText()).toContain('Delivered')
-      await page.locator('[data-turn-process]').click()
-      const geometry = await page.evaluate(() => {
-        const requiredElement = <T extends Element>(value: T | null | undefined, name: string): T => {
-          if (value === null || value === undefined) throw new Error(`present layout is missing ${name}`)
-          return value
-        }
-        const answer = requiredElement(
-          [...document.querySelectorAll<HTMLElement>('[data-chat-flow-kind="assistant-step"]')]
-            .find(element => element.textContent?.includes('PRESENT_DONE')),
-          'final answer',
-        )
-        const presentedGrid = requiredElement(
-          document.querySelector<HTMLElement>('[data-presented-files-row]'),
-          'presented grid',
-        )
-        const presentedRoot = requiredElement(presentedGrid.parentElement, 'presented root')
-        const turnTail = requiredElement(presentedRoot.closest<HTMLElement>('[data-turn-tail]'), 'turn tail')
-        const actions = requiredElement(
-          turnTail.querySelector<HTMLButtonElement>('button[aria-label="Copy"]')?.parentElement,
-          'action row',
-        )
-        const cards = [...presentedGrid.querySelectorAll<HTMLElement>('[data-presented-file]')]
-        const report = requiredElement(
-          cards.find(card => card.textContent?.includes('report.txt')),
-          'report card',
-        )
-        const title = requiredElement(
-          report.querySelector<HTMLElement>('span[title="report.txt"]')
-            ?? [...report.querySelectorAll<HTMLElement>('span')]
-              .find(element => element.textContent === 'report.txt'),
-          'report title',
-        )
-        const description = requiredElement(report.querySelector<HTMLElement>('span[role="status"]'), 'report status')
-        const open = requiredElement(
-          report.querySelector<HTMLButtonElement>('button[aria-label="Open report.txt in sidebar"]'),
-          'report open action',
-        )
-        const icon = requiredElement(report.querySelector<SVGElement>('svg'), 'report icon')
-        const secondCard = requiredElement(cards[1], 'second card')
-        const answerRect = answer.getBoundingClientRect()
-        const presentedRect = presentedRoot.getBoundingClientRect()
-        const actionsRect = actions.getBoundingClientRect()
-        const firstCard = report.getBoundingClientRect()
-        const secondCardRect = secondCard.getBoundingClientRect()
-        const gridStyle = getComputedStyle(presentedGrid)
-        return {
-          answerToPresented: presentedRect.top - answerRect.bottom,
-          presentedToActions: actionsRect.top - presentedRect.bottom,
-          cardHeight: firstCard.height,
-          cardColumnGap: secondCardRect.left - firstCard.right,
-          gridColumnGap: gridStyle.columnGap,
-          gridRowGap: gridStyle.rowGap,
-          iconWidth: icon.getAttribute('width'),
-          titleFontSize: getComputedStyle(title).fontSize,
-          descriptionFontSize: getComputedStyle(description).fontSize,
-          openFontSize: getComputedStyle(open).fontSize,
-        }
-      })
-      expect(geometry.answerToPresented).toBeCloseTo(20, 1)
-      expect(geometry.presentedToActions).toBeCloseTo(20, 1)
-      expect(geometry.cardHeight).toBeCloseTo(60, 1)
-      expect(geometry.cardColumnGap).toBeCloseTo(10, 1)
-      expect(geometry.gridColumnGap).toBe('10px')
-      expect(geometry.gridRowGap).toBe('10px')
-      expect(geometry.iconWidth).toBe('20')
-      expect(geometry.titleFontSize).toBe('13px')
-      expect(geometry.descriptionFontSize).toBe('10px')
-      expect(geometry.openFontSize).toBe('12px')
-      await page.setViewportSize({ width: 480, height: 900 })
-      const row = page.locator('[data-presented-files-row]')
-      await row.scrollIntoViewIfNeeded()
-      for (const card of await row.getByRole('button').all()) {
-        const bounds = await card.boundingBox()
-        expect(bounds).not.toBeNull()
-        expect(bounds!.x).toBeGreaterThanOrEqual(0)
-        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(480)
+    const aria = await captureExpandedTurnProcessAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(join(DIR, 'ui.expected.md'), aria, MODE)
+    await page.locator('[data-turn-process]').click()
+    const failed = page.locator('[data-tool="present"][data-state="error"]')
+    const delivered = page.locator('[data-tool="present"][data-state="ok"]')
+    expect(await failed.count()).toBe(1)
+    expect(await delivered.count()).toBe(1)
+    expect(await failed.innerText()).toContain('Delivery failed')
+    expect(await delivered.innerText()).toContain('Delivered')
+    await page.locator('[data-turn-process]').click()
+    const geometry = await page.evaluate(() => {
+      const requiredElement = <T extends Element>(value: T | null | undefined, name: string): T => {
+        if (value === null || value === undefined) throw new Error(`present layout is missing ${name}`)
+        return value
       }
+      const answer = requiredElement(
+        [...document.querySelectorAll<HTMLElement>('[data-chat-flow-kind="assistant-step"]')]
+          .find(element => element.textContent?.includes('PRESENT_DONE')),
+        'final answer',
+      )
+      const presentedGrid = requiredElement(
+        document.querySelector<HTMLElement>('[data-presented-files-row]'),
+        'presented grid',
+      )
+      const presentedRoot = requiredElement(presentedGrid.parentElement, 'presented root')
+      const turnTail = requiredElement(presentedRoot.closest<HTMLElement>('[data-turn-tail]'), 'turn tail')
+      const actions = requiredElement(
+        turnTail.querySelector<HTMLButtonElement>('button[aria-label="Copy"]')?.parentElement,
+        'action row',
+      )
+      const cards = [...presentedGrid.querySelectorAll<HTMLElement>('[data-presented-file]')]
+      const report = requiredElement(
+        cards.find(card => card.textContent?.includes('report.txt')),
+        'report card',
+      )
+      const title = requiredElement(
+        report.querySelector<HTMLElement>('span[title="report.txt"]')
+          ?? [...report.querySelectorAll<HTMLElement>('span')]
+            .find(element => element.textContent === 'report.txt'),
+        'report title',
+      )
+      const description = requiredElement(report.querySelector<HTMLElement>('span[role="status"]'), 'report status')
+      const open = requiredElement(
+        report.querySelector<HTMLButtonElement>('button[aria-label="Open report.txt in sidebar"]'),
+        'report open action',
+      )
+      const icon = requiredElement(report.querySelector<SVGElement>('svg'), 'report icon')
+      const secondCard = requiredElement(cards[1], 'second card')
+      const answerRect = answer.getBoundingClientRect()
+      const presentedRect = presentedRoot.getBoundingClientRect()
+      const actionsRect = actions.getBoundingClientRect()
+      const firstCard = report.getBoundingClientRect()
+      const secondCardRect = secondCard.getBoundingClientRect()
+      const gridStyle = getComputedStyle(presentedGrid)
+      return {
+        answerToPresented: presentedRect.top - answerRect.bottom,
+        presentedToActions: actionsRect.top - presentedRect.bottom,
+        cardHeight: firstCard.height,
+        cardColumnGap: secondCardRect.left - firstCard.right,
+        gridColumnGap: gridStyle.columnGap,
+        gridRowGap: gridStyle.rowGap,
+        iconWidth: icon.getAttribute('width'),
+        titleFontSize: getComputedStyle(title).fontSize,
+        descriptionFontSize: getComputedStyle(description).fontSize,
+        openFontSize: getComputedStyle(open).fontSize,
+      }
+    })
+    expect(geometry.answerToPresented).toBeCloseTo(20, 1)
+    expect(geometry.presentedToActions).toBeCloseTo(20, 1)
+    expect(geometry.cardHeight).toBeCloseTo(60, 1)
+    expect(geometry.cardColumnGap).toBeCloseTo(10, 1)
+    expect(geometry.gridColumnGap).toBe('10px')
+    expect(geometry.gridRowGap).toBe('10px')
+    expect(geometry.iconWidth).toBe('20')
+    expect(geometry.titleFontSize).toBe('13px')
+    expect(geometry.descriptionFontSize).toBe('10px')
+    expect(geometry.openFontSize).toBe('12px')
+    await page.setViewportSize({ width: 480, height: 900 })
+    const row = page.locator('[data-presented-files-row]')
+    await row.scrollIntoViewIfNeeded()
+    for (const card of await row.getByRole('button').all()) {
+      const bounds = await card.boundingBox()
+      expect(bounds).not.toBeNull()
+      expect(bounds!.x).toBeGreaterThanOrEqual(0)
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(480)
     }
     const beforeDelete = (await opened()).length
     await unlink(join(cwd, 'report.txt'))

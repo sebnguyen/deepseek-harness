@@ -11,14 +11,13 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
   acknowledgeReloadConnectionLoss, launchWebScaffold,
-  seedSession, watchConsole, webSnapshotMode, type WebScaffold,
+  seedSession, watchConsole, type WebScaffold,
 } from './scaffold.ts'
 import { newEnglishPage, saveFailureShot } from './support.ts'
 
 // Borrowed read-only: this scenario needs any settled assistant message to
 // address, not a new recording (message-actions / sidebar-scrollbar pattern).
 const SEED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/session.v3.jsonl', import.meta.url))
-const MODE = webSnapshotMode()
 const SEED_ID = 'message-feedback-web-e2e'
 const POSITIVE_NOTE = 'Clear and complete.'
 const NOTE = 'Read both files before answering.'
@@ -59,7 +58,7 @@ describe('web e2e: durable per-message feedback', () => {
     await sessionRow.click()
   }
 
-  it.skipIf(MODE === 'record')('submits both ratings through the dialog, persists the Dislike, then retracts it', async () => {
+  it('submits both ratings through the dialog, persists the Dislike, then retracts it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-message-feedback'))
     await openSeededSession()
 
@@ -141,7 +140,7 @@ describe('web e2e: durable per-message feedback', () => {
     expect(last?.type).toBe('feedback/message-delete')
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('kept the console clean', () => {
+  it('kept the console clean', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

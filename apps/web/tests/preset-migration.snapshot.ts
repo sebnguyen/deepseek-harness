@@ -11,11 +11,11 @@ import { scanZstdFrames } from '../../../packages/session/session-persistence-js
 import type {} from '@deepseek-ai/dsh-agent-presets'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { normalizeSessionSnapshots } from '@deepseek-ai/dsh-session-snapshot'
-import { launchWebScaffold, webSnapshotMode } from './scaffold.ts'
+import { launchWebScaffold } from './scaffold.ts'
 
 const fixturePath = fileURLToPath(new URL('../../../snapshots/web/preset-migration/session.v2.jsonl', import.meta.url))
 
-describe.skipIf(webSnapshotMode() === 'record')('historical preset restoration through the Web Host', () => {
+describe('historical preset restoration through the Web Host', () => {
   it.each([false, true])('resumes code as PTC (selection events=%s)', async (withSelections) => {
     const scaffold = await launchWebScaffold()
     try {

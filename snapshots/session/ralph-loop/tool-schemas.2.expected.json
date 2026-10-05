@@ -1,23 +1,156 @@
 {
   "initial": [
     {
-      "name": "abandon_claim",
-      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
+      "name": "write",
+      "description": "Create, replace, or patch one UTF-8 text file; sed-style entries batch atomically.",
       "parameters": {
         "type": "object",
         "properties": {
-          "id": {
+          "file_path": {
             "type": "string",
-            "description": "The claim id, as returned by declare_claim."
+            "description": "Path of the file to write, resolved by the filesystem backend."
           },
-          "reason": {
+          "content": {
             "type": "string",
-            "description": "Why the declared condition was the wrong one."
+            "description": "The input stream. Without edits, creates or fully replaces the file; with edits, this text — not the current disk content — is what the entries operate on."
+          },
+          "overwrite": {
+            "type": "boolean",
+            "description": "CLI -f style: explicitly allow content to replace an existing file this session has not read. Never needed for new files, for files read or written this session, or for edits-only calls; operations stay atomic against concurrent changes either way."
+          },
+          "edits": {
+            "type": "array",
+            "description": "Sed-style operations applied in order and committed atomically; later entries address the text produced by earlier ones. A failed entry commits nothing and reports its index. Use dry_run to preview.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "old_string": {
+                      "type": "string",
+                      "description": "Literal match: the exact text to find. Must appear exactly once unless replace_all is true."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Replacement text; omitted or empty deletes each match."
+                    },
+                    "replace_all": {
+                      "type": "boolean",
+                      "description": "Replace every match instead of requiring exactly one. Defaults to false."
+                    }
+                  },
+                  "required": [
+                    "old_string"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "pattern": {
+                      "type": "string",
+                      "description": "JavaScript regular-expression source matched against the text. Group references in new_string use $1 style."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Replacement text, $1-style groups allowed; omitted or empty deletes each match."
+                    },
+                    "replace_all": {
+                      "type": "boolean",
+                      "description": "Replace every match instead of the first only. Defaults to false."
+                    }
+                  },
+                  "required": [
+                    "pattern"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "first_line": {
+                      "type": "integer",
+                      "description": "First (1-based, inclusive) of the lines to replace or delete; addresses the text after earlier entries."
+                    },
+                    "last_line": {
+                      "type": "integer",
+                      "description": "Last (1-based, inclusive) of the lines to replace or delete; must be >= first_line."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Lines to substitute for the range; omitted or empty deletes the range."
+                    }
+                  },
+                  "required": [
+                    "first_line",
+                    "last_line"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_line": {
+                      "type": "integer",
+                      "description": "Insert new_string as new lines after this 1-based line; 0 inserts at the top, the file line count appends at the end."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "The lines to insert; required non-empty for this form."
+                    }
+                  },
+                  "required": [
+                    "after_line",
+                    "new_string"
+                  ]
+                }
+              ]
+            }
+          },
+          "dry_run": {
+            "type": "boolean",
+            "description": "Run the whole program in memory and commit nothing: returns the would-be content and per-entry match counts, bypassing the guards the real commit enforces."
+          },
+          "sandbox_permissions": {
+            "type": "string",
+            "description": "The wider sandbox mode this file operation needs. Only valid as a one-shot retry of an operation the sandbox just denied; requires justification and user approval.",
+            "enum": [
+              "workspace-write",
+              "danger-full-access"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
           }
         },
         "required": [
-          "id",
-          "reason"
+          "file_path"
+        ]
+      }
+    },
+    {
+      "name": "read",
+      "description": "Read a UTF-8 text file and return line-numbered content.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to read, resolved by the filesystem backend."
+          },
+          "offset": {
+            "type": "number",
+            "description": "1-based first line to return. Defaults to 1."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of lines to return. Defaults to 2000."
+          }
+        },
+        "required": [
+          "file_path"
         ]
       }
     },
@@ -67,6 +200,27 @@
       }
     },
     {
+      "name": "abandon_claim",
+      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The claim id, as returned by declare_claim."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Why the declared condition was the wrong one."
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ]
+      }
+    },
+    {
       "name": "create_goal",
       "description": "Create one persisted same-session completion goal when the current direct human request is a long-running objective that should continue across autonomous goal rounds. You may infer that intent without requiring the user to say \"create a goal\". Do not use this for trivial single-turn work. Execution rejects non-human and subagent authority.",
       "parameters": {
@@ -109,48 +263,6 @@
           "title",
           "description",
           "script"
-        ]
-      }
-    },
-    {
-      "name": "edit",
-      "description": "Edit an existing UTF-8 text file by replacing literal text.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "description": "Path to edit, resolved by the filesystem backend."
-          },
-          "old_string": {
-            "type": "string",
-            "description": "Literal text to replace. Must match exactly."
-          },
-          "new_string": {
-            "type": "string",
-            "description": "Literal replacement text. Use an empty string to delete the match."
-          },
-          "replace_all": {
-            "type": "boolean",
-            "description": "Replace all matches. Defaults to false; when false, old_string must appear exactly once."
-          },
-          "sandbox_permissions": {
-            "type": "string",
-            "description": "The wider sandbox mode this file operation needs. Only valid as a one-shot retry of an operation the sandbox just denied; requires justification and user approval.",
-            "enum": [
-              "workspace-write",
-              "danger-full-access"
-            ]
-          },
-          "justification": {
-            "type": "string",
-            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
-          }
-        },
-        "required": [
-          "file_path",
-          "old_string",
-          "new_string"
         ]
       }
     },
@@ -224,7 +336,7 @@
     },
     {
       "name": "job_output",
-      "description": "Read a background job. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. Reads are non-blocking unless `wait: true`, which waits up to the configured cap.",
+      "description": "Read a background job, blocking until the job settles or the timeout expires. Stream jobs return only output since the previous read; final-output jobs return their result after settlement. Every response ends with `[status: ...]`. `timeout_ms` defaults to the configured wait (10s) and is capped by the configured maximum (60s); a timed-out read returns [status: running] and leaves the job alive.",
       "parameters": {
         "type": "object",
         "properties": {
@@ -232,13 +344,9 @@
             "type": "string",
             "description": "Job id returned by the tool that started the background work."
           },
-          "wait": {
-            "type": "boolean",
-            "description": "Block until the job reaches a terminal status or the timeout expires. A timed-out wait returns [status: running] and leaves the job alive."
-          },
           "timeout_ms": {
             "type": "number",
-            "description": "Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum."
+            "description": "Max time to wait for settlement in milliseconds before returning the current state. Defaults to the configured wait timeout; capped by the configured maximum."
           }
         },
         "required": [
@@ -288,30 +396,6 @@
         },
         "required": [
           "objective"
-        ]
-      }
-    },
-    {
-      "name": "read",
-      "description": "Read a UTF-8 text file and return line-numbered content.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "description": "Path to read, resolved by the filesystem backend."
-          },
-          "offset": {
-            "type": "number",
-            "description": "1-based first line to return. Defaults to 1."
-          },
-          "limit": {
-            "type": "number",
-            "description": "Maximum number of lines to return. Defaults to 2000."
-          }
-        },
-        "required": [
-          "file_path"
         ]
       }
     },
@@ -700,39 +784,6 @@
         "required": [
           "script",
           "meta"
-        ]
-      }
-    },
-    {
-      "name": "write",
-      "description": "Create or fully replace a UTF-8 text file.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "file_path": {
-            "type": "string",
-            "description": "Path to write, resolved by the filesystem backend."
-          },
-          "content": {
-            "type": "string",
-            "description": "Full UTF-8 text content to write."
-          },
-          "sandbox_permissions": {
-            "type": "string",
-            "description": "The wider sandbox mode this file operation needs. Only valid as a one-shot retry of an operation the sandbox just denied; requires justification and user approval.",
-            "enum": [
-              "workspace-write",
-              "danger-full-access"
-            ]
-          },
-          "justification": {
-            "type": "string",
-            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
-          }
-        },
-        "required": [
-          "file_path",
-          "content"
         ]
       }
     }

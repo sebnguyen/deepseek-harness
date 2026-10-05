@@ -74,9 +74,9 @@ pnpm run test:snapshot:refresh snapshots/sdk/sdk.snapshot.ts -t text-turn
 pnpm run test:snapshot snapshots/sdk/sdk.snapshot.ts -t text-turn
 ```
 
-Review the new generation, request sidecars, and protocol output together. Verify every predecessor remains byte-identical and that parent/child roles remain contiguous. Selection uses the numerically highest generation, so update shared references to the owner's selected parent. Do not use the packed-layout migrator as a version upgrader. If the model transcript must change, the scenario owner uses live recording under the [testing policy](../testing.md), with its required provider key.
+Review the new generation, request sidecars, and protocol output together. Verify every predecessor remains byte-identical and that parent/child roles remain contiguous. Selection uses the numerically highest generation, so update shared references to the owner's selected parent. Do not use the packed-layout migrator as a version upgrader. If the model transcript must change, hand-author the Session fixture and refresh the derived expected outputs ([testing policy](../testing.md)).
 
-Keep deliberate historical cases explicit through `snapshot.yml`'s `sessionFormat.version` and supported `coverage` names; record and refresh leave their Session fixtures untouched. Update the [corpus policy](../../scripts/session-snapshot-corpus-policy.ts) for the current generation while retaining focused direct-edge, multi-hop, packed-row, retry/failure, and shipped-profile coverage. Check the corpus and both SDK projections; do not mass-refresh unrelated scenarios merely to silence a validation failure.
+Keep deliberate historical cases explicit through `snapshot.yml`'s `sessionFormat.version` and supported `coverage` names; refresh leaves their Session fixtures untouched. Update the [corpus policy](../../scripts/session-snapshot-corpus-policy.ts) for the current generation while retaining focused direct-edge, multi-hop, packed-row, retry/failure, and shipped-profile coverage. Check the corpus and both SDK projections; do not mass-refresh unrelated scenarios merely to silence a validation failure.
 
 <a id="validate"></a>
 ## 6. Validate the integrated result

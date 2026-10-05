@@ -2,7 +2,6 @@ version: 1
 scenario: bash-tool
 profile: sdk
 composition: sdk-default
-recording: live
 header:
   class: sdk-default
   pin: true

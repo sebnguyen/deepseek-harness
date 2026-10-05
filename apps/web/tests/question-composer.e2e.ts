@@ -6,7 +6,7 @@
 // Replay is fully deterministic — the question content arrives from replayed
 // chunks, the composer wait is real, and the answer click is the test's own
 // gesture (the ONE place a drive step legitimately reacts to model content:
-// the turn cannot complete without it, in record and replay alike).
+// the turn cannot complete without it, in replay and refresh alike).
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -17,7 +17,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import {
   connectFreshWorkspace, expandTurnProcesses, newEnglishPage, saveFailureShot,
@@ -125,7 +125,7 @@ describe('web e2e: resident question composer round trip', () => {
   let answeredSession: SessionId | undefined
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
+    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -143,12 +143,10 @@ describe('web e2e: resident question composer round trip', () => {
 
   it('asks through the composer, answers, and completes with the answer logged', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-question'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
-    const settled = scaffold.whenTurnSettled(MODE === 'record' ? 180_000 : 30_000)
+    const settled = scaffold.whenTurnSettled(30_000)
     await input.fill(PROMPT)
     await input.press('Enter')
 
@@ -156,125 +154,111 @@ describe('web e2e: resident question composer round trip', () => {
     // presence is a STABLE waiting state (not a transient): it stays until
     // answered, so a plain waitFor is race-free.
     const composer = page.locator('[data-question-key]')
-    await composer.waitFor({ timeout: MODE === 'record' ? 120_000 : 30_000 })
+    await composer.waitFor({ timeout: 30_000 })
     await expect.poll(() => composer.getByText('Which color do you prefer?').count(), { timeout: 10_000 }).toBeGreaterThan(0)
 
     const selectedRow = page.locator('[role="treeitem"][aria-selected="true"]')
     await expect.poll(() => selectedRow.locator('[data-state="warning"]').count(), { timeout: 10_000 }).toBe(1)
     await expect.poll(() => selectedRow.getByText('Waiting for answer', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
 
-    if (MODE !== 'record') {
-      // This golden owns the stable question surface; the answered-state
-      // golden below owns the resulting transcript.
-      const snapshot = await captureStableAria(page, '[data-question-key]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
-      const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
-    }
+    // This golden owns the stable question surface; the answered-state
+    // golden below owns the resulting transcript.
+    const snapshot = await captureStableAria(page, '[data-question-key]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
+    const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
 
     // Squeezed card: the option rows are the capped card's scroll content, so
     // shrinking the seat must push overflow into the option list, never
     // collapse a row below the height its own copy needs — a collapsed row
     // paints its centered copy outside the row box, over the title and the
     // neighbouring rows. Measured on the live composer at seat heights that
-    // force the cap, then restored for the answer gesture below. Replay only:
-    // record mode must reach the recording write below, not abort on layout.
-    if (MODE !== 'record') {
-      const original = page.viewportSize() ?? { width: 1680, height: 1000 }
-      for (const height of [520, 440, 380]) {
-        await page.setViewportSize({ width: 900, height })
-        const squeeze = await composer.evaluate((card) => {
-          // Role/ARIA selectors, not the CSS-module class names: the built
-          // client hashes those.
-          const rows = [...card.querySelectorAll<HTMLElement>(
-            '[role="radio"], [role="checkbox"], [aria-expanded]',
-          )]
-          const spill = rows.map(row => Math.max(...[...row.children].map((child) => {
-            const box = row.getBoundingClientRect()
-            const inner = child.getBoundingClientRect()
-            return Math.max(box.top - inner.top, inner.bottom - box.bottom)
-          })))
-          const list = card.querySelector<HTMLElement>('[data-question-scroll]')
-          return {
-            rows: rows.length,
-            spill: Math.max(...spill),
-            // Wrapped option text is what overflows a collapsed row, and a
-            // scrolling list proves the seat is genuinely capped. Without both,
-            // the spill assertion would hold vacuously.
-            wrappedRows: rows.filter(row => row.getBoundingClientRect().height > 42).length,
-            scrolls: list === null ? false : list.scrollHeight > list.clientHeight,
-          }
-        })
-        expect(squeeze.rows).toBeGreaterThan(0)
-        expect(squeeze.wrappedRows).toBeGreaterThan(0)
-        expect(squeeze.scrolls).toBe(true)
-        // Sub-pixel tolerance: every row's copy stays inside its border box.
-        expect(squeeze.spill).toBeLessThan(0.6)
-      }
-      await page.setViewportSize(original)
+    // force the cap, then restored for the answer gesture below.
+    const original = page.viewportSize() ?? { width: 1680, height: 1000 }
+    for (const height of [520, 440, 380]) {
+      await page.setViewportSize({ width: 900, height })
+      const squeeze = await composer.evaluate((card) => {
+        // Role/ARIA selectors, not the CSS-module class names: the built
+        // client hashes those.
+        const rows = [...card.querySelectorAll<HTMLElement>(
+          '[role="radio"], [role="checkbox"], [aria-expanded]',
+        )]
+        const spill = rows.map(row => Math.max(...[...row.children].map((child) => {
+          const box = row.getBoundingClientRect()
+          const inner = child.getBoundingClientRect()
+          return Math.max(box.top - inner.top, inner.bottom - box.bottom)
+        })))
+        const list = card.querySelector<HTMLElement>('[data-question-scroll]')
+        return {
+          rows: rows.length,
+          spill: Math.max(...spill),
+          // Wrapped option text is what overflows a collapsed row, and a
+          // scrolling list proves the seat is genuinely capped. Without both,
+          // the spill assertion would hold vacuously.
+          wrappedRows: rows.filter(row => row.getBoundingClientRect().height > 42).length,
+          scrolls: list === null ? false : list.scrollHeight > list.clientHeight,
+        }
+      })
+      expect(squeeze.rows).toBeGreaterThan(0)
+      expect(squeeze.wrappedRows).toBeGreaterThan(0)
+      expect(squeeze.scrolls).toBe(true)
+      // Sub-pixel tolerance: every row's copy stays inside its border box.
+      expect(squeeze.spill).toBeLessThan(0.6)
     }
+    await page.setViewportSize(original)
 
     // Multi-line custom answer: the field is a textarea whose hidden mirror
     // owns the box height, so a soft-wrapped or line-broken draft GROWS the
     // field instead of scrolling one line, and Shift+Enter breaks the line
     // rather than continuing the flow. Measured on the live composer because
     // only a real engine soft-wraps; growth stops at the mirror's cap, past
-    // which the textarea is the one thing that scrolls. Replay only, same as
-    // the squeeze above: record mode must reach the recording write.
+    // which the textarea is the one thing that scrolls.
     const custom = composer.getByRole('textbox')
-    if (MODE !== 'record') {
-      const oneLineHeight = await custom.evaluate(el => el.getBoundingClientRect().height)
-      await custom.fill('a'.repeat(120))
-      const wrapped = await custom.evaluate(el => ({
-        height: el.getBoundingClientRect().height,
-        scrolls: el.scrollHeight > el.clientHeight,
-      }))
-      expect(wrapped.height).toBeGreaterThan(oneLineHeight * 1.5)
-      expect(wrapped.scrolls).toBe(false)
+    const oneLineHeight = await custom.evaluate(el => el.getBoundingClientRect().height)
+    await custom.fill('a'.repeat(120))
+    const wrapped = await custom.evaluate(el => ({
+      height: el.getBoundingClientRect().height,
+      scrolls: el.scrollHeight > el.clientHeight,
+    }))
+    expect(wrapped.height).toBeGreaterThan(oneLineHeight * 1.5)
+    expect(wrapped.scrolls).toBe(false)
 
-      await custom.fill('')
-      await custom.press('Shift+Enter')
-      await custom.press('Shift+Enter')
-      expect(await custom.inputValue()).toBe('\n\n')
-      expect(await composer.getByText('Which color do you prefer?').count()).toBeGreaterThan(0)
-      expect(await custom.evaluate(el => el.getBoundingClientRect().height))
-        .toBeGreaterThan(oneLineHeight * 2.5)
+    await custom.fill('')
+    await custom.press('Shift+Enter')
+    await custom.press('Shift+Enter')
+    expect(await custom.inputValue()).toBe('\n\n')
+    expect(await composer.getByText('Which color do you prefer?').count()).toBeGreaterThan(0)
+    expect(await custom.evaluate(el => el.getBoundingClientRect().height))
+      .toBeGreaterThan(oneLineHeight * 2.5)
 
-      expect(await capMetrics(custom)).toEqual({ textLines: CAP_LINES, scrolls: true })
-      await custom.fill('')
-    }
+    expect(await capMetrics(custom)).toEqual({ textLines: CAP_LINES, scrolls: true })
+    await custom.fill('')
 
     const blue = composer.getByRole('checkbox', { name: 'Blue' })
     await blue.click()
     await custom.fill('Include accessibility notes')
     expect(await blue.getAttribute('aria-checked')).toBe('true')
     expect(await custom.inputValue()).toBe('Include accessibility notes')
-    if (MODE !== 'record') {
-      // A strict Session-slot switch remounts the composer. Open a fresh blank
-      // Session, then return to the still-waiting request and require its
-      // Session-scoped store to restore both option and free-text drafts.
-      const originalRow = page.locator('[role="treeitem"]')
-        .filter({ hasText: 'Use the ask_user_question tool' }).first()
-      await page.getByRole('button', { name: 'New session', exact: true }).last().click()
-      await page.getByText('New Session', { exact: true }).waitFor({ timeout: 15_000 })
-      await expect.poll(() => composer.count(), { timeout: 10_000 }).toBe(0)
-      await originalRow.click()
-      await composer.waitFor({ timeout: 15_000 })
-      expect(await blue.getAttribute('aria-checked')).toBe('true')
-      expect(await custom.inputValue()).toBe('Include accessibility notes')
+    // A strict Session-slot switch remounts the composer. Open a fresh blank
+    // Session, then return to the still-waiting request and require its
+    // Session-scoped store to restore both option and free-text drafts.
+    const originalRow = page.locator('[role="treeitem"]')
+      .filter({ hasText: 'Use the ask_user_question tool' }).first()
+    await page.getByRole('button', { name: 'New session', exact: true }).last().click()
+    await page.getByText('New Session', { exact: true }).waitFor({ timeout: 15_000 })
+    await expect.poll(() => composer.count(), { timeout: 10_000 }).toBe(0)
+    await originalRow.click()
+    await composer.waitFor({ timeout: 15_000 })
+    expect(await blue.getAttribute('aria-checked')).toBe('true')
+    expect(await custom.inputValue()).toBe('Include accessibility notes')
 
-      // This golden now owns the composed state after a real A -> B -> A
-      // Session cycle, not merely the state before the remount.
-      const snapshot = await captureStableAria(page, '[data-question-key]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(COMPOSED_EXPECTED, snapshot, MODE)
-    }
+    // This golden now owns the composed state after a real A -> B -> A
+    // Session cycle, not merely the state before the remount.
+    const composed = await captureStableAria(page, '[data-question-key]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(COMPOSED_EXPECTED, composed, MODE)
     await custom.press('Enter')
 
     const sessionId = await settled
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
-      return
-    }
     answeredSession = sessionId
     // World state: the tool result carries the chosen answer, and DONE lands.
     const results = sessionEvents.filter(e => e.type === 'tool/result')
@@ -292,8 +276,8 @@ describe('web e2e: resident question composer round trip', () => {
     expect(await selectedRow.locator('[data-state="warning"]').count()).toBe(0)
     await expect.poll(() => page.locator('[data-composer-input]').first().isEnabled(), { timeout: 10_000 }).toBe(true)
     // The default golden pins Compact mode before process disclosure.
-    const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(ANSWERED_EXPECTED, snapshot, MODE)
+    const answered = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(ANSWERED_EXPECTED, answered, MODE)
     // Keep the ask_user_question card's readable answer in the expanded golden
     // even though Compact mode hides the process by default.
     await expandTurnProcesses(page)
@@ -314,7 +298,7 @@ describe('web e2e: resident question composer round trip', () => {
   // padding, which is where a cap measured in box pixels drifts off the line
   // count — so it is asked straight through the user-questions seam (the same
   // service the tool calls; no model round is involved in a layout metric).
-  it.skipIf(MODE === 'record')('grows the optionless answer to the same cap', async () => {
+  it('grows the optionless answer to the same cap', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-question-optionless'))
     const sessionId = answeredSession
     expect(sessionId).toBeDefined()
@@ -352,7 +336,7 @@ describe('web e2e: resident question composer round trip', () => {
 
 })
 
-describe.skipIf(MODE === 'record')('web e2e: cancelled question transcript', () => {
+describe('web e2e: cancelled question transcript', () => {
   let cancelledScaffold: WebScaffold
   let cancelledBrowser: Browser
   let cancelledPage: Page

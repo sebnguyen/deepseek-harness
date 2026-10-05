@@ -1,8 +1,8 @@
 // Web acceptance for current sandbox-policy context. A real Chromium drives
-// the shipped /permission command through all three presets; record mode uses
-// the real provider, while replay keeps the same provider-authored behavior
-// keyless. Assertions read the exact durable header, runtime-context messages,
-// and tool calls, so assistant prose alone cannot satisfy the scenario.
+// the shipped /permission command through all three presets; replay keeps
+// the provider-authored behavior keyless. Assertions read the exact durable
+// header, runtime-context messages, and tool calls, so assistant prose alone
+// cannot satisfy the scenario.
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,14 +12,12 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import { canonicalPath } from '@deepseek-ai/dsh-sandbox'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
-  assertFinalWorkspaceSnapshot, assertFixtureInventory, fixtureUserPrompts, launchWebScaffold, recordFixture,
-  watchConsole, webSnapshotMode, type WebScaffold,
+  assertFinalWorkspaceSnapshot, assertFixtureInventory, fixtureUserPrompts, launchWebScaffold, watchConsole, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot, writeComposerDraft } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/permission-policy-context', import.meta.url))
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/permission-policy-context/session.v3.jsonl', import.meta.url))
-const MODE = webSnapshotMode()
 
 const PROMPTS = [
   'Can you create or edit a normal file right now under the current policy? Answer directly in one sentence. Do not call a tool just to discover the policy.',
@@ -68,7 +66,7 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
   const sessionEvents: SessionEvent[] = []
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, compareReplaySession: true })
+    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, compareReplaySession: true })
     disposeApproval = scaffold.ctx.on('approval/request', () => Promise.resolve('allowed-once'), { prepend: true })
     scaffold.ctx.on('session/event', (session, event: SessionEvent) => {
       sessionWorkspace = session.header.cwd
@@ -90,9 +88,7 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
 
   it('switches read-only, danger-full-access, and workspace-write through the real GUI command path', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-permission-policy-context'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual(PROMPTS)
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual(PROMPTS)
 
     const input = page.locator('[data-composer-input][contenteditable="true"]').first()
     let sessionId: Awaited<ReturnType<WebScaffold['whenTurnSettled']>> | undefined
@@ -118,12 +114,11 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
     sessionId = await settled
 
     if (sessionId === undefined) throw new Error('permission-policy scenario completed no model turn')
-    if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
     if (sessionWorkspace === undefined) throw new Error('permission-policy scenario observed no session workspace')
     await assertFinalWorkspaceSnapshot(SNAPSHOT_DIR, sessionWorkspace)
   }, 240_000)
 
-  it.skipIf(MODE === 'record')('records cache-safe current policy before the corresponding model behavior', async () => {
+  it('records cache-safe current policy before the corresponding model behavior', async () => {
     const systems = systemPrompts(sessionEvents)
     expect(systems).toHaveLength(1)
     expect(systems[0]).not.toContain('Current DSH file policy:')
@@ -165,7 +160,7 @@ describe('web e2e: current sandbox policy reaches the model before tools', () =>
     expect(await readFile(join(sessionWorkspace, 'policy-neutral.txt'), 'utf8')).toBe('POLICY_NEUTRAL_OK')
   })
 
-  it.skipIf(MODE === 'record')('stays clean and keeps the fixture inventory closed', async () => {
+  it('stays clean and keeps the fixture inventory closed', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.v3.jsonl', 'workspace.expected'])

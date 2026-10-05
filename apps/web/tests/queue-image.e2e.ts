@@ -66,7 +66,7 @@ describe('web e2e: queued image submission', () => {
     if (failures.length > 1) throw new AggregateError(failures, 'queued-image teardown failed')
   })
 
-  it.skipIf(MODE === 'record')('queues a text-plus-image submission with a thumbnail and delivers it as the next turn', async () => {
+  it('queues a text-plus-image submission with a thumbnail and delivers it as the next turn', async () => {
     overrideDir = await mkdtemp(join(tmpdir(), 'dsh-web-queued-image-'))
     const readyFile = join(overrideDir, '.hang-ready')
     const overridePath = join(overrideDir, 'replay.override.json')

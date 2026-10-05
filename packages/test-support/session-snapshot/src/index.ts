@@ -63,7 +63,6 @@ export {
   type SnapshotPermission,
   type SnapshotPlatform,
   type SnapshotProfile,
-  type SnapshotRecording,
   type SnapshotReplayManifest,
   type SnapshotSessionReference,
   type SnapshotSessionFormatCoverage,

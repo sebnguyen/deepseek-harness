@@ -6,10 +6,8 @@
 // fails loud on the open llm seam). The cold session also carries keyless
 // command-row surfaces: the seeded manual `/compact` lifecycle folds into its
 // checkpoint, an Access-chip pick later runs `/permission` on the host, and
-// `/feedback` pins its expandable correlation ids. The seed is a recorded
-// fixture under the same record discipline as every other: DSH_SNAPSHOT=record drives the turn
-// live through the composer (real read tool against seeded workspace files)
-// and harvests session.v3.jsonl; replay/refresh seed it cold and only render.
+// `/feedback` pins its expandable correlation ids. The seed is a committed
+// fixture: replay/refresh seed it cold and only render.
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import type { Browser, Page } from 'playwright'
@@ -24,7 +22,7 @@ import { join } from 'node:path'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria,
   compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, parseSeedFixture, realizeSeedFixture, recordFixture, renderSeedFixture, seedSession, watchConsole,
+  launchWebScaffold, parseSeedFixture, realizeSeedFixture, renderSeedFixture, seedSession, watchConsole,
   webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
@@ -191,21 +189,19 @@ describe('web e2e: seeded history renders through cold resume', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold({})
     // Composer recording uses a child workspace; seedSession owns the scaffold root.
-    const sessionCwd = MODE === 'record' ? join(scaffold.workspaceCwd, 'workspace') : scaffold.workspaceCwd
+    const sessionCwd = scaffold.workspaceCwd
     await mkdir(sessionCwd, { recursive: true })
     await writeFile(join(sessionCwd, 'a.txt'), 'alpha\n')
     await writeFile(join(sessionCwd, 'b.txt'), 'beta\n')
-    if (MODE !== 'record') {
-      const raw = await readFile(SEED, 'utf8')
-      expect(fixtureUserPrompts(raw), 'seed fixture must carry exactly the drive prompt').toEqual([PROMPT])
-      // The meter is host-plane — it takes no configuration and keys every
-      // fold by Session — so pricing fixture content needs no agent at all.
-      const meter = scaffold.ctx.get('tokenMeter')
-      if (meter === undefined) throw new Error('seeded-history requires the host token meter')
-      const realizedWithCompaction = withCompaction(realizeSeedFixture(scaffold, raw, SEED_ID), meter)
-      seededThroughSeq = parseSeedFixture(realizedWithCompaction).events.at(-1)?.seq ?? -1
-      await seedSession(scaffold, realizedWithCompaction, SEED_ID)
-    }
+    const raw = await readFile(SEED, 'utf8')
+    expect(fixtureUserPrompts(raw), 'seed fixture must carry exactly the drive prompt').toEqual([PROMPT])
+    // The meter is host-plane — it takes no configuration and keys every
+    // fold by Session — so pricing fixture content needs no agent at all.
+    const meter = scaffold.ctx.get('tokenMeter')
+    if (meter === undefined) throw new Error('seeded-history requires the host token meter')
+    const realizedWithCompaction = withCompaction(realizeSeedFixture(scaffold, raw, SEED_ID), meter)
+    seededThroughSeq = parseSeedFixture(realizedWithCompaction).events.at(-1)?.seq ?? -1
+    await seedSession(scaffold, realizedWithCompaction, SEED_ID)
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
@@ -218,18 +214,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE !== 'record')('records the seed turn live through the composer', async () => {
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-record'))
-    const input = page.locator('[data-composer-input]').first()
-    await input.waitFor({ timeout: 10_000 })
-    const settled = scaffold.whenTurnSettled()
-    await input.fill(PROMPT)
-    await input.press('Enter')
-    const sessionId = await settled
-    await recordFixture(scaffold, sessionId, SEED)
-  }, 200_000)
-
-  it.skipIf(MODE === 'record')('serves the projections baseline on the real composition opening snapshot', async () => {
+  it('serves the projections baseline on the real composition opening snapshot', async () => {
     // Composition regression tripwire: the projection registry must be a row
     // in the SHIPPED cordis.yml — with it absent every domain unit's optional
     // injection stays silent and this block disappears (no titles/todos on
@@ -263,7 +248,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     expect(sessionStats?.steps).toBeGreaterThanOrEqual(sessionStats?.turns ?? 0)
   })
 
-  it.skipIf(MODE === 'record')('lists the seeded session cold and renders its history from the log', async () => {
+  it('lists the seeded session cold and renders its history from the log', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-history'))
     // The sidebar tree collapses workspace groups by default: click the group
     // row (treeitem 0) to expand, then the revealed session row.
@@ -330,7 +315,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
       .waitFor({ timeout: 10_000 })
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('matches the historical conversation aria golden', async () => {
+  it('matches the historical conversation aria golden', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-aria'))
     // This scenario issues zero model calls — the scaffold's route-only
     // adapter serves the catalog and refuses to stream — so history restores
@@ -348,7 +333,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await compareOrRefreshGolden(UI_EXPANDED_EXPECTED, expanded, MODE)
   })
 
-  it.skipIf(MODE === 'record')('matches the Figma context disclosure geometry', async () => {
+  it('matches the Figma context disclosure geometry', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-context-injection'))
     const disclosure = page.getByRole('button', { name: 'Context injection AGENTS.md', exact: true })
     expect(await disclosure.getAttribute('aria-expanded')).toBe('false')
@@ -404,7 +389,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await expect.poll(() => disclosure.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it.skipIf(MODE === 'record')('file-path tool rows rebuilt from the cold log open the right Sidebar', async () => {
+  it('file-path tool rows rebuilt from the cold log open the right Sidebar', async () => {
     onTestFailed(async () => {
       await mkdir(fileURLToPath(new URL('../../../.artifacts/screenshots/0907-2205-sidebar', import.meta.url)), { recursive: true })
       await saveFailureShot(page, `screenshots/0907-2205-sidebar/seeded-toolrow-${process.pid}`)
@@ -437,7 +422,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await page.getByRole('navigation', { name: 'Turn navigation', exact: true }).waitFor({ state: 'visible' })
   })
 
-  it.skipIf(MODE === 'record')('expands the cold-resumed compact summary', async () => {
+  it('expands the cold-resumed compact summary', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-compaction'))
     const marker = page.getByRole('button', { name: /compact Compacted \d+ history items/ })
     await marker.waitFor({ timeout: 10_000 })
@@ -453,7 +438,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await expect.poll(() => marker.getAttribute('aria-expanded'), { timeout: 5_000 }).toBe('false')
   })
 
-  it.skipIf(MODE === 'record')('an Access-chip switch lands one command row: bare name, non-repeating settlement text', async () => {
+  it('an Access-chip switch lands one command row: bare name, non-repeating settlement text', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-command-row'))
     // The Access chip submits `/permission <preset>` — a host command with no
     // model call, so the settled row renders keylessly over this cold history.
@@ -476,7 +461,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     await compareOrRefreshGolden(COMMAND_ROW_EXPECTED, snapshot, MODE)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('reports full feedback correlation ids in an expandable two-line row', async () => {
+  it('reports full feedback correlation ids in an expandable two-line row', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-seeded-feedback-row'))
     const previousDshHome = process.env.DSH_HOME
     process.env.DSH_HOME = scaffold.harnessHome
@@ -517,7 +502,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     }
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('fits short logged context without a scrollport', async () => {
+  it('fits short logged context without a scrollport', async () => {
     const agent = scaffold.ctx.agents.get(SessionId(SEED_ID))
     if (agent === undefined) throw new Error('seeded session did not attach an agent')
     agent.session.append('user/message', createUserMessage({
@@ -539,7 +524,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(false)
   })
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', async () => {
+  it('issued zero model calls and stayed clean', async () => {
     // No replay fixture was installed and the llm seam is open — any stray
     // stream would have failed the turn loudly. Cleanliness pins the wire.
     expect(tripwire.pageErrors).toEqual([])

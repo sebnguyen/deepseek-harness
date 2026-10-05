@@ -701,7 +701,7 @@ describe('web e2e: settings modal and General preferences', () => {
     }
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'dialog-en.expected.md',

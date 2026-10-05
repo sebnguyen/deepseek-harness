@@ -1825,6 +1825,78 @@ describe('parseSessionHeader', () => {
   })
 })
 
+describe('child bind matching', () => {
+  const chunks = (text: string): StreamChunk[] => [
+    { type: 'block-start', index: 0, blockType: 'text' },
+    { type: 'text-delta', index: 0, text },
+    { type: 'block-end', index: 0, block: { type: 'text', text } },
+    { type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } },
+    { type: 'finish', reason: { kind: 'stop' } },
+  ]
+
+  function childWithPrompt(filename: string, id: string, prompt: string, reply: string): string {
+    const base = replaySessionJsonl([chunks(reply)], { id, createdAt: 0 })
+    const rows = base.split('\n').filter(line => line.trim() !== '')
+    const header = rows[0]
+    // Mirror the real child fixture: the task prompt rides an inbox splice
+    // event before turn/start.
+    const body = rows.slice(1)
+    const spliced = JSON.stringify({
+      type: 'agent/inbox/spliced',
+      seq: 0,
+      time: 0,
+      data: {
+        target: 'next-turn',
+        start: 0,
+        inserted: [{
+          content: [{ type: 'text', text: prompt }],
+          source: { kind: 'user' },
+          role: 'user',
+          id: `${id}-message`,
+        }],
+      },
+    })
+    const renumbered = [spliced, ...body]
+      .map((line, index) => index === 0 ? line : JSON.stringify({ ...JSON.parse(line) as object, seq: index }))
+    const path = join(dir, filename)
+    writeFileSync(path, [header, ...renumbered, ''].join('\n'), 'utf8')
+    return path
+  }
+
+  it('extracts the recorded first user text as each child script bindText', () => {
+    writeFileSync(file, replaySessionJsonl([], { id: 'p', createdAt: 0 }), 'utf8')
+    const c1 = childWithPrompt('session.1.jsonl', 'c1', 'PROMPT ONE', 'X')
+    const scripts = loadSessionScripts({ file, childFiles: [c1] })
+    expect(scripts.map(script => script.bindText)).toEqual(['', 'PROMPT ONE'])
+  })
+
+  it('binds concurrent children by recorded opening text even when calls arrive out of order', async () => {
+    writeFileSync(file, replaySessionJsonl([], { id: 'parent', createdAt: 0 }), 'utf8')
+    const alpha = childWithPrompt('session.1.jsonl', 'alpha', 'Reply with exactly the word ALPHA', 'ALPHA')
+    const codeword = childWithPrompt('session.2.jsonl', 'codeword', 'Remember the codeword SAFFRON', 'SAFFRON')
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    installLlmReplay(ctx, { file, childFiles: [alpha, codeword] })
+    const call = (sessionId: string, text: string) => ctx.llm.stream({
+      provider: 'm',
+      model: 'm',
+      sessionId: sessionId as NonNullable<GenerateOptions['sessionId']>,
+      messages: [
+        createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }),
+      ],
+    })
+    // The later-created child calls first: bind matching must still hand it its own script.
+    const first = await drain(call('live-codeword', 'Remember the codeword SAFFRON'))
+    const second = await drain(call('live-alpha', 'Reply with exactly the word ALPHA'))
+    const text = (received: StreamChunk[]) => received
+      .filter(chunk => chunk.type === 'text-delta')
+      .map(chunk => (chunk as { text: string }).text)
+      .join('')
+    expect(text(first)).toBe('SAFFRON')
+    expect(text(second)).toBe('ALPHA')
+  })
+})
+
 describe('loadSessionScripts', () => {
   it('returns one primary script for a single-session scenario', () => {
     const f = writeSession('session.jsonl', { id: 'p', createdAt: 100 }, [TEXT_CHUNKS])
@@ -1922,6 +1994,7 @@ describe('loadSessionScripts', () => {
       createdAt: 0,
       entries: [{ kind: 'hang' }],
       primary: true,
+      bindText: '',
     }])
   })
 

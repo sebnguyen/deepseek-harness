@@ -8,13 +8,12 @@ import { join } from 'node:path'
 import type { Browser, Page } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
-import { parseSessionLog } from '@deepseek-ai/dsh-llm-replay'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import { expandAssistantStream } from '@deepseek-ai/dsh-llm'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria,
   compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -74,9 +73,7 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
   const sessionEvents: SessionEvent[] = []
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record'
-      ? {}
-      : { replayFixture: FIXTURE, paceMs: REPLAY_PACE_MS, compareReplaySession: true })
+    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: REPLAY_PACE_MS, compareReplaySession: true })
     scaffold.ctx.on('session/event', (_session, event) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -94,14 +91,12 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
 
   it('strictly steers one queued row; the interjection is logged, rendered, and obeyed', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-steering'))
-    if (MODE !== 'record') {
-      // The steer lands as a durable user/message, so the inventory holds
-      // both the opening prompt and the later same-turn steer.
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT, STEER])
-    }
+    // The steer lands as a durable user/message, so the inventory holds
+    // both the opening prompt and the later same-turn steer.
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT, STEER])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
-    const settled = scaffold.whenTurnSettled(MODE === 'record' ? 180_000 : 30_000)
+    const settled = scaffold.whenTurnSettled(30_000)
     await page.locator('[data-composer-input][contenteditable="true"]').first().waitFor({ timeout: 10_000 })
     await input.fill(PROMPT)
     await input.press('Enter')
@@ -128,15 +123,13 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     // The blocked composer keeps steering pending long enough to observe the
     // Host-authoritative mirror before the loop admits it durably.
     const composer = page.locator('[data-question-key]')
-    await composer.waitFor({ timeout: MODE === 'record' ? 120_000 : 30_000 })
+    await composer.waitFor({ timeout: 30_000 })
 
-    if (MODE !== 'record') {
-      expect(await page.getByText(STEER, { exact: true }).count()).toBe(1)
-      expect(await pendingSteering.count()).toBe(1)
-      expect(await page.getByRole('button', { name: 'Edit queued message' }).count()).toBe(0)
-      const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(MID_EXPECTED, snapshot, MODE)
-    }
+    expect(await page.getByText(STEER, { exact: true }).count()).toBe(1)
+    expect(await pendingSteering.count()).toBe(1)
+    expect(await page.getByRole('button', { name: 'Edit queued message' }).count()).toBe(0)
+    const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(MID_EXPECTED, snapshot, MODE)
 
     // Answer the composer; the tool result closes the step, the loop drains
     // the steer as user/message, and the steered continuation runs the
@@ -144,17 +137,6 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     await composer.getByRole('radio', { name: 'Yes' }).click()
     await composer.getByRole('radio', { name: 'Yes' }).press('Enter')
     await settled
-
-    if (MODE === 'record') {
-      const sessionId = await settled
-      await recordFixture(scaffold, sessionId, FIXTURE)
-      // Fixture honesty: a recording where the live model ignored the steer
-      // would replay as a vacuous scenario — reject it and re-record instead.
-      const recorded = parseSessionLog(await readFile(FIXTURE, 'utf8'))
-      expect(claimedMessages(recorded, STEER)).toHaveLength(1)
-      expect(assistantText(recorded)).toContain('BANANA')
-      return
-    }
 
     // Durable: exactly one claimed user/message carrying the steering text.
     const steerEvents = claimedMessages(sessionEvents, STEER)
@@ -172,8 +154,8 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     expect(await page.locator('[data-question-key]').count()).toBe(0)
     // Settled golden: steer text between the question round trip and the
     // obeying reply, composer takeover gone.
-    const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(SETTLED_EXPECTED, snapshot, MODE)
+    const settledSnapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(SETTLED_EXPECTED, settledSnapshot, MODE)
     const expanded = await captureExpandedTurnProcessAria(
       page,
       '[class*="centerCol"]',
@@ -184,7 +166,7 @@ describe('web e2e: mid-turn steering lands durably and visibly', () => {
     expect(tripwire.warnings).toEqual([])
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'mid-steer.expected.md', 'settled.expected.md', 'settled-expanded.expected.md',
     ])
@@ -214,7 +196,7 @@ describe('web e2e: composer shortcut steers directly', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('uses Cmd+Enter without creating a Queue row', async () => {
+  it('uses Cmd+Enter without creating a Queue row', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-composer-steering'))
     expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT, STEER])
     const input = page.locator('[data-composer-input]').first()
@@ -273,7 +255,7 @@ describe('web e2e: composer shortcut follows the swapped busy behavior', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('queues Cmd+Enter when plain Enter is configured to Steer', async () => {
+  it('queues Cmd+Enter when plain Enter is configured to Steer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-composer-swapped-shortcut'))
     await page.getByRole('button', { name: 'Settings', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Settings' })
@@ -350,7 +332,7 @@ describe('web e2e: empty-draft Cmd+Enter steers the whole queue', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('queues two messages, then flushes both with an empty-draft Cmd+Enter', async () => {
+  it('queues two messages, then flushes both with an empty-draft Cmd+Enter', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-steer-all'))
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
@@ -430,7 +412,7 @@ describe('web e2e: empty-draft Cmd+Enter steers the whole queue', () => {
     expect(tripwire.warnings).toEqual([])
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(STEER_ALL_DIR, [
       'replay.override.json', 'mid-steer.expected.md',
       'settled.expected.md', 'settled-expanded.expected.md',

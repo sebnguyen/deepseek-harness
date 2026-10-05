@@ -1,5 +1,4 @@
 // PTC mode browser round trip with nested sub-calls and details selection.
-// Record: DSH_SNAPSHOT=record writes session.v3.jsonl, then a keyless
 // DSH_SNAPSHOT=refresh regenerates ui.expected.md.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -9,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   acknowledgeReloadConnectionLoss, captureExpandedTurnProcessAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -32,7 +31,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     scaffold = await launchWebScaffold({
       agentPresets: { roots: [], default: 'ptc' },
       compareReplaySession: true,
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15 }),
+      ...{ replayFixture: FIXTURE, paceMs: 15 },
     })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
@@ -50,21 +49,16 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
 
   it('drives the recorded prompt to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-drive'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     const settled = scaffold.whenTurnSettled()
     await input.fill(PROMPT)
     await input.press('Enter')
-    const sessionId = await settled
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
-    }
+    await settled
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('the durable log carries run_code with full-content sub-dispatches', () => {
+  it('the durable log carries run_code with full-content sub-dispatches', () => {
     const calls = sessionEvents.filter(event => event.type === 'tool/call')
     expect(calls.length).toBeGreaterThanOrEqual(1)
     expect(new Set(calls.map(call => (call.data as { name: string }).name))).toEqual(new Set(['run_code']))
@@ -93,7 +87,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     expect(bashContent.filter(block => block.type === 'text').map(block => block.text).join('')).toContain('CODE_ROUND_OK')
   })
 
-  it.skipIf(MODE === 'record')('renders the code parent row with always-visible nested sub-rows', async () => {
+  it('renders the code parent row with always-visible nested sub-rows', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-rows'))
     await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 15_000 }).toBeGreaterThanOrEqual(1)
     // The parent run_code row wears the code variant with the model-authored
@@ -107,7 +101,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     expect(await nest.locator('[data-state="error"]').count()).toBeGreaterThanOrEqual(1)
   }, 60_000)
 
-  it.skipIf(MODE === 'record')('expands the nested bash terminal inline before and after reload', async () => {
+  it('expands the nested bash terminal inline before and after reload', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-rightbar'))
     let liveTerminalAria: string | undefined
     for (const reloaded of [false, true]) {
@@ -138,7 +132,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     }
   })
 
-  it.skipIf(MODE === 'record')('matches the expanded conversation aria golden with stable anchors', async () => {
+  it('matches the expanded conversation aria golden with stable anchors', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-aria'))
     const row = page.locator('[data-subcalls] [data-sample="bash"]').first()
     await expandOwningTurnProcess(page, row)
@@ -151,7 +145,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean: no page errors, no reconnect churn', () => {
+  it('stayed clean: no page errors, no reconnect churn', () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
   })

@@ -131,7 +131,7 @@ describe('minimal agent preset', () => {
       .toEqual(scaffold.ctx.tools.schemas(agentHandle.agent).toSorted((left, right) => left.name.localeCompare(right.name)))
   })
 
-  it.skipIf(MODE === 'record')('expands the completed persistent Bash call in the Web conversation', async () => {
+  it('expands the completed persistent Bash call in the Web conversation', async () => {
     onTestFailed(() => { if (page !== undefined) void saveFailureShot(page, 'web-minimal-persistent-bash-card') })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)

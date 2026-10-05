@@ -13,9 +13,8 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SessionId as sessionId, type SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent'
-import { launchWebScaffold, readPersistedEvents, webSnapshotMode, type WebScaffold } from './scaffold.ts'
+import { launchWebScaffold, readPersistedEvents, type WebScaffold } from './scaffold.ts'
 
-const MODE = webSnapshotMode()
 const INITIAL = 'Explain event sourcing in one sentence.'
 const FOLLOWUP = 'Now give the same explanation to a human reader.'
 const WAKING = 'And add one concrete example.'
@@ -70,7 +69,7 @@ function textCompletion(text: string): object {
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: subagents/interruptByParent over the real composition', () => {
+describe('web e2e: subagents/interruptByParent over the real composition', () => {
   let scaffold: WebScaffold
   let sidecarRoot: string
   let readyFile: string

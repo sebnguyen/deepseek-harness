@@ -2,7 +2,6 @@ version: 1
 scenario: cancel-tool-calls
 profile: acp
 composition: acp-default
-recording: authored
 header:
   class: acp-default
 replay:

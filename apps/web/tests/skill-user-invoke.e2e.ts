@@ -59,7 +59,7 @@ const REPLAY: ReplayOverrideDoc = [{
   ],
 }]
 
-describe.skipIf(MODE === 'record')('web e2e: user-explicit skill invocation through the composer', () => {
+describe('web e2e: user-explicit skill invocation through the composer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

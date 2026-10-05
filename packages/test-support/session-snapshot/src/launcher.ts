@@ -124,7 +124,7 @@ export function launchAcpTestAgent(options: AcpTestLaunchOptions): LaunchedAcpTe
     libBin: agent.libBinScript,
     configArgs: agent.profile === undefined
       ? ['--config', selectedConfig]
-      : profileArgs(agent.profile, agent.configPath, selectedConfig, options.env?.DSH_SNAPSHOT, cwd),
+      : profileArgs(agent.profile, agent.configPath, selectedConfig, options.env?.DSH_SNAPSHOT === 'live', cwd),
     tsconfigPath: agent.tsconfigPath,
     ...agent.profile === undefined ? {} : { sourceImport: 'tsx/esm' },
     env: {
@@ -345,16 +345,16 @@ function profileArgs(
   profile: string,
   basePatch: string,
   selectedPatch: string,
-  snapshotMode: string | undefined,
+  live: boolean,
   cwd: string,
 ): string[] {
   const base = resolve(cwd, basePatch)
   const selected = resolve(cwd, selectedPatch)
   // Replay siblings already contain the selected scenario's complete delta
-  // over the base patch; live scenario patches are not also applied.
-  const patches = snapshotMode === 'replay'
-    ? [base, replayPatchPath(selected)]
-    : [...new Set([base, selected])]
+  // over the base patch; live runs compose the selected patch itself.
+  const patches = live
+    ? [...new Set([base, selected])]
+    : [base, replayPatchPath(selected)]
   const materializedRoot = join(cwd, '.dsh-profile-patches')
   mkdirSync(materializedRoot, { recursive: true })
   const materializedDir = mkdtempSync(join(materializedRoot, 'launch-'))

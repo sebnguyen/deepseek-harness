@@ -74,7 +74,7 @@ async function send(origin: string, delivery: string, body: object, event = 'pul
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: GitHub ready-for-review', () => {
+describe('web e2e: GitHub ready-for-review', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

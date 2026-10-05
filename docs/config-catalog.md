@@ -221,7 +221,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/api/session-controller/src/index.ts:74`](../packages/api/session-controller/src/index.ts)
+Source: [`packages/api/session-controller/src/index.ts:77`](../packages/api/session-controller/src/index.ts)
 
 <a id="deepseek-aidsh-api-settings-controller"></a>
 
@@ -570,6 +570,33 @@ export interface Config {
 
 Source: [`packages/credentials/credentials-local/src/index.ts:64`](../packages/credentials/credentials-local/src/index.ts)
 
+<a id="deepseek-aidsh-delegation-cap"></a>
+
+## `@deepseek-ai/dsh-delegation-cap`
+
+Requires: `tools`
+
+```ts config-catalog
+/** Plugin config, validated by the same-named schemastery schema. */
+export interface Config {
+  /** Global tool names the cap counts (e.g. `['subagent', 'explore']`). */
+  tools: string[]
+  /**
+   * Maximum counted starts per turn. The (cap+1)-th start in the same turn is
+   * denied with an actionable reason; cap 0 forbids delegation entirely.
+   */
+  maxDelegationsPerTurn: number
+  /**
+   * Array parameter whose entries also count as starts (default `tasks`):
+   * one batched call counts as `1 + entries.length` delegation starts, so a
+   * batch cannot route around the cap that counts separate calls.
+   */
+  batchParameter?: string
+}
+```
+
+Source: [`packages/guard/delegation-cap/src/index.ts:20`](../packages/guard/delegation-cap/src/index.ts)
+
 <a id="deepseek-aidsh-e2b"></a>
 
 ## `@deepseek-ai/dsh-e2b`
@@ -746,6 +773,32 @@ export interface InspectorOptions {
 ```
 
 Source: [`packages/experimental/inspector/src/index.ts:66`](../packages/experimental/inspector/src/index.ts)
+
+<a id="deepseek-aidsh-experimental-reasoning-prefetch"></a>
+
+## `@deepseek-ai/dsh-experimental-reasoning-prefetch`
+
+Requires: `agents`
+
+```ts config-catalog
+/** Request-preparation prefetch tuning. Invalid values fail plugin load. */
+export interface Config {
+  /** Maximum content reads staged per attempt (default 4). */
+  maxFiles?: number
+  /** Per-read byte ceiling; oversized files are skipped, not truncated. */
+  maxFileBytes?: number
+  /** Aggregate injected-byte ceiling per attempt (default 65536). */
+  maxTotalBytes?: number
+  /** Milliseconds a step's pre-step waits for in-flight staging (default 50). */
+  prefetchWaitMs?: number
+  /** Directory-listing line ceiling (default 40). */
+  listLines?: number
+  /** Accepted for compatibility; v1 stages at attempt end for both values. */
+  parsePoint?: 'attempt-end' | 'pre-step'
+}
+```
+
+Source: [`packages/experimental/reasoning-prefetch/src/index.ts:25`](../packages/experimental/reasoning-prefetch/src/index.ts)
 
 <a id="deepseek-aidsh-experimental-tool-agent-team"></a>
 
@@ -2090,6 +2143,49 @@ export interface Config {
 
 Source: [`packages/context/session-reference/src/config.ts:11`](../packages/context/session-reference/src/config.ts)
 
+<a id="deepseek-aidsh-session-stats"></a>
+
+## `@deepseek-ai/dsh-session-stats`
+
+Requires: `sessionProjections`
+
+```ts config-catalog
+/**
+ * Plugin config: the cost fold's deployment rates. Absent `pricing` leaves
+ * the cost unit unregistered (cost is a deployment policy, not a protocol
+ * constant), and once present every bucket needs its own positive rate —
+ * a silent half-priced bucket would understate the spend. The flat rates
+ * price any model absent from `models`; `models` keys per-model rates by
+ * the provider-logged model id.
+ */
+export interface Config {
+  /** USD per-million rates; presence opts the `sessionCost` unit in. */
+  pricing?: {
+    /** USD charged per million uncached input tokens. */
+    inputPerMillionUsd: number
+    /** USD charged per million output tokens. */
+    outputPerMillionUsd: number
+    /** USD charged per million cache-read tokens. */
+    cacheReadPerMillionUsd: number
+    /** USD charged per million cache-write tokens. */
+    cacheWritePerMillionUsd: number
+    /** Per-model overrides keyed by the provider-logged model id. */
+    models?: Record<string, {
+      /** USD per million uncached input tokens for this model. */
+      inputPerMillionUsd: number
+      /** USD per million output tokens for this model. */
+      outputPerMillionUsd: number
+      /** USD per million cache-read tokens for this model. */
+      cacheReadPerMillionUsd: number
+      /** USD per million cache-write tokens for this model. */
+      cacheWritePerMillionUsd: number
+    }>
+  }
+}
+```
+
+Source: [`packages/session/session-stats/src/index.ts:32`](../packages/session/session-stats/src/index.ts)
+
 <a id="deepseek-aidsh-session-telemetry-otel"></a>
 
 ## `@deepseek-ai/dsh-session-telemetry-otel`
@@ -2692,7 +2788,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:348`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:354`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -2940,7 +3036,7 @@ Source: [`packages/goal/tool-goal/src/index.ts:25`](../packages/goal/tool-goal/s
 
 ## `@deepseek-ai/dsh-tool-jobs`
 
-Requires: `tools` · `jobs` · `systemPrompt`
+Requires: `tools` · `jobs`
 
 ```ts config-catalog
 /** Configures bounded `job_output` waits and completion-notice delivery. */
@@ -3169,6 +3265,16 @@ export interface Config {
    */
   enableRunInBackground?: boolean
   /**
+   * Expose the `tasks` array as the spawn parameter in place of `prompt`
+   * (default false): one call runs one independent foreground child per
+   * entry in parallel, each entry carrying its own description and prompt,
+   * and a batched call rejects background execution. Child defaults
+   * (provider, persona, tool filter, model route, step budget, output
+   * schema, sandbox mode) apply per entry; failures stay per-child in the
+   * returned `results` unless every child fails, which fails the whole call.
+   */
+  enableBatchTasks?: boolean
+  /**
    * Background execution policy (default `one-shot`). `one-shot` defaults calls
    * to foreground; `continuable` defaults them to background, requires a provider
    * with the `prepareContinuable` capability, and returns the durable child id.
@@ -3205,12 +3311,29 @@ export interface Config {
    * budget belongs to the child runtime or its own deployment.
    */
   maxDepth?: number | 'provider-managed'
+  /**
+   * Deployment-owned object JSON Schema attached to every child start as
+   * `outputSchema`: never a model choice. Requires the provider's
+   * `outputSchema` capability; validated with `assertObjectJsonSchema` at
+   * load and loud-rejected there on violation.
+   */
+  outputSchema?: ObjectJsonSchema
+  /**
+   * Per-child accepted-step budget threaded as `maxSteps`. Requires the
+   * provider's `stepBudget` capability.
+   */
+  maxSteps?: number
+  /**
+   * The child session's initial sandbox confinement, written as its first
+   * sandbox event. Requires the provider's `childSandboxMode` capability.
+   */
+  childSandboxMode?: 'read-only' | 'workspace-write' | 'danger-full-access'
 }
 ```
 
-Depends on: [`AgentOptions`](subsystems/core.md)
+Depends on: [`AgentOptions`](subsystems/core.md) · [`ObjectJsonSchema`](../packages/core/tools/src/index.ts)
 
-Source: [`packages/subagent/tool-subagent/src/index.ts:48`](../packages/subagent/tool-subagent/src/index.ts)
+Source: [`packages/subagent/tool-subagent/src/index.ts:49`](../packages/subagent/tool-subagent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-terminal"></a>
 
@@ -3416,10 +3539,9 @@ export interface Config {
   /** Print the URL line on activation; a non-interactive layer can turn it off. */
   printUrl: boolean
   /**
-   * Register the model-visible surface context (the `app:web-surface` prompt
-   * section and the `DSH_WEB_URL` bash variable). A one-shot non-interactive
-   * layer can turn it off when its user is not in the GUI, so the
-   * orientation text would be false.
+   * Register the Web runtime shell context (the `DSH_WEB_URL` bash variable).
+   * A one-shot non-interactive layer can turn it off when its user has no
+   * shell in the GUI session.
    */
   surfaceContext: boolean
   /** Explicit `--trusted-host` authorities from this invocation. */
@@ -3427,7 +3549,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/bundle/web-app/src/index.ts:44`](../packages/bundle/web-app/src/index.ts)
+Source: [`packages/bundle/web-app/src/index.ts:40`](../packages/bundle/web-app/src/index.ts)
 
 <a id="deepseek-aidsh-web-fetch-http"></a>
 
@@ -3623,7 +3745,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-commands` ([`packages/client/ui-commands/src/index.ts`](../packages/client/ui-commands/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-conversation` ([`packages/client/ui-conversation/src/index.ts`](../packages/client/ui-conversation/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-cordis` ([`packages/extensions/ui-cordis/src/index.ts`](../packages/extensions/ui-cordis/src/index.ts))
-- `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `tools` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
@@ -3674,7 +3796,6 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-session` ([`packages/core/session/src/index.ts`](../packages/core/session/src/index.ts))
 - `@deepseek-ai/dsh-session-checkpoint-policy` — requires `llm` · `sessionPersistence` · `sessions` · `tools` ([`packages/session/session-checkpoint-policy/src/index.ts`](../packages/session/session-checkpoint-policy/src/index.ts))
 - `@deepseek-ai/dsh-session-projection` ([`packages/session/session-projection/src/index.ts`](../packages/session/session-projection/src/index.ts))
-- `@deepseek-ai/dsh-session-stats` — requires `sessionProjections` ([`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts))
 - `@deepseek-ai/dsh-session-turn-outline` — requires `sessionProjections` ([`packages/session/session-turn-outline/src/index.ts`](../packages/session/session-turn-outline/src/index.ts))
 - `@deepseek-ai/dsh-skill-badge` — requires `skills` ([`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts))
 - `@deepseek-ai/dsh-storage` ([`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts))

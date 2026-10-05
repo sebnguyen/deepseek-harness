@@ -109,7 +109,7 @@ describe('web e2e: settled Markdown math rendering', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('renders the settled reply without KaTeX errors', async () => {
+  it('renders the settled reply without KaTeX errors', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-math-rendering'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

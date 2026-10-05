@@ -28,6 +28,8 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 100 | `CORE_RULE_DIAGNOSE_BEFORE_SWITCHING` | `harness:core-rule:diagnose-before-switching` | `dsh-system-prompt` |
 | 110 | `CORE_RULE_CLOSE_THE_DECISION` | `harness:core-rule:close-the-decision` | `dsh-system-prompt` |
 | 120 | `CORE_RULE_CLOSE_THE_IDLE_TURN` | `harness:core-rule:close-the-idle-turn` | `dsh-system-prompt` |
+| 130 | `CORE_RULE_REUSE_BEFORE_EXTRACT` | `harness:core-rule:reuse-before-extract` | `dsh-system-prompt` |
+| 140 | `CORE_RULE_EXPLORE_THROUGH_EXPLORERS` | `harness:core-rule:explore-through-explorers` | `dsh-system-prompt`, empty unless a delegation tool (`subagent`, `explore`, or `delegate`) is registered |
 | 500 | `PLAN_POLICY` | `plan:policy` | `dsh-plan-mode`, non-empty only in plan mode |
 | 600 | `TEAM_POLICY` | `team:policy` | `dsh-experimental-tool-agent-team`, when the agent is on a team |
 | 800 | `PTC_ONLY` | (tools plugin) | `dsh-tools`, when tool presentation is `ptc` |
@@ -126,6 +128,18 @@ This rule covers committing to a choice, which the older rules do not: Think Con
 Core Rule: Close The Idle Turn - Background work calls back to the session when it settles, and each callback opens its own turn, so a turn held open waiting on it earns nothing and invites polling. A command promoted past the shell timeout, a background job, and a delegated subagent all deliver their result as an in-session notice; none needs you watching. When nothing pending remains that you can act on now, finish the reply and end the turn, and the notice arrives as a new turn with the work done. A check or reply you still owe is pending work, not waiting. Example: a build exceeded the timeout and became a background job with nothing else actionable, so end the turn on a one-line status; the completion notice starts the next turn.
 
 The rule terminates the wait that background promotion, jobs, and subagents open: their results arrive as notices without the model polling, so an open turn held for them only delays the notice's own turn. It does not license ending a turn on an obligation the model itself can still act on; Prove It still requires claim checks to run inside the turn, and the closing clause keeps that boundary by naming an owed check or reply as pending work rather than waiting.
+
+### Core Rule: Reuse Before Extract
+
+Core Rule: Reuse Before Extract - A helper born beside its one call site usually already exists with a consumer and a test, so name the behavior the code needs, then search the package exports and the workspace for that behavior before writing it: adopting the maintained function is cheaper than owning a twin, and a dependency that deletes the helper beats writing one by hand. When nothing existing fits and the call site is still alone, fold the body into the caller until a second call site, an export, or a body too large to read inline earns the name. Example: before writing a local formatDate, grep the date utilities by behavior, read the match, and call it instead.
+
+Models over-extract: a lone call site gets wrapped in a named local helper even when the package already exports the behavior and a dependency would delete the code entirely. This rule sends the model to search for the behavior it is about to hand-roll, then raises the evidence bar a local helper needs (a second call site, an export, or a body too large to inline), so reusing or inlining beats extracting. It complements Close The Decision and Context Over Inference: searching the workspace for an existing function is the reuse-side half of gathering before arguing.
+
+### Core Rule: Explore Through Explorers
+
+Core Rule: Explore Through Explorers - Reading broad territory in your own context re-sends every page on each later turn and loses detail to compression, so send discovery to explorer readers that write nothing and report findings only: parallel readers return sooner (speed), each hands back capped verified findings instead of your own fading memory of long files (correctness), and the capped handoff is paid once at its flat rate while pages read in session echo at the cache rate on every later turn (cost). One explore call may carry several prompts as a `tasks` array whose children run in parallel; the per-turn cap counts every child, so a batch spends the whole budget in one call. Convert accepted handoffs into todo items before acting on them. Example: three unknown modules earn one explore call carrying three `tasks` entries, and the plan cites their handoffs instead of a private reading log.
+
+Delegation is not free in kind: an explorer costs one extra consolidation read, and a parent that reads broadly in its own context pays the echo instead. This rule names the three reasons the trade favors the reader, speed, correctness, and cost, and keeps the spawn cap and the todo conversion in the same sentence so the encouragement cannot outrun its brakes. It registers only when the assembly offers a delegation tool, mirroring the prove-it gate, because a composition without readers would be steered toward a tool it cannot call.
 
 ## Tool advice (`Advice:`)
 

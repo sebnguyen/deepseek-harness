@@ -51,7 +51,7 @@ async function canvasColor(canvas: Locator): Promise<string> {
   })
 }
 
-describe.skipIf(MODE === 'record')('web e2e: document preview through the explorer', () => {
+describe('web e2e: document preview through the explorer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

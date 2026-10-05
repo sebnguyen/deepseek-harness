@@ -662,7 +662,7 @@ describe('web e2e: workspace management (create / rename / flat view / hover aff
     expect(tripwire.pageErrors).toEqual([])
   }, 90_000)
 
-  it.skipIf(MODE === 'record')('issued zero model calls and stayed clean', async () => {
+  it('issued zero model calls and stayed clean', async () => {
     expect(tripwire.warnings).toEqual([])
     // The directory-browser aria golden is this spec's one owned artifact;
     // the seed it reuses is owned (and inventory-guarded) by seeded-history.

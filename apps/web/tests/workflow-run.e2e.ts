@@ -26,7 +26,7 @@ const PARENT_FIXTURE = join(REPO_ROOT, 'snapshots/session/workflow-run/session.v
 const CHILD_FIXTURE = join(REPO_ROOT, 'snapshots/session/workflow-run/session.1.v3.jsonl')
 const CHILD_PROMPT = 'Reply with exactly the word WF_CHILD_OK and nothing else.'
 
-describe.skipIf(MODE === 'record')('web e2e: durable workflow run in Chat', () => {
+describe('web e2e: durable workflow run in Chat', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

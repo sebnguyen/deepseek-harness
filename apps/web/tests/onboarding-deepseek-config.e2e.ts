@@ -24,7 +24,7 @@ const MODELS_EXPECTED = join(SNAPSHOT_DIR, 'models.expected.md')
 const DEFAULT_MODELS_EXPECTED = join(SNAPSHOT_DIR, 'default-models.expected.md')
 const MODE = webSnapshotMode()
 
-describe.skipIf(MODE === 'record')('web e2e: first-run DeepSeek credential setup', () => {
+describe('web e2e: first-run DeepSeek credential setup', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

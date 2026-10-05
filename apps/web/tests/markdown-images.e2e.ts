@@ -211,7 +211,7 @@ describe('web e2e: Markdown image rendering', () => {
     }
   })
 
-  it.skipIf(MODE === 'record')('loads permitted images and shows authored text for failures', async () => {
+  it('loads permitted images and shows authored text for failures', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-images'))
     await page.getByRole('treeitem').first().click()
     await page.getByRole('treeitem').nth(1).click()

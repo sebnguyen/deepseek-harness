@@ -107,7 +107,7 @@ describe('web e2e: Markdown inline-code links', () => {
     await scaffold?.close()
   })
 
-  it.skipIf(MODE === 'record')('opens a complete HTTP URL from inline code and leaves other code inert', async () => {
+  it('opens a complete HTTP URL from inline code and leaves other code inert', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-markdown-inline-code-links'))
     const groupRow = page.locator('[role="treeitem"]').first()
     await groupRow.waitFor({ timeout: 15_000 })

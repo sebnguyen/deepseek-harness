@@ -6,7 +6,7 @@
 // completes the turn with the approval in the log.
 // Replay is deterministic: the plan content arrives from replayed chunks, the
 // review wait is real, and the approve click is the test's own gesture (the
-// turn cannot complete without it, in record and replay alike).
+// turn cannot complete without it, in replay and refresh alike).
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
@@ -17,7 +17,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureExpandedTurnProcessAria, captureStableAria,
   compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -48,7 +48,7 @@ describe('web e2e: plan review takeover round trip', () => {
   const sessionEvents: SessionEvent[] = []
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
+    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     // English page: the decision copy is the surface under test, and the
@@ -67,12 +67,10 @@ describe('web e2e: plan review takeover round trip', () => {
 
   it('reviews the plan on a decision card and approves through it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-plan-review'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([TASK])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([TASK])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
-    const settled = scaffold.whenTurnSettled(MODE === 'record' ? 180_000 : 30_000)
+    const settled = scaffold.whenTurnSettled(30_000)
     await input.fill(LINE)
     await input.press('Enter')
 
@@ -80,7 +78,7 @@ describe('web e2e: plan review takeover round trip', () => {
     // presence is a STABLE waiting state (it stays until answered), so a plain
     // waitFor is race-free.
     const card = page.locator('[data-plan-review-key]')
-    await card.waitFor({ timeout: MODE === 'record' ? 120_000 : 30_000 })
+    await card.waitFor({ timeout: 30_000 })
     // The plan-review request must NOT land on the generic question flow.
     expect(await page.locator('[data-question-key]').count()).toBe(0)
     await expect.poll(() => card.getByText('Plan review').count(), { timeout: 10_000 }).toBeGreaterThan(0)
@@ -89,12 +87,10 @@ describe('web e2e: plan review takeover round trip', () => {
     await expect.poll(() => selectedRow.locator('[data-state="warning"]').count(), { timeout: 10_000 }).toBe(1)
     await expect.poll(() => selectedRow.getByText('Plan awaiting review', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
 
-    if (MODE !== 'record') {
-      const snapshot = await captureStableAria(page, '[data-plan-review-key]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(REVIEW_EXPECTED, snapshot, MODE)
-      const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
-    }
+    const snapshot = await captureStableAria(page, '[data-plan-review-key]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(REVIEW_EXPECTED, snapshot, MODE)
+    const sidebar = await captureStableAria(page, '[role="treeitem"][aria-selected="true"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(SIDEBAR_EXPECTED, sidebar, MODE)
 
     await card.getByRole('button', { name: 'Approve' }).click()
     // Park the pointer: the card unmounts and the ContextMeter ring lands
@@ -102,11 +98,7 @@ describe('web e2e: plan review takeover round trip', () => {
     // into the aria captures below.
     await page.mouse.move(0, 0)
 
-    const sessionId = await settled
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
-      return
-    }
+    await settled
     // World state: the approval reached the tool, and plan mode is left behind.
     const results = sessionEvents.filter(e => e.type === 'tool/result')
     expect(JSON.stringify(results.at(-1))).toContain('Plan approved')
@@ -115,8 +107,8 @@ describe('web e2e: plan review takeover round trip', () => {
     expect(await page.locator('[data-plan-review-key]').count()).toBe(0)
     expect(await selectedRow.locator('[data-state="warning"]').count()).toBe(0)
     await expect.poll(() => page.locator('[data-composer-input]').first().isEnabled(), { timeout: 10_000 }).toBe(true)
-    const snapshot = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
-    await compareOrRefreshGolden(APPROVED_EXPECTED, snapshot, MODE)
+    const snapshotApproved = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(APPROVED_EXPECTED, snapshotApproved, MODE)
     const expanded = await captureExpandedTurnProcessAria(
       page,
       '[class*="centerCol"]',
@@ -127,7 +119,7 @@ describe('web e2e: plan review takeover round trip', () => {
     expect(tripwire.warnings).toEqual([])
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'review.expected.md', 'sidebar.expected.md',
       'approved.expected.md', 'approved-expanded.expected.md',

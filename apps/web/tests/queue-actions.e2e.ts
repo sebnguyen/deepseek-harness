@@ -75,7 +75,7 @@ describe('web e2e: queue row actions', () => {
     await expect.poll(() => row.getByRole('button', { name: 'Remove queued message' }).isEnabled()).toBe(true)
   }
 
-  it.skipIf(MODE === 'record')('edits and removes exact occurrences and preserves Queue across stop', async () => {
+  it('edits and removes exact occurrences and preserves Queue across stop', async () => {
     overrideDir = await mkdtemp(join(tmpdir(), 'dsh-web-queue-actions-'))
     const readyFile = join(overrideDir, '.hang-ready')
     const overridePath = join(overrideDir, 'replay.override.json')
@@ -274,7 +274,7 @@ describe('web e2e: queue row actions', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('orders Todo before Goal and Queue on one responsive card column', async () => {
+  it('orders Todo before Goal and Queue on one responsive card column', async () => {
     overrideDir = await mkdtemp(join(tmpdir(), 'dsh-web-context-layout-'))
     const readyFile = join(overrideDir, '.hang-ready')
     const overridePath = join(overrideDir, 'replay.override.json')
@@ -367,7 +367,7 @@ describe('web e2e: queue row actions', () => {
     expect(tripwire.warnings).toEqual([])
   }, 120_000)
 
-  it.skipIf(MODE === 'record')('keeps its snapshot inventory closed', async () => {
+  it('keeps its snapshot inventory closed', async () => {
     await assertFixtureInventory(
       SNAPSHOT_DIR,
       [

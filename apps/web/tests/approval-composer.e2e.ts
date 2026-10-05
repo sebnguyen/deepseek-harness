@@ -12,7 +12,7 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-user-approval'
 import {
   assertFinalWorkspaceSnapshot, assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -38,7 +38,7 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
   const sessionEvents: SessionEvent[] = []
 
   beforeAll(async () => {
-    scaffold = await launchWebScaffold(MODE === 'record' ? {} : { replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
+    scaffold = await launchWebScaffold({ replayFixture: FIXTURE, paceMs: 15, compareReplaySession: true })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
@@ -55,9 +55,7 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
 
   it('caps the long command, answers through the panel, and runs the escalated command', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-approval'))
-    if (MODE !== 'record') {
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
 
@@ -74,59 +72,52 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
       { timeout: 15_000 },
     ).toBe(1)
 
-    const settled = scaffold.whenTurnSettled(MODE === 'record' ? 240_000 : 60_000)
+    const settled = scaffold.whenTurnSettled(60_000)
     await input.fill(PROMPT)
     await input.press('Enter')
 
     const panel = page.locator('[data-approval-key]')
-    await panel.waitFor({ timeout: MODE === 'record' ? 180_000 : 60_000 })
+    await panel.waitFor({ timeout: 60_000 })
     const scroll = panel.locator('[data-approval-scroll]')
     await expect.poll(() => scroll.getByText(/tok/).count(), { timeout: 15_000 }).toBeGreaterThan(0)
 
-    if (MODE !== 'record') {
-      const snapshot = await captureStableAria(page, '[data-approval-key]', scaffold.workspaceCwd)
-      await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
+    const snapshot = await captureStableAria(page, '[data-approval-key]', scaffold.workspaceCwd)
+    await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
 
-      const original = page.viewportSize() ?? { width: 1680, height: 1000 }
-      for (const height of [1000, 700]) {
-        await page.setViewportSize({ width: 900, height })
-        const geometry = await panel.evaluate((root) => {
-          const region = root.querySelector<HTMLElement>('[data-approval-scroll]')
-          const card = region?.parentElement ?? null
-          // Role/text, not the CSS-module class names: the built client hashes those.
-          const buttons = [...root.querySelectorAll<HTMLElement>('button')]
-          const rows = buttons.map(button => button.getBoundingClientRect())
-          return {
-            buttons: buttons.length,
-            capped: region === null ? 0 : region.clientHeight,
-            // A scrolling region proves the cap is genuinely engaged; without
-            // it every assertion below would hold vacuously.
-            scrolls: region === null ? false : region.scrollHeight > region.clientHeight,
-            cardBottom: card === null ? Number.NaN : card.getBoundingClientRect().bottom,
-            actionsTop: Math.min(...rows.map(rect => rect.top)),
-            actionsBottom: Math.max(...rows.map(rect => rect.bottom)),
-            viewport: window.innerHeight,
-          }
-        })
-        expect(geometry.buttons).toBe(2)
-        expect(geometry.scrolls).toBe(true)
-        // The panel and composer share one cap; allow sub-pixel layout variance.
-        expect(Math.abs(geometry.capped - composerCap)).toBeLessThan(1)
-        expect(geometry.actionsTop).toBeGreaterThan(0)
-        expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.viewport)
-        expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.cardBottom)
-      }
-      await page.setViewportSize(original)
+    const original = page.viewportSize() ?? { width: 1680, height: 1000 }
+    for (const height of [1000, 700]) {
+      await page.setViewportSize({ width: 900, height })
+      const geometry = await panel.evaluate((root) => {
+        const region = root.querySelector<HTMLElement>('[data-approval-scroll]')
+        const card = region?.parentElement ?? null
+        // Role/text, not the CSS-module class names: the built client hashes those.
+        const buttons = [...root.querySelectorAll<HTMLElement>('button')]
+        const rows = buttons.map(button => button.getBoundingClientRect())
+        return {
+          buttons: buttons.length,
+          capped: region === null ? 0 : region.clientHeight,
+          // A scrolling region proves the cap is genuinely engaged; without
+          // it every assertion below would hold vacuously.
+          scrolls: region === null ? false : region.scrollHeight > region.clientHeight,
+          cardBottom: card === null ? Number.NaN : card.getBoundingClientRect().bottom,
+          actionsTop: Math.min(...rows.map(rect => rect.top)),
+          actionsBottom: Math.max(...rows.map(rect => rect.bottom)),
+          viewport: window.innerHeight,
+        }
+      })
+      expect(geometry.buttons).toBe(2)
+      expect(geometry.scrolls).toBe(true)
+      // The panel and composer share one cap; allow sub-pixel layout variance.
+      expect(Math.abs(geometry.capped - composerCap)).toBeLessThan(1)
+      expect(geometry.actionsTop).toBeGreaterThan(0)
+      expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.viewport)
+      expect(geometry.actionsBottom).toBeLessThanOrEqual(geometry.cardBottom)
     }
+    await page.setViewportSize(original)
 
     await panel.getByRole('button', { name: 'Allow once' }).click()
 
-    const sessionId = await settled
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
-      await assertFinalWorkspaceSnapshot(SNAPSHOT_DIR, join(scaffold.workspaceCwd, 'workspace'))
-      return
-    }
+    await settled
     // Direct state and DOM assertions cover the answered outcome beyond the
     // pending panel's expected output.
     expect(JSON.stringify(sessionEvents.filter(e => e.type === 'approval/decided').at(-1)))
@@ -141,7 +132,7 @@ describe('web e2e: approval takeover keeps its actions reachable', () => {
     expect(tripwire.warnings).toEqual([])
   }, 300_000)
 
-  it.skipIf(MODE === 'record')('keeps the fixture inventory closed', async () => {
+  it('keeps the fixture inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['session.v3.jsonl', 'ui.expected.md', 'workspace.expected'])
   })
 })

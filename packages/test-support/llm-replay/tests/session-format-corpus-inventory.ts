@@ -57,11 +57,6 @@ export const expectedUnsupported: Readonly<Partial<Record<string, { sourceVersio
 
 /** Headerless snapshot-harness protocol examples, not released Session artifacts. */
 export const unversionedProtocolFixtures = new Set([
-  'packages/test-support/session-snapshot/tests/fixtures/record-suite/rec-child/session.1.jsonl',
-  'packages/test-support/session-snapshot/tests/fixtures/record-suite/rec-child/session.jsonl',
-  'packages/test-support/session-snapshot/tests/fixtures/record-suite/rec-pin/session.1.jsonl',
-  'packages/test-support/session-snapshot/tests/fixtures/record-suite/rec-pin/session.jsonl',
-  'packages/test-support/session-snapshot/tests/fixtures/record-suite/rec-skip/session.jsonl',
   'packages/test-support/session-snapshot/tests/fixtures/suite/authored-error/session.jsonl',
   'packages/test-support/session-snapshot/tests/fixtures/suite/blocked-log/session.jsonl',
   'packages/test-support/session-snapshot/tests/fixtures/suite/no-model/session.jsonl',

@@ -38,11 +38,11 @@ Logs derive chunk or throw entries from durable Assistant settlements and explic
 
 ### Positional replay, one in-flight stream
 
-Replay is positional and therefore permits only one in-flight model stream per scenario. Concurrent-session snapshots require request-keyed entries. Changed call order requires re-recording, and missing or exhausted fixtures fail loudly.
+Replay is positional and therefore permits only one in-flight model stream per scenario. Concurrent-session snapshots require request-keyed entries. Changed call order requires a refreshed or hand-authored fixture, and missing or exhausted fixtures fail loudly.
 
 ### Recording harvests the log; keyless replay needs a providerless config
 
-Recording runs the scenario with the real `llm-deepseek` adapter and the JSONL persistence backend configured with `persistenceCompression: 'none'`, then projects the produced `.jsonl` into the scenario dir. The explicit raw mode keeps harvested logs line-readable while ordinary deployments use the backend's compressed default; eligible chunk runs still use the default packed storage rows. Per-event appends are durable, but the harness shuts the subprocess down gracefully (close stdin → `await ctx.dispose()`) before harvesting so the final events are flushed. `llm-replay` itself does no recording — it is replay-only.
+Retained fixtures are hand-authored or carried over from an earlier captured run; `llm-replay` itself is replay-only and never writes fixtures.
 
 Replay uses a `cordis.snapshot.yml` overlay that replaces the real adapter with `llm-replay` while retaining the live composition. Recording uses the ordinary config and a harness-supplied persistence root. Replay mode skips `.env` loading, so a stray API key cannot trigger a live call. See the [single-source config Agent Note](../../archived/testing/2026-07-04-single-source-acp-replay-config.md).
 
@@ -67,7 +67,7 @@ Tool determinism comes from a generated cwd, scrubbed environment, fresh non-log
 
 ### Two subcommands, replay in the default gate
 
-`pnpm run test:snapshot` replays committed fixtures keylessly; `test:snapshot:record` uses the real API and writes the projected current Session generation plus interface-specific expected output. The same keyless gate discovers canonical repository JSONL generations by filename/header agreement and rejects any fixture that differs from the shared codec's projected canonical packed representation. Missing roles fail loud. Every ACP scenario carries `input.json`, `stdout.expected.jsonl`, and one selected parent `session[.vN].jsonl`; no-model cases use a header-only log. Other profiles derive ordinary accepted user input from the selected parent generation and retain only controller input that the accepted Session cannot reconstruct in `snapshot.yml`. `replay.override.json` is required only for scenarios whose successful model behavior cannot be derived from the log. Fixture guards reject missing, mismatched, noncanonical, and orphaned files. Both commands accept scenario filters.
+`pnpm run test:snapshot` replays committed fixtures keylessly; `test:snapshot:refresh` replays and writes the projected current Session generation plus interface-specific expected output. The same keyless gate discovers canonical repository JSONL generations by filename/header agreement and rejects any fixture that differs from the shared codec's projected canonical packed representation. Missing roles fail loud. Every ACP scenario carries `input.json`, `stdout.expected.jsonl`, and one selected parent `session[.vN].jsonl`; no-model cases use a header-only log. Other profiles derive ordinary accepted user input from the selected parent generation and retain only controller input that the accepted Session cannot reconstruct in `snapshot.yml`. `replay.override.json` is required only for scenarios whose successful model behavior cannot be derived from the log. Fixture guards reject missing, mismatched, noncanonical, and orphaned files. Both commands accept scenario filters.
 
 ## Alternatives considered
 

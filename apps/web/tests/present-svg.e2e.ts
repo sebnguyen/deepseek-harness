@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-tool-present/types'
 import { deriveReplayScript, parseSessionLog } from '@deepseek-ai/dsh-llm-replay'
 import {
   assertFinalWorkspaceSnapshot, captureExpandedTurnProcessAria, compareOrRefreshGolden,
-  fixtureUserPrompts, launchWebScaffold, recordFixture, watchConsole,
+  fixtureUserPrompts, launchWebScaffold, watchConsole,
   webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspaceZh, ZH_BROWSER_LOCALE } from './support.ts'
@@ -29,19 +29,17 @@ describe('web e2e: requested SVG is explicitly delivered', () => {
   let replayRoot: string | undefined
 
   beforeAll(async () => {
-    let replayOverride: string | undefined
-    if (MODE !== 'record') {
-      replayRoot = await mkdtemp(join(tmpdir(), 'dsh-present-svg-replay-'))
-      replayOverride = join(replayRoot, 'replay.override.json')
-      const script = deriveReplayScript(parseSessionLog(await readFile(FIXTURE, 'utf8')))
-      // Recorded absolute paths must follow each isolated Session's working directory.
-      const cwdToken = '{{fromRequest:Your working directory is ([^\\n]+)\\.}}'
-      await writeFile(replayOverride, JSON.stringify(script).replaceAll('{{cwd}}', JSON.stringify(cwdToken).slice(1, -1)))
-    }
+    replayRoot = await mkdtemp(join(tmpdir(), 'dsh-present-svg-replay-'))
+    const replayOverride = join(replayRoot, 'replay.override.json')
+    const script = deriveReplayScript(parseSessionLog(await readFile(FIXTURE, 'utf8')))
+    // Recorded absolute paths must follow each isolated Session's working directory.
+    const cwdToken = '{{fromRequest:Your working directory is ([^\\n]+)\\.}}'
+    await writeFile(replayOverride, JSON.stringify(script).replaceAll('{{cwd}}', JSON.stringify(cwdToken).slice(1, -1)))
     scaffold = await launchWebScaffold({
       compareReplaySession: true,
       extraOverlayPath: fileURLToPath(new URL('./present-svg.overlay.yml', import.meta.url)),
-      ...(replayOverride === undefined ? {} : { replayFixture: FIXTURE, replayOverride }),
+      replayFixture: FIXTURE,
+      replayOverride,
     })
     browser = await chromium.launch()
     page = await browser.newPage({
@@ -66,7 +64,7 @@ describe('web e2e: requested SVG is explicitly delivered', () => {
   })
 
   it('writes valid SVG and calls present before the final reply', async () => {
-    if (MODE !== 'record') expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const settled = scaffold.whenTurnSettled()
     const input = page.locator('[data-composer-input]').first()
     await input.fill(PROMPT)
@@ -75,7 +73,6 @@ describe('web e2e: requested SVG is explicitly delivered', () => {
     const session = scaffold.ctx.agents.get(sessionId)?.session
     if (session?.header.cwd === undefined) throw new Error('SVG Session has no workspace')
     cwd = session.header.cwd
-    if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
 
     const svg = await readFile(join(cwd, FILE), 'utf8')
     const document = await page.evaluate((source) => {
@@ -113,7 +110,7 @@ describe('web e2e: requested SVG is explicitly delivered', () => {
     expect(tripwire.warnings).toEqual([])
   })
 
-  it.skipIf(MODE === 'record')('replays the delivered file and Chinese conversation', async () => {
+  it('replays the delivered file and Chinese conversation', async () => {
     await assertFinalWorkspaceSnapshot(DIR, cwd)
     await expect.poll(() => page.getByRole('button', { name: `${FILE} 的更多文件操作`, exact: true }).isDisabled()).toBe(true)
     // Delivery owns the transcript; navigation and composer chrome have separate scenarios.

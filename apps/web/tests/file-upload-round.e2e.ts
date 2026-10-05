@@ -3,10 +3,9 @@
 // bytes below the scaffold's isolated DSH_HOME, the prompt cites the staged
 // reference, request assembly projects the file block to handle text, and the
 // model (replayed or live) reads the saved copy with the REAL read tool. The
-// content-addressed store makes the saved path identical across record and
-// replay once the workspace cwd is tokenized, so the recorded read arguments
-// replay verbatim against a freshly re-uploaded object.
-// Record: DSH_SNAPSHOT=record rewrites session.v3.jsonl, then a keyless
+// content-addressed store makes the saved path stable once the workspace cwd
+// is tokenized, so the recorded read arguments replay verbatim against a
+// freshly re-uploaded object.
 // DSH_SNAPSHOT=refresh regenerates ui.expected.md.
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -16,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import {
   assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
-  launchWebScaffold, recordFixture, watchConsole, webSnapshotMode, type WebScaffold,
+  launchWebScaffold, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
@@ -30,7 +29,7 @@ const HISTORY_EXPECTED = fileURLToPath(new URL('./expected/file-upload-round/his
 const IMAGE_FIXTURE = fileURLToPath(new URL('../../../snapshots/session/read-image/workspace/red.png', import.meta.url))
 const MODE = webSnapshotMode()
 
-/** The uploaded fixture file: constant bytes so record and replay share one content digest. */
+/** The uploaded fixture file: constant bytes so replay keeps one content digest. */
 const FILE_NAME = 'poem.txt'
 const FILE_TEXT = 'UPLOAD_ROUND_OK\n'
 const PROMPT = 'Read the attached file with the read tool, reply with exactly the single word it contains, and stop.'
@@ -115,7 +114,7 @@ describe('web e2e: generic file upload through the real assembly', () => {
       // The override rescripts the recorded read arguments with a
       // `{{fromRequest:…}}` placeholder: the saved-copy path differs per run,
       // and the live handle line in the request carries the current one.
-      ...(MODE === 'record' ? {} : { replayFixture: FIXTURE, replayOverride: OVERRIDE, paceMs: 15 }),
+      ...{ replayFixture: FIXTURE, replayOverride: OVERRIDE, paceMs: 15 },
     })
     scaffold.ctx.on('session/event', (_session, event: SessionEvent) => { sessionEvents.push(event) })
     browser = await chromium.launch()
@@ -134,10 +133,8 @@ describe('web e2e: generic file upload through the real assembly', () => {
 
   it('uploads on pick, gates send on the staged receipt, and settles the turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-file-upload-drive'))
-    if (MODE !== 'record') {
-      // Drift guard: the committed fixture must carry exactly the drive prompt.
-      expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
-    }
+    // Drift guard: the committed fixture must carry exactly the drive prompt.
+    expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     const input = page.locator('[data-composer-input]').first()
     await input.waitFor({ timeout: 10_000 })
     const modelTrigger = page.getByRole('button', { name: /^Select model, current/ })
@@ -203,11 +200,10 @@ describe('web e2e: generic file upload through the real assembly', () => {
       const feedback = await page.locator('[role="alert"], [role="status"]').allTextContents()
       throw new Error(`submission retained ${String(retainedCards)} draft cards; feedback=${JSON.stringify(feedback)}; events=${sessionEvents.map(event => event.type).join(',')}`)
     }
-    const sessionId = await settled
-    if (MODE === 'record') await recordFixture(scaffold, sessionId, FIXTURE)
+    await settled
   }, 200_000)
 
-  it.skipIf(MODE === 'record')('persists the file block and reads the stored copy with the real read tool', () => {
+  it('persists the file block and reads the stored copy with the real read tool', () => {
     const userMessage = sessionEvents.find(
       (event): event is Extract<SessionEvent, { type: 'user/message' }> =>
         event.type === 'user/message' && event.data.source.kind === 'user',
@@ -240,7 +236,7 @@ describe('web e2e: generic file upload through the real assembly', () => {
     expect((turnEnds[0] as SessionEvent & { data: { reason: { kind: string } } }).data.reason.kind).toBe('completed')
   })
 
-  it.skipIf(MODE === 'record')('renders the durable file card beside the settled answer', async () => {
+  it('renders the durable file card beside the settled answer', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-file-upload-aria'))
     await expect.poll(() => page.getByText('UPLOAD_ROUND_OK', { exact: false }).count(), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
@@ -249,7 +245,7 @@ describe('web e2e: generic file upload through the real assembly', () => {
     await compareOrRefreshGolden(UI_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('keeps a mixed durable message in one ordered wrapping attachment flow', async () => {
+  it('keeps a mixed durable message in one ordered wrapping attachment flow', async () => {
     const groups = page.locator('[data-message-attachments]')
     await expect.poll(() => groups.count(), { timeout: 10_000 }).toBe(1)
     const geometry = await groups.first().evaluate((element): HistoryAttachmentGeometry => {
@@ -283,7 +279,7 @@ describe('web e2e: generic file upload through the real assembly', () => {
     await compareOrRefreshGolden(HISTORY_EXPECTED, renderHistoryAttachmentGeometry(geometry), MODE)
   })
 
-  it.skipIf(MODE === 'record')('marks the durable file in Trajectory without copying the Chat card', async () => {
+  it('marks the durable file in Trajectory without copying the Chat card', async () => {
     await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
     await page.getByLabel('Trajectory timeline').waitFor({ timeout: 30_000 })
     await page.getByRole('row', { name: /Files ×1/ }).waitFor({ timeout: 10_000 })
@@ -295,7 +291,7 @@ describe('web e2e: generic file upload through the real assembly', () => {
     await compareOrRefreshGolden(TRAJECTORY_EXPECTED, snapshot, MODE)
   })
 
-  it.skipIf(MODE === 'record')('stayed clean and kept the exact fixture inventory', async () => {
+  it('stayed clean and kept the exact fixture inventory', async () => {
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
     await assertFixtureInventory(SNAPSHOT_DIR, [

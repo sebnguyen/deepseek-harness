@@ -12,11 +12,10 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { JobId } from '@deepseek-ai/dsh-jobs'
-import { launchWebScaffold, seedSession, watchConsole, webSnapshotMode, type WebScaffold } from './scaffold.ts'
+import { launchWebScaffold, seedSession, watchConsole, type WebScaffold } from './scaffold.ts'
 import { newEnglishPage, saveFailureShot } from './support.ts'
 
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
-const MODE = webSnapshotMode()
 const SEED_ID = 'background-job-list-web-e2e'
 // Long enough that the running assertions never race the process exiting on
 // their own; the test kills it explicitly to reach the settled state.
@@ -40,7 +39,7 @@ async function liveAgent(scaffold: WebScaffold, sessionId: SessionId): Promise<A
   }
 }
 
-describe.skipIf(MODE === 'record')('web e2e: background activity drawer', () => {
+describe('web e2e: background activity drawer', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page

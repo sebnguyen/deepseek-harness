@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -48,11 +48,8 @@ import {
  * Unit tests for the suite factory, by running it: two synthetic suites over the scripted fake
  * ACP bin (./fixtures/fake-acp-agent.ts) register real describe/it trees at collection time,
  * so every factory path — expected-output and log comparisons, the per-suite header pin and its uniformity
- * guard, record-mode fixture write-back, skip semantics, and the fixture guard block —
+ * guard, refresh write-back, skip semantics, and the fixture guard block —
  * executes as an ordinary green test.
- *
- * Record tests use a temp copy. To intentionally rebuild their committed fixtures, run this
- * spec once with `ACP_SNAPSHOT_SPEC_BOOTSTRAP=1`, then review and commit the resulting tree.
  */
 
 const fakeAgent = fileURLToPath(new URL('./fixtures/fake-acp-agent.ts', import.meta.url))
@@ -73,14 +70,12 @@ function stabilize(
 ): string {
   return stabilizeRefreshLog(fresh, existing, replacements, freshContext)
 }
-const RECORD_SRC = fileURLToPath(new URL('./fixtures/record-suite', import.meta.url))
 
 // Replay pins explicit header classes; recording covers the default fallback.
 const REPLAY_SCENARIOS: Scenario[] = [
   {
     name: 'pin-turn',
     hasModelTurn: true,
-    recorded: true,
     pinsHeader: true,
     expectedHeaderChanges: 1,
     expectedPromptChanges: 1,
@@ -89,7 +84,6 @@ const REPLAY_SCENARIOS: Scenario[] = [
   {
     name: 'shared-pin',
     hasModelTurn: true,
-    recorded: true,
     pinsHeader: true,
     expectedHeaderChanges: 1,
     expectedPromptChanges: 1,
@@ -100,7 +94,6 @@ const REPLAY_SCENARIOS: Scenario[] = [
   {
     name: 'plain-turn',
     hasModelTurn: true,
-    recorded: true,
     headerClass: 'main',
     env: { DSH_PERMISSION_MODE: 'never' },
     configPath: AGENT.configPath,
@@ -111,37 +104,16 @@ const REPLAY_SCENARIOS: Scenario[] = [
       writeFileSync(join(cwd, 'seed.txt'), 'prepared at runtime')
     },
   },
-  { name: 'no-model', hasModelTurn: false, recorded: false, headerClass: 'main' },
-  { name: 'blocked-log', hasModelTurn: false, comparesLog: true, recorded: false, headerClass: 'main' },
-  { name: 'authored-error', hasModelTurn: true, recorded: false, overridden: true, headerClass: 'main' },
+  { name: 'no-model', hasModelTurn: false, headerClass: 'main' },
+  { name: 'blocked-log', hasModelTurn: false, comparesLog: true, headerClass: 'main' },
+  { name: 'authored-error', hasModelTurn: true, overridden: true, headerClass: 'main' },
 ]
 
-const RECORD_SCENARIOS: Scenario[] = [
-  { name: 'rec-pin', hasModelTurn: true, recorded: true, pinsHeader: true },
-  { name: 'rec-child', hasModelTurn: true, recorded: true, pinsChildToolSchemas: [1] },
-  // recorded:false in record mode → registered but skipped (never re-recorded).
-  { name: 'rec-skip', hasModelTurn: true, recorded: false, overridden: true },
-]
-
-// Record/refresh modes mutate their snapshots dir, so run them on throwaway
-// copies — except record's documented bootstrap knob, which regenerates the
-// committed record fixtures and expected outputs in place.
-const BOOTSTRAP = process.env.ACP_SNAPSHOT_SPEC_BOOTSTRAP === '1'
-const recordDir = BOOTSTRAP ? RECORD_SRC : mkdtempSync(join(tmpdir(), 'acp-snap-record-suite-'))
-const retiredChildFixture = readFileSync(join(RECORD_SRC, 'rec-child', 'session.1.v3.jsonl'), 'utf8')
-if (!BOOTSTRAP) {
-  cpSync(RECORD_SRC, recordDir, { recursive: true })
-  // Record mode owns its output inventory: a new scenario has no primary yet,
-  // while a changed child count can leave old numbered fixtures behind.
-  rmSync(join(recordDir, 'rec-pin', 'session.jsonl'))
-  rmSync(join(recordDir, 'rec-pin', 'session.v3.jsonl'))
-  writeFileSync(join(recordDir, 'rec-child', 'session.2.v3.jsonl'), retiredChildFixture)
-}
+// Refresh mode mutates its snapshots dir, so it runs on a throwaway copy.
 const refreshDir = mkdtempSync(join(tmpdir(), 'acp-snap-refresh-suite-'))
 cpSync(REPLAY_DIR, refreshDir, { recursive: true })
 staleRefreshFixtures(refreshDir)
 afterAll(async () => {
-  if (!BOOTSTRAP) await rm(recordDir, { recursive: true, force: true })
   await rm(refreshDir, { recursive: true, force: true })
 })
 
@@ -171,12 +143,6 @@ function staleRefreshFixtures(dir: string): void {
 
 describe('defineAcpSnapshotSuite: replay mode', () => {
   defineAcpSnapshotSuite({ agent: AGENT, snapshotsDir: REPLAY_DIR, scenarios: REPLAY_SCENARIOS, mode: 'replay' })
-})
-
-// The record suite's tests run in registration order: rec-pin re-records the
-// pinned fixture FIRST, so rec-child's uniformity guard reads the fresh pin.
-describe('defineAcpSnapshotSuite: record mode', () => {
-  defineAcpSnapshotSuite({ agent: AGENT, snapshotsDir: recordDir, scenarios: RECORD_SCENARIOS, mode: 'record' })
 })
 
 describe('defineAcpSnapshotSuite: refresh mode', () => {
@@ -229,49 +195,13 @@ describe('defineAcpSnapshotSuite: refresh write-back', () => {
   })
 })
 
-describe('defineAcpSnapshotSuite: record inventory write-back', () => {
-  it('uses complete UUIDs for the shared parent and child system message', () => {
-    const behavior = JSON.parse(readFileSync(join(RECORD_SRC, 'rec-child', 'behavior.json'), 'utf8')) as {
-      logs: { lines: { type: string; data?: { message?: { id: string } } }[] }[]
-    }
-    const ids = behavior.logs.map(log => log.lines.find(event => event.type === 'system/message')?.data?.message?.id)
-    expect(ids).toHaveLength(2)
-    for (const id of ids) expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-    expect(ids[0]).toBe(ids[1])
-  })
-
-  it('creates a missing primary fixture and preserves generations for a retired child role', () => {
-    const fixture = readFileSync(join(recordDir, 'rec-pin', 'session.v3.jsonl'), 'utf8')
-    expect(fixture).toContain('"type":"session"')
-    expect(fixture).toContain('"cwd":"{{cwd}}"')
-    if (!BOOTSTRAP) {
-      expect(readFileSync(join(recordDir, 'rec-child', 'session.2.v3.jsonl'), 'utf8')).toBe(retiredChildFixture)
-    }
-    expect(readFileSync(join(recordDir, 'rec-child', 'tool-schemas.1.expected.json'), 'utf8'))
-      .toContain('"name": "t1"')
-  })
-
-  it('retains an unchanged message relationship across the recorded parent and child fixtures', () => {
-    const existingMessageId = '22222222-2222-4222-8222-222222222222'
-    const freshMessageId = '11111111-1111-4111-8111-111111111111'
-    const fixtures = ['session.v3.jsonl', 'session.1.v3.jsonl']
-      .map(file => readFileSync(join(recordDir, 'rec-child', file), 'utf8'))
-
-    for (const fixture of fixtures) {
-      expect(fixture).toContain('"id":"{{message:1}}"')
-      expect(fixture).not.toContain(existingMessageId)
-      expect(fixture).not.toContain(freshMessageId)
-    }
-  })
-})
-
 describe('defineAcpSnapshotSuite: registration contract', () => {
   it("throws when a scenario's header class has no pinning scenario", () => {
     expect(() => {
       defineAcpSnapshotSuite({
         agent: AGENT,
         snapshotsDir: REPLAY_DIR,
-        scenarios: [{ name: 'pinless', hasModelTurn: true, recorded: true }],
+        scenarios: [{ name: 'pinless', hasModelTurn: true }],
         mode: 'replay',
       })
     }).toThrow(/no scenario pins the request-header content of class "default"/)
@@ -281,8 +211,8 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
         agent: AGENT,
         snapshotsDir: REPLAY_DIR,
         scenarios: [
-          { name: 'pinned', hasModelTurn: true, recorded: true, pinsHeader: true },
-          { name: 'classless-orphan', hasModelTurn: true, recorded: true, headerClass: 'other' },
+          { name: 'pinned', hasModelTurn: true, pinsHeader: true },
+          { name: 'classless-orphan', hasModelTurn: true, headerClass: 'other' },
         ],
         mode: 'replay',
       })
@@ -295,8 +225,8 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
         agent: AGENT,
         snapshotsDir: REPLAY_DIR,
         scenarios: [
-          { name: 'first-pin', hasModelTurn: true, recorded: true, pinsHeader: true },
-          { name: 'second-pin', hasModelTurn: true, recorded: true, pinsHeader: true },
+          { name: 'first-pin', hasModelTurn: true, pinsHeader: true },
+          { name: 'second-pin', hasModelTurn: true, pinsHeader: true },
         ],
         mode: 'replay',
       })
@@ -309,8 +239,8 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
         agent: AGENT,
         snapshotsDir: REPLAY_DIR,
         scenarios: [
-          { name: 'duplicate', hasModelTurn: true, recorded: true, pinsHeader: true },
-          { name: 'duplicate', hasModelTurn: true, recorded: true },
+          { name: 'duplicate', hasModelTurn: true, pinsHeader: true },
+          { name: 'duplicate', hasModelTurn: true },
         ],
         mode: 'replay',
       })
@@ -332,7 +262,6 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
           scenarios: [{
             name: 'plain',
             hasModelTurn: true,
-            recorded: true,
             [field]: value,
           }],
           mode: 'replay',
@@ -349,7 +278,6 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
         scenarios: [{
           name: 'pin',
           hasModelTurn: true,
-          recorded: true,
           pinsHeader: true,
           systemPromptSource: 'missing',
         }],
@@ -365,11 +293,10 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
           {
             name: 'pin',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             toolSchemasSource: 'plain',
           },
-          { name: 'plain', hasModelTurn: true, recorded: true },
+          { name: 'plain', hasModelTurn: true },
         ],
         mode: 'replay',
       })
@@ -382,11 +309,10 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
         agent: AGENT,
         snapshotsDir: REPLAY_DIR,
         scenarios: [
-          { name: 'owner', hasModelTurn: true, recorded: true, pinsHeader: true },
+          { name: 'owner', hasModelTurn: true, pinsHeader: true },
           {
             name: 'redirect',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             headerClass: 'redirect',
             systemPromptSource: 'owner',
@@ -394,7 +320,6 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
           {
             name: 'consumer',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             headerClass: 'consumer',
             systemPromptSource: 'redirect',
@@ -414,14 +339,12 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
           {
             name: 'owner',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             expectedHeaderChanges: 1,
           },
           {
             name: 'consumer',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             headerClass: 'consumer',
             toolSchemasSource: 'owner',
@@ -441,14 +364,12 @@ describe('defineAcpSnapshotSuite: registration contract', () => {
           {
             name: 'owner',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             expectedPromptChanges: 1,
           },
           {
             name: 'consumer',
             hasModelTurn: true,
-            recorded: true,
             pinsHeader: true,
             headerClass: 'consumer',
             systemPromptSource: 'owner',
@@ -632,7 +553,6 @@ describe('stdoutExpectedVariants', () => {
   const scenario: Scenario = {
     name: 'windows-native',
     hasModelTurn: true,
-    recorded: true,
     pinsNativeWindowsStdout: true,
   }
 
@@ -654,38 +574,20 @@ describe('stdoutExpectedVariants', () => {
 })
 
 describe('scenarioSkipped', () => {
-  const authored: Scenario = { name: 'authored', hasModelTurn: true, recorded: false }
-  const posix: Scenario = { name: 'posix-cancel', hasModelTurn: true, recorded: false, posixOnly: true }
-  const pwsh: Scenario = { name: 'pwsh-tool', hasModelTurn: true, recorded: false, pwshOnly: true }
-  const retained: Scenario = {
-    name: 'retained-v0',
-    hasModelTurn: true,
-    recorded: true,
-    sessionFormat: { version: 0, coverage: ['multi-hop'] },
-  }
-
-  it('skips authored scenarios only while recording', () => {
-    expect(scenarioSkipped(authored, true, 'linux')).toBe(true)
-    expect(scenarioSkipped(authored, false, 'linux')).toBe(false)
-  })
-
-  it('skips a retained historical generation while recording but replays and refreshes it', () => {
-    expect(scenarioSkipped(retained, true, 'linux')).toBe(true)
-    expect(scenarioSkipped(retained, false, 'linux')).toBe(false)
-  })
+  const posix: Scenario = { name: 'posix-cancel', hasModelTurn: true, posixOnly: true }
+  const pwsh: Scenario = { name: 'pwsh-tool', hasModelTurn: true, pwshOnly: true }
 
   it('skips posixOnly scenarios on Windows and nowhere else', () => {
-    expect(scenarioSkipped(posix, false, 'win32')).toBe(true)
-    expect(scenarioSkipped(posix, false, 'linux')).toBe(false)
-    expect(scenarioSkipped(posix, false, 'darwin')).toBe(false)
-    expect(scenarioSkipped(authored, false, 'win32')).toBe(false)
+    expect(scenarioSkipped(posix, 'win32')).toBe(true)
+    expect(scenarioSkipped(posix, 'linux')).toBe(false)
+    expect(scenarioSkipped(posix, 'darwin')).toBe(false)
   })
 
   it('skips pwshOnly scenarios when the host lacks pwsh, and runs them otherwise', () => {
-    expect(scenarioSkipped(pwsh, false, 'linux', false)).toBe(true)
-    expect(scenarioSkipped(pwsh, false, 'win32', true)).toBe(false)
-    expect(scenarioSkipped(pwsh, false, 'linux', true)).toBe(false)
-    expect(scenarioSkipped(authored, false, 'linux', false)).toBe(false)
+    expect(scenarioSkipped(pwsh, 'linux', false)).toBe(true)
+    expect(scenarioSkipped(pwsh, 'win32', true)).toBe(false)
+    expect(scenarioSkipped(pwsh, 'linux', true)).toBe(false)
+    expect(scenarioSkipped(posix, 'linux', false)).toBe(false)
   })
 })
 
