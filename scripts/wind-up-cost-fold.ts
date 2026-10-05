@@ -52,7 +52,15 @@ function finiteCount(value: unknown): number | null {
  * providers log; cache-write columns are zero where the route defines no
  * cache-miss charge.
  */
-export const DO_MODEL_RATES: Record<string, { inputPerMillionUsd: number; outputPerMillionUsd: number; cacheReadPerMillionUsd: number; cacheWritePerMillionUsd: number }> = {
+/** One model's price per million tokens, in US dollars. */
+interface ModelRate {
+  inputPerMillionUsd: number
+  outputPerMillionUsd: number
+  cacheReadPerMillionUsd: number
+  cacheWritePerMillionUsd: number
+}
+
+export const DO_MODEL_RATES: Record<string, ModelRate> = {
   'glm-5.3-flash': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.50, cacheReadPerMillionUsd: 0.03, cacheWritePerMillionUsd: 0 },
   'glm-5.3': { inputPerMillionUsd: 1.40, outputPerMillionUsd: 4.40, cacheReadPerMillionUsd: 0.26, cacheWritePerMillionUsd: 0 },
   'minimax-m2.5': { inputPerMillionUsd: 0.30, outputPerMillionUsd: 1.20, cacheReadPerMillionUsd: 0.06, cacheWritePerMillionUsd: 0 },
@@ -102,8 +110,8 @@ export function foldSessionUsageByModel(path: string): ModelUsageFold {
   const totals = foldSessionUsage(path)
   const lines = readFileSync(path).toString('utf8').split('\n').filter(line => line.trim() !== '')
   const fold: ModelUsageFold = { id: totals.id, turns: totals.turns, steps: totals.steps, byModel: {} }
-  for (let index = 1; index < lines.length; index += 1) {
-    const event = JSON.parse(lines[index]!) as {
+  for (const line of lines.slice(1)) {
+    const event = JSON.parse(line) as {
       type?: unknown
       data?: { usage?: unknown; message?: { source?: { model?: unknown } } }
     }
@@ -138,8 +146,8 @@ export function foldSessionUsageByModel(path: string): ModelUsageFold {
  */
 export function priceModelsMicros(
   byModel: Record<string, ModelUsage>,
-  rates: Record<string, { inputPerMillionUsd: number; outputPerMillionUsd: number; cacheReadPerMillionUsd: number; cacheWritePerMillionUsd: number }>,
-  fallback?: { inputPerMillionUsd: number; outputPerMillionUsd: number; cacheReadPerMillionUsd: number; cacheWritePerMillionUsd: number },
+  rates: Record<string, ModelRate>,
+  fallback?: ModelRate,
 ): number {
   let micros = 0
   const unknown: string[] = []
@@ -184,10 +192,11 @@ export function foldSessionUsage(path: string): SessionUsageFold {
     cacheReadTokens: 0,
     cacheWriteTokens: 0,
   }
-  for (let index = 1; index < lines.length; index += 1) {
+  for (const [index, line] of lines.entries()) {
+    if (index === 0) continue
     let event: { type?: unknown; data?: { usage?: unknown } }
     try {
-      event = JSON.parse(lines[index]!) as typeof event
+      event = JSON.parse(line) as typeof event
     } catch {
       throw new Error(`wind-up-cost-fold: ${path} line ${index + 1} is not JSON`)
     }

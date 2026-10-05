@@ -18,6 +18,26 @@ None of the three exists end-to-end today. The local write seam is complete host
 
 CodeMirror 6 (CM6) plus the official `@codemirror/lsp-client` (first-party, MIT, first numbered release 2025-07, releases through 2026-09) is the editor substrate. Its `Transport` interface is exactly `send(string) / subscribe(handler) / unsubscribe(handler)` over raw LSP JSON frames, so whatever host relay we build is the only transport concern; completion, `serverDiagnostics` (via `@codemirror/lint`), Markdown hover, and jump-to-definition come wired. CM6's extension model — `StateField`, `StateEffect`, `Decoration` (line, mark, widget, block), gutter markers, keymaps as plain values composed into `EditorState` — makes every vision feature (comment overlays, structural-diff decorations, implementation lenses, chat hooks) a self-contained extension module in our client package, and composes with the React client-plugin architecture instead of fighting it. Lezer grammars give syntax highlighting; shiki remains for the read-only preview.
 
+### Session model: one store per open buffer, the view as a follower
+
+M1 shipped the buffer's facts as React state inside `EditorBody`. From the next milestone on, those facts move into `dsh-client-store` — the React-free zustand-vanilla + immer engine whose public face is bare `subscribe`/`getSnapshot`/`update`/`set` (hooks are synthesized once, in `ui-renderer`) — one exclusive store per open tab, exactly as `ui-sidebar-files` brackets one tree store per `TabId` between the owner's `start` and `forget`:
+
+```ts
+// model/session.ts — the RPC choreography M1's body runs, but against a store handle
+export type EditorSessionState = {
+  readonly baseline: { readonly text: string; readonly version: string } | undefined
+  readonly status: 'loading' | 'ready' | 'saving' | 'failed'
+  readonly failure: string | undefined
+  readonly dirty: boolean
+  readonly banner: { readonly kind: 'conflict' } | { readonly kind: 'message'; readonly text: string } | undefined
+}
+// load / save / revert / overwrite are baked actions; the view never runs RPCs.
+```
+
+The split of truth: the **open document** is CodeMirror's `EditorState` (cursor, selection, undo, viewport never leave it); the **session facts** the store holds are only what other surfaces need — the loaded baseline the dirty check compares against, save status, and the conflict banner. The view becomes a plain module, `mountEditor(handle, host): () => void`: it builds the `EditorView`, pipes `updateListener` doc changes into `handle.update(…)`, and reads RPC results through the baked actions; `EditorBody` keeps only mounting plus the JSX for banner, footer, and status, typed through the slot's `PropsStore<H>`. No iframe: the repo's one iframe host (`ui-sidebar-documentpreview`) is an opaque-origin sandbox with no bridge by design, and the only reusable cross-boundary pattern is the webworker postMessage tunnel's validated frame unions — an iframe editor would author a second protocol to reach state the store already holds in-process.
+
+This is what pays the vision features out: the chat tab's `/gather-comments` (M3) and the diff pane (M4) read the same session stores through the slot/wire `PropsStore` surface instead of crossing a React tree or a window boundary; dirty/save/banner assertions become store assertions in the node lane, shrinking the jsdom `TODO(gui)` exemption on `EditorBody.tsx`; and HMR/tab teardown ride the owner-signal brackets the file tree already proves.
+
 ### Package layout
 
 | Package | Role |

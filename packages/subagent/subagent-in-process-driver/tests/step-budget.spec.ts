@@ -41,7 +41,10 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0]) {
   await ctx.plugin(SubagentRuntime)
   ctx.subagents.registerProvider({
     name: 'spawn',
-    capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: false, persona: false, stepBudget: true, childSandboxMode: true },
+    capabilities: {
+      agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: false,
+      persona: false, stepBudget: true, childSandboxMode: true,
+    },
     inheritsParentContext: false,
     start: (request: ResolvedSubagentStartRequest) => startInProcessRun(request, {}),
   })

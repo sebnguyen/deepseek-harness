@@ -8,7 +8,8 @@
  * base for relative paths, with the sandbox policy root as its no-cwd fallback,
  * not a read-containment restriction. Change observations remain
  * workspace-scoped. File-kind checks and configured read caps apply to every
- * preview; this service exposes no mutations.
+ * preview. Saves are guarded: a save that names a version replaces exactly that
+ * version, and a read-only Session refuses saves outright.
  *
  * A page is cut from `streamText`, which decodes and rejects non-UTF-8 as it
  * goes, so the file is read only up to the first character past the page and
@@ -23,7 +24,7 @@ import { posix, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-fs'
-import type { FsDirEntry, FsInfo, FsTarget } from '@deepseek-ai/dsh-fs'
+import type { FsDirEntry, FsInfo, FsTarget, FsVersion, FsWriteIntent } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-persistence'
@@ -75,7 +76,7 @@ export interface Config {
    * way. The file itself has no size cap: a caller pages through it.
    */
   readonly maxBytes: number
-  /** Inclusive byte cap on a complete-file read; larger files are refused, never truncated. */
+  /** Inclusive byte cap on a complete-file read or save; larger files are refused, never truncated. */
   readonly maxFileBytes: number
   /** Default and largest page size in lines; a request asking for more is refused. */
   readonly maxLines: number
@@ -354,6 +355,64 @@ export class WorkspaceFiles extends TypertRemoteService {
   }
 
   /**
+   * Save one complete UTF-8 text file at a path the composed filesystem can
+   * reach. The caller is a human at the other end of the wire, so the write is
+   * fenced only by the Session's read-only mode and by the version guard: with
+   * `expectedVersion` the write replaces exactly that version and fails
+   * `workspace-file/stale` on any concurrent change; without it the write
+   * creates or overwrites unconditionally. Sandboxing backends run the write
+   * under `danger-full-access` because the human is the authority; agent tool
+   * writes keep their own containment.
+   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+   * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
+   * @param content - the complete new text of the file.
+   * @param expectedVersion - the version the caller loaded or last saved; omit for an unguarded save.
+   * @param signal - caller cancellation.
+   * @returns the file's identity after the save, whose version the next save names.
+   */
+  @Remote
+  async write(
+    workspaceFileScope: WorkspaceFileScope,
+    path: string,
+    content: string,
+    expectedVersion: string | undefined,
+    signal: AbortSignal,
+  ): Promise<WorkspaceFileStat> {
+    const bytes = Buffer.byteLength(content)
+    if (bytes > this.config.maxFileBytes) {
+      throw new RemoteError(
+        'workspace-file/too-large',
+        `${bytes} bytes of "${path}" exceed the ${this.config.maxFileBytes} byte cap`,
+        { path, limit: this.config.maxFileBytes },
+      )
+    }
+    if (this.ctx.sandboxPolicy.defaultMode === 'read-only') {
+      throw new RemoteError('workspace-file/read-only', `"${path}" is not writable while the Session is read-only`, { path })
+    }
+    const target = await this.resolveTarget(workspaceFileScope.workspaceRoot, path, signal)
+    const present = await this.ctx.fs.stat(target, signal)
+    if (present !== undefined && present.type !== 'file') {
+      throw new RemoteError('workspace-file/not-regular-file', `"${path}" is a ${present.type}`, { path, kind: present.type })
+    }
+    const intent: FsWriteIntent | undefined = expectedVersion === undefined
+      ? undefined
+      : { kind: 'replaceIfVersion', version: expectedVersion as FsVersion }
+    try {
+      await this.ctx.fs.writeText(target, content, intent, signal, {
+        mode: 'danger-full-access',
+        workspaceRoot: workspaceFileScope.workspaceRoot,
+        sessionId: workspaceFileScope.sessionId,
+      })
+    } catch (error: unknown) {
+      if (isStaleRefusal(error)) {
+        throw new RemoteError('workspace-file/stale', `"${path}" changed since the saved version`, { path }, { cause: error })
+      }
+      throw error
+    }
+    return this.statOf(target, await this.statTarget(target, path, signal))
+  }
+
+  /**
    * Stream every `fs/observed` observation of a file inside the Session's
    * workspace. Only instrumented filesystem operations report here; the OS is
    * not watched.
@@ -465,6 +524,15 @@ export class WorkspaceFiles extends TypertRemoteService {
  */
 function isNotTextRefusal(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'FS_NOT_TEXT'
+}
+
+/**
+ * The backend's version-guard refusal, recognized by its code alone: the error
+ * class belongs to whichever `dsh-fs` instance the provider loaded, so no class
+ * identity is shared across the package boundary.
+ */
+function isStaleRefusal(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'FS_STALE_VERSION'
 }
 
 export default WorkspaceFiles

@@ -227,6 +227,11 @@ export default defineConfig({
         'packages/client/ui-workspace/src/client/WorkspaceBrowser.tsx',
         'packages/client/ui-workspace/src/client/WorkspacePicker.tsx',
         'packages/client/ui-workspace/src/client/rows/WorkspaceBrowser.tsx',
+        // The file editor's interactive remainder (buffer mutations, footer
+        // buttons, external-version banner) needs a browser-grade harness;
+        // jsdom drives its load/save/refusal flows only. TODO(gui): cover and
+        // remove as the client test lane matures.
+        'packages/client/ui-editor/src/client/EditorBody.tsx',
         'packages/client/ui-renderer/src/client/*',
         // Session object internals retain the runtime GUI debt exemption; the
         // assistant-stream reconciler, Controller entry, transport, Agent scope,

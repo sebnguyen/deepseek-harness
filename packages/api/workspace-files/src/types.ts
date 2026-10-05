@@ -148,6 +148,13 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'workspace-file/not-found': { readonly path: string }
     /** The requested page exceeds the configured byte cap; nothing is returned. */
     'workspace-file/too-large': { readonly path: string; readonly limit: number }
+    /**
+     * The file changed since the version the save names; nothing is written.
+     * The file's current identity follows from a fresh `stat`.
+     */
+    'workspace-file/stale': { readonly path: string }
+    /** The Session's sandbox policy is read-only, so human saves are refused. */
+    'workspace-file/read-only': { readonly path: string }
     /** The content read so far is not decodable UTF-8 text, or the page carries NUL bytes. */
     'workspace-file/not-text': { readonly path: string }
     /** The path is not a regular file, so it has no text to read. */
