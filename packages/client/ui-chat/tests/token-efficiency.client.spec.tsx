@@ -256,7 +256,7 @@ describe('TokenEfficiencyEntry', () => {
     const dialog = open(view)
     // Pooled family micros over tokens per model-count group; never rate
     // averages; sessions count roots.
-    expect(dialog.textContent).toContain('2+ model sessions pooled $0.620/M tok')
+    expect(dialog.textContent).toContain('2+ model sessions pooled $0.600/M tok')
     expect(dialog.textContent).toContain('1-model sessions pooled $0.544/M tok')
     expect(dialog.textContent).toContain('4 priced session(s)')
     // Collapsed by default: the four roots only.
@@ -345,7 +345,7 @@ describe('TokenEfficiencyEntry', () => {
     const view = mount(pricedRows(), true, tZh)
     const dialog = open(view, '效能')
     expect(dialog.getAttribute('aria-label')).toBe('Token 效能')
-    expect(dialog.textContent).toContain('2+ 模型会话综合 $0.620/M tok')
+    expect(dialog.textContent).toContain('2+ 模型会话综合 $0.600/M tok')
     expect(dialog.textContent).toContain('会话')
   })
 
