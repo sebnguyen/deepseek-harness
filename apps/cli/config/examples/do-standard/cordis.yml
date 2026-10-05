@@ -134,7 +134,7 @@
             contextWindow: 391168
             maxTokens: 32768
             reasoningEfforts:
-              off: none  # explorer children pin reasoningEffort off: wire reasoning_effort none
+              off: low  # the live API rejects reasoning_effort none for this model (accepts low high xhigh max); the explorer's off pin wires the cheapest accepted effort
               low: low
               high: high
               xhigh: xhigh
