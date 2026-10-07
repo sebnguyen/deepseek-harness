@@ -50,61 +50,32 @@
 # never reached the model's shell at all. The shell executors
 # (`bash-sandbox`/`pwsh-sandbox`) are host-plane too.
 #
-# This preset mounts the PERSISTENT shell stack in place of the one-shot
-# `tool-bash`/`tool-pwsh` rows: one PTY-backed shell per agent, so cwd, exported
-# variables, and functions survive across calls instead of every command paying
-# a fresh shell. The PTY registry is an agent-owned service, so it lives in an
-# entry-local realm. The cost is the one-shot tool's remaining per-call surface —
-# sandbox escalation, `workdir`, and the full-output spill file are not offered
-# by the persistent tool.
+# This preset mounts the one-shot `bash` tool, whose `commands` face runs several
+# independent commands in one call and settles each into its own labeled frame;
+# steps that depend on an earlier element's output belong in a later call. Every
+# element still pays a fresh shell, so state that must outlive a command belongs
+# in the filesystem rather than in the shell.
 #
 # Exactly one shell stack mounts per host: the bash stack gates off win32 and
-# its pwsh twin gates off POSIX, mirroring the one-shot rows.
-- id: persistent-shell
-  name: cordis:group
-  group: true
-  isolate:
-    terminals: true
-  config:
-    - id: pty
-      name: '@deepseek-ai/dsh-terminal'
+# its pwsh twin gates off POSIX.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash-frames'
+  disabled: !!js process.platform === 'win32'
 
-    - id: terminal-bash
-      name: '@deepseek-ai/dsh-terminal-bash'
-      disabled: !!js process.platform === 'win32'
-      config:
-        timeoutMs: 300000
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
 
-    # A foreground command that outlives `backgroundAfterMs` is retired into a
-    # job instead of holding the shell, which is why it sits far below
-    # `timeoutMs`: the deadline bounds a command that cannot be handed off, not
-    # ordinary work. A second call arriving while a command runs lowers that bar
-    # to `contentionAfterMs`, so a queued call does not wait out a command the
-    # agent has already moved past.
-    - id: persistent-bash
-      name: '@deepseek-ai/dsh-tool-bash-persistent'
-      disabled: !!js process.platform === 'win32'
-      config:
-        timeoutMs: 300000
-        backgroundAfterMs: 10000
-        contentionAfterMs: 1000
+# ── lsp ─────────────────────────────────────────────────────────────────────
 
-    - id: terminal-pwsh
-      name: '@deepseek-ai/dsh-terminal-bash'
-      disabled: !!js process.platform !== 'win32'
-      config:
-        shellDialect: pwsh
-        timeoutMs: 300000
+# The `lsp` seam and its stdio provider stay in the HOST composition; only the
+# model-facing rows are per-session, so each agent advertises navigation in its
+# own catalog. `symbols` maps a batch of files in one call.
+- id: tool-lsp
+  name: '@deepseek-ai/dsh-tool-lsp'
 
-    # No promotion bars: this twin mirrors the persistent bash tool's registry,
-    # polling loop, and reset contract, and does not yet carry its background
-    # jobs, promotion, or addressable output reads. A bar the tool ignores would
-    # read as support it does not have.
-    - id: persistent-pwsh
-      name: '@deepseek-ai/dsh-tool-pwsh-persistent'
-      disabled: !!js process.platform !== 'win32'
-      config:
-        timeoutMs: 300000
+- id: tool-lsp-map
+  name: '@deepseek-ai/dsh-tool-lsp-map'
 
 # ── filesystem ──────────────────────────────────────────────────────────────
 

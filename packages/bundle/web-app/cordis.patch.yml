@@ -74,13 +74,6 @@
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
 
-    # Workspace snapshot timeline capture: per-dispatch rescans, retained content
-    # objects, and the restore/blob Remote the file-history view drives.
-    - id: checkpoint
-      name: '@deepseek-ai/dsh-checkpoint'
-      config:
-        enabled: true
-
     - id: session-reference
       name: '@deepseek-ai/dsh-session-reference'
 
@@ -471,6 +464,15 @@
   disabled: true
 
 - id: tool-pwsh
+  disabled: true
+
+# Navigation tools follow the same rule as the shell rows above: dsh-base mounts
+# them for the single-session surfaces, and each session's preset mounts its own
+# so the agent catalog is composed by the preset, not the host.
+- id: tool-lsp
+  disabled: true
+
+- id: tool-lsp-map
   disabled: true
 
 # The background-job REGISTRY stays on the host plane; only the model-facing

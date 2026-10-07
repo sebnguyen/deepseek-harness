@@ -50,6 +50,30 @@ describe('dsh-base bundle', () => {
     expect(rows.find(row => row.id === 'tool-claim')).toMatchObject({ name: '@deepseek-ai/dsh-tool-claim', disabled: true })
     expect(rows.find(row => row.id === 'knowledge-notes')?.name).toBe('@deepseek-ai/dsh-knowledge-notes')
     expect(rows.find(row => row.id === 'shell-search')?.name).toBe('@deepseek-ai/dsh-shell-search')
+    // The LSP rows: the seam and its provider are services, the two tools are
+    // the agent plane a preset re-mounts. The provider resolves its commands at
+    // load, so the shipped map names only the default server.
+    expect(rows.find(row => row.id === 'lsp')?.name).toBe('@deepseek-ai/dsh-lsp')
+    expect(rows.find(row => row.id === 'lsp-stdio')?.config).toMatchObject({
+      servers: { go: { command: 'gopls', extensionToLanguage: { '.go': 'go' } } },
+    })
+    // Disabled: the provider resolves its commands at load, so an enabled row
+    // would stop a host without gopls from booting.
+    expect(rows.find(row => row.id === 'lsp-stdio')?.disabled).toBe(true)
+    expect(rows.find(row => row.id === 'tool-lsp')?.name).toBe('@deepseek-ai/dsh-tool-lsp')
+    expect(rows.find(row => row.id === 'tool-lsp-map')?.name).toBe('@deepseek-ai/dsh-tool-lsp-map')
+    // Workspace snapshot capture is host-plane, so every surface records it.
+    expect(rows.find(row => row.id === 'checkpoint')).toMatchObject({
+      name: '@deepseek-ai/dsh-checkpoint',
+      config: { enabled: true },
+    })
+    for (const name of [
+      '@deepseek-ai/dsh-lsp', '@deepseek-ai/dsh-lsp-stdio',
+      '@deepseek-ai/dsh-tool-lsp', '@deepseek-ai/dsh-tool-lsp-map',
+      '@deepseek-ai/dsh-checkpoint',
+    ]) {
+      expect(manifest.dependencies, name).toHaveProperty(name)
+    }
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-shell-search')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')

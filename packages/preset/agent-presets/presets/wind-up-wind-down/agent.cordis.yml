@@ -100,6 +100,27 @@
     tools: [delegate, explore]
     maxDelegationsPerTurn: 20
 
+# ── shell and navigation ────────────────────────────────────────────────────
+
+# The one-shot `bash` tool and its `symbols`/`lsp` companions: this preset is the
+# phase-split orchestration surface, so its own agent gets the same batch shell
+# and navigation tools every other preset mounts. Exactly one shell stack mounts
+# per host: the bash stack gates off win32 and its pwsh twin gates off POSIX.
+# The `lsp` seam and its stdio provider stay in the HOST composition.
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash-frames'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+- id: tool-lsp
+  name: '@deepseek-ai/dsh-tool-lsp'
+
+- id: tool-lsp-map
+  name: '@deepseek-ai/dsh-tool-lsp-map'
+
 # ── housekeeping ────────────────────────────────────────────────────────────
 
 - id: todo

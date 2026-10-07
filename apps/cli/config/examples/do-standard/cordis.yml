@@ -1,7 +1,8 @@
 # DO Standard Bundle — cordis.patch.yml
 # ==============================================================================
-# A single `--patch` overlay that adds DigitalOcean inference, LSP code
-# navigation, and SearXNG web search to any dsh profile (web or headless).
+# A single `--patch` overlay that adds DigitalOcean inference and SearXNG web
+# search to any dsh profile (web or headless) and widens the language-server map
+# dsh-base ships.
 #
 # Usage:
 #   dsh --profile web    --patch do-standard-bundle.patch.yml
@@ -17,31 +18,24 @@
 #   - docker                 on PATH (SearXNG — shipped in dsh-base; no patch needed)
 # ==============================================================================
 
-# ── LSP: stdio language-server provider + model-facing tool ────────────────────
-# Add more `servers` entries for TypeScript, Python, etc.  See the setup guide
-# at the bottom of this file for installing each language server.
-- insert:
-    - id: lsp
-      name: '@deepseek-ai/dsh-lsp'
-
-    - id: lsp-stdio
-      name: '@deepseek-ai/dsh-lsp-stdio'
-      config:
-        servers:
-          go:
-            command: gopls
-            extensionToLanguage:
-              '.go': go
-          rust:
-            command: rust-analyzer
-            extensionToLanguage:
-              '.rs': rust
-
-    - id: tool-lsp
-      name: '@deepseek-ai/dsh-tool-lsp'
-
-    - id: tool-lsp-map
-      name: '@deepseek-ai/dsh-tool-lsp-map'
+# ── LSP: add language servers to the provider dsh-base mounts ─────────────────
+# dsh-base already mounts the `lsp` seam, the stdio provider with gopls for
+# `.go`, and the `lsp` and `symbols` tools, so this overlay only replaces the
+# server map: a config override replaces the whole block, so restate every
+# server you want to keep. Add more entries for TypeScript, Python, etc.; see
+# the setup guides at the bottom of this file for installing each server.
+- id: lsp-stdio
+  disabled: false
+  config:
+    servers:
+      go:
+        command: gopls
+        extensionToLanguage:
+          '.go': go
+      rust:
+        command: rust-analyzer
+        extensionToLanguage:
+          '.rs': rust
 
 # ── DO inference: use DigitalOcean as the LLM backend ─────────────────────────
 # Patches the dormant llm-pi-ai row that dsh-base already mounts.  The API key

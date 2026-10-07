@@ -53,6 +53,17 @@
   name: '@deepseek-ai/dsh-tool-pwsh'
   disabled: !!js process.platform !== 'win32'
 
+# ── lsp ─────────────────────────────────────────────────────────────────────
+
+# The `lsp` seam and its stdio provider stay in the HOST composition; only the
+# model-facing rows are per-session, so this preset advertises navigation in its
+# own catalog. `symbols` maps a batch of files in one call.
+- id: tool-lsp
+  name: '@deepseek-ai/dsh-tool-lsp'
+
+- id: tool-lsp-map
+  name: '@deepseek-ai/dsh-tool-lsp-map'
+
 # ── filesystem ──────────────────────────────────────────────────────────────
 
 # Registers into the host `tools` registry and provides nothing, so it needs no

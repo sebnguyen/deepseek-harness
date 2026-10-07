@@ -4,7 +4,7 @@ Status: implemented
 
 ## Problem
 
-The ordered code-discovery flow — glob, then outline, then grep, then read — reached the model only from `@deepseek-ai/dsh-tool-lsp-map`. That package registered the `tool:discovery` prompt section and suppressed it unless the `glob`, `lsp`, and `read` tools were all mounted. No shipped bundle mounts `dsh-tool-lsp-map`: only the `do-standard` example overlay and one snapshot fixture do. The comparable cross-tool advice, `harness:tool-batching`, is owned by `@deepseek-ai/dsh-system-prompt` and emitted in every profile, and that guidance already names `lsp` unconditionally. The flow was therefore absent from every shipped deployment.
+The ordered code-discovery flow — glob, then outline, then grep, then read — reached the model only from `@deepseek-ai/dsh-tool-lsp-map` owns the `tool:discovery` prompt section and suppresses it unless the `glob`, `lsp`, and `read` tools are all mounted, so the flow reaches only a deployment that composes that package. The comparable cross-tool advice, `harness:tool-batching`, is owned by `@deepseek-ai/dsh-system-prompt` and emitted in every profile, and that guidance already names `lsp` unconditionally, so the flow belongs beside it rather than behind a tool gate.
 
 ## Decision
 
@@ -14,7 +14,7 @@ The ordered code-discovery flow — glob, then outline, then grep, then read —
 
 **Relax the LSP map gate so the funnel renders whenever `glob` and `read` exist.** Rejected: general exploration advice would still be owned by the LSP package, and the text would still name `symbols` and `lsp` tools that a deployment without the seam cannot call.
 
-**Mount `dsh-lsp`, `dsh-tool-lsp`, and `dsh-tool-lsp-map` in `dsh-base` so the funnel ships with the tools it names.** Rejected: it adds model-facing tools with no configured language server, so `lsp` and `symbols` would fail at call time in every deployment that supplies none.
+**Mount `dsh-lsp`, `dsh-tool-lsp`, and `dsh-tool-lsp-map` in `dsh-base` so the funnel ships with the tools it names.** Rejected: it adds model-facing tools with no configured language server, so `lsp` and `symbols` would fail at call time in every deployment that supplies none. [`dsh-base` now mounts the seam and both tools](2026-10-07-base-ships-navigation-and-snapshot-capture.md); its provider row ships disabled, so that call-time failure is what a deployment keeps until it enables a server.
 
 **Emit the section unconditionally, with no config field.** Rejected: every other first-party guidance section is suppressible by the deployment that owns that instruction, and a composition owning its exploration guidance would have to shadow a reserved built-in name instead of switching it off.
 

@@ -88,6 +88,14 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_bash
   plugin_dsh_base_tool_pwsh["tool-pwsh<br/>@deepseek-ai/dsh-tool-pwsh"]
   cfg --> plugin_dsh_base_tool_pwsh
+  plugin_dsh_base_lsp["lsp<br/>@deepseek-ai/dsh-lsp"]
+  cfg --> plugin_dsh_base_lsp
+  plugin_dsh_base_lsp_stdio["lsp-stdio<br/>@deepseek-ai/dsh-lsp-stdio"]
+  cfg --> plugin_dsh_base_lsp_stdio
+  plugin_dsh_base_tool_lsp["tool-lsp<br/>@deepseek-ai/dsh-tool-lsp"]
+  cfg --> plugin_dsh_base_tool_lsp
+  plugin_dsh_base_tool_lsp_map["tool-lsp-map<br/>@deepseek-ai/dsh-tool-lsp-map"]
+  cfg --> plugin_dsh_base_tool_lsp_map
   plugin_dsh_base_tool_jobs["tool-jobs<br/>@deepseek-ai/dsh-tool-jobs"]
   cfg --> plugin_dsh_base_tool_jobs
   plugin_dsh_base_knowledge_notes["knowledge-notes<br/>@deepseek-ai/dsh-knowledge-notes"]
@@ -152,6 +160,8 @@ flowchart LR
   cfg --> plugin_dsh_base_spill_policy
   plugin_dsh_base_session_checkpoint_policy["session-checkpoint-policy<br/>@deepseek-ai/dsh-session-checkpoint-policy"]
   cfg --> plugin_dsh_base_session_checkpoint_policy
+  plugin_dsh_base_checkpoint["checkpoint<br/>@deepseek-ai/dsh-checkpoint"]
+  cfg --> plugin_dsh_base_checkpoint
   plugin_dsh_base_tool_result_pruner["tool-result-pruner<br/>@deepseek-ai/dsh-compaction-tool-result-pruner"]
   cfg --> plugin_dsh_base_tool_result_pruner
   plugin_dsh_base_tool_todo["tool-todo<br/>@deepseek-ai/dsh-tool-todo"]
@@ -228,6 +238,10 @@ flowchart LR
 | `shell-search` | `@deepseek-ai/dsh-shell-search` |
 | `tool-bash` | `@deepseek-ai/dsh-tool-bash-frames` |
 | `tool-pwsh` | `@deepseek-ai/dsh-tool-pwsh` |
+| `lsp` | `@deepseek-ai/dsh-lsp` |
+| `lsp-stdio` | `@deepseek-ai/dsh-lsp-stdio` |
+| `tool-lsp` | `@deepseek-ai/dsh-tool-lsp` |
+| `tool-lsp-map` | `@deepseek-ai/dsh-tool-lsp-map` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |
 | `knowledge-notes` | `@deepseek-ai/dsh-knowledge-notes` |
 | `tool-fs` | `@deepseek-ai/dsh-tool-fs` |
@@ -260,6 +274,7 @@ flowchart LR
 | `spill-local` | `@deepseek-ai/dsh-spill-local` |
 | `spill-policy` | `@deepseek-ai/dsh-spill-policy` |
 | `session-checkpoint-policy` | `@deepseek-ai/dsh-session-checkpoint-policy` |
+| `checkpoint` | `@deepseek-ai/dsh-checkpoint` |
 | `tool-result-pruner` | `@deepseek-ai/dsh-compaction-tool-result-pruner` |
 | `tool-todo` | `@deepseek-ai/dsh-tool-todo` |
 | `tool-goal` | `@deepseek-ai/dsh-tool-goal` |

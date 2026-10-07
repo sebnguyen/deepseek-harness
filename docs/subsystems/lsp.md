@@ -2,6 +2,8 @@
 
 The LSP seam — a [capability seam](../glossary.md#capability-seam) exposing semantic code navigation on one `ctx.lsp` service, split across packages: Service Definition ([dsh-lsp](../../packages/lsp/lsp), `ctx.lsp` + the provider registry), a generic Service Provider ([dsh-lsp-stdio](../../packages/lsp/lsp-stdio), a configured stdio language-server host), and Consumer ([dsh-tool-lsp](../../packages/lsp/tool-lsp), the `lsp` tool schema). LSP is **one optional capability**, not part of the agent-loop spine — so its vocabulary lives here, not in [core.md](core.md). A provider swap does not change how the model asks for navigation.
 
+The `dsh-base` bundle mounts the seam, the `lsp` and `symbols` tools, and an `lsp-stdio` row whose `servers` map names `gopls` for `.go`. That row ships disabled: the provider resolves every configured command at load and throws when one is missing, so an enabled row would stop a host without the binary from booting at all. A deployment with `gopls` installed re-enables the row and restates the whole `servers` map — `apps/cli/config/examples/do-standard/cordis.yml` is the worked example. `dsh-web-app` disables the two tool rows because Web sessions compose their agent plane from an agent preset, and each preset that advertises navigation mounts its own; the `minimal` preset keeps its documented fixed tool set and mounts neither.
+
 Source: [`packages/lsp/lsp/src/types.ts`](../../packages/lsp/lsp/src/types.ts)
 
 ## Operations and coordinates

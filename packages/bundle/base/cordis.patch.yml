@@ -259,6 +259,33 @@
       name: '@deepseek-ai/dsh-tool-pwsh'
       disabled: !!js process.platform !== 'win32'
 
+    # LSP navigation. The seam and its stdio provider are host-plane services,
+    # so the provider owns the configured servers; the model-facing rows are the
+    # agent plane and dsh-web-app disables them so a preset mounts its own.
+    - id: lsp
+      name: '@deepseek-ai/dsh-lsp'
+
+    - id: lsp-stdio
+      name: '@deepseek-ai/dsh-lsp-stdio'
+      # The provider resolves every configured command at load and throws when one
+      # is missing, so the shipped row stays disabled: a host without these
+      # binaries would otherwise fail to boot. Enable it (and restate `servers`,
+      # which a config override replaces wholesale) on a deployment that has
+      # them; the do-standard example overlay shows the shape.
+      disabled: true
+      config:
+        servers:
+          go:
+            command: gopls
+            extensionToLanguage:
+              '.go': go
+
+    - id: tool-lsp
+      name: '@deepseek-ai/dsh-tool-lsp'
+
+    - id: tool-lsp-map
+      name: '@deepseek-ai/dsh-tool-lsp-map'
+
     - id: tool-jobs
       name: '@deepseek-ai/dsh-tool-jobs'
 
@@ -406,6 +433,14 @@
     # Durability checkpoints before each model request and top-level dispatch.
     - id: session-checkpoint-policy
       name: '@deepseek-ai/dsh-session-checkpoint-policy'
+
+    # Workspace snapshot timeline capture: host-plane, so every surface records
+    # per-dispatch rescans and retains the content objects the restore surface
+    # reads. The Web timeline view itself is a client row in dsh-web-app.
+    - id: checkpoint
+      name: '@deepseek-ai/dsh-checkpoint'
+      config:
+        enabled: true
 
     # Compacts oversized tool results before the broader conversation compactor
     # runs, preserving the model-visible result within the configured budget.

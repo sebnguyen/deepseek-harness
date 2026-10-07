@@ -45,7 +45,7 @@ Run `dsh --profile my-profile "your task"` and you get a working agent with mode
 
 ### What you get
 
-Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, web search, public HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval; its provider rejects non-public destinations. Feedback stays in the Session log. [OTel session upload](../../session/session-telemetry-otel/README.md) defaults to `FEEDBACK_ONLY` for all users, including `deepseek-official`: new text feedback, message ratings, edits, and withdrawals release the complete canonical prefix through that event, including context. Later records wait for the next explicit feedback; sending an authorized batch needs no further interaction or model call. `DISABLED` prevents OTel capture. The opt-in [DeepSeek session-log contributor](../../session/session-log-deepseek/README.md) remains a separate request path.
+Out of the box, every profile built on this core provides: a DeepSeek model connection (the provider and model are configurable, and you can enable extra providers from your settings), the full tool set — file editing, shell commands, LSP navigation, web search, public HTTP(S) fetch, subagents, task and goal tracking — durable sessions that survive restarts, and the default permission policy that confines file writes to your workspace and asks before risky actions. Web fetch runs without per-call approval; its provider rejects non-public destinations. Feedback stays in the Session log. [OTel session upload](../../session/session-telemetry-otel/README.md) defaults to `FEEDBACK_ONLY` for all users, including `deepseek-official`: new text feedback, message ratings, edits, and withdrawals release the complete canonical prefix through that event, including context. Later records wait for the next explicit feedback; sending an authorized batch needs no further interaction or model call. `DISABLED` prevents OTel capture. The opt-in [DeepSeek session-log contributor](../../session/session-log-deepseek/README.md) remains a separate request path.
 
 Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:
 
@@ -60,6 +60,29 @@ Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` 
 ### Shell tools per platform
 
 On macOS and Linux you get the bash shell tools; on Windows you get the PowerShell twins instead, so exactly one shell stack is available per machine. The safety behavior is identical on every platform. A Windows host that prefers the unconfined PowerShell executor can switch the shell rows in its profile patch — the switch must disable both PowerShell rows and re-enable both bash rows, otherwise the profile fails to load.
+
+### LSP navigation
+
+The base mounts the `lsp` seam and the `lsp` and `symbols` tools, and it ships an `lsp-stdio` row naming `gopls` for `.go` **disabled**: the provider resolves every configured command at load and throws when one is missing, so an enabled row would keep a host without `gopls` from booting at all. Enable it and restate the whole `servers` map to add languages:
+
+```yaml
+- id: lsp-stdio
+  disabled: false
+  config:
+    servers:
+      go:
+        command: gopls
+        extensionToLanguage:
+          '.go': go
+```
+
+[`apps/cli/config/examples/do-standard/cordis.yml`](../../../apps/cli/config/examples/do-standard/cordis.yml) is the worked overlay, and the [LSP subsystem page](../../../docs/subsystems/lsp.md) owns the seam's vocabulary.
+
+Web sessions compose their agent plane from an agent preset, so `dsh-web-app` disables the `tool-lsp` and `tool-lsp-map` rows here and each preset that advertises navigation mounts its own; the `minimal` preset keeps the fixed tool set it documents and mounts neither.
+
+### Workspace snapshot timeline
+
+The base mounts the `checkpoint` service, so every base-backed surface records per-dispatch workspace rescans and retains the content objects behind `checkpoint_restore`. Capture is observation-only: a failed sweep never fails the tool call. The Web timeline view is a client row in `dsh-web-app`.
 
 Every shell call on every platform inherits the `dsh-shell-search` shims: `egrep` and `fgrep` resolve to the vendored ripgrep where it resolves, walking the same trees as GNU grep and truncating long lines, and fall back to the host GNU grep where it does not or where ripgrep rejects the invocation; `grep` always execs the host GNU grep because ripgrep cannot parse POSIX BRE. Disable the `shell-search` row to restore the unshadowed grep family.
 
