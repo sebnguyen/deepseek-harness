@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,11 +12,11 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts · 1 tool call":
+  - text: 2 contexts · 1 tool call
+  - img
 - text: Use the ask_user_question tool to ask me exactly one question with id "checkpoint", question "Ready to continue?", header "Checkpoint", and options labeled "Yes" and "No". After I answer, reply with one short sentence acknowledging my answer and stop. {{clock}}
 - button "Copy":
-  - img
-- button "1 tool call":
-  - text: 1 tool call
   - img
 - text: "Interjection: include the word BANANA in your final reply. {{clock}}"
 - button "Copy":
@@ -30,8 +28,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
@@ -43,11 +42,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "0% of context used"
 - button "Send message" [disabled]
-- button "1 turns 2 steps · {{throughput}} tok/s":
+- button "1 turns 2 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 2 steps{{throughput}} tok/s
-- button "30 tok · Cache hit 0%":
+  - text: 1 turns 2 stepsLast 5 {{throughput}} tok/s
+- button "In 20 · Cache 0 · Out 10 · Hit 0%":
   - img
-  - text: 30 tokCache hit 0%
+  - text: In 20Cache 0Out 10Hit 0%
+- button "Cost $0.0000 · $0.200/M tok":
+  - img
+  - text: Cost $0.0000$0.200/M tok

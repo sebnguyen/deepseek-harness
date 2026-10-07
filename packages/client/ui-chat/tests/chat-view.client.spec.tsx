@@ -1474,6 +1474,10 @@ describe('ChatView', () => {
     expect(toggles[0]?.textContent).toContain('第 1–2 步 · 2 次思考 · 2 次工具调用')
     expect(toggles[0]?.getAttribute('data-turn-process-step')).toBe('1')
     expect(toggles[0]?.getAttribute('data-turn-process-end-step')).toBe('2')
+    // The rail groups the disclosure seat and every folded member seat.
+    expect(toggles[0]?.closest('[data-rail="process"]')).toBeTruthy()
+    const railMembers = [...view.container.querySelectorAll<HTMLElement>('[data-turn-process-member][data-rail="process"]')]
+    expect(railMembers).toHaveLength(4)
     expect(toggles[0]?.getAttribute('data-turn-process-tool-calls')).toBe('2')
     expect(toggles[0]?.getAttribute('data-turn-process-thoughts')).toBe('2')
     expect(toggles[0]?.closest('[data-chat-flow-kind]')?.getAttribute('data-chat-flow-kind'))
@@ -1601,6 +1605,28 @@ describe('ChatView', () => {
     const toggle = turnProcessControl(view.container)!
     fireEvent.click(toggle)
     expect(members.map(member => member.getAttribute('hidden'))).toEqual([null, null])
+  })
+
+  it('folds a step-bound context injection and counts it on the disclosure', () => {
+    const stepContext = {
+      ...context(2, 'reminder injected mid-step', 1),
+      step: 1,
+    } as unknown as ConversationNode
+    const h = makeHarness({
+      nodes: [
+        user(1, 'question'),
+        stepContext,
+        reasoningAssistant(3, 'inspect the repository', 1, 1),
+        assistant(5, 'final answer', 1, 2),
+      ],
+      turnEnds: new Map([[1, 6]]),
+    })
+    const view = render(<h.ChatView {...h.props} />)
+    const toggle = view.getByRole('button', { name: '1 个上下文 · 1 次思考' })
+    expect(toggle.getAttribute('data-turn-process-contexts')).toBe('1')
+    const contextRow = view.container.querySelector<HTMLElement>('[data-chat-flow-kind="context"]')
+    expect(contextRow?.getAttribute('data-turn-process-member')).not.toBeNull()
+    expect(contextRow?.getAttribute('hidden')).toBe('until-found')
   })
 
   it('keeps the first System prompt above User and outside Process through completion and expansion', () => {

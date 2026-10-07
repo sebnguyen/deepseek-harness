@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,12 +12,28 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts · 1 thought · 1 tool call" [expanded]:
+  - text: 2 contexts · 1 thought · 1 tool call
+  - img
 - text: Use the ask_user_question tool to ask me exactly one question with id "checkpoint", question "Ready to continue?", header "Checkpoint", and options labeled "Yes" and "No". After I answer, reply with one short sentence acknowledging my answer and stop. {{clock}}
 - button "Copy":
   - img
-- button "1 tool call":
-  - text: 1 tool call
+- button "Context injection @deepseek-ai/dsh-system-prompt":
   - img
+  - img
+  - text: Context injection @deepseek-ai/dsh-system-prompt
+- button "Context injection staged-escalation":
+  - img
+  - img
+  - text: Context injection staged-escalation
+- button "Think Finished":
+  - img
+  - img
+  - text: Think Finished
+- button "Ask question 1/1 answered":
+  - img
+  - img
+  - text: Ask question 1/1 answered
 - text: "Interjection: include the word BANANA in your final reply. {{clock}}"
 - button "Copy":
   - img
@@ -33,8 +47,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
@@ -46,11 +61,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "0% of context used"
 - button "Send message" [disabled]
-- button "1 turns 2 steps · Last 5 {{throughput}} tok/s · Last {{throughput}} tok/s":
+- button "1 turns 2 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 2 stepsLast 5 {{throughput}} tok/sLast {{throughput}} tok/s
-- button "In 20 · Cache 0 · Out 10 · Hit 0%":
+  - text: 1 turns 2 stepsLast 5 {{throughput}} tok/s
+- button "In 20 · Cache 0 · Out 20 · Hit 0%":
   - img
-  - text: In 20Cache 0Out 10Hit 0%
+  - text: In 20Cache 0Out 20Hit 0%
+- button "Cost $0.0000 · $0.200/M tok":
+  - img
+  - text: Cost $0.0000$0.200/M tok

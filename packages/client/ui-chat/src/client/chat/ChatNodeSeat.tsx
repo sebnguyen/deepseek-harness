@@ -61,6 +61,9 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const processMember = member && fold.members > 0
   const memberOpen = processMember && open
   const processHidden = member && !memberOpen
+  // The process rail groups a span's disclosure and its folded members under
+  // one left rule; only seats that carry either draw it.
+  const railProcess = showDisclosure || processMember
   const revealSpan = useCallback(() => {
     if (span !== undefined) actions.setSpanOpen(span, true)
   }, [actions, span])
@@ -103,6 +106,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-chat-flow-kind={routedNode.kind}
       data-chat-turn={turn}
       onFocusCapture={keepFocusOpen}
+      data-rail={railProcess ? 'process' : undefined}
       data-turn-process-member={processMember || undefined}
       data-turn-process-hidden={shellHidden || undefined}
       data-fold-out={foldOut || undefined}
@@ -115,6 +119,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
           toolCalls={fold.toolCalls}
           thoughts={fold.thoughts}
           subagents={fold.subagents}
+          contexts={fold.contexts}
           running={fold.running}
           open={open}
           setOpen={setOpen}

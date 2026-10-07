@@ -12,17 +12,12 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts":
+  - text: 2 contexts
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
   - img
-- button "Context injection @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: Context injection @deepseek-ai/dsh-system-prompt
-- button "Context injection staged-escalation":
-  - img
-  - img
-  - text: Context injection staged-escalation
 - status:
   - text: This turn failedAPI key is invalid
   - code: AUTH

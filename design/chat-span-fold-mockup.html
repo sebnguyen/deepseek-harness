@@ -77,8 +77,8 @@
   @keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 
   .rail { border-left: 2px solid var(--line); padding-left: 10px; margin: 2px 0 10px; }
-  .rail .fold { margin: 0 0 2px; display: inline-flex; }
-  .rail .members { margin: 0 0 6px; border-left: 0; padding-left: 8px; }
+  .rail .fold { margin: 0 0 4px; display: inline-flex; }
+  .rail .members { margin: 0 0 4px; border-left: 0; padding-left: 8px; }
 
   .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 8px; }
   .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
@@ -213,19 +213,20 @@
   </div>
 
   <h2>4 · Mid-turn context injections ride their step's rail <span class="badge proposal">proposal — mock only</span></h2>
-  <p class="legend">Not the system prompt — that is turn chrome and keeps its own standing row. The injections that read as noise are the ones that land <i>inside</i> a started step: reminder injections, reasoning-prefetch snapshots, async tool results injected back into model history. They all arrive after some <code>step/start</code>, so the session carries their step coordinates for free and they fold onto that step's rail like its thoughts and tool rows.</p>
+  <p class="legend">The rule is the step coordinate. Anything logged after a <code>step/start</code> — the system prompt injection on a live turn, reminders, reasoning-prefetch snapshots, async tool results — folds onto that step's rail like its thoughts and tool rows. The only rows that keep standing are injections logged before the turn's first <code>step/start</code>, such as a skill's rendered body claimed into the turn.</p>
 
   <div class="card">
-    <p class="card-title">one turn, three injection families</p>
-    <div class="ctx"><span class="glyph">≡</span> System prompt <span class="sub">turn chrome · stands — unchanged</span></div>
+    <p class="card-title">one turn, both scopes</p>
+    <div class="ctx"><span class="glyph">≡</span> System prompt <span class="sub">turn header · stands</span></div>
     <div class="rail">
-      <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Steps 1–2</b> 1 context · 1 thought · 1 tool call <span class="chev">▾</span></button>
+      <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Steps 1–2</b> 2 contexts · 1 thought · 1 tool call <span class="chev">▾</span></button>
       <div class="members">
-        <div class="ctx"><span class="glyph">↻</span> reminder: step pace tuned to 0 <span class="sub">injected at step 1</span></div>
+        <div class="ctx"><span class="glyph">≡</span> Context injection system-prompt <span class="sub">injected at step 1</span></div>
+        <div class="ctx"><span class="glyph">⇣</span> Context injection user-invoke-demo <span class="sub">injected at step 1</span></div>
         <div class="thought">which projection feeds the chat target</div>
         <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg orderedVisibleChatNodes</span></div>
       </div>
-      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 3</b> 2 context · 1 tool call <span class="chev">▾</span></button>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 3</b> 2 contexts · 1 tool call <span class="chev">▾</span></button>
       <div class="members">
         <div class="ctx"><span class="glyph">∴</span> reasoning-prefetch snapshot <span class="sub">injected at step 3</span></div>
         <div class="ctx"><span class="glyph">⇣</span> async tool result: bench suite finished <span class="sub">injected at step 3</span></div>
@@ -233,7 +234,7 @@
       </div>
     </div>
     <div class="msg"><p>Reading the workspace now.</p></div>
-    <p class="card-title">counts gain a leading context figure per span; expansions show the injection rows where they were injected. An injection that precedes the turn's first step (rare) just stands at the turn head, as today.</p>
+    <p class="card-title">the header row is turn chrome and stays; every injection the turn logs after a step start folds, and the span gains a leading context figure.</p>
   </div>
 
   <h2>5 · A live turn</h2>

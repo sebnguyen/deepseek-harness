@@ -12,8 +12,8 @@
   - img
   - img
   - text: System prompt
-- button "1 thought · 1 tool call" [expanded]:
-  - text: 1 thought · 1 tool call
+- button "2 contexts · 1 thought · 1 tool call" [expanded]:
+  - text: 2 contexts · 1 thought · 1 tool call
   - img
 - text: Begin your reply with the plain sentence "Reading the workspace now." as text, and in that same message call the bash tool with the command "echo alpha". After the tool result, reply with the single word DONE and stop. {{clock}}
 - button "Copy":

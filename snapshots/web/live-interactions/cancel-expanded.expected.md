@@ -12,6 +12,9 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts" [expanded]:
+  - text: 2 contexts
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
   - img

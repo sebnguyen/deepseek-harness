@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,6 +12,9 @@
   - img
   - img
   - text: System prompt
+- button "3 contexts":
+  - text: 3 contexts
+  - img
 - button "/user-invoke-demo"
 - button "meeting notes.md":
   - img
@@ -21,9 +22,23 @@
 - text: and confirm the fixture wiring {{clock}}
 - button "Copy":
   - img
-- button "Thought for a while":
-  - text: Thought for a while
+- button "Context injection @deepseek-ai/dsh-system-prompt":
   - img
+  - img
+  - text: Context injection @deepseek-ai/dsh-system-prompt
+- button "Context injection user-invoke-demo":
+  - img
+  - img
+  - text: Context injection user-invoke-demo
+- text: "<skill_content name=\"user-invoke-demo\"> <skill_resources> Base directory for this skill: {{cwd}}/workspace/.agents/skills/user-invoke-demo Resolve relative paths mentioned by this skill against the base directory before using them. Load referenced resources only as needed. </skill_resources> <skill_instructions> Reply with the fixture acknowledgement line. </skill_instructions> </skill_content>"
+- term: name
+- definition: user-invoke-demo
+- term: form
+- definition: instructions
+- button "Context injection staged-escalation":
+  - img
+  - img
+  - text: Context injection staged-escalation
 - paragraph: USER_INVOKE_REPLY acknowledged; following the injected skill.
 - button "Copy":
   - img
@@ -31,8 +46,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
@@ -44,11 +60,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "0% of context used"
 - button "Send message" [disabled]
-- button "1 turns 1 steps · Last 5 {{throughput}} tok/s · Last {{throughput}} tok/s":
+- button "1 turns 1 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 1 stepsLast 5 {{throughput}} tok/sLast {{throughput}} tok/s
+  - text: 1 turns 1 stepsLast 5 {{throughput}} tok/s
 - button "In 256 · Cache 0 · Out 16 · Hit 0%":
   - img
   - text: In 256Cache 0Out 16Hit 0%
+- button "Cost $0.0000 · $0.147/M tok":
+  - img
+  - text: Cost $0.0000$0.147/M tok

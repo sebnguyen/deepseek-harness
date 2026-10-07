@@ -75,6 +75,17 @@
   translate: 0 -6px;
 }
 
+/* The process rail draws one left rule through a span disclosure and its
+   folded members; consecutive rail seats tighten to a header rhythm. */
+.flowItem[data-rail="process"] {
+  border-left: 2px solid var(--dsw-alias-border-l2);
+  padding-left: 10px;
+}
+.column > [data-rail="process"]:not([hidden]):not(.flowItem:empty)
+  ~ [data-rail="process"]:not([hidden]):not(.flowItem:empty) {
+  margin-top: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .flowItem[data-turn-process-member] {
     transition: none;

@@ -376,10 +376,19 @@ describe('web e2e: empty-draft Cmd+Enter steers the whole queue', () => {
     ).toBe(2)
     releaseReplay.resolve(undefined)
     expect(await page.locator('[data-queue-dock]').count()).toBe(0)
-    // The reasoning row streams independently of the steering handoff. Wait
-    // for the block to settle so the mid snapshot does not race its transient
-    // visually-hidden Running label while the question keeps the turn open.
-    await page.locator('[data-variant="think"][data-state="ok"]').first().waitFor({ timeout: 10_000 })
+    // The folded reasoning row streams independently of the steering handoff.
+    // Wait for the block to settle (attached, hidden under its live span) so
+    // the mid snapshot does not race its transient Running state while the
+    // question keeps the turn open.
+    await page.locator('[data-variant="think"][data-state="ok"]').first()
+      .waitFor({ state: 'attached', timeout: 10_000 })
+    // The live span folds its reasoning row; pin the fold by opening it and
+    // waiting for the settled think row to reappear before capturing.
+    const disclosure = page.locator('[data-turn-process]').first()
+    await disclosure.waitFor({ state: 'visible', timeout: 10_000 })
+    if (await disclosure.getAttribute('aria-expanded') !== 'true') await disclosure.click()
+    await page.locator('[data-turn-process-member] [data-variant="think"][data-state="ok"]').first()
+      .waitFor({ state: 'visible', timeout: 10_000 })
     const mid = await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd)
     await compareOrRefreshGolden(STEER_ALL_MID, mid, MODE)
 

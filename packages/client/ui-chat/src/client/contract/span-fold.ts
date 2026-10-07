@@ -14,6 +14,8 @@ export interface StepSpanFold {
   readonly subagents: number
   /** Member rows carrying reasoning content. */
   readonly thoughts: number
+  /** Step-bound injected-context rows folded with the span. */
+  readonly contexts: number
   /** Whether the Step's durable end has not arrived yet. */
   readonly running: boolean
 }
@@ -23,6 +25,7 @@ export const FOLDABLE_MEMBER_KINDS: ReadonlySet<string> = new Set([
   'assistant-step-reason',
   'tool-call',
   'model-retry',
+  'context',
 ])
 
 /**
@@ -54,6 +57,7 @@ export function sameStepSpanFold(
     && left.toolCalls === right.toolCalls
     && left.subagents === right.subagents
     && left.thoughts === right.thoughts
+    && left.contexts === right.contexts
     && left.running === right.running)
 }
 

@@ -7,7 +7,7 @@ import css from './TurnProcessNodeView.module.css'
 
 /** One Step span's fold toggle button; ChatNodeSeat places it on the span opener. */
 export const StepSpanDisclosure = memo(function StepSpanDisclosure({
-  turn, step, endStep, toolCalls, thoughts, subagents, running, open, setOpen, t,
+  turn, step, endStep, toolCalls, thoughts, subagents, contexts, running, open, setOpen, t,
 }: {
   turn: number
   step: number
@@ -15,6 +15,7 @@ export const StepSpanDisclosure = memo(function StepSpanDisclosure({
   toolCalls: number
   thoughts: number
   subagents: number
+  contexts: number
   running: boolean
   open: boolean
   setOpen: (open: boolean) => void
@@ -25,6 +26,14 @@ export const StepSpanDisclosure = memo(function StepSpanDisclosure({
   const labels: string[] = endStep > step
     ? [t('message.turnProcess.steps', { first: step, last: endStep })]
     : []
+  if (contexts > 0) {
+    labels.push(t(
+      contexts === 1
+        ? 'message.turnProcess.contexts.one'
+        : 'message.turnProcess.contexts.other',
+      { count: contexts },
+    ))
+  }
   if (subagents > 0) {
     labels.push(t(
       subagents === 1
@@ -64,6 +73,7 @@ export const StepSpanDisclosure = memo(function StepSpanDisclosure({
       data-turn-process-tool-calls={toolCalls}
       data-turn-process-thoughts={thoughts}
       data-turn-process-subagents={subagents}
+      data-turn-process-contexts={contexts}
       aria-expanded={open}
       onClick={(event) => {
         event.currentTarget.focus()

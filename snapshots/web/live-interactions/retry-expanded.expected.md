@@ -12,8 +12,8 @@
   - img
   - img
   - text: System prompt
-- button "1 thought" [expanded]:
-  - text: 1 thought
+- button "2 contexts · 1 thought" [expanded]:
+  - text: 2 contexts · 1 thought
   - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":

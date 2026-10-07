@@ -356,8 +356,10 @@ describe('built-in conversation node Definitions', () => {
     expect(kindsOf(snapshot(value))).toEqual([
       'assistant-step-start', 'context', 'assistant-step-reason', 'assistant-step-message',
     ])
+    // The injected context row folds with its Step like its other members.
     expect(foldFor(snapshot(value), 1, 1)).toMatchObject({
-      turn: 1, step: 1, startSeq: 2, members: 1, toolCalls: 0, subagents: 0, thoughts: 1, running: true,
+      turn: 1, step: 1, startSeq: 2, members: 2, contexts: 1,
+      toolCalls: 0, subagents: 0, thoughts: 1, running: true,
     })
 
     value.append(at(7, 'tool/call', {
@@ -376,7 +378,7 @@ describe('built-in conversation node Definitions', () => {
     }))
     value.flush()
     expect(foldFor(snapshot(value), 1, 1)).toMatchObject({
-      startSeq: 2, members: 2, toolCalls: 1, subagents: 0, thoughts: 1, running: false,
+      startSeq: 2, members: 3, contexts: 1, toolCalls: 1, subagents: 0, thoughts: 1, running: false,
     })
     expect(foldFor(snapshot(value), 1, 2)).toMatchObject({
       startSeq: 10, members: 1, toolCalls: 0, subagents: 0, thoughts: 1, running: true,
@@ -469,6 +471,37 @@ describe('built-in conversation node Definitions', () => {
     expect(foldFor(snapshot(value), 1, 2)).toMatchObject({
       startSeq: 9, members: 0, toolCalls: 0, subagents: 0, thoughts: 0, running: false,
     })
+  })
+
+  it('folds step-bound context injections and leaves turn-bound ones standing', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      // Before the first step/start: turn coordinates only, stays outside any span.
+      at(2, 'user/message', {
+        id: 'ctx-turn', content: [{ type: 'text', text: 'system prompt context' }],
+        source: { kind: 'plugin', plugin: 'system-prompt' },
+      }, { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      // Inside the step: folds with the span like its other members.
+      at(4, 'user/message', {
+        id: 'ctx-step', content: [{ type: 'text', text: 'reminder' }],
+        source: { kind: 'plugin', plugin: 'reminder' },
+      }, { surfaceOp: 'append' }),
+      at(5, 'assistant/message', {
+        turn: 1, step: 1, message: assistantMessage('message-1', 'answer'),
+      }, { surfaceOp: 'append' }),
+      at(6, 'step/end', { turn: 1, step: 1 }),
+      at(7, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ])
+    expect(foldFor(snapshot(value), 1, 1)).toMatchObject({
+      startSeq: 3, members: 1, toolCalls: 0, subagents: 0, thoughts: 0, contexts: 1, running: false,
+    })
+    const snap = snapshot(value)
+    const contextLocations = snap.order
+      .map(key => snap.nodes.get(key))
+      .filter(node => node?.kind === 'context')
+      .map(node => node?.location.kind)
+    expect(contextLocations).toEqual(['turn', 'step'])
   })
 
   it('orders the opening rows by anchor with span boundaries at their events', () => {

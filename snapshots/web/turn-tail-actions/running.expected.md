@@ -12,21 +12,13 @@
   - img
   - img
   - text: System prompt
-- button "1 thought · 1 tool call":
-  - text: 1 thought · 1 tool call
+- button "2 contexts · 1 thought · 1 tool call":
+  - text: 2 contexts · 1 thought · 1 tool call
   - img
 - text: Begin your reply with the plain sentence "Reading the workspace now." as text, and in that same message call the bash tool with the command "echo alpha". After the tool result, reply with the single word DONE and stop. {{clock}}
 - button "Copy":
   - img
 - tooltip "Copy"
-- button "Context injection @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: Context injection @deepseek-ai/dsh-system-prompt
-- button "Context injection staged-escalation":
-  - img
-  - img
-  - text: Context injection staged-escalation
 - paragraph: Reading the workspace now.
 - button "Working":
   - text: Working

@@ -1,7 +1,9 @@
 /**
  * Cross-Node Step span folds. A span opens at its `assistant-step-start` row,
  * closes at its `assistant-step-end` row, and folds the reasoning section, Tool
- * rows, and retry rows of the Step; the message section always stands alone.
+ * rows, retry rows, and step-bound injected-context rows of the Step; the message
+ * section always stands alone. Context rows placed before the Turn's first Step
+ * carry no step coordinates and keep standing at the turn head.
  * Consecutive Steps whose message section carries no reply content share one
  * fold whose disclosure rides the first Step's opener and whose counts cover
  * the whole run; a visible message closes the run, so a transcript reads one
@@ -38,6 +40,7 @@ interface SpanInfo {
   toolCalls: number
   subagents: number
   thoughts: number
+  contexts: number
 }
 
 /**
@@ -128,6 +131,7 @@ export class ChatSpanFoldProjector {
         toolCalls: 0,
         subagents: 0,
         thoughts: 0,
+        contexts: 0,
       }
       switch (node.kind) {
         case 'assistant-step-start':
@@ -146,6 +150,7 @@ export class ChatSpanFoldProjector {
           if (FOLDABLE_MEMBER_KINDS.has(node.kind)) {
             info.members += 1
             if (node.kind === 'assistant-step-reason') info.thoughts += 1
+            if (node.kind === 'context') info.contexts += 1
             if (node.kind === 'tool-call') {
               if (isSubagentDelegationTool(toolRootName(node))) info.subagents += 1
               else info.toolCalls += 1
@@ -174,6 +179,7 @@ export class ChatSpanFoldProjector {
         toolCalls: folding.reduce((sum, info) => sum + info.toolCalls, 0),
         subagents: folding.reduce((sum, info) => sum + info.subagents, 0),
         thoughts: folding.reduce((sum, info) => sum + info.thoughts, 0),
+        contexts: folding.reduce((sum, info) => sum + info.contexts, 0),
         running: folding.some(info => info.openerRunning || !info.closed),
       }
       for (const info of folding) folds.set(spanKey(turn, info.step), fold)
