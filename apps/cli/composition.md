@@ -84,7 +84,7 @@ flowchart LR
   cfg --> plugin_dsh_base_shell_env
   plugin_dsh_base_shell_search["shell-search<br/>@deepseek-ai/dsh-shell-search"]
   cfg --> plugin_dsh_base_shell_search
-  plugin_dsh_base_tool_bash["tool-bash<br/>@deepseek-ai/dsh-tool-bash"]
+  plugin_dsh_base_tool_bash["tool-bash<br/>@deepseek-ai/dsh-tool-bash-frames"]
   cfg --> plugin_dsh_base_tool_bash
   plugin_dsh_base_tool_pwsh["tool-pwsh<br/>@deepseek-ai/dsh-tool-pwsh"]
   cfg --> plugin_dsh_base_tool_pwsh
@@ -164,6 +164,8 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_ralph
   plugin_dsh_base_repeat_tool_reminder["repeat-tool-reminder<br/>@deepseek-ai/dsh-repeat-tool-reminder"]
   cfg --> plugin_dsh_base_repeat_tool_reminder
+  plugin_dsh_base_staged_escalation["staged-escalation<br/>@deepseek-ai/dsh-staged-escalation"]
+  cfg --> plugin_dsh_base_staged_escalation
   plugin_dsh_base_web["web<br/>@deepseek-ai/dsh-web"]
   cfg --> plugin_dsh_base_web
   plugin_dsh_base_web_search_searxng["web-search-searxng<br/>@deepseek-ai/dsh-web-search-searxng"]
@@ -224,7 +226,7 @@ flowchart LR
 | `permission` | `@deepseek-ai/dsh-permission-presets` |
 | `shell-env` | `@deepseek-ai/dsh-shell-env` |
 | `shell-search` | `@deepseek-ai/dsh-shell-search` |
-| `tool-bash` | `@deepseek-ai/dsh-tool-bash` |
+| `tool-bash` | `@deepseek-ai/dsh-tool-bash-frames` |
 | `tool-pwsh` | `@deepseek-ai/dsh-tool-pwsh` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |
 | `knowledge-notes` | `@deepseek-ai/dsh-knowledge-notes` |
@@ -264,6 +266,7 @@ flowchart LR
 | `tool-claim` | `@deepseek-ai/dsh-tool-claim` |
 | `tool-ralph` | `@deepseek-ai/dsh-tool-ralph` |
 | `repeat-tool-reminder` | `@deepseek-ai/dsh-repeat-tool-reminder` |
+| `staged-escalation` | `@deepseek-ai/dsh-staged-escalation` |
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-searxng` | `@deepseek-ai/dsh-web-search-searxng` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |
