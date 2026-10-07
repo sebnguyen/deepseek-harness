@@ -278,9 +278,6 @@ importers:
       '@deepseek-ai/dsh-tool-ask-user':
         specifier: workspace:^
         version: link:../../packages/interaction/tool-ask-user
-      '@deepseek-ai/dsh-tool-bash':
-        specifier: workspace:^
-        version: link:../../packages/shell/tool-bash
       '@deepseek-ai/dsh-tool-bash-frames':
         specifier: workspace:^
         version: link:../../packages/shell/tool-bash-frames
@@ -483,6 +480,9 @@ importers:
       '@deepseek-ai/dsh-system-prompt':
         specifier: workspace:^
         version: link:../../packages/core/system-prompt
+      '@deepseek-ai/dsh-tool-bash':
+        specifier: workspace:^
+        version: link:../../packages/shell/tool-bash
       '@deepseek-ai/dsh-tools':
         specifier: workspace:^
         version: link:../../packages/core/tools
@@ -1552,9 +1552,6 @@ importers:
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:^
         version: link:../../llm/token-meter
-      '@deepseek-ai/dsh-tool-bash':
-        specifier: workspace:^
-        version: link:../../shell/tool-bash
       '@deepseek-ai/dsh-tool-bash-frames':
         specifier: workspace:^
         version: link:../../shell/tool-bash-frames
@@ -11888,9 +11885,6 @@ importers:
       '@deepseek-ai/dsh-tool-ask-user':
         specifier: workspace:^
         version: link:../../packages/interaction/tool-ask-user
-      '@deepseek-ai/dsh-tool-bash':
-        specifier: workspace:^
-        version: link:../../packages/shell/tool-bash
       '@deepseek-ai/dsh-tool-bash-frames':
         specifier: workspace:^
         version: link:../../packages/shell/tool-bash-frames
