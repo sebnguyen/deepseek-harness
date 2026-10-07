@@ -254,7 +254,7 @@ export interface Config {
    * way. The file itself has no size cap: a caller pages through it.
    */
   readonly maxBytes: number
-  /** Inclusive byte cap on a complete-file read; larger files are refused, never truncated. */
+  /** Inclusive byte cap on a complete-file read or save; larger files are refused, never truncated. */
   readonly maxFileBytes: number
   /** Default and largest page size in lines; a request asking for more is refused. */
   readonly maxLines: number
@@ -263,7 +263,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/api/workspace-files/src/index.ts:69`](../packages/api/workspace-files/src/index.ts)
+Source: [`packages/api/workspace-files/src/index.ts:70`](../packages/api/workspace-files/src/index.ts)
 
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -2331,7 +2331,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/shell-search/src/index.ts:32`](../packages/shell/shell-search/src/index.ts)
+Source: [`packages/shell/shell-search/src/index.ts:33`](../packages/shell/shell-search/src/index.ts)
 
 <a id="deepseek-aidsh-skill"></a>
 
@@ -2492,7 +2492,7 @@ export interface Stage {
 
 Depends on: [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/guard/staged-escalation/src/index.ts:42`](../packages/guard/staged-escalation/src/index.ts)
+Source: [`packages/guard/staged-escalation/src/index.ts:43`](../packages/guard/staged-escalation/src/index.ts)
 
 <a id="deepseek-aidsh-storage-domain"></a>
 
@@ -2952,6 +2952,24 @@ export interface Config {
 ```
 
 Source: [`packages/shell/tool-bash/src/index.ts:34`](../packages/shell/tool-bash/src/index.ts)
+
+<a id="deepseek-aidsh-tool-bash-frames"></a>
+
+## `@deepseek-ai/dsh-tool-bash-frames`
+
+Requires: `tools` · `shell` · `systemPrompt` · `shellEnv`
+
+```ts config-catalog
+/** Configuration for the frames bash tool. */
+export interface Config {
+  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
+  enableRunInBackground?: boolean
+  /** Maximum elements one `commands` invocation may carry (default 8). */
+  maxCommandsPerCall?: number
+}
+```
+
+Source: [`packages/shell/tool-bash-frames/src/index.ts:45`](../packages/shell/tool-bash-frames/src/index.ts)
 
 <a id="deepseek-aidsh-tool-bash-persistent"></a>
 
@@ -3798,6 +3816,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `tools` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-editor` ([`packages/client/ui-editor/src/index.ts`](../packages/client/ui-editor/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))

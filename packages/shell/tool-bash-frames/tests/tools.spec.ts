@@ -20,7 +20,7 @@ import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
+import * as ToolBashFrames from '@deepseek-ai/dsh-tool-bash-frames'
 import * as BashEnvPlugin from '@deepseek-ai/dsh-shell-env'
 import { processOutcome } from '../src/background.ts'
 import { renderProcessRead, renderResult } from '@deepseek-ai/dsh-shell'
@@ -43,7 +43,7 @@ async function setup() {
   ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
-  await ctx.plugin(ToolBash)
+  await ctx.plugin(ToolBashFrames)
   return ctx
 }
 
@@ -59,7 +59,7 @@ async function setupWithTasks() {
   ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
-  await ctx.plugin(ToolBash)
+  await ctx.plugin(ToolBashFrames)
   return ctx
 }
 
@@ -199,7 +199,7 @@ async function setupSandboxed(withApproval = false) {
   await ctx.plugin(RecordingSandboxExecutor)
   if (withApproval) await ctx.plugin(ApprovalService)
   await ctx.plugin(BashEnvPlugin)
-  await ctx.plugin(ToolBash)
+  await ctx.plugin(ToolBashFrames)
   return { ctx, bash: ctx.shell as RecordingSandboxExecutor }
 }
 
@@ -295,7 +295,7 @@ describe('bash tool', () => {
     ; (ctx.subprocess as LocalSubprocessRuntime).internals = { spillDir }
     await ctx.plugin(LocalBashExecutor, { maxOutputBytes: 100, graceMs: 200 })
     await ctx.plugin(BashEnvPlugin)
-    await ctx.plugin(ToolBash)
+    await ctx.plugin(ToolBashFrames)
     const result = await call(ctx, 'bash', { command: 'for i in $(seq 1 100); do printf "line-%04d\\n" $i; done', description: 'test command' })
     expect(text(result)).toContain('[output truncated; full output: ')
     expect(text(result)).toContain('line-0100')
@@ -335,9 +335,10 @@ describe('bash tool', () => {
   // Type and required-key violations are rejected by the harness
   // (defineTool validates against the ParameterSchemaSpec — the arg-validation Agent Note) before execute.
   it.each([
-    [{}, /missing required property "command"/],
+    [{}, /missing required property "description"/],
     [{ command: 42, description: 'd' }, /"command" must be a string/],
-    [{ command: 'x' }, /missing required property "description"/],
+    [{ commands: 'ls', description: 'd' }, /"commands" must be an array/],
+    [{ commands: [{}], description: 'd' }, /missing required property "commands\[0\]\.command"/],
     [{ command: 'x', description: 7 }, /"description" must be a string/],
     [{ command: 'x', description: 'd', timeoutMs: 'soon' }, /"timeoutMs" must be a number/],
     [{ command: 'x', description: 'd', workdir: 7 }, /"workdir" must be a string/],
@@ -354,6 +355,12 @@ describe('bash tool', () => {
     [{ command: '  ', description: 'd' }, /invalid command/],
     [{ command: 'x', description: '   ' }, /invalid description/],
     [{ command: 'x', description: 'd', timeoutMs: -1 }, /invalid timeoutMs/],
+    [{ commands: [], description: 'd' }, /invalid commands: expected a non-empty array/],
+    [{ command: 'x', commands: [{ command: 'y' }], description: 'd' }, /mutually exclusive/],
+    [{ commands: Array.from({ length: 9 }, () => ({ command: 'y' })), description: 'd' }, /at most 8 elements/],
+    [{ commands: [{ command: ' ' }], description: 'd' }, /invalid commands element/],
+    [{ commands: [{ command: 'y', timeoutMs: -1 }], description: 'd' }, /invalid commands element timeoutMs/],
+    [{ commands: [{ command: 'y' }], description: 'd', sandbox_permissions: 'workspace-write', justification: 'j' }, /sandbox_permissions applies to one-command calls only/],
   ])('rejects value-invalid args %j', async (args, pattern) => {
     const ctx = await setup()
     const result = await call(ctx, 'bash', args)
@@ -377,7 +384,7 @@ describe('bash tool', () => {
     const bashSchema = schemas[0]!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
-      required: ['command', 'description'],
+      required: ['description'],
     })
     expect(Object.keys(bashSchema.parameters.properties as Record<string, unknown>))
       .toContain('run_in_background')
@@ -416,7 +423,7 @@ describe('bash tool', () => {
     await ctx.plugin(LocalSubprocessRuntime)
     await ctx.plugin(LocalBashExecutor, {})
     await ctx.plugin(BashEnvPlugin)
-    const fiber = await ctx.plugin(ToolBash)
+    const fiber = await ctx.plugin(ToolBashFrames)
     expect(ctx.tools.schemas()).toHaveLength(1)
     expect((await ctx.systemPrompt.assemble()).sections.map(s => s.name)).toEqual([
       'deployment:persona-prefix',
@@ -440,7 +447,7 @@ describe('bash tool', () => {
     await ctx.plugin(ToolRuntime)
     // inject: ['tools', 'bash'] keeps the plugin pending until bash exists.
     await ctx.plugin(BashEnvPlugin)
-    await ctx.plugin(ToolBash)
+    await ctx.plugin(ToolBashFrames)
     expect(ctx.tools.schemas()).toHaveLength(0)
     await ctx.plugin(LocalSubprocessRuntime)
     await ctx.plugin(LocalBashExecutor, {})
@@ -456,7 +463,7 @@ describe('bash tool', () => {
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     await ctx.plugin(LocalBashExecutor, {})
-    ToolBash.apply(ctx, {})
+    ToolBashFrames.apply(ctx, {})
     const schema = ctx.tools.schemas()[0]!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
       .toContain('run_in_background')
@@ -531,7 +538,7 @@ describe('background execution through the job runtime', () => {
     await ctx.plugin(ToolTasks)
     await ctx.plugin(CountingStartExecutor)
     await ctx.plugin(BashEnvPlugin)
-    await ctx.plugin(ToolBash)
+    await ctx.plugin(ToolBashFrames)
 
     const controller = new AbortController()
     controller.abort()
@@ -559,7 +566,7 @@ describe('background execution through the job runtime', () => {
     await ctx.plugin(LocalJobRegistry)
     await ctx.plugin(CountingStartExecutor)
     await ctx.plugin(BashEnvPlugin)
-    await ctx.plugin(ToolBash)
+    await ctx.plugin(ToolBashFrames)
 
     const result = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
     expect(result.isError).toBe(true)
@@ -575,11 +582,11 @@ describe('background execution through the job runtime', () => {
     await ctx.plugin(LocalSubprocessRuntime)
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(LocalBashExecutor, {})
-    await ctx.plugin(ToolBash, { enableRunInBackground: false })
+    await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
 
     const schema = ctx.tools.schemas().find(s => s.name === 'bash')!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
-      .toEqual(['command', 'description', 'timeoutMs', 'workdir'])
+      .toEqual(['command', 'commands', 'description', 'timeoutMs', 'workdir'])
     expect(schema.description).toContain('Background execution is not available')
     expect(schema.description).not.toContain('run_in_background')
     // The registry-held definition agrees (schema and capability never disagree).
@@ -609,7 +616,7 @@ describe('sandbox escalation through the generic task producer', () => {
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(RecordingSandboxExecutor)
     await ctx.plugin(BashEnvPlugin)
-    await expect(ctx.plugin(ToolBash)).rejects.toThrow('tool-bash: the mounted bash executor confines but ctx.sandboxPolicy is missing')
+    await expect(ctx.plugin(ToolBashFrames)).rejects.toThrow('tool-bash-frames: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   })
 
   it('advertises the sandbox fields and validates their pairing', async () => {
@@ -1137,7 +1144,7 @@ describe('the model-facing bash tool builds its request from named args only (no
     await ctx.plugin(ToolTasks)
     await ctx.plugin(BashEnvPlugin, { dshHome: recordingDshHome })
     await ctx.plugin(RecordingBashExecutor)
-    await ctx.plugin(ToolBash)
+    await ctx.plugin(ToolBashFrames)
     return { ctx, bash: ctx.shell as RecordingBashExecutor }
   }
 

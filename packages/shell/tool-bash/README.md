@@ -86,7 +86,7 @@ This section explains the design decisions behind the tool and points at the cod
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: tool registration, prompt section, arg validation, escalation, request assembly |
 | [`src/background.ts`](src/background.ts) | Map a settled background process onto generic job outcome vocabulary |
-| [`src/render.ts`](src/render.ts) | Model-facing result text: streams, markers, truncation notices |
+| — | Model-facing result text lives in [`dsh-shell`](../shell/README.md): streams, markers, truncation notices, and the shared `renderFrames` sectioning. |
 | — | No runtime invariant companion is published; the environment registry validates ownership and collected values at each mutation/read; it publishes no independent snapshot that a companion could cross-check. |
 
 ### Request resolution

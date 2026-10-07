@@ -42,6 +42,7 @@ import * as SkillFileSystem from '@deepseek-ai/dsh-skill-filesystem'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolAskUser from '@deepseek-ai/dsh-tool-ask-user'
 import * as ToolBash from '@deepseek-ai/dsh-tool-bash'
+import * as ToolBashFrames from '@deepseek-ai/dsh-tool-bash-frames'
 import * as ToolPwsh from '@deepseek-ai/dsh-tool-pwsh'
 import * as ToolBashPersistent from '@deepseek-ai/dsh-tool-bash-persistent'
 import * as ToolPwshPersistent from '@deepseek-ai/dsh-tool-pwsh-persistent'
@@ -244,6 +245,21 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-bash-frames',
+    dir: 'tool-bash-frames',
+    source: 'packages/shell/tool-bash-frames/src/index.ts',
+    requires: ['ctx.tools', 'ctx.shell', 'ctx.systemPrompt', 'ctx.shellEnv', 'ctx.jobs at call time for background elements'],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(LocalSubprocessRuntime)
+      await ctx.plugin(BashEnvPlugin)
+      await ctx.plugin(LocalBashExecutor)
+      await ctx.plugin(ToolBashFrames)
+    },
+    note:
+      'The frames provider keeps the v1 singular bash face and adds the `commands` batch face: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms beside the singular result facts. Escalation stays singular-only, so a denied element must be retried as a singular call to widen the sandbox mode.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-present',

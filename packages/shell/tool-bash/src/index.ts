@@ -25,7 +25,7 @@ import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { ShellRunResult } from '@deepseek-ai/dsh-shell'
 import { processOutcome } from './background.ts'
-import { parseExitStatus, renderProcessRead, renderResult } from './render.ts'
+import { parseExitStatus, renderProcessRead, renderResult } from '@deepseek-ai/dsh-shell'
 
 export const name = 'tool-bash'
 export const inject = ['tools', 'shell', 'systemPrompt', 'shellEnv']

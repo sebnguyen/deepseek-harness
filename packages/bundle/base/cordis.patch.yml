@@ -252,7 +252,7 @@
       name: '@deepseek-ai/dsh-shell-search'
 
     - id: tool-bash
-      name: '@deepseek-ai/dsh-tool-bash'
+      name: '@deepseek-ai/dsh-tool-bash-frames'
       disabled: !!js process.platform === 'win32'
 
     - id: tool-pwsh

@@ -432,6 +432,7 @@
       "@deepseek-ai/dsh-token-meter": ["./packages/llm/token-meter/src"],
       "@deepseek-ai/dsh-tool-ask-user": ["./packages/interaction/tool-ask-user/src"],
       "@deepseek-ai/dsh-tool-bash": ["./packages/shell/tool-bash/src"],
+      "@deepseek-ai/dsh-tool-bash-frames": ["./packages/shell/tool-bash-frames/src"],
       "@deepseek-ai/dsh-tool-bash-persistent": ["./packages/shell/tool-bash-persistent/src"],
       "@deepseek-ai/dsh-tool-claim": ["./packages/claim/tool-claim/src"],
       "@deepseek-ai/dsh-tool-cordis": ["./packages/extensions/tool-cordis/src"],

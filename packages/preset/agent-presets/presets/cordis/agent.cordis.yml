@@ -46,7 +46,7 @@
 # registry from here; their executors (`bash-sandbox`/`pwsh-sandbox`) are
 # host-plane too.
 - id: tool-bash
-  name: '@deepseek-ai/dsh-tool-bash'
+  name: '@deepseek-ai/dsh-tool-bash-frames'
   disabled: !!js process.platform === 'win32'
 
 - id: tool-pwsh

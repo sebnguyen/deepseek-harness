@@ -33,8 +33,8 @@ export type {
   DshEnvironment,
   DshEnvironmentKey,
 } from './types.ts'
-export { parseExitStatus } from './render.ts'
-export type { ParsedExitStatus } from './render.ts'
+export { parseExitStatus, renderFrames, renderProcessRead, renderResult } from './render.ts'
+export type { ParsedExitStatus, ShellFrameOutcome, ShellFrameRecord, ShellRenderOutcome } from './render.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
