@@ -1471,7 +1471,7 @@ describe('ChatView', () => {
     const toggles = [...view.container.querySelectorAll<HTMLElement>('button[data-turn-process]')]
     expect(toggles).toHaveLength(1)
     // The range tag names the merged Steps the fold covers.
-    expect(toggles[0]?.textContent).toContain('第 1–2 步 · 2 次思考 · 2 次工具调用')
+    expect(toggles[0]?.textContent).toContain('第 1 - 2 步 · 2 次思考 · 2 次工具调用')
     expect(toggles[0]?.getAttribute('data-turn-process-step')).toBe('1')
     expect(toggles[0]?.getAttribute('data-turn-process-end-step')).toBe('2')
     // The rail groups the disclosure seat and every folded member seat.
