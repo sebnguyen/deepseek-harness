@@ -75,7 +75,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const keepFocusOpen = useCallback(() => {
     if (processMember && !open && span !== undefined) actions.setSpanOpen(span, true)
   }, [actions, open, processMember, span])
-  const { ref: wrapperRef, shellHidden, foldOut } = useFoldedHidden(processHidden, revealSpan)
+  const { ref: wrapperRef, shellHidden } = useFoldedHidden(processHidden, revealSpan)
   const owner = useMemo<ChatNodeOwnerProps | null>(() => node === undefined
     ? null
     : {
@@ -109,7 +109,6 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-rail={railProcess ? 'process' : undefined}
       data-turn-process-member={processMember || undefined}
       data-turn-process-hidden={shellHidden || undefined}
-      data-fold-out={foldOut || undefined}
     >
       {showDisclosure && (
         <StepSpanDisclosure

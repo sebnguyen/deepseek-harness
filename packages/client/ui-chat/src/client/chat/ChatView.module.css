@@ -63,17 +63,10 @@
   --dsh-chat-flow-gap: 8px;
 }
 
-/* Fold members slide with their group. `data-fold-out` is the collapsed
-   look; the seat applies it before handing the row to hidden="until-found"
-   and one frame after revealing it, so both directions transition. */
-.flowItem[data-turn-process-member] {
-  transition: opacity 160ms ease, translate 160ms ease;
-}
-
-.flowItem[data-turn-process-member][data-fold-out] {
-  opacity: 0;
-  translate: 0 -6px;
-}
+/* Fold members glide height, margin, and opacity through the fold-hidden
+   WAAPI glide, so the column reflows with the fade before the row lands in
+   hidden="until-found"; reduced motion and WAAPI-less DOMs apply the hide
+   instantly. */
 
 /* The process rail draws one left rule through a span disclosure and its
    folded members; consecutive rail seats tighten to a header rhythm. The
@@ -88,16 +81,13 @@
   margin-top: 4px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .flowItem[data-turn-process-member] {
-    transition: none;
-  }
-}
-
 /* A keyed renderer may intentionally decline its row after dispatch (the
-   completed-turn tail does this when it owns neither actions nor extensions).
-   An empty flex item must not consume the column gap. */
-.flowItem:empty {
+   completed-turn tail does this when it owns neither actions nor extensions,
+   the span boundaries once their step settles). An empty flex item must not
+   consume the column gap; the slot shell around a declined view counts as
+   empty too, so multi-step turns stack no blank 16px gaps. */
+.flowItem:empty,
+.flowItem:has(> *:only-child:empty) {
   display: none;
 }
 

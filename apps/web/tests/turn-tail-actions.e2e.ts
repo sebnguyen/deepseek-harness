@@ -246,12 +246,34 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     await tool.waitFor({ state: 'visible', timeout: 10_000 })
 
     await process.click()
-    // Collapse plays the fold-out first, so the row only leaves after the
-    // shell hands it to hidden="until-found".
+    // Collapse glides the row to its closed box first, so the row only
+    // leaves once the glide hands it to hidden="until-found".
     await expect.poll(() => tool.isVisible(), { timeout: 10_000 }).toBe(false)
     expect(await process.getAttribute('aria-expanded')).toBe('false')
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
+  }, 60_000)
+
+  it('lets settled span boundaries hold no column space', async () => {
+    await launch()
+    const { settled } = await sendPrompt()
+    await settled
+    await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    // Once every step settles, the boundary renderers decline their rows; the
+    // column rhythm skips those seats instead of holding a blank gap for each,
+    // so two standing messages of one multi-step turn stay one flow gap apart.
+    await expect.poll(() => page.evaluate(() => {
+      const column = [...document.querySelectorAll<HTMLElement>('[class*="column"]')].sort(
+        (a, b) => b.querySelectorAll('[data-chat-flow-kind]').length
+          - a.querySelectorAll('[data-chat-flow-kind]').length,
+      )[0]
+      const messages = [...(column?.querySelectorAll<HTMLElement>(
+        '[data-chat-flow-kind="assistant-step-message"]',
+      ) ?? [])]
+      const [first, second] = messages
+      if (first === undefined || second === undefined) return -1
+      return Math.round(second.getBoundingClientRect().top - first.getBoundingClientRect().bottom)
+    }), { timeout: 10_000 }).toBe(16)
   }, 60_000)
 
   it('keeps a focused process member open when the completed reply arrives', async () => {
