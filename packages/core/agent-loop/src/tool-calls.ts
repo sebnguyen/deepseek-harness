@@ -14,7 +14,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createToolResultMessage, type ToolCallBlock } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionSeq, UserMessage } from '@deepseek-ai/dsh-session'
-import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { TOOL_ABORTED_BEFORE_DISPATCH, TOOL_RUNTIME_SCHEDULER, derivePurpose, type ToolExecutionInput, type ToolExecutionMode, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 /** One tool call after argument parsing, ready to schedule. */
@@ -261,7 +261,13 @@ function appendSkippedToolCall(session: Session, turn: number, step: number, blo
 
 /** Append a started call and return the event seq that its result must cite. */
 function appendToolCall(session: Session, turn: number, step: number, block: ToolCallBlock): SessionSeq {
-  const event = session.append('tool/call', { turn, step, callId: block.id, name: block.name, arguments: block.arguments })
+  // The raw block is persisted verbatim; the purpose sibling is its pure
+  // derivation, computed once here for projections.
+  const { purpose } = derivePurpose(parseArguments(block.arguments))
+  const event = session.append('tool/call', {
+    turn, step, callId: block.id, name: block.name, arguments: block.arguments,
+    ...purpose !== null ? { purpose } : {},
+  })
   return event.seq
 }
 

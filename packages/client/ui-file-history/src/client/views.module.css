@@ -1,0 +1,143 @@
+/* Workspace snapshot timeline: file list beside a stop slider and its diff. */
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  font-weight: 600;
+}
+
+.zoom {
+  display: flex;
+  gap: 4px;
+}
+
+.zoomButton,
+.zoomActive,
+.file,
+.fileActive,
+.restore {
+  font: inherit;
+  color: inherit;
+  border: 1px solid var(--dsw-alias-border-secondary, transparent);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.zoomActive,
+.fileActive {
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.empty {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.body {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.files {
+  flex: 0 0 200px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.file,
+.fileActive {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.filePath {
+  font-family: var(--dsw-font-mono, monospace);
+  word-break: break-all;
+}
+
+.fileMeta {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.slider {
+  width: 100%;
+}
+
+.stop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stopMeta {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.tool {
+  font-family: var(--dsw-font-mono, monospace);
+}
+
+.purpose {
+  margin: 0;
+}
+
+.purposeAbsent {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-style: italic;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.restore {
+  padding: 4px 10px;
+}
+
+.status {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}

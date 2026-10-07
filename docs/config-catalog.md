@@ -254,7 +254,7 @@ export interface Config {
    * way. The file itself has no size cap: a caller pages through it.
    */
   readonly maxBytes: number
-  /** Inclusive byte cap on a complete-file read; larger files are refused, never truncated. */
+  /** Inclusive byte cap on a complete-file read or save; larger files are refused, never truncated. */
   readonly maxFileBytes: number
   /** Default and largest page size in lines; a request asking for more is refused. */
   readonly maxLines: number
@@ -263,7 +263,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/api/workspace-files/src/index.ts:69`](../packages/api/workspace-files/src/index.ts)
+Source: [`packages/api/workspace-files/src/index.ts:70`](../packages/api/workspace-files/src/index.ts)
 
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -346,6 +346,26 @@ export type Config = LocalConfig
 Depends on: [`LocalConfig`](#deepseek-aidsh-bash-local)
 
 Source: [`packages/shell/bash-sandbox/src/index.ts:36`](../packages/shell/bash-sandbox/src/index.ts)
+
+<a id="deepseek-aidsh-checkpoint"></a>
+
+## `@deepseek-ai/dsh-checkpoint`
+
+Requires: `tools` · `fs` · `sandboxPolicy` · `sessions`
+
+```ts config-catalog
+/** Deployment choices for workspace timeline capture. */
+export interface Config {
+  /** Persist per-call snapshot rows and keep the restore surface mounted. */
+  enabled: boolean
+  /** Optional `DSH_HOME` override for the per-session object store root. */
+  dshHome?: string
+  /** Extra directory names pruned from every walk, beside `.git` and `node_modules`. */
+  pruneExtra?: string[]
+}
+```
+
+Source: [`packages/fs/checkpoint/src/index.ts:38`](../packages/fs/checkpoint/src/index.ts)
 
 <a id="deepseek-aidsh-claim-settlement"></a>
 
@@ -2331,7 +2351,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/shell/shell-search/src/index.ts:32`](../packages/shell/shell-search/src/index.ts)
+Source: [`packages/shell/shell-search/src/index.ts:33`](../packages/shell/shell-search/src/index.ts)
 
 <a id="deepseek-aidsh-skill"></a>
 
@@ -2492,7 +2512,7 @@ export interface Stage {
 
 Depends on: [`SandboxMode`](subsystems/sandbox.md)
 
-Source: [`packages/guard/staged-escalation/src/index.ts:42`](../packages/guard/staged-escalation/src/index.ts)
+Source: [`packages/guard/staged-escalation/src/index.ts:43`](../packages/guard/staged-escalation/src/index.ts)
 
 <a id="deepseek-aidsh-storage-domain"></a>
 
@@ -2838,7 +2858,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:354`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:352`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3505,7 +3525,7 @@ export interface Config {
 export type ToolPresentationMode = 'native' | 'ptc' | 'both'
 ```
 
-Source: [`packages/core/tools/src/index.ts:647`](../packages/core/tools/src/index.ts)
+Source: [`packages/core/tools/src/index.ts:657`](../packages/core/tools/src/index.ts)
 
 <a id="deepseek-aidsh-typert-loader"></a>
 
@@ -3798,6 +3818,8 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-deliverables` — requires `systemPrompt` · `tools` · `connection` · `sessionQuery` · `sessionController` · `workspaceFiles` · `fs` · `sandboxPolicy` ([`packages/client/ui-deliverables/src/index.ts`](../packages/client/ui-deliverables/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-browse` ([`packages/client/ui-directory-picker-browse/src/index.ts`](../packages/client/ui-directory-picker-browse/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-directory-picker-native` ([`packages/client/ui-directory-picker-native/src/index.ts`](../packages/client/ui-directory-picker-native/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-editor` ([`packages/client/ui-editor/src/index.ts`](../packages/client/ui-editor/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-file-history` ([`packages/client/ui-file-history/src/index.ts`](../packages/client/ui-file-history/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))

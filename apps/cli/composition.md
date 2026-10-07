@@ -164,6 +164,8 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_ralph
   plugin_dsh_base_repeat_tool_reminder["repeat-tool-reminder<br/>@deepseek-ai/dsh-repeat-tool-reminder"]
   cfg --> plugin_dsh_base_repeat_tool_reminder
+  plugin_dsh_base_staged_escalation["staged-escalation<br/>@deepseek-ai/dsh-staged-escalation"]
+  cfg --> plugin_dsh_base_staged_escalation
   plugin_dsh_base_web["web<br/>@deepseek-ai/dsh-web"]
   cfg --> plugin_dsh_base_web
   plugin_dsh_base_web_search_searxng["web-search-searxng<br/>@deepseek-ai/dsh-web-search-searxng"]
@@ -264,6 +266,7 @@ flowchart LR
 | `tool-claim` | `@deepseek-ai/dsh-tool-claim` |
 | `tool-ralph` | `@deepseek-ai/dsh-tool-ralph` |
 | `repeat-tool-reminder` | `@deepseek-ai/dsh-repeat-tool-reminder` |
+| `staged-escalation` | `@deepseek-ai/dsh-staged-escalation` |
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-searxng` | `@deepseek-ai/dsh-web-search-searxng` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |

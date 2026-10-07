@@ -106,10 +106,15 @@ Ask the user a concise question when you need confirmation, a choice, or missing
           "question"
         ]
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "questions"
+    "questions",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -137,11 +142,16 @@ Execute a TypeScript program against the available tools. Takes two required arg
     "description": {
       "type": "string",
       "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "code",
-    "description"
+    "description",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -165,10 +175,15 @@ Use only in plan mode. Present your plan for the user's review and, on approval,
     "plan": {
       "type": "string",
       "description": "The complete plan, as markdown, starting with a # heading that names it."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "plan"
+    "plan",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -208,11 +223,16 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
     "run_in_background": {
       "type": "boolean",
       "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "command",
-    "description"
+    "description",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -252,10 +272,15 @@ Declare existing files accessible through the Session filesystem as final delive
           "path"
         ]
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "files"
+    "files",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -295,11 +320,16 @@ Execute a PowerShell command (`pwsh -Command`) and return its stdout/stderr. Eac
     "run_in_background": {
       "type": "boolean",
       "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "command",
-    "description"
+    "description",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -381,13 +411,18 @@ Define an immutable Cordis Package. For a new Plugin, use kind:"new" and provide
           "description": "Plain JavaScript function body that returns the browser Client-half Cordis Plugin."
         }
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "plugin",
     "name",
     "purpose",
-    "code"
+    "code",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -401,7 +436,15 @@ List every Cordis Inspect Provider currently known to the Host, including local 
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -433,12 +476,17 @@ Run a read-only query explicitly declared by an Inspect Provider. platform, prov
     },
     "input": {
       "description": "Optional query input; it must satisfy the method input schema."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "platform",
     "provider",
-    "method"
+    "method",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -460,8 +508,15 @@ Inspect dynamic Cordis objects owned by the current Session at increasing levels
     "packageId": {
       "type": "string",
       "description": "Exact immutable Package ID owned by pluginId; when specified, source and diagnostics are returned."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -490,12 +545,17 @@ Activate one exact Package of a dynamic Plugin. Use mode:"run" for the first act
         "run",
         "update"
       ]
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "pluginId",
     "packageId",
-    "mode"
+    "mode",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -513,10 +573,15 @@ Stop the current Run of a dynamic Plugin and cancel unfinished approval or activ
     "pluginId": {
       "type": "string",
       "description": "Stable dynamic Plugin ID to stop."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "pluginId"
+    "pluginId",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -534,10 +599,15 @@ Permanently remove a dynamic Plugin owned by the current Session. If it is runni
     "pluginId": {
       "type": "string",
       "description": "Stable dynamic Plugin ID to remove permanently."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "pluginId"
+    "pluginId",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -565,10 +635,15 @@ Run commands in a persistent bash shell. State, including the current directory 
     "run_in_background": {
       "type": "boolean",
       "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "command"
+    "command",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -592,10 +667,15 @@ Run commands in a persistent PowerShell shell. State, including the current dire
     "command": {
       "type": "string",
       "description": "The PowerShell command to run. Relative path is preferred in the command."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "command"
+    "command",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -697,11 +777,16 @@ Notes for using the `str_replace` command:
         }
       ],
       "description": "Optional parameter of `view` command when `path` points to a file. If omitted or null, the full file is shown. If provided, the file will be shown in the indicated line number range, e.g. [11, 12] will show lines 11 and 12. Indexing at 1 to start. Setting `[start_line, -1]` shows all lines from `start_line` to the end of the file."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "command",
-    "path"
+    "path",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -733,10 +818,15 @@ Read a UTF-8 text file and return line-numbered content.
     "limit": {
       "type": "number",
       "description": "Maximum number of lines to return. Defaults to 2000."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "file_path"
+    "file_path",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -754,10 +844,15 @@ Read a PNG/JPEG/WebP/GIF file and return the image itself. A path without a file
     "file_path": {
       "type": "string",
       "description": "Path to the image file, resolved by the filesystem backend."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "file_path"
+    "file_path",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -877,10 +972,15 @@ Create, replace, or patch one UTF-8 text file; sed-style entries batch atomicall
     "dry_run": {
       "type": "boolean",
       "description": "Run the whole program in memory and commit nothing: returns the would-be content and per-entry match counts, bypassing the guards the real commit enforces."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "file_path"
+    "file_path",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -908,10 +1008,15 @@ Find files whose paths match a glob pattern. Returns matching file paths — nev
     "path": {
       "type": "string",
       "description": "Directory to search in. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "pattern"
+    "pattern",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -937,10 +1042,15 @@ Search file contents with a ripgrep regular expression. Returns matching lines w
     "include": {
       "type": "string",
       "description": "One glob filter for which files to search (e.g. \"*.ts\", \"*.{js,jsx}\"). Not a list; negation is not supported."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "pattern"
+    "pattern",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -964,10 +1074,15 @@ Close one persistent terminal and wait until its captured owned process tree is 
     "sessionId": {
       "type": "string",
       "description": "Terminal session id."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "sessionId"
+    "sessionId",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -981,7 +1096,15 @@ List persistent terminal sessions owned by the current agent.
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1006,10 +1129,15 @@ Create a persistent, owner-isolated terminal session from a registered backend t
     "cwd": {
       "type": "string",
       "description": "Initial working directory. Defaults to the deployment workspace root."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "type"
+    "type",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1035,10 +1163,15 @@ Read a bounded page of retained output from a persistent terminal without sendin
     "count": {
       "type": "number",
       "description": "Requested line count (default 500; backend caps apply)."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "sessionId"
+    "sessionId",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1068,11 +1201,16 @@ Send text to a persistent terminal. By default Enter is submitted and the call w
     "run_in_background": {
       "type": "boolean",
       "description": "Return a job id immediately; collect with job_output or stop with job_kill."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "sessionId",
-    "text"
+    "text",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1101,11 +1239,16 @@ Send an allowed signal to the current foreground process group of a persistent t
         "SIGTSTP",
         "SIGHUP"
       ]
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "sessionId",
-    "signal"
+    "signal",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1133,10 +1276,15 @@ Create one persisted same-session completion goal when the current direct human 
     "max_goal_rounds": {
       "type": "number",
       "description": "Optional positive safe-integer limit on automatic continuation rounds."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "objective"
+    "objective",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1150,7 +1298,15 @@ Read the current same-session goal, including its exact id/revision, objective, 
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1194,12 +1350,17 @@ Update the exact current goal revision. edit, pause, and resume require a direct
     "blocked_reason": {
       "type": "string",
       "description": "Concrete blocking condition; required only with action blocked."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "goal_id",
     "revision",
-    "action"
+    "action",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1227,11 +1388,16 @@ Give up on one claim because it named the wrong condition. Refused until its bou
     "reason": {
       "type": "string",
       "description": "Why the declared condition was the wrong one."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "id",
-    "reason"
+    "reason",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1257,12 +1423,17 @@ Declare one claim for this turn: a short title, a description of what must be tr
     "script": {
       "type": "string",
       "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "title",
     "description",
-    "script"
+    "script",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1276,7 +1447,15 @@ List every claim this turn declared, in declaration order, with each claim's id,
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1293,10 +1472,15 @@ Run one open claim's bound check now, inside the turn. A pass settles the claim 
     "id": {
       "type": "string",
       "description": "The claim id, as returned by declare_claim."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "id"
+    "id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1356,10 +1540,15 @@ Create one reminder in the current session. Supply a non-empty prompt and exactl
         }
       ],
       "description": "Absolute target as strict offset RFC 3339 or local date/time with an explicit IANA zone."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "prompt"
+    "prompt",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1377,10 +1566,15 @@ Delete one active reminder in the current session by the exact id returned by sc
     "id": {
       "type": "string",
       "description": "Exact session-local schedule id."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "id"
+    "id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1394,7 +1588,15 @@ List every active reminder in the current session in creation order, including i
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1437,13 +1639,18 @@ Query a language server for precise code navigation. operation is one of goToDef
     "character": {
       "type": "number",
       "description": "One-based UTF-16 column of the cursor."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "operation",
     "file_path",
     "line",
-    "character"
+    "character",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1474,10 +1681,15 @@ Map a batch of source files to a condensed symbol layout. Pipe a `glob` result i
     "hotspots": {
       "type": "boolean",
       "description": "Also run call hierarchy per symbol to append in:/out: caller/callee counts (2 extra map queries per symbol)."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "files"
+    "files",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1505,10 +1717,15 @@ Run a foreground fresh-agent Ralph loop toward one immutable objective. Use only
     "maxRounds": {
       "type": "number",
       "description": "Optional positive safe-integer round cap, bounded by the deployment ceiling."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "objective"
+    "objective",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1532,10 +1749,15 @@ Load the full instructions for an available skill. Call this with the exact skil
     "name": {
       "type": "string",
       "description": "The exact skill name from the available skills list."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "name"
+    "name",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1569,10 +1791,15 @@ Read one full unabridged event and optional neighboring raw-event summaries from
     "after": {
       "type": "integer",
       "description": "Number of following raw events to summarize. Omit for none."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "seq"
+    "seq",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1629,10 +1856,15 @@ Search prior events in one authorized session; the current session excludes the 
           "log-only"
         ]
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "query"
+    "query",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1654,10 +1886,15 @@ Read every direct replacement and relationship to a cited source event for one e
     "seq": {
       "type": "integer",
       "description": "Target event sequence number."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "seq"
+    "seq",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1747,10 +1984,15 @@ Search prior sessions in the caller workspace and return the strongest matching 
           "log-only"
         ]
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "query"
+    "query",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1768,8 +2010,15 @@ Read the authorized session lineage around one session, including complete visib
     "session_id": {
       "type": "string",
       "description": "Target session id. Omit for the current session."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1796,8 +2045,15 @@ Discover LLM routes for subagents without changing the current Agent. Call with 
     "model": {
       "type": "string",
       "description": "Exact model id to inspect. Requires provider; omit to list that provider's advertised models."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1822,11 +2078,16 @@ Delegate a self-contained task to a subagent (a separate agent that works in its
     "run_in_background": {
       "type": "boolean",
       "description": "Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "description",
-    "prompt"
+    "prompt",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1850,10 +2111,15 @@ Request cancellation of a background agent's current turn by its agent id. The t
     "agent_id": {
       "type": "string",
       "description": "The agent id of the running agent to interrupt."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "agent_id"
+    "agent_id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1875,8 +2141,15 @@ List your continuable background subagents by durable id and label. Use it to re
         "children",
         "descendants"
       ]
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1897,11 +2170,16 @@ Send a message to a direct continuable child by its agent id. If you are a resid
     "message": {
       "type": "string",
       "description": "The message to deliver to the agent."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "agent_id",
-    "message"
+    "message",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1929,10 +2207,15 @@ Request cancellation of a running background job by job id. Returns immediately;
     "reason": {
       "type": "string",
       "description": "Optional short reason, recorded in the log and forwarded to the job."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "job_id"
+    "job_id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1946,7 +2229,15 @@ List your background jobs (running and finished) with their ids, kinds, and stat
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -1967,10 +2258,15 @@ Read a background job, blocking until the job settles or the timeout expires. St
     "timeout_ms": {
       "type": "number",
       "description": "Max time to wait for settlement in milliseconds before returning the current state. Defaults to the configured wait timeout; capped by the configured maximum."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "job_id"
+    "job_id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -1994,10 +2290,15 @@ Interrupt one teammate's current turn while preserving its pending inbox. Team L
     "target": {
       "type": "string",
       "description": "Teammate name."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "target"
+    "target",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2011,7 +2312,15 @@ List the Lead and every durable teammate with current runtime status.
 ```json
 {
   "type": "object",
-  "properties": {}
+  "properties": {
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+    }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -2032,11 +2341,16 @@ Send one durable message to another Team member. A running target receives it at
     "message": {
       "type": "string",
       "description": "Self-contained message for the target."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "target",
-    "message"
+    "message",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2070,12 +2384,17 @@ Create one named, durable teammate. Only the Team Lead may call this tool.
         "fresh",
         "fork"
       ]
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "name",
     "description",
-    "prompt"
+    "prompt",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2111,11 +2430,16 @@ Create one unowned pending task on the shared Team task board.
       "items": {
         "type": "string"
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "subject",
-    "description"
+    "description",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2133,10 +2457,15 @@ Read the complete latest value of one shared task before changing or executing i
     "task_id": {
       "type": "string",
       "description": "Shared task id."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "task_id"
+    "task_id",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2175,8 +2504,15 @@ List shared tasks, including readiness, owner, revision, blockers, and write-sco
     "limit": {
       "type": "integer",
       "description": "Number of rows, 1 through 100. Defaults to 50."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -2237,12 +2573,17 @@ Compare-and-set a shared task action using the latest revision from team_task_ge
     "owner": {
       "type": "string",
       "description": "Member name for Lead-only reassign; omit to unassign."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "task_id",
     "expected_revision",
-    "action"
+    "action",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2260,8 +2601,15 @@ Wait for the next teammate status, mailbox, or shared-task change after this cal
     "timeout_ms": {
       "type": "integer",
       "description": "Wait duration in milliseconds, from 10000 through 3600000. Defaults to 30000."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
-  }
+  },
+  "required": [
+    "_dsh_harness_purpose"
+  ]
 }
 ```
 
@@ -2307,10 +2655,15 @@ Record and update a structured task list for the current work. Send the ENTIRE l
           "status"
         ]
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "todos"
+    "todos",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2403,11 +2756,16 @@ Constraints: concurrency and total-agent caps apply; no filesystem, network, tim
       "type": "object",
       "description": "Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {\"files\": [...]}).",
       "additionalProperties": true
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
     "script",
-    "meta"
+    "meta",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2429,10 +2787,15 @@ Fetch the content of a specific HTTP(S) URL and return it decoded to text.
     "url": {
       "type": "string",
       "description": "The HTTP(S) URL to fetch."
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "url"
+    "url",
+    "_dsh_harness_purpose"
   ]
 }
 ```
@@ -2453,10 +2816,15 @@ Search the web for current information. Provide 1–4 queries in the required qu
       "items": {
         "type": "string"
       }
+    },
+    "_dsh_harness_purpose": {
+      "type": "string",
+      "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
     }
   },
   "required": [
-    "queries"
+    "queries",
+    "_dsh_harness_purpose"
   ]
 }
 ```

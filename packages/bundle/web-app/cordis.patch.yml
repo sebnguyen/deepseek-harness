@@ -74,6 +74,13 @@
     - id: workspace
       name: '@deepseek-ai/dsh-workspace'
 
+    # Workspace snapshot timeline capture: per-dispatch rescans, retained content
+    # objects, and the restore/blob Remote the file-history view drives.
+    - id: checkpoint
+      name: '@deepseek-ai/dsh-checkpoint'
+      config:
+        enabled: true
+
     - id: session-reference
       name: '@deepseek-ai/dsh-session-reference'
 
@@ -434,6 +441,11 @@
 
     - id: ui-trajectory
       name: '@deepseek-ai/dsh-client-ui-trajectory'
+
+    # Workspace snapshot timeline: per-file stops with their diff, purpose, and
+    # restore action over the checkpoint namespace.
+    - id: ui-file-history
+      name: '@deepseek-ai/dsh-client-ui-file-history'
 
 # ── the agent plane moves behind agent presets ─────────────────────────────
 #

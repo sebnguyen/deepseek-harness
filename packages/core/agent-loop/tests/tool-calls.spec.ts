@@ -767,3 +767,39 @@ describe('PTC mode native-tool denial through the agent loop', () => {
     })
   })
 })
+
+describe('harness purpose line', () => {
+  it('keeps tool/call raw verbatim, persists the purpose sibling, and strips the dispatch view', async () => {
+    const raw = JSON.stringify({ id: '1', _dsh_harness_purpose: 'repair the test' })
+    const seenKeys: string[] = []
+    const adapter = new MockAdapter([
+      multiCall([{ id: 'c1', name: 'p', args: { id: '1', _dsh_harness_purpose: 'repair the test' } }]),
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register({
+      name: 'p',
+      description: 'echo exec view',
+      parameters: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: String(value) }],
+      },
+      async execute(args, exec) {
+        seenKeys.push(...Object.keys(args as object), `exec-purpose:${exec.purpose}`)
+        return 'ok'
+      },
+    })
+    const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'go' }], source: { kind: 'user' } }))
+    await waitForIdle(ctx, agent)
+
+    const calls = events(agent).filter(e => e.type === 'tool/call')
+    expect(calls).toHaveLength(1)
+    // The raw block persists byte-faithfully; the sibling is its derivation.
+    expect(calls[0]!.data.arguments).toBe(raw)
+    expect(calls[0]!.data.purpose).toBe('repair the test')
+    // Bodies and guards observe only the clean view.
+    expect(seenKeys).toEqual(['id', 'exec-purpose:repair the test'])
+  })
+})

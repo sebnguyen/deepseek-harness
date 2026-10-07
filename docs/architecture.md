@@ -100,7 +100,7 @@ turn/start
 turn/end
 ```
 
-`turn/*`, `step/*`, `system/message`, `user/message`, `assistant/message`, `assistant/attempt`, and `tool/*` are durable session events; the rest are live extension points across three domains. `agent/assistant-stream` publishes process-local start, transient chunk, and end frames. The loop commits the complete compact stream as one message or log-only attempt before a committed end frame, and the Web Session-follow adapter is the live event's only remote consumer. `agent/pre-step`, `agent/request`, `llm/stream`, and the three `tools/*` events are waterfalls, whose listeners must call `next()` to delegate; `agent/turn-stopping` is serial and has no `next()`.
+`turn/*`, `step/*`, `system/message`, `user/message`, `assistant/message`, `assistant/attempt`, and `tool/*` are durable session events; the rest are live extension points across three domains. `agent/assistant-stream` publishes process-local start, transient chunk, and end frames. The loop commits the complete compact stream as one message or log-only attempt before a committed end frame, and the Web Session-follow adapter is the live event's only remote consumer. `agent/pre-step`, `agent/request`, `llm/stream`, and the three `tools/*` events are waterfalls, whose listeners must call `next()` to delegate; `agent/turn-stopping` is serial and has no `next()`. A `tool/call` keeps the arguments the model sent byte-verbatim and adds a derived `purpose` sibling ([design](../.agents/notes/proposed/architecture/2026-10-07-registry-injected-purpose-field.md)).
 
 Input reaches the driver through one inbox. Some messages wake it immediately; injected context waits in the inbox until another message does.
 
@@ -143,6 +143,7 @@ New behavior attaches to a documented extension point. Changing the loop itself 
 | Add background work | register on `ctx.jobs`; `job_*` tools collect or stop it |
 | Start a Session from an external webhook | register a trusted rule on `ctx.webhookRuntime` and mount a provider adapter |
 | Add filesystem access or policy | register a `ctx.fs` provider or listen to `fs/*` events |
+| Record per-call workspace changes | mount `dsh-checkpoint`; read its `checkpoint/scan` rows |
 | Confine spawned processes | use a `ctx.sandbox` backend; consumers wrap argv before spawning |
 | Intercept a request, tool, or turn | use its `agent/*` or `tools/*` event; `agent/turn-stopping` stops a turn |
 | Add model-facing context | call `agent.inject()`; it lands in the next admitted request |
