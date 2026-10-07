@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-delegation-cap",
   "description": "Delegation-spawn guard plugin: denies delegation-tool starts beyond a per-turn cap",
-  "version": "0.1.0-rc.1",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },

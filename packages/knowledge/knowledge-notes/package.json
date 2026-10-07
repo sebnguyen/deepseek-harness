@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-knowledge-notes",
   "description": "File-anchored durable knowledge notes: one JSON note per source file, a read-time pointer, and read_note/upsert_note authoring tools",
-  "version": "0.1.0-rc.0",
+  "version": "0.1.5-rc.2",
   "publishConfig": {
     "access": "public"
   },
