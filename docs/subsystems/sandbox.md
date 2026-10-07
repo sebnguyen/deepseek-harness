@@ -199,10 +199,23 @@ The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment default mo
  * deployment default. A session cwd is its workspace-write boundary; the
  * configured root is the fallback for agentless calls and sessions without a
  * cwd.
+ * This is the STANDING policy: the model-facing `sandbox:policy` context
+ * renders it so prompt bytes stay identical across per-call clamps, and
+ * capability layers read {@link resolveClamped} for enforcement.
  * @param request - optional session and approved mode override.
  * @returns the fully resolved per-call mode and absolute workspace root.
  */
 resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
+
+/**
+ * Resolve the enforceable policy for one capability call: the standing
+ * resolution passed through the `sandbox-policy/resolve` waterfall, then
+ * capped so a listener can only narrow. A denied-to-narrower mode keeps the
+ * standing `workspaceRoot` and identity fields of the listener's return.
+ * @param request - optional session and approved mode override.
+ * @returns the narrowest policy any listener claimed, never wider than standing.
+ */
+async resolveClamped(request: SandboxPolicyRequest = {}): Promise<SandboxExecutionPolicy>
 
 /**
  * Read the session override without applying the deployment default.
@@ -210,6 +223,35 @@ resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy
  * @returns the last logged mode, or `undefined` without one.
  */
 overrideOf(session: Session): SandboxMode | undefined
+```
+
+Types: [Session](session.md)
+
+Source: [`packages/sandbox/sandbox-policy/src/index.ts`](../../packages/sandbox/sandbox-policy/src/index.ts)
+
+<a id="sandbox-policy-events"></a>
+
+### `sandbox-policy/*` events
+
+<a id="sandbox-policyresolve--waterfall"></a>
+
+#### `sandbox-policy/resolve` — waterfall
+
+Narrow (never widen) the standing policy for one capability call. Listeners receive the standing resolution plus the calling session and return the policy the call must run under; `resolveClamped` enforces the narrow-only rule — a returned mode wider than the standing mode is capped back to the standing mode inside the service, so a nonconforming listener cannot widen policy. Returning without `next()` short-circuits the chain.
+
+```ts cordis-catalog
+/**
+ * Narrow (never widen) the standing policy for one capability call.
+ * Listeners receive the standing resolution plus the calling session and
+ * return the policy the call must run under; `resolveClamped` enforces the
+ * narrow-only rule — a returned mode wider than the standing mode is capped
+ * back to the standing mode inside the service, so a nonconforming listener
+ * cannot widen policy. Returning without `next()` short-circuits the chain.
+ * @param policy - the standing resolution for this call.
+ * @param session - the calling session, or `undefined` for sessionless calls.
+ * @mode waterfall
+ */
+'sandbox-policy/resolve'( policy: SandboxExecutionPolicy, session: Session | undefined, next: () => Promise<SandboxExecutionPolicy>, ): Promise<SandboxExecutionPolicy>
 ```
 
 Types: [Session](session.md)

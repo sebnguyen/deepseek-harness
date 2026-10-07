@@ -187,7 +187,7 @@ describe('mode-aware wire contribution', () => {
     const assembly = await systemPrompt.assemble()
     const sdk = assembly.sections.find(section => section.name === 'tools:sdk')?.text
 
-    expect(sdk).toContain('deep_output: Record<string, JsonValue>;')
+    expect(sdk).toContain('_dsh_harness_purpose: string;')
     expect(sdk).toContain('deep_output: string | null')
   })
 

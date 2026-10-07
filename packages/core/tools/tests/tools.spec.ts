@@ -9,6 +9,7 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import ApprovalService, { type ApprovalOutcome, type ApprovalRequest } from '@deepseek-ai/dsh-user-approval'
 import ToolRuntime, {
   defineContentToolFixture, defineTool, JsonSchemaError, parameterSchemaSpecToJsonSchema, validateArgs, ToolArgsError, ToolNotFoundError,
+  PURPOSE_DESCRIPTION, PURPOSE_KEY,
   TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH,
   type InferArgs, type ParameterSchemaSpec, type PreToolDecision, type PostToolDecision,
   type JsonSchemaNode, type ToolDefinition, type ToolDispatchExecution, type ToolExecutionResult, type ToolExecutionToken,
@@ -45,7 +46,14 @@ describe('ToolRuntime', () => {
     expect(ctx.tools.schemas()).toEqual([{
       name: 'echo',
       description: 'echo arguments back',
-      parameters: { type: 'object', properties: { text: { type: 'string' } } },
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string' },
+          [PURPOSE_KEY]: { type: 'string', description: PURPOSE_DESCRIPTION },
+        },
+        required: [PURPOSE_KEY],
+      },
     }])
     // schemas() result must not leak execute — ToolSchema deliberately has no
     // 'execute' key, so widen through unknown to probe for the absent property
@@ -1934,7 +1942,14 @@ describe('ToolRuntime', () => {
     expect(ctx.tools.schemas()).toEqual([{
       name: 'echo',
       description: 'echo arguments back',
-      parameters: { type: 'object', properties: { text: { type: 'string' } } },
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string' },
+          [PURPOSE_KEY]: { type: 'string', description: PURPOSE_DESCRIPTION },
+        },
+        required: [PURPOSE_KEY],
+      },
     }])
   })
 
@@ -2135,8 +2150,9 @@ describe('defineTool / schema DSL', () => {
         properties: {
           text: { type: 'string' },
           uppercase: { type: 'boolean' },
+          [PURPOSE_KEY]: { type: 'string', description: PURPOSE_DESCRIPTION },
         },
-        required: ['text'],
+        required: ['text', PURPOSE_KEY],
       },
     }])
 
@@ -2194,8 +2210,9 @@ describe('defineTool / schema DSL', () => {
       properties: {
         req: { type: 'string' },
         opt: { type: 'number', description: 'Optional number' },
+        [PURPOSE_KEY]: { type: 'string', description: PURPOSE_DESCRIPTION },
       },
-      required: ['req'],
+      required: ['req', PURPOSE_KEY],
     })
 
     // Execution round-trip
@@ -2232,8 +2249,11 @@ describe('defineTool / schema DSL', () => {
     const schemas = ctx.tools.schemas()
     expect(schemas[0]!.parameters).toEqual({
       type: 'object',
-      properties: { path: { type: 'string' } },
-      required: ['path'],
+      properties: {
+        path: { type: 'string' },
+        [PURPOSE_KEY]: { type: 'string', description: PURPOSE_DESCRIPTION },
+      },
+      required: ['path', PURPOSE_KEY],
     })
 
     const result = await ctx.tools.execute({

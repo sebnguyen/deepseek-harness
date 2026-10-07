@@ -26,6 +26,10 @@ import type { CodeSdkLanguage } from './ptc.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 import { renderToolsSdkPy } from './py-types.ts'
+import { assertNoReservedSquat, derivePurpose, withPurpose } from './purpose.ts'
+
+export { PURPOSE_KEY, RESERVED_PREFIX, PURPOSE_DESCRIPTION, isReservedKey, assertNoReservedSquat, withPurpose, derivePurpose } from './purpose.ts'
+export type { PurposeDerivation } from './purpose.ts'
 
 /**
  * Language → SDK-section renderer. The registry looks up the loaded
@@ -374,6 +378,12 @@ export interface ToolExecution extends ToolExecutionInput {
   readonly rootCallId: ToolCallId
   /** Registry-assigned identity shared with nested calls only as their opaque `parent` token. */
   readonly token: ToolExecutionToken
+  /**
+   * Harness-injected purpose line lifted from the model's argument block at
+   * materialization. The raw log string keeps the key; guards, approval, and
+   * bodies observe only the stripped arguments plus this sibling.
+   */
+  readonly purpose?: string
 }
 
 /**
@@ -1033,6 +1043,7 @@ export class ToolRuntime extends Service {
       throw new TypeError(`tool "${name}" must declare output { schema, render, presentationMeta? }`)
     }
     assertSupportedJsonSchema(output.schema)
+    assertNoReservedSquat(definition.parameters, name)
     const timeoutMs = definition.timeoutMs
     if (timeoutMs !== undefined
       && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) {
@@ -1252,7 +1263,7 @@ export class ToolRuntime extends Service {
     return {
       name,
       description,
-      parameters: detached,
+      parameters: withPurpose(detached as unknown as Record<string, unknown>),
     }
   }
 
@@ -1403,7 +1414,12 @@ export class ToolRuntime extends Service {
       if (detached === undefined) {
         throw new TypeError('tool execution arguments must be losslessly JSON-serializable')
       }
-      const execution: MutableToolRunContext = { ...base, arguments: deepFreeze(detached) }
+      const derivation = derivePurpose(detached)
+      const execution: MutableToolRunContext = {
+        ...base,
+        arguments: deepFreeze(derivation.clean),
+        ...derivation.purpose !== null ? { purpose: derivation.purpose } : {},
+      }
       this.deferredContexts.set(execution, deferredContexts)
       this.contentFinalizers.set(execution, finalizerFor())
       this.cancellationStates.set(execution, {

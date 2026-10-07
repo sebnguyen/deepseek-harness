@@ -594,6 +594,25 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'checkpoint',
+    summary: 'Checkpoint capture service: brackets every dispatch with a pruned rescan, retains post-state blobs per session, and serves the remote surface the Web timeline renders and restores through.',
+    description: 'Checkpoint capture service: brackets every dispatch with a pruned rescan, retains post-state blobs per session, and serves the remote surface the Web timeline renders and restores through.',
+    methods: [
+      {
+        signature: '@Remote(\'restore\') async restore(session: Session, path: string, digest: string): Promise<string>',
+        description: 'Restore one file to the exact bytes captured for a digest.',
+        parameters: [{ name: 'session', description: 'the owning session whose store retains the blob.' }, { name: 'path', description: 'workspace-relative file path to restore.' }, { name: 'digest', description: 'digest recorded on the row being restored.' }],
+        returns: 'the restored path.',
+      },
+      {
+        signature: '@Remote(\'blob\') async blob(session: Session, digest: string): Promise<string | null>',
+        description: 'One stop\'s retained text for the timeline\'s frozen diff view.',
+        parameters: [{ name: 'session', description: 'the owning session whose store retains the blob.' }, { name: 'digest', description: 'digest recorded on the row.' }],
+        returns: 'the stored text, or null when the object is absent.',
+      },
+    ],
+  },
+  {
     key: 'claims',
     summary: 'Claim service (`ctx.claims`) backed exclusively by the owning session log.',
     description: 'Claim service (`ctx.claims`) backed exclusively by the owning session log.',
@@ -1507,9 +1526,15 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'resolve(request: SandboxPolicyRequest = {}): SandboxExecutionPolicy',
-        description: 'Resolve the complete policy for one capability call. An approved explicit mode outranks the session\'s last `sandbox/mode` event, which outranks the deployment default. A session cwd is its workspace-write boundary; the configured root is the fallback for agentless calls and sessions without a cwd.',
+        description: 'Resolve the complete policy for one capability call. An approved explicit mode outranks the session\'s last `sandbox/mode` event, which outranks the deployment default. A session cwd is its workspace-write boundary; the configured root is the fallback for agentless calls and sessions without a cwd. This is the STANDING policy: the model-facing `sandbox:policy` context renders it so prompt bytes stay identical across per-call clamps, and capability layers read resolveClamped for enforcement.',
         parameters: [{ name: 'request', description: 'optional session and approved mode override.' }],
         returns: 'the fully resolved per-call mode and absolute workspace root.',
+      },
+      {
+        signature: 'async resolveClamped(request: SandboxPolicyRequest = {}): Promise<SandboxExecutionPolicy>',
+        description: 'Resolve the enforceable policy for one capability call: the standing resolution passed through the `sandbox-policy/resolve` waterfall, then capped so a listener can only narrow. A denied-to-narrower mode keeps the standing `workspaceRoot` and identity fields of the listener\'s return.',
+        parameters: [{ name: 'request', description: 'optional session and approved mode override.' }],
+        returns: 'the narrowest policy any listener claimed, never wider than standing.',
       },
       {
         signature: 'overrideOf(session: Session): SandboxMode | undefined',
@@ -3068,6 +3093,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'the directory\'s children in the backend\'s stable name order, bounded by the entry cap.',
       },
       {
+        signature: '@Remote async write( workspaceFileScope: WorkspaceFileScope, path: string, content: string, expectedVersion: string | undefined, signal: AbortSignal, ): Promise<WorkspaceFileStat>',
+        description: 'Save one complete UTF-8 text file at a path the composed filesystem can reach. The caller is a human at the other end of the wire, so the write is fenced only by the Session\'s read-only mode and by the version guard: with `expectedVersion` the write replaces exactly that version and fails `workspace-file/stale` on any concurrent change; without it the write creates or overwrites unconditionally. Sandboxing backends run the write under `danger-full-access` because the human is the authority; agent tool writes keep their own containment.',
+        parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'path', description: 'absolute path or path relative to the workspace root; files outside it are allowed.' }, { name: 'content', description: 'the complete new text of the file.' }, { name: 'expectedVersion', description: 'the version the caller loaded or last saved; omit for an unguarded save.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'the file\'s identity after the save, whose version the next save names.',
+      },
+      {
         signature: '@Remote({ mode: \'stream\' }) changes(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>',
         description: 'Stream every `fs/observed` observation of a file inside the Session\'s workspace. Only instrumented filesystem operations report here; the OS is not watched.',
         parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'signal', description: 'generation cancellation.' }],
@@ -3439,6 +3470,14 @@ export const EVENT_API: readonly EventApiEntry[] = [
     summary: 'Waterfall around every streaming model call (retry, replay, routing).',
     description: 'Waterfall around every streaming model call (retry, replay, routing). Bound to the LlmRuntime; call `next()` to reach the resolved adapter\'s stream, or yield your own chunks to short-circuit.',
     parameters: [{ name: 'options', description: 'the full request. A LOOP-built request carries the process-local {@link markAgentLoopRequest} identity and arrives deep-frozen (mutation throws): its content is a pure function of the session log (the reconstructability Agent Note), so listeners read it, never rewrite it. Hand-built calls do not carry that marker; their messages already obey the immutable creation contract.' }],
+  },
+  {
+    name: 'sandbox-policy/resolve',
+    mode: 'waterfall',
+    signature: '\'sandbox-policy/resolve\'( policy: SandboxExecutionPolicy, session: Session | undefined, next: () => Promise<SandboxExecutionPolicy>, ): Promise<SandboxExecutionPolicy>',
+    summary: 'Narrow (never widen) the standing policy for one capability call.',
+    description: 'Narrow (never widen) the standing policy for one capability call. Listeners receive the standing resolution plus the calling session and return the policy the call must run under; `resolveClamped` enforces the narrow-only rule — a returned mode wider than the standing mode is capped back to the standing mode inside the service, so a nonconforming listener cannot widen policy. Returning without `next()` short-circuits the chain.',
+    parameters: [{ name: 'policy', description: 'the standing resolution for this call.' }, { name: 'session', description: 'the calling session, or `undefined` for sessionless calls.' }],
   },
   {
     name: 'session-telemetry/record',
@@ -5270,7 +5309,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionEventMap',
-    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'system/message\': {\n        turn: number;\n        step: number;\n        message: SystemMessage;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        stream: AssistantStreamRecord[];\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'assistant/attempt\': {\n        turn: number;\n        step: number;\n        stream: AssistantStreamRecord[];\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'request/wire\': RequestWireRecord;\n    \'session/end-seed\': {\n        inherited?: true;\n    };\n}',
+    declaration: 'export interface SessionEventMap {\n    \'turn/start\': {\n        turn: number;\n    };\n    \'turn/end\': {\n        turn: number;\n        reason: TurnEndReason;\n    };\n    \'step/start\': {\n        turn: number;\n        step: number;\n    };\n    \'step/end\': {\n        turn: number;\n        step: number;\n    };\n    \'user/message\': UserMessage;\n    \'system/message\': {\n        turn: number;\n        step: number;\n        message: SystemMessage;\n    };\n    \'assistant/message\': {\n        turn: number;\n        step: number;\n        message: AssistantMessage;\n        stream: AssistantStreamRecord[];\n        usage?: TokenUsage;\n        interrupted?: true;\n    };\n    \'assistant/attempt\': {\n        turn: number;\n        step: number;\n        stream: AssistantStreamRecord[];\n    };\n    \'tool/call\': {\n        turn: number;\n        step: number;\n        callId: ToolCallId;\n        name: string;\n        arguments: string;\n        purpose?: string;\n    };\n    \'tool/result\': {\n        turn: number;\n        step: number;\n        message: ToolResultMessage;\n        error?: {\n            name: string;\n            code: string;\n        };\n        meta?: JsonValue;\n    };\n    \'request/header\': {\n        header: EpochHeader;\n        reason: RequestHeaderReason;\n        startsSeries?: true;\n    };\n    \'request/context\': RequestContext;\n    \'request/wire\': RequestWireRecord;\n    \'session/end-seed\': {\n        inherited?: true;\n    };\n}',
   },
   {
     name: 'SessionEventMetadataFilter',
@@ -6238,7 +6277,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ToolExecution',
-    declaration: 'export interface ToolExecution extends ToolExecutionInput {\n    readonly rootCallId: ToolCallId;\n    readonly token: ToolExecutionToken;\n}',
+    declaration: 'export interface ToolExecution extends ToolExecutionInput {\n    readonly rootCallId: ToolCallId;\n    readonly token: ToolExecutionToken;\n    readonly purpose?: string;\n}',
   },
   {
     name: 'ToolExecutionFailure',

@@ -365,9 +365,12 @@ export interface SessionEventMap {
   /**
    * The model requested one tool invocation: `name` with the raw `arguments`
    * JSON string exactly as the model produced it (unparsed). `callId` pairs the
-   * call with its `tool/result`.
+   * call with its `tool/result`. Optional `purpose` is the harness-lifted
+   * `_dsh_harness_purpose` line (the registry strips the key from dispatch
+   * arguments before this event is appended); a pure derivation of `arguments`,
+   * persisted as an index for projections.
    */
-  'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string }
+  'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string; purpose?: string }
   /**
    * A completed tool call's model-facing result, optional internal failure
    * identity, and optional tool-private `meta` presentation payload. `meta` is

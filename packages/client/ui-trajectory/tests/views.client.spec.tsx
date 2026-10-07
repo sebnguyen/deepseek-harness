@@ -227,6 +227,7 @@ function standaloneProps(
     sessionId: SID,
     useChat: bindSnapshotSelector(createSnapshotStore(EMPTY_CHAT_SNAPSHOT)),
     useTrajectoryComposition: bindSnapshotSelector(createSnapshotStore(EMPTY_RAW_SURFACE_SNAPSHOT)),
+    useFileHistory: () => { throw new Error('unused') },
     useSessions: emptySessions(),
     usePanelInfo, useResource,
     useSessionPendingInteraction: bindSnapshotSelector(
@@ -354,6 +355,7 @@ function mount(fixture: Awaited<ReturnType<typeof bench>>) {
     useSession,
     useTrajectory,
     useTrajectoryComposition,
+    useFileHistory: () => { throw new Error('unused') },
     useChat,
     useConversation,
     useConversationViews,
