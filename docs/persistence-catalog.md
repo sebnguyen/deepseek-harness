@@ -83,7 +83,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 }[T]
 ```
 
-Sources: [`packages/core/session/src/types.ts:442`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:450`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:472`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:503`](../packages/core/session/src/types.ts)
+Sources: [`packages/core/session/src/types.ts:445`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:453`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:475`](../packages/core/session/src/types.ts) · [`packages/core/session/src/types.ts:506`](../packages/core/session/src/types.ts)
 
 ## Events
 
@@ -241,6 +241,24 @@ Source: [`packages/core/session/src/types.ts:364`](../packages/core/session/src/
 Types: [TokenUsage](subsystems/llm-streaming.md)
 
 Source: [`packages/core/session/src/types.ts:350`](../packages/core/session/src/types.ts)
+
+### `checkpoint/*`
+
+<a id="checkpointscan--log-only"></a>
+
+#### `checkpoint/scan` — log-only
+
+```ts persistence-catalog
+/**
+ * One pruned workspace rescan after a mutating tool call: the rows are the
+ * per-file changes the scan attributed to that call. Rows are records only;
+ * state at a stop and the per-file timeline are projections over rows.
+ * @param rows - changed files since the previous scan, in path order.
+ */
+'checkpoint/scan': { rows: CheckpointRow[] }
+```
+
+Source: [`packages/fs/checkpoint/src/types.ts:44`](../packages/fs/checkpoint/src/types.ts)
 
 ### `claim/*`
 
@@ -643,7 +661,7 @@ Source: [`packages/plan/plan-mode/src/index.ts:47`](../packages/plan/plan-mode/s
 'request/context': RequestContext
 ```
 
-Source: [`packages/core/session/src/types.ts:406`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:409`](../packages/core/session/src/types.ts)
 
 <a id="requestheader--log-only"></a>
 
@@ -662,7 +680,7 @@ Source: [`packages/core/session/src/types.ts:406`](../packages/core/session/src/
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:394`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:397`](../packages/core/session/src/types.ts)
 
 <a id="requestwire--log-only"></a>
 
@@ -680,7 +698,7 @@ Source: [`packages/core/session/src/types.ts:394`](../packages/core/session/src/
 'request/wire': RequestWireRecord
 ```
 
-Source: [`packages/core/session/src/types.ts:415`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:418`](../packages/core/session/src/types.ts)
 
 ### `sandbox/*`
 
@@ -755,7 +773,7 @@ Source: [`packages/schedule/schedule/src/types.ts:219`](../packages/schedule/sch
 'session/end-seed': { inherited?: true }
 ```
 
-Source: [`packages/core/session/src/types.ts:438`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:441`](../packages/core/session/src/types.ts)
 
 <a id="sessiontitle--log-only"></a>
 
@@ -1008,14 +1026,17 @@ Source: [`packages/todo/tool-todo/src/types.ts:31`](../packages/todo/tool-todo/s
 /**
  * The model requested one tool invocation: `name` with the raw `arguments`
  * JSON string exactly as the model produced it (unparsed). `callId` pairs the
- * call with its `tool/result`.
+ * call with its `tool/result`. Optional `purpose` is the harness-lifted
+ * `_dsh_harness_purpose` line (the registry strips the key from dispatch
+ * arguments before this event is appended); a pure derivation of `arguments`,
+ * persisted as an index for projections.
  */
-'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string }
+'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string; purpose?: string }
 ```
 
 Types: [ToolCallId](subsystems/core.md)
 
-Source: [`packages/core/session/src/types.ts:370`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:373`](../packages/core/session/src/types.ts)
 
 <a id="toolptc-dispatch--log-only"></a>
 
@@ -1091,7 +1112,7 @@ Source: [`packages/core/tools/src/types.ts:40`](../packages/core/tools/src/types
 }
 ```
 
-Source: [`packages/core/session/src/types.ts:382`](../packages/core/session/src/types.ts)
+Source: [`packages/core/session/src/types.ts:385`](../packages/core/session/src/types.ts)
 
 ### `tool-workflow/*`
 

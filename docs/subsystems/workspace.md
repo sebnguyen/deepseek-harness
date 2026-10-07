@@ -306,6 +306,24 @@ Host Remote file reads and workspace directory observations over the composed fi
 @Remote async list(workspaceFileScope: WorkspaceFileScope, path: string, signal: AbortSignal): Promise<WorkspaceDirectoryListing>
 
 /**
+ * Save one complete UTF-8 text file at a path the composed filesystem can
+ * reach. The caller is a human at the other end of the wire, so the write is
+ * fenced only by the Session's read-only mode and by the version guard: with
+ * `expectedVersion` the write replaces exactly that version and fails
+ * `workspace-file/stale` on any concurrent change; without it the write
+ * creates or overwrites unconditionally. Sandboxing backends run the write
+ * under `danger-full-access` because the human is the authority; agent tool
+ * writes keep their own containment.
+ * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+ * @param path - absolute path or path relative to the workspace root; files outside it are allowed.
+ * @param content - the complete new text of the file.
+ * @param expectedVersion - the version the caller loaded or last saved; omit for an unguarded save.
+ * @param signal - caller cancellation.
+ * @returns the file's identity after the save, whose version the next save names.
+ */
+@Remote async write( workspaceFileScope: WorkspaceFileScope, path: string, content: string, expectedVersion: string | undefined, signal: AbortSignal, ): Promise<WorkspaceFileStat>
+
+/**
  * Stream every `fs/observed` observation of a file inside the Session's
  * workspace. Only instrumented filesystem operations report here; the OS is
  * not watched.

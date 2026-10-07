@@ -334,7 +334,12 @@ describe('AgentLoop initiator scope', () => {
       headers: { 'X-Harness-Session-Id': 'transport-session' },
     }])
     const schema = adapter.requests[0]?.tools?.find(tool => tool.name === 'capability-request')
-    expect(JSON.stringify(schema?.parameters)).not.toMatch(/session|harness/i)
+    // Every exposed schema carries the reserved harness purpose field (a
+    // deliberate, non-identifying addition); what must never ride it is session
+    // identity, and the tool's own parameters stay exactly the ones declared.
+    const exposed = schema?.parameters as { properties?: Record<string, unknown> } | undefined
+    expect(Object.keys(exposed?.properties ?? {}).filter(name => name !== '_dsh_harness_purpose')).toEqual(['path'])
+    expect(JSON.stringify(schema?.parameters)).not.toMatch(/transport-session|sessionId/i)
     const call = handle.agent.session.snapshotEvents().find(event => event.type === 'tool/call')
     expect(call?.type === 'tool/call' ? call.data.arguments : undefined)
       .toBe(JSON.stringify({ path: '/v1/capability' }))

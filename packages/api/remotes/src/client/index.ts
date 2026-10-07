@@ -10,6 +10,7 @@ import dynamicRemote from '@deepseek-ai/dsh-cordis-host-runner/remote'
 import pluginInventoryRemote from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 import messageFeedbackRemote from '@deepseek-ai/dsh-message-feedback/remote'
 import sessionFeedbackRemote from '@deepseek-ai/dsh-command-feedback/remote'
+import checkpointRemote from '@deepseek-ai/dsh-checkpoint/remote'
 import fileUploadsRemote from '@deepseek-ai/dsh-client-file-upload/remote'
 import sessionReferencesRemote from '@deepseek-ai/dsh-session-reference/remote'
 import subagentsRemote from '@deepseek-ai/dsh-subagent/remote'
@@ -28,6 +29,8 @@ export type {} from '@deepseek-ai/dsh-llm/remote'
 export type {} from '@deepseek-ai/dsh-host-plugin-inventory/remote'
 export type {} from '@deepseek-ai/dsh-message-feedback/remote'
 export type {} from '@deepseek-ai/dsh-command-feedback/remote'
+export type {} from '@deepseek-ai/dsh-checkpoint/remote'
+export type * from '@deepseek-ai/dsh-checkpoint/types'
 export type {} from '@deepseek-ai/dsh-client-file-upload/remote'
 export type {} from '@deepseek-ai/dsh-session-reference/remote'
 export type {} from '@deepseek-ai/dsh-subagent/remote'
@@ -153,7 +156,7 @@ export async function apply(ctx: Context): Promise<() => Promise<void>> {
     for (const contribution of [
       agentPresetsRemote, commandsRemote, settingsControllerRemote, goalsRemote, llmRemote, dynamicRemote,
       pluginInventoryRemote, messageFeedbackRemote, sessionFeedbackRemote, fileUploadsRemote, sessionReferencesRemote,
-      subagentsRemote, sessionRemote, workspaceRemote, workspaceFilesRemote,
+      subagentsRemote, sessionRemote, workspaceRemote, workspaceFilesRemote, checkpointRemote,
     ]) {
       disposers.push(await ctx.remote.$mount(contribution))
     }

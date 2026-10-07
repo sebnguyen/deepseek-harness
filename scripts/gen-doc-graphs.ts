@@ -566,6 +566,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Runs one model-written program against host-provided async bindings; backends differ by substrate and language (the tool registry consumes it for PTC mode).',
   },
   {
+    key: 'checkpoint',
+    pkg: 'checkpoint',
+    title: 'Workspace snapshot capture and restore',
+    mode: 'core',
+    consumers: ['client-ui-file-history'],
+    note: 'Brackets every dispatch with a pruned workspace rescan, retains changed content in a per-session content-addressed store, and serves the blob/restore Remote that the file-history view and the checkpoint_restore tool drive.',
+  },
+  {
     key: 'fs',
     pkg: 'fs',
     title: 'Filesystem provider seam',
