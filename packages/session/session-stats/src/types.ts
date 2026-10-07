@@ -36,6 +36,10 @@ export interface SessionStatsProjection {
   decodeMs: number
   /** Summed provider output tokens over the same decode-timed steps. */
   decodeTokens: number
+  /** Summed decode wall time over the up-to-five most recent decode-timed steps — the recency pool behind the chat pill's recent-speed chip. */
+  recent5DecodeMs: number
+  /** Summed provider output tokens over the same recent steps. */
+  recent5DecodeTokens: number
 }
 
 /**

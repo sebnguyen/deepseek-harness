@@ -15,7 +15,7 @@ function driverDone(agent: Agent): Promise<void> {
   return (agent as Agent & { done: Promise<void> }).done
 }
 
-const DEFAULT_CORE_PROMPT = coreGuidanceParagraphs({ proveIt: false, explore: false }).join('\n\n')
+const DEFAULT_CORE_PROMPT = coreGuidanceParagraphs({ explore: false }).join('\n\n')
 
 async function harness(adapter: MockAdapter, persona = '') {
   const ctx = new Context()

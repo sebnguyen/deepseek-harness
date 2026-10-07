@@ -60,9 +60,9 @@
   - img
 - button "0% of context used"
 - button "Send message" [disabled]
-- button "1 turns 2 steps · Avg {{throughput}} tok/s · Last {{throughput}} tok/s":
+- button "1 turns 2 steps · Last 5 {{throughput}} tok/s · Last {{throughput}} tok/s":
   - img
-  - text: 1 turns 2 stepsAvg {{throughput}} tok/sLast {{throughput}} tok/s
+  - text: 1 turns 2 stepsLast 5 {{throughput}} tok/sLast {{throughput}} tok/s
 - button "In 20 · Cache 0 · Out 10 · Hit 0%":
   - img
   - text: In 20Cache 0Out 10Hit 0%

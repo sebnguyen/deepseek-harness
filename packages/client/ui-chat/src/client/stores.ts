@@ -1,15 +1,9 @@
 /** Per-Session Chat view store. */
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
-import type { ChatStoreState, TurnProcessViewEntry } from './contract/store.ts'
+import type { ChatStoreState } from './contract/store.ts'
 
 type ChatActions = {
-  setTurnProcessOpen: (
-    draft: ChatStoreState,
-    turn: number,
-    answerStep: number | null,
-    group: number,
-    open: boolean,
-  ) => void
+  setSpanOpen: (draft: ChatStoreState, span: string, open: boolean) => void
 }
 
 /**
@@ -18,17 +12,15 @@ type ChatActions = {
  */
 export function createChatStore(): EngineStoreHandle<ChatStoreState, ChatActions> {
   return defineStore({
-    init: (): ChatStoreState => ({ turnProcesses: [] }),
+    init: (): ChatStoreState => ({ openSpans: [] }),
     actions: {
-      setTurnProcessOpen: (draft, turn, answerStep, group, open) => {
-        const index = draft.turnProcesses.findIndex(entry => entry.turn === turn && entry.group === group)
+      setSpanOpen: (draft, span, open) => {
+        const index = draft.openSpans.indexOf(span)
         if (!open) {
-          if (index >= 0) draft.turnProcesses.splice(index, 1)
+          if (index >= 0) draft.openSpans.splice(index, 1)
           return
         }
-        const next = { turn, answerStep, group } satisfies TurnProcessViewEntry
-        if (index < 0) draft.turnProcesses.push(next)
-        else draft.turnProcesses[index] = next
+        if (index < 0) draft.openSpans.push(span)
       },
     },
   })

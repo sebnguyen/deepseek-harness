@@ -4,11 +4,11 @@ Status: implemented
 
 ## Problem
 
-The compact transcript's Turn-process fold initially suspended itself for the Turn that begins above the loaded window whenever an older history page stayed unloaded, because that Turn's process spec sees only the loaded suffix and its Tool-call and message counts would understate the Turn's true totals. In a long-running session the paged window starts mid-Turn, so the one Turn a returning reader most wants collapsed — the large historic one on screen — was the one left fully expanded, reading as "folding works only for the recent Turns".
+The transcript's process fold initially suspended itself for the Turn that begins above the loaded window whenever an older history page stayed unloaded, because that Turn's process projection sees only the loaded suffix and its Tool-call and thought counts would understate the Turn's true totals. In a long-running session the paged window starts mid-Turn, so the one Turn a returning reader most wants collapsed — the large historic one on screen — was the one left fully expanded, reading as "folding works only for the recent Turns".
 
 ## Decision
 
-**Remove the boundary exemption.** Compact mode folds every loaded Turn, including the one that begins above the loaded window, superseding the same-day boundary paragraph of [Live Turn-process folding](2026-09-30-live-turn-process-folding.md). The projected spec always covers the load window truthfully: its counts describe the loaded evidence and re-derive when the older page lands, so the disclosure's numbers widen instead of having been wrong. A reader who expands the boundary Turn and then loads older history keeps the widened rows open under the persisted open entry.
+**Remove the boundary exemption.** The fold applies to every loaded Turn, including the one that begins above the loaded window, superseding the same-day boundary paragraph of the archived [Live Turn-process folding](../../archived/feature/2026-09-30-live-turn-process-folding.md). The projection always covers the load window truthfully: its counts describe the loaded evidence and re-derive when the older page lands, so the disclosure's numbers widen instead of having been wrong. A reader who expands the boundary Turn and then loads older history keeps the widened rows open under the persisted open entry.
 
 ## Verification
 
@@ -22,5 +22,6 @@ The compact transcript's Turn-process fold initially suspended itself for the Tu
 
 ## Consequences
 
-- Under partial history the first loaded Turn's disclosure undercounts until the older page loads; loading older history re-derives the spec and the control label in place.
-- The fold no longer waits on the older-history boundary at all: `ChatNodeSeat` reads no session paging fact, and the per-Turn presentation alone drives member hiding.
+- Under partial history the first loaded span's disclosure undercounts until the older page loads; loading older history re-derives the fold and the control label in place.
+- The fold no longer waits on the older-history boundary at all: `ChatNodeSeat` reads no session paging fact, and the per-span fold alone drives member hiding.
+- The fold unit is now the Step span ([successor](2026-10-07-step-span-folds-replace-turn-process-groups.md)): the boundary guarantee applies per span, and a span whose opener the loaded window lost shows its members uncollapsed until that page lands.

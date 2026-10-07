@@ -1,4 +1,4 @@
-import { type KeyboardEvent, type MouseEvent, type ReactNode, useLayoutEffect, useRef } from 'react'
+import { type KeyboardEvent, type MouseEvent, type ReactNode, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import { IconChevronDownOutline14 } from './icons/index.tsx'
 import css from './DisclosureRow.module.css'
@@ -104,30 +104,59 @@ export function DisclosureRow({
         <span className={clsx(css.title, titleClassName)}>{title}</span>
         {(keepContentWhenOpen || !open) && collapsedContent}
       </div>
-      {open
-        ? children
-        : keepChildrenMounted
-          ? (
-            <UntilFoundShell>
-              {children}
-            </UntilFoundShell>
-          )
-          : null}
+      {open || keepChildrenMounted
+        ? (
+          <BodyShell open={open}>
+            {children}
+          </BodyShell>
+        )
+        : null}
     </div>
   )
 }
 
+const FOLD_MS = 170
+
 /**
- * `hidden="until-found"` is an enumerated attribute; React's boolean `hidden`
- * prop would drop the value, so the shell writes it on the element itself.
+ * The body stays mounted across toggles; collapse plays the fold-out style
+ * before handing the body to `hidden="until-found"`, and expansion releases
+ * the style a frame after removing `hidden`, so both directions animate
+ * wherever transitions run at all. Test DOMs without `matchMedia` and
+ * reduced motion swap instantly. The enumerated value is imperative
+ * because React's boolean `hidden` prop would drop it.
  */
-function UntilFoundShell({ children }: { children: ReactNode }) {
+function BodyShell({ open, children }: { open: boolean; children?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [foldOut, setFoldOut] = useState(false)
   useLayoutEffect(() => {
-    ref.current?.setAttribute('hidden', 'until-found')
-  }, [])
+    const el = ref.current
+    if (el === null) return
+    const animated = typeof window.matchMedia === 'function'
+      && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!animated) {
+      setFoldOut(false)
+      if (open) el.removeAttribute('hidden')
+      else el.setAttribute('hidden', 'until-found')
+      return undefined
+    }
+    if (open) {
+      el.removeAttribute('hidden')
+      setFoldOut(true)
+      let inner = 0
+      const outer = requestAnimationFrame(() => {
+        inner = requestAnimationFrame(() => setFoldOut(false))
+      })
+      return () => {
+        cancelAnimationFrame(outer)
+        cancelAnimationFrame(inner)
+      }
+    }
+    setFoldOut(true)
+    const id = window.setTimeout(() => el.setAttribute('hidden', 'until-found'), FOLD_MS)
+    return () => window.clearTimeout(id)
+  }, [open])
   return (
-    <div ref={ref} hidden>
+    <div ref={ref} className={css.body} data-fold-out={foldOut || undefined} hidden>
       {children}
     </div>
   )

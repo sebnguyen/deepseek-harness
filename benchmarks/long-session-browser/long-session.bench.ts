@@ -54,7 +54,7 @@ function expectInputOverlap(value: boolean): void {
 
 async function waitForReplyMarker(page: Page, marker: string, timeout = 30000) {
   return page.waitForFunction(({ marker, first, done }) => {
-    const reply = Array.from(document.querySelectorAll('[data-chat-flow-kind="assistant-step"]')).at(-1)
+    const reply = Array.from(document.querySelectorAll('[data-chat-flow-kind="assistant-step-message"]')).at(-1)
     if (!reply) return false
     const text = document.createTreeWalker(reply, NodeFilter.SHOW_TEXT)
     let node: Node | null
@@ -74,7 +74,7 @@ async function watchInputOverlap(composer: Locator): Promise<void> {
     element.removeAttribute('data-benchmark-input-overlap')
     element.removeAttribute('data-benchmark-input-timing')
     element.addEventListener('input', (event) => {
-      const transcript = Array.from(document.querySelectorAll('[data-chat-flow-kind="assistant-step"]')).at(-1)?.textContent ?? ''
+      const transcript = Array.from(document.querySelectorAll('[data-chat-flow-kind="assistant-step-message"]')).at(-1)?.textContent ?? ''
       element.setAttribute('data-benchmark-input-overlap', String(event.isTrusted && transcript.includes(markers.first) && !transcript.includes(markers.done)))
       element.setAttribute('data-benchmark-input-witness', JSON.stringify({ trusted: event.isTrusted, first: transcript.includes(markers.first), done: transcript.includes(markers.done) }))
       element.setAttribute('data-benchmark-input-timing', JSON.stringify({ atMs: window.performance.now(), eventAtMs: event.timeStamp, focused: document.activeElement === element }))
@@ -115,7 +115,7 @@ it('waits for visible marker text in the latest Assistant step', async () => {
   const browser = await chromium.launch({ headless: true })
   try {
     const page = await browser.newPage()
-    await page.setContent(`<div data-chat-flow-kind="assistant-step">${FIRST}</div><div data-chat-flow-kind="assistant-step"><span style="visibility:hidden">${FIRST}</span></div>`)
+    await page.setContent(`<div data-chat-flow-kind="assistant-step-message">${FIRST}</div><div data-chat-flow-kind="assistant-step-message"><span style="visibility:hidden">${FIRST}</span></div>`)
     await expect(waitForReplyMarker(page, FIRST, 100)).rejects.toThrow('Timeout')
     await page.locator('span').evaluate(element => { element.style.visibility = 'visible' })
     const observation = await waitForReplyMarker(page, FIRST)

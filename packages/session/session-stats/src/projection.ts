@@ -46,6 +46,8 @@ interface SessionStatsTotals {
   decodeMs: number
   /** Summed provider output tokens over the same steps. */
   decodeTokens: number
+  /** The five most recent sampled decode readings, oldest first; empty before the first. */
+  recent: { decodeMs: number; tokens: number }[]
 }
 
 /**
@@ -69,7 +71,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   }
 }
 
-const sessionStatsSchema = z.object({
+const totalsFields = {
   turns: z.number().int().nonnegative(),
   steps: z.number().int().nonnegative(),
   llmMs: z.number().nonnegative(),
@@ -78,6 +80,12 @@ const sessionStatsSchema = z.object({
   ttftSteps: z.number().int().nonnegative(),
   decodeMs: z.number().nonnegative(),
   decodeTokens: z.number().nonnegative(),
+}
+
+const sessionStatsSchema = z.object({
+  ...totalsFields,
+  recent5DecodeMs: z.number().nonnegative(),
+  recent5DecodeTokens: z.number().nonnegative(),
 }).strict()
 
 /**
@@ -86,7 +94,8 @@ const sessionStatsSchema = z.object({
  * The view is a strict subset of the state, so this schema extends
  * `sessionStatsSchema` (the wire output boundary) with the boundary fields.
  */
-const sessionStatsStateSchema = sessionStatsSchema.extend({
+const sessionStatsStateSchema = z.object({
+  ...totalsFields,
   lastTurn: z.number().int().nonnegative().nullable(),
   openStep: z.object({
     turn: z.number().int().nonnegative(),
@@ -95,6 +104,10 @@ const sessionStatsStateSchema = sessionStatsSchema.extend({
     firstTokenTime: z.number().nonnegative().nullable(),
   }).nullable(),
   pendingCalls: z.record(z.string(), z.number().nonnegative()),
+  recent: z.array(z.object({
+    decodeMs: z.number().nonnegative(),
+    tokens: z.number().nonnegative(),
+  })).max(5),
 })
 
 /**
@@ -112,7 +125,7 @@ function usageOutputTokens(usage: unknown): number | null {
 /** The `sessionStats` unit registered on `ctx.sessionProjections` (exported for the unit spec). */
 export const sessionStatsProjectionDefinition = {
   key: 'sessionStats',
-  stateVersion: 1,
+  stateVersion: 2,
   stateSchema: sessionStatsStateSchema,
   init: () => ({
     turns: 0,
@@ -126,6 +139,7 @@ export const sessionStatsProjectionDefinition = {
     lastTurn: null,
     openStep: null,
     pendingCalls: {},
+    recent: [],
   }),
   apply: (state, event) => {
     // Every uninteresting event returns the same reference (Object.is gates the change feed).
@@ -158,8 +172,10 @@ export const sessionStatsProjectionDefinition = {
           next.ttftSteps += 1
           const outputTokens = usageOutputTokens(event.data.usage)
           if (outputTokens !== null) {
-            next.decodeMs += Math.max(0, event.time - firstToken)
+            const reading = { decodeMs: Math.max(0, event.time - firstToken), tokens: outputTokens }
+            next.decodeMs += reading.decodeMs
             next.decodeTokens += outputTokens
+            next.recent = [...state.recent, reading].slice(-5)
           }
         }
         return next
@@ -207,6 +223,8 @@ export const sessionStatsProjectionDefinition = {
       ttftSteps: state.ttftSteps,
       decodeMs: state.decodeMs,
       decodeTokens: state.decodeTokens,
+      recent5DecodeMs: state.recent.reduce((sum, reading) => sum + reading.decodeMs, 0),
+      recent5DecodeTokens: state.recent.reduce((sum, reading) => sum + reading.tokens, 0),
     }),
   },
 } satisfies ProjectionDefinition<'sessionStats', SessionStatsState>

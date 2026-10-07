@@ -26,7 +26,7 @@ const skill = (seq: number, name: string) =>
   viewNode('context', seq, { content: [], source: { kind: 'skill-invocation', name, form: 'instructions' } })
 const instructions = (seq: number) =>
   viewNode('context', seq, { content: [], source: { kind: 'agent-instructions', changes: [] } })
-const assistant = (seq: number, text = 'answer') => viewNode('assistant-step', seq, { text })
+const assistant = (seq: number, text = 'answer') => viewNode('assistant-step-message', seq, { text })
 
 function storeOf(nodes: readonly ChatConversationViewNode[]): ChatNodeStore & { valuesCalls: number } {
   const byKey = new Map(nodes.map(node => [node.key, node]))
@@ -95,7 +95,7 @@ describe('SkillNameProjector', () => {
     expect(names(replaced[2])).toEqual(['demo'])
     const store = storeOf(replaced)
     const out = projector.apply([assistant(6)], store)
-    expect(out.map(node => node.key).sort()).toEqual(['assistant-step:6', 'user:8'])
+    expect(out.map(node => node.key).sort()).toEqual(['assistant-step-message:6', 'user:8'])
     expect(names(out.find(node => node.key === 'user:8'))).toBeUndefined()
   })
 })

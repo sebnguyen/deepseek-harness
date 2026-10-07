@@ -2,7 +2,8 @@ import type {
   ConversationNode, ConversationTimelineSnapshot, PartialAssistant, RunningToolCall,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode } from './chat-nodes.ts'
-import type { TurnProcessSpec } from './turn-process.ts'
+import type { StepSpanFold } from './span-fold.ts'
+export type { StepSpanFold } from './span-fold.ts'
 
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProvenanceView, AssistantRequestConfig,
@@ -20,11 +21,11 @@ export interface ChatNodeSource {
   readonly subscribe: (listener: () => void) => () => void
 }
 
-/** Per-key observable for the Turn-process presentation surrounding one Chat Node. */
+/** Per-key observable for the Step span fold surrounding one Chat Node. */
 export interface ChatNodeProcessSource {
-  /** @returns the current presentation, or absence outside a projected Turn process. */
-  readonly getSnapshot: () => ChatTurnProcessPresentation | undefined
-  /** @param listener - callback for presentation changes. @returns the unsubscribe function. */
+  /** @returns the current fold, or absence outside an Assistant Step span. */
+  readonly getSnapshot: () => StepSpanFold | undefined
+  /** @param listener - callback for fold changes. @returns the unsubscribe function. */
   readonly subscribe: (listener: () => void) => () => void
 }
 
@@ -34,7 +35,7 @@ export interface ChatNodeStore {
   get(key: string): ChatConversationViewNode | undefined
   /** @param key - stable Conversation Context key. @returns its identity-stable observable source. */
   source(key: string): ChatNodeSource
-  /** @param key - stable Conversation Context key. @returns its Turn-process presentation source. */
+  /** @param key - stable Conversation Context key. @returns its span-fold source. */
   processSource(key: string): ChatNodeProcessSource
   /** @returns all currently materialized Nodes without imposing render order. */
   values(): readonly ChatConversationViewNode[]
@@ -68,29 +69,6 @@ export interface ChatLocationNodeIndex {
   getTurn(turn: number): readonly string[]
   /** @param turn - owning turn. @param step - owning step. @returns ordered Chat Node keys in the step. */
   getStep(turn: number, step: number): readonly string[]
-}
-
-/** One collapsible run of process rows terminated by a visible reply. */
-export interface TurnProcessGroup {
-  /** anchorSeq where this group's rows begin. */
-  readonly start: number
-  /** anchorSeq of the reply row that terminates the group; null while the run still streams. */
-  readonly boundary: number | null
-  /** Foldable rows hidden while the group is closed. */
-  readonly members: number
-  readonly toolCalls: number
-  readonly subagents: number
-}
-
-/** Cross-Node presentation facts derived for one Turn process. */
-export interface ChatTurnProcessPresentation {
-  readonly turn: number
-  readonly spec: TurnProcessSpec
-  readonly turnClosed: boolean
-  readonly hasExternalProcess: boolean
-  readonly compactAnswer: boolean
-  /** Fold groups; the still-streaming run of a running Turn carries a null boundary. */
-  readonly groups: readonly TurnProcessGroup[]
 }
 
 /** Compatibility projection backing StatsPills and the legacy top-level snapshot fields. */

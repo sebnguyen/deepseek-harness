@@ -1,6 +1,8 @@
 # Agent Note: Live Turn-process folding
 
 Status: implemented
+Archived: 2026-10-07
+
 
 ## Problem
 

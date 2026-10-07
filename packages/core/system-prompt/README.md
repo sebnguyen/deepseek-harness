@@ -42,7 +42,7 @@ The config owns the fixed opener, the built-in tool-usage guidance, runtime cont
 |---|---|---|
 | `includeHarnessIdentity` | `false` | Register `harness:identity` when true; text must stay model-neutral (empty by default) |
 | `includeCorePersonalityGuidance` | `true` | Register `harness:core-personality` at order `10` |
-| `includeCoreRulesGuidance` | `true` | Register all `harness:core-rule:*` sections at orders `20`–`140` (prove-it text appears only when claim tools are mounted; explore-through-explorers only when a delegation tool is mounted) |
+| `includeCoreRulesGuidance` | `true` | Register all `harness:core-rule:*` sections at orders `20`–`140` (explore-through-explorers only when a delegation tool is mounted) |
 | `includeRuntimeContext` | `true` | Include ordered dynamic runtime context in assembly |
 | `personaPrefix` | `''` | Global persona prefix template at order `0`, before core guidance |
 | `personaSuffix` | `''` | Global `deployment:persona-suffix` template at order `10200`, after first-party guidance |

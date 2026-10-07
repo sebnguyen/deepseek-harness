@@ -31,7 +31,7 @@ describe('commandOf', () => {
 describe('ApprovalCommand', () => {
   it('renders the running correlated Tool command', () => {
     render(<ApprovalCommand {...props([
-      { kind: 'assistant-step', data: {} },
+      { kind: 'assistant-step-message', data: {} },
       { kind: 'tool-call', data: { root: { callId: 'other', argsRaw: '{"command":"wrong"}' } } },
       { kind: 'tool-call', data: { root: { callId: 'call-1', argsRaw: '{"command":"pnpm test"}' } } },
     ] as never)} />)
@@ -41,7 +41,7 @@ describe('ApprovalCommand', () => {
 
   it('omits absent, uncorrelated, and settled Tool calls', () => {
     const { container, rerender } = render(<ApprovalCommand {...props([
-      { kind: 'assistant-step', data: {} },
+      { kind: 'assistant-step-message', data: {} },
       { kind: 'tool-call', data: { root: undefined } },
       { kind: 'tool-call', data: { root: { callId: 'other', argsRaw: '{}' } } },
       {

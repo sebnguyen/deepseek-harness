@@ -2,30 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { createChatStore } from '../src/client/stores.ts'
 
 describe('createChatStore', () => {
-  it('stores only manually expanded Turn-process groups', () => {
+  it('stores only manually expanded spans', () => {
     const store = createChatStore().create()
-    store.actions.setTurnProcessOpen(2, 3, 5, true)
-    expect(store.store.getSnapshot().turnProcesses).toEqual([{ turn: 2, answerStep: 3, group: 5 }])
+    store.actions.setSpanOpen('2:3', true)
+    expect(store.store.getSnapshot().openSpans).toEqual(['2:3'])
 
-    store.actions.setTurnProcessOpen(2, 4, 5, true)
-    expect(store.store.getSnapshot().turnProcesses).toEqual([{ turn: 2, answerStep: 4, group: 5 }])
+    store.actions.setSpanOpen('2:3', true)
+    store.actions.setSpanOpen('2:4', true)
+    expect(store.store.getSnapshot().openSpans).toEqual(['2:3', '2:4'])
 
-    store.actions.setTurnProcessOpen(2, 4, 6, true)
-    store.actions.setTurnProcessOpen(2, 4, 5, false)
-    expect(store.store.getSnapshot().turnProcesses).toEqual([{ turn: 2, answerStep: 4, group: 6 }])
-
-    store.actions.setTurnProcessOpen(2, 4, 6, false)
-    expect(store.store.getSnapshot().turnProcesses).toEqual([])
+    store.actions.setSpanOpen('2:3', false)
+    expect(store.store.getSnapshot().openSpans).toEqual(['2:4'])
   })
 
-  it('closes only the requested Turn-process group entry', () => {
+  it('closes only the requested span entry', () => {
     const store = createChatStore().create()
-    store.actions.setTurnProcessOpen(2, 3, 5, true)
-    store.actions.setTurnProcessOpen(3, 4, 7, true)
+    store.actions.setSpanOpen('2:3', true)
+    store.actions.setSpanOpen('3:4', true)
 
-    store.actions.setTurnProcessOpen(2, 3, 5, false)
-    store.actions.setTurnProcessOpen(9, 10, 5, false)
+    store.actions.setSpanOpen('2:3', false)
+    store.actions.setSpanOpen('9:10', false)
 
-    expect(store.store.getSnapshot().turnProcesses).toEqual([{ turn: 3, answerStep: 4, group: 7 }])
+    expect(store.store.getSnapshot().openSpans).toEqual(['3:4'])
   })
 })

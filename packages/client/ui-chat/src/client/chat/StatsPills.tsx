@@ -1,6 +1,6 @@
 // Session stats under the composer, split into three readings: a gauge pill
-// (turn/step counts + average and last-request output speed) opening the
-// time-and-speed dialog, a database pill (input/cache/output token buckets
+// (turn/step counts + output speeds over the recent five requests and the
+// newest one) opening the time-and-speed dialog, a database pill (input/cache/output token buckets
 // + cache hit) opening the token-usage dialog, and a cost pill (total spend
 // + the live blended rate per million tokens) opening the spend dialog, whose
 // rows list the cache hit and the per-model spend, rolling the viewed
@@ -44,6 +44,10 @@ interface WindowStats {
   decodeMs: number
   /** Summed output tokens over the same decode-timed steps. */
   decodeTokens: number
+  /** Summed decode wall time over the up-to-five newest sampled steps. */
+  recent5DecodeMs: number
+  /** Summed output tokens over the same recent steps. */
+  recent5DecodeTokens: number
 }
 
 /**
@@ -67,7 +71,10 @@ export function deriveStats(nodes: ChatSnapshot['legacy']['nodes']): WindowStats
   let ttftSteps = 0
   let decodeMs = 0
   let decodeTokens = 0
-  for (const node of nodes) {
+  let recent5DecodeMs = 0
+  let recent5DecodeTokens = 0
+  let recentTaken = 0
+  for (const node of [...nodes].reverse()) {
     if (node.kind === 'tool-result') {
       if (node.callTime !== null) toolMs += Math.max(0, node.time - node.callTime)
       continue
@@ -86,9 +93,17 @@ export function deriveStats(nodes: ChatSnapshot['legacy']['nodes']): WindowStats
     if (reading.decodeMs !== null && reading.outputTokens !== null) {
       decodeMs += reading.decodeMs
       decodeTokens += reading.outputTokens
+      if (recentTaken < 5) {
+        recent5DecodeMs += reading.decodeMs
+        recent5DecodeTokens += reading.outputTokens
+        recentTaken += 1
+      }
     }
   }
-  return { turns: turns.size, steps, llmMs, toolMs, ttftMs, ttftSteps, decodeMs, decodeTokens }
+  return {
+    turns: turns.size, steps, llmMs, toolMs, ttftMs, ttftSteps, decodeMs, decodeTokens,
+    recent5DecodeMs, recent5DecodeTokens,
+  }
 }
 
 /**
@@ -107,21 +122,29 @@ export function formatDuration(ms: number, t: ChatViewSlotProps['t']): string {
 }
 
 /**
- * Decode throughput of the most recent settled request: the newest assistant
- * node carrying both decode timing and provider usage (the window tail is the
- * newest settled step), keeping a current-speed reading beside the pooled
+ * Pooled decode throughput of the most recent settled requests: the newest
+ * `limit` assistant nodes carrying both decode timing and provider usage
+ * (the window tail is the newest settled step), so the pill's recent-speed
+ * reading tracks current performance while the dialog keeps the pooled
  * whole-session average.
  * @param nodes - snapshot nodes of the loaded window.
- * @returns that request's tok/s, or null when no settled step carries both.
+ * @param limit - maximum sampled requests to pool.
+ * @returns pooled tok/s over those requests, or null when none carries both.
  */
-export function lastRequestTps(nodes: ChatSnapshot['legacy']['nodes']): number | null {
+export function recentRequestTps(nodes: ChatSnapshot['legacy']['nodes'], limit: number): number | null {
+  let taken = 0
+  let decodeMs = 0
+  let decodeTokens = 0
   for (const node of [...nodes].reverse()) {
+    if (taken >= limit) break
     if (node.kind !== 'assistant') continue
     const reading = assistantStepReading(node)
     if (reading.decodeMs === null || reading.outputTokens === null || reading.decodeMs <= 0) continue
-    return reading.outputTokens / (reading.decodeMs / 1_000)
+    decodeMs += reading.decodeMs
+    decodeTokens += reading.outputTokens
+    taken += 1
   }
-  return null
+  return taken > 0 ? decodeTokens / (decodeMs / 1_000) : null
 }
 
 /**
@@ -248,22 +271,22 @@ function TimePill({ stats, lastTps, t, dialog }: {
 }) {
   const seat = useStatDialog(dialog)
   const counts = t('stats.counts', { turns: stats.turns, steps: stats.steps })
-  const avg = stats.decodeMs > 0
-    ? t('stats.avgTps', {
-      tps: formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1_000)),
+  const last5 = stats.recent5DecodeMs > 0
+    ? t('stats.last5Tps', {
+      tps: formatTokensPerSecond(stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000)),
     })
     : null
   const last = lastTps !== null
     ? t('stats.lastTps', { tps: formatTokensPerSecond(lastTps) })
     : null
-  const segments = [counts, avg, last].filter((s): s is string => s !== null)
+  const segments = [counts, last5, last].filter((s): s is string => s !== null)
   const label = (
     <>
       {counts}
-      {avg !== null && (
+      {last5 !== null && (
         <>
           <span className={css.sep} aria-hidden>·</span>
-          {avg}
+          {last5}
         </>
       )}
       {last !== null && (
@@ -321,6 +344,14 @@ function TimePill({ stats, lastTps, t, dialog }: {
               <dt>{t('stats.dialog.speed')}</dt>
               <dd>{t('message.tokensPerSecond', {
                 tps: formatTokensPerSecond(stats.decodeTokens / (stats.decodeMs / 1_000)),
+              })}</dd>
+            </>
+          )}
+          {stats.recent5DecodeMs > 0 && (
+            <>
+              <dt>{t('stats.dialog.last5Speed')}</dt>
+              <dd>{t('message.tokensPerSecond', {
+                tps: formatTokensPerSecond(stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000)),
               })}</dd>
             </>
           )}
@@ -576,9 +607,10 @@ export const StatsPills = memo(function StatsPills({
   // while no projection value is served.
   const projected = useProjection('sessionStats')
   const stats = useMemo(() => projected ?? deriveStats(settledNodes), [projected, settledNodes])
-  // The current-speed reading always rides the loaded window: the durable
-  // projection aggregates the whole log and carries no per-request figure.
-  const lastTps = useMemo(() => lastRequestTps(settledNodes), [settledNodes])
+  // The newest-request reading rides the loaded window; the recent-five pool
+  // rides `stats` (the durable projection, window fold as fallback), so paging
+  // and reloads cannot drop it the way a window-only reading would.
+  const lastTps = useMemo(() => recentRequestTps(settledNodes, 1), [settledNodes])
   // Gated on actual token activity: a session whose steps all settled without
   // billing (e.g. every request failed) shows its counts without a usage pill.
   const hasTokens = usage !== undefined

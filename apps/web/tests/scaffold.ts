@@ -1437,8 +1437,9 @@ export async function captureStableAria(
 }
 
 /**
- * Capture a stable aria snapshot with every eligible Turn process expanded,
- * then restore the controls that were closed before the capture.
+ * Capture a stable aria snapshot with every eligible fold expanded, then
+ * restore the controls that were closed before the capture. Turns without
+ * process content carry no disclosure and capture as-is.
  * @param page - the page under test.
  * @param selector - the region locator selector.
  * @param workspaceCwd - normalization input.
@@ -1453,7 +1454,6 @@ export async function captureExpandedTurnProcessAria(
 ): Promise<string> {
   const controls = page.locator('[data-turn-process]')
   const count = await controls.count()
-  expect(count).toBeGreaterThan(0)
   const opened: number[] = []
   for (let index = 0; index < count; index++) {
     const control = controls.nth(index)

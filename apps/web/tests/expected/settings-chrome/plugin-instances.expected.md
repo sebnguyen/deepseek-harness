@@ -24,6 +24,12 @@
       - img
       - code: tool-subagent-fork
   - listitem:
+    - button "tool-subagent, tool-subagent-explore, 已启用":
+      - strong: tool-subagent
+      - text: 已启用
+      - img
+      - code: tool-subagent-explore
+  - listitem:
     - button "tool-subagent, tool-subagent-codex, 已停用":
       - strong: tool-subagent
       - text: 已停用

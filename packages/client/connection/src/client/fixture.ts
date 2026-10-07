@@ -1166,11 +1166,14 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
   ttftSteps: number
   decodeMs: number
   decodeTokens: number
+  recent5DecodeMs: number
+  recent5DecodeTokens: number
 } {
-  const value = { turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0 }
+  const value = { turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, recent5DecodeMs: 0, recent5DecodeTokens: 0 }
   let lastTurn: number | null = null
   let openStep: { turn: number; step: number; startTime: number; firstTokenTime: number | null } | null = null
   const pendingCalls = new Map<string, number>()
+  const recent: { decodeMs: number; tokens: number }[] = []
   for (const event of log) {
     switch (event.type) {
       case 'step/start':
@@ -1194,8 +1197,11 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
           value.ttftSteps += 1
           const outputTokens = event.data.usage?.outputTokens
           if (typeof outputTokens === 'number' && Number.isFinite(outputTokens) && outputTokens >= 0) {
-            value.decodeMs += Math.max(0, event.time - openStep.firstTokenTime)
+            const reading = { decodeMs: Math.max(0, event.time - openStep.firstTokenTime), tokens: outputTokens }
+            value.decodeMs += reading.decodeMs
             value.decodeTokens += outputTokens
+            recent.push(reading)
+            if (recent.length > 5) recent.shift()
           }
         }
         openStep = null
@@ -1227,6 +1233,8 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
         break
     }
   }
+  value.recent5DecodeMs = recent.reduce((sum, reading) => sum + reading.decodeMs, 0)
+  value.recent5DecodeTokens = recent.reduce((sum, reading) => sum + reading.tokens, 0)
   return value
 }
 

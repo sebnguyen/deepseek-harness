@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,6 +12,9 @@
   - img
   - img
   - text: System prompt
+- button "Thought for a while":
+  - text: Thought for a while
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
   - img
@@ -21,8 +22,10 @@
   - img
   - img
   - text: Context injection @deepseek-ai/dsh-system-prompt
-- group:
-  - status: Retried model request (2/2) · {{duration}}
+- button "Context injection staged-escalation":
+  - img
+  - img
+  - text: Context injection staged-escalation
 - status:
   - text: This turn failedupstream 503
   - code: SERVER
@@ -33,6 +36,13 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "Send message" [disabled]
 - img
 - text: 1 turns 1 steps
+- button "Cost $0.00":
+  - img
+  - text: Cost $0.00

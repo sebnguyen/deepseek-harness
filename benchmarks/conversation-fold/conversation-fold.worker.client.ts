@@ -13,7 +13,9 @@ import type {
   ConversationNodeDefinition,
   ConversationViewDefinition,
 } from '../../packages/client/ui-conversation/src/client/contract/conversation.ts'
-import { assistantDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/assistant.ts'
+import {
+  assistantMessageSection, assistantReasonSection, assistantStepEnd, assistantStepStart,
+} from '../../packages/client/ui-chat/src/client/conversation-nodes/assistant-sections.ts'
 import { chatViewDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/chat-snapshot-builder.ts'
 import { commandDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/command.ts'
 import { compactionDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/compaction.ts'
@@ -25,7 +27,6 @@ import { retryDefinition } from '../../packages/client/ui-chat/src/client/conver
 import { toolDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/tool.ts'
 import { turnErrorDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/turn-error.ts'
 import { turnMaxTokensDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/turn-max-tokens.ts'
-import { turnProcessDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/turn-process.ts'
 import { turnTailDefinition } from '../../packages/client/ui-chat/src/client/conversation-nodes/turn-tail.ts'
 import { assertBuiltBenchmarkRuntime } from '../support/built-worker.ts'
 
@@ -47,8 +48,10 @@ class BenchEventDefinitions {
     nextStepInboxDefinition,
     messageDefinition,
     requestPromptDefinition(inspectRequestPrompt),
-    assistantDefinition,
-    turnProcessDefinition,
+    assistantStepStart,
+    assistantReasonSection,
+    assistantMessageSection,
+    assistantStepEnd,
     toolDefinition,
     commandDefinition,
     compactionDefinition,

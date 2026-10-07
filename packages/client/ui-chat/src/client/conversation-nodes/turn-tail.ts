@@ -127,7 +127,7 @@ function tailData(context: ConversationNodeContext<TurnTailState>): TurnTailChat
   const turn = turnLocation(context)
   if (turn === undefined) return null
   const assistants = turn.steps
-    .map(step => step.data.get('assistant-step'))
+    .map(step => step.data.get('assistant-step-message'))
     .filter((candidate): candidate is Readonly<AssistantChatData> => candidate !== undefined)
   const finalized = assistants
     .filter((candidate): candidate is Readonly<FinalAssistantChatData> => candidate.finalNode !== undefined)

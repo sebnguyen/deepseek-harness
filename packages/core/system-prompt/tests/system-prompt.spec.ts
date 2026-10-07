@@ -11,6 +11,7 @@ import SystemPrompt, {
   CORE_RULE_DIAGNOSE_BEFORE_SWITCHING_TEXT,
   CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION,
   CORE_RULE_PROVE_IT_SECTION,
+  CORE_RULE_PROVE_IT_TEXT,
   CORE_RULE_SECTIONS,
   PromptAssembly,
   coreGuidanceParagraphs,
@@ -24,7 +25,7 @@ import type { PromptContextOrderName, PromptSectionOrderName } from '@deepseek-a
  * Tests about registry MECHANICS strip them with {@link contributed}.
  */
 const BUILT_IN = ['deployment:persona-prefix', ...BUILT_IN_CORE_GUIDANCE_SECTION_NAMES, 'deployment:persona-suffix']
-const CORE_GUIDANCE = coreGuidanceParagraphs({ proveIt: false, explore: false }).join('\n\n')
+const CORE_GUIDANCE = coreGuidanceParagraphs({ explore: false }).join('\n\n')
 const SECTION_ORDER_NAMES = [
   'HARNESS_IDENTITY', 'DEPLOYMENT_PERSONA_PREFIX',
   'CORE_PERSONALITY', 'CORE_RULE_CONCISE', 'CORE_RULE_ANSWER_STRUCTURE', 'CORE_RULE_STRUCTURE_YOUR_SEARCH',
@@ -197,19 +198,13 @@ describe('SystemPrompt', () => {
       expect(CORE_RULE_CLOSE_THE_IDLE_TURN_TEXT).toContain('the notice arrives as a new turn with the work done')
     })
 
-    it('omits prove-it core rule text until claim tools are registered', async () => {
+    it('renders the prove-it core rule unconditionally, free of claim tool names', async () => {
       const ctx = new Context()
       await ctx.plugin(SystemPrompt)
       expect((await ctx.systemPrompt.assemble()).sections.find(section => section.name === CORE_RULE_PROVE_IT_SECTION)?.text)
-        .toBe('')
-      ctx.systemPrompt.tools(() => ({
-        schemas: [
-          { name: 'declare_claim', description: '', parameters: {} },
-          { name: 'run_claim', description: '', parameters: {} },
-        ],
-      }))
-      expect((await ctx.systemPrompt.assemble()).sections.find(section => section.name === CORE_RULE_PROVE_IT_SECTION)?.text)
-        .not.toBe('')
+        .toBe(CORE_RULE_PROVE_IT_TEXT)
+      expect(CORE_RULE_PROVE_IT_TEXT).not.toContain('declare_claim')
+      expect(CORE_RULE_PROVE_IT_TEXT).not.toContain('run_claim')
     })
 
     it('omits explore-through-explorers core rule text until a delegation tool is registered', async () => {
@@ -271,8 +266,7 @@ describe('SystemPrompt', () => {
       'deployment:persona-suffix',
     ])
     const expectedRuleTexts = CORE_RULE_SECTIONS.map(rule =>
-      rule.name === CORE_RULE_PROVE_IT_SECTION || rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
-        ? '' : rule.text)
+      rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION ? '' : rule.text)
     expect(assembly.sections.map(s => s.text)).toEqual([
       'You are DeepSeek Harness.',
       CORE_PERSONALITY_TEXT,
@@ -800,7 +794,7 @@ describe('SystemPrompt', () => {
       'harness:core-rule:ask-user': 527,
       'harness:core-rule:context-over-inference': 477,
       'harness:core-rule:action-over-thinking': 866,
-      'harness:core-rule:prove-it': 871,
+      'harness:core-rule:prove-it': 777,
       'harness:core-rule:batch': 585,
       'harness:core-rule:diagnose-before-switching': 619,
       'harness:core-rule:close-the-decision': 549,
@@ -824,7 +818,7 @@ describe('SystemPrompt', () => {
     it('keeps the recorded ceilings complete and the aggregate within its total', () => {
       expect(Object.keys(CEILINGS).sort()).toEqual(SECTIONS.map(section => section.name).sort())
       const total = SECTIONS.reduce((sum, section) => sum + section.text.length, 0)
-      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(9908)
+      expect(total, 'core guidance exceeds its aggregate ceiling').toBeLessThanOrEqual(9814)
     })
   })
 })
