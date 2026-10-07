@@ -40,11 +40,7 @@
     - img
   - button "Decrease font size":
     - img
-  - text: px Conversation display Controls process content in completed turns
-  - button "Compact":
-    - text: Compact
-    - img
-  - text: Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
+  - text: px Send behavior while busy What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior
   - button "Queue":
     - text: Queue
     - img

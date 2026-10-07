@@ -57,16 +57,37 @@
   min-width: 0;
 }
 
-/* A closed process reads as one summary immediately followed by its answer.
-   Expanded process rows return to the ordinary 16px rhythm. */
-.flowItem[data-turn-process-answer] {
+/* A fold control pairs with the rows it summarizes at the same tight rhythm
+   as a summary and its answer, instead of the 16px block gap. */
+.flowItem:has(> button[data-turn-process]) {
   --dsh-chat-flow-gap: 8px;
 }
 
+/* Fold members glide height, margin, and opacity through the fold-hidden
+   WAAPI glide, so the column reflows with the fade before the row lands in
+   hidden="until-found"; reduced motion and WAAPI-less DOMs apply the hide
+   instantly. */
+
+/* The process rail draws one left rule through a span disclosure and its
+   folded members; consecutive rail seats tighten to a header rhythm. The
+   rule is an inset shadow, not a border: elevation keeps 0.5px neutral
+   hairlines as the only layout-consuming neutral stroke. */
+.flowItem[data-rail="process"] {
+  box-shadow: inset 2px 0 0 var(--dsw-alias-border-l2);
+  padding-left: 10px;
+}
+.column > [data-rail="process"]:not([hidden]):not(.flowItem:empty)
+  ~ [data-rail="process"]:not([hidden]):not(.flowItem:empty) {
+  margin-top: 4px;
+}
+
 /* A keyed renderer may intentionally decline its row after dispatch (the
-   completed-turn tail does this when it owns neither actions nor extensions).
-   An empty flex item must not consume the column gap. */
-.flowItem:empty {
+   completed-turn tail does this when it owns neither actions nor extensions,
+   the span boundaries once their step settles). An empty flex item must not
+   consume the column gap; the slot shell around a declined view counts as
+   empty too, so multi-step turns stack no blank 16px gaps. */
+.flowItem:empty,
+.flowItem:has(> *:only-child:empty) {
   display: none;
 }
 

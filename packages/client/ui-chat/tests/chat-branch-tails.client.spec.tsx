@@ -55,7 +55,7 @@ interface MessageItemProps {
 
 /** Legacy-node fixture adapter for the independently registered renderers. */
 function MessageItem({ node, t: translate, referenceLabels, skillNames }: MessageItemProps) {
-  const kind = node.kind === 'assistant' ? 'assistant-step' : node.kind
+  const kind = node.kind === 'assistant' ? 'assistant-step-message' : node.kind
   const viewNode: ChatConversationViewNode = {
     key: `fixture:${node.kind}:${node.seq}`,
     kind,
@@ -64,7 +64,16 @@ function MessageItem({ node, t: translate, referenceLabels, skillNames }: Messag
     anchorSeq: node.seq,
     location: { kind: 'session' },
     visibility: 'visible',
-    data: node.kind === 'model-retry'
+    data: node.kind === 'assistant'
+      ? {
+        status: node.interrupted === true ? 'interrupted' as const : 'settled' as const,
+        turn: node.turn,
+        step: node.step,
+        blocks: node.blocks,
+        time: node.time,
+        finalNode: node,
+      }
+      : node.kind === 'model-retry'
       ? { attempts: [node], current: node }
       : (node.kind === 'user' || node.kind === 'steering') && (referenceLabels !== undefined || skillNames !== undefined)
         ? {

@@ -23,7 +23,7 @@ Repository-owned placements use `getSectionOrder(PromptSectionOrderName)`. New p
 | 50 | `CORE_RULE_ASK_USER` | `harness:core-rule:ask-user` | `dsh-system-prompt` |
 | 60 | `CORE_RULE_CONTEXT_OVER_INFERENCE` | `harness:core-rule:context-over-inference` | `dsh-system-prompt` |
 | 70 | `CORE_RULE_ACTION_OVER_THINKING` | `harness:core-rule:action-over-thinking` | `dsh-system-prompt` |
-| 80 | `CORE_RULE_PROVE_IT` | `harness:core-rule:prove-it` | `dsh-system-prompt` (omit when claim tools are absent) |
+| 80 | `CORE_RULE_PROVE_IT` | `harness:core-rule:prove-it` | `dsh-system-prompt` |
 | 90 | `CORE_RULE_BATCH` | `harness:core-rule:batch` | `dsh-system-prompt` |
 | 100 | `CORE_RULE_DIAGNOSE_BEFORE_SWITCHING` | `harness:core-rule:diagnose-before-switching` | `dsh-system-prompt` |
 | 110 | `CORE_RULE_CLOSE_THE_DECISION` | `harness:core-rule:close-the-decision` | `dsh-system-prompt` |
@@ -103,9 +103,7 @@ Core Rule: Action Over Thinking - A tool result is true and a guess about it is 
 
 ### Core Rule: Prove It
 
-Core Rule: Prove It - A claim nobody ran is an assertion, and the check is what turns it into evidence. Declare one claim per condition, which keeps a failure local by naming the condition that broke; bind a shell check that exits zero only when it holds, which makes the claim testable rather than described; run it inside the turn, because the boundary verifier reads the final state and only the agent can repair what it finds. This covers coding turns, which edit, create, or delete repository files or run shell commands to verify such a change; explanation-only turns change no artifact, so there is nothing to verify. Finish all edits, test runs, and repairs before the turn ends. Example: after a fix, declare_claim with title tests pass and a script that runs the focused test file and exits with nonzero status on failure, then run_claim and repair if it fails.
-
-Register `harness:core-rule:prove-it` only when claim tools are mounted for the assembling agent.
+Core Rule: Prove It - A claim nobody ran is an assertion, and the check is what turns it into evidence. State one claim per condition, which keeps a failure local by naming the condition that broke; choose a check that exits zero only when the condition holds, which makes the claim testable rather than described; run it inside the turn, because only the agent can repair what a check finds. This covers coding turns, which edit, create, or delete repository files or run shell commands to verify such a change; explanation-only turns change no artifact, so there is nothing to verify. Finish all edits, test runs, and repairs before the turn ends. Example: after a fix, run the focused test file and read a nonzero exit status as a failure to repair, not as a pass to report.
 
 ### Core Rule: Batch Over Individual
 
@@ -127,7 +125,7 @@ This rule covers committing to a choice, which the older rules do not: Think Con
 
 Core Rule: Close The Idle Turn - Background work calls back to the session when it settles, and each callback opens its own turn, so a turn held open waiting on it earns nothing and invites polling. A command promoted past the shell timeout, a background job, and a delegated subagent all deliver their result as an in-session notice; none needs you watching. When nothing pending remains that you can act on now, finish the reply and end the turn, and the notice arrives as a new turn with the work done. A check or reply you still owe is pending work, not waiting. Example: a build exceeded the timeout and became a background job with nothing else actionable, so end the turn on a one-line status; the completion notice starts the next turn.
 
-The rule terminates the wait that background promotion, jobs, and subagents open: their results arrive as notices without the model polling, so an open turn held for them only delays the notice's own turn. It does not license ending a turn on an obligation the model itself can still act on; Prove It still requires claim checks to run inside the turn, and the closing clause keeps that boundary by naming an owed check or reply as pending work rather than waiting.
+The rule terminates the wait that background promotion, jobs, and subagents open: their results arrive as notices without the model polling, so an open turn held for them only delays the notice's own turn. It does not license ending a turn on an obligation the model itself can still act on; Prove It still requires its checks to run inside the turn, and the closing clause keeps that boundary by naming an owed check or reply as pending work rather than waiting.
 
 ### Core Rule: Reuse Before Extract
 
@@ -139,7 +137,7 @@ Models over-extract: a lone call site gets wrapped in a named local helper even 
 
 Core Rule: Explore Through Explorers - Reading broad territory in your own context re-sends every page on each later turn and loses detail to compression, so send discovery to explorer readers that write nothing and report findings only: parallel readers return sooner (speed), each hands back capped verified findings instead of your own fading memory of long files (correctness), and the capped handoff is paid once at its flat rate while pages read in session echo at the cache rate on every later turn (cost). One explore call may carry several prompts as a `tasks` array whose children run in parallel; the per-turn cap counts every child, so a batch spends the whole budget in one call. Convert accepted handoffs into todo items before acting on them. Example: three unknown modules earn one explore call carrying three `tasks` entries, and the plan cites their handoffs instead of a private reading log.
 
-Delegation is not free in kind: an explorer costs one extra consolidation read, and a parent that reads broadly in its own context pays the echo instead. This rule names the three reasons the trade favors the reader, speed, correctness, and cost, and keeps the spawn cap and the todo conversion in the same sentence so the encouragement cannot outrun its brakes. It registers only when the assembly offers a delegation tool, mirroring the prove-it gate, because a composition without readers would be steered toward a tool it cannot call.
+Delegation is not free in kind: an explorer costs one extra consolidation read, and a parent that reads broadly in its own context pays the echo instead. This rule names the three reasons the trade favors the reader, speed, correctness, and cost, and keeps the spawn cap and the todo conversion in the same sentence so the encouragement cannot outrun its brakes. It registers only when the assembly offers a delegation tool, because a composition without readers would be steered toward a tool it cannot call.
 
 ## Tool advice (`Advice:`)
 
@@ -171,7 +169,7 @@ Every core guidance section is pinned to a character ceiling enforced by `system
 |---|---|---|
 | `includeHarnessIdentity` | `false` | Register `harness:identity` when true; text must stay model-neutral |
 | `includeCorePersonalityGuidance` | `true` | Register `harness:core-personality` |
-| `includeCoreRulesGuidance` | `true` | Register all `harness:core-rule:*` sections (subject to claim gating for prove-it) |
+| `includeCoreRulesGuidance` | `true` | Register all `harness:core-rule:*` sections |
 | `personaPrefix` | `''` | `deployment:persona-prefix` at order 0, optional deployment-only overlay |
 | `personaSuffix` | `''` | `deployment:persona-suffix` at order 10200 |
 

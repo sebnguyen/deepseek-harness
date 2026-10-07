@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,13 +12,12 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts":
+  - text: 2 contexts
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
   - img
-- button "Context injection @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: Context injection @deepseek-ai/dsh-system-prompt
 - paragraph: partial
 - status: Deep diving...
 - textbox "Message or run a task, / commands, @ files or sessions":
@@ -31,4 +28,8 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "Queue message"

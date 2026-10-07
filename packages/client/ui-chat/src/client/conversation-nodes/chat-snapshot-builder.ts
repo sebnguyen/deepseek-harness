@@ -8,12 +8,11 @@ import type { ChatConversationViewNode, ChatNode } from '../contract/chat-nodes.
 import { isRunningTool } from '../contract/chat-nodes.ts'
 import type {
   ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore, ChatSnapshot,
-  ChatTurnNavigationIndex, ChatTurnProcessPresentation, LegacyConversationSlice, TurnNavigationItem,
+  ChatTurnNavigationIndex, StepSpanFold, LegacyConversationSlice, TurnNavigationItem,
 } from '../contract/snapshot.ts'
-import { TURN_PROCESS_INDEPENDENT_KINDS } from '../contract/turn-process.ts'
 import { sessionRecallLabels, skillInvocationName } from './event-projection.ts'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
-import { ChatTurnProcessProjector } from './turn-process-presentation.ts'
+import { ChatSpanFoldProjector } from './span-fold-presentation.ts'
 
 const EMPTY_KEYS: readonly string[] = []
 const EMPTY_TURNS: readonly number[] = []
@@ -67,9 +66,9 @@ class MutableChatSource<Value> {
 
 class MutableChatNodeStore implements ChatNodeStore {
   private readonly byKey = new Map<string, ChatConversationViewNode>()
-  private readonly turnProcesses = new ChatTurnProcessProjector()
+  private readonly spanFolds = new ChatSpanFoldProjector()
   private readonly sources = new Map<string, MutableChatSource<ChatConversationViewNode | undefined>>()
-  private readonly processSources = new Map<string, MutableChatSource<ChatTurnProcessPresentation | undefined>>()
+  private readonly processSources = new Map<string, MutableChatSource<StepSpanFold | undefined>>()
   private readonly dirtyKeys = new Set<string>()
   private readonly dirtyProcessKeys = new Set<string>()
   private valuesCache: readonly ChatConversationViewNode[] = EMPTY_LIST
@@ -93,8 +92,8 @@ class MutableChatNodeStore implements ChatNodeStore {
     ))
   }
 
-  process(key: string): ChatTurnProcessPresentation | undefined {
-    return this.turnProcesses.get(this.get(key) as ChatNode | undefined)
+  process(key: string): StepSpanFold | undefined {
+    return this.spanFolds.get(this.get(key) as ChatNode | undefined)
   }
 
   values(): readonly ChatConversationViewNode[] {
@@ -136,18 +135,20 @@ class MutableChatNodeStore implements ChatNodeStore {
     if (changed) this.valuesDirty = true
   }
 
-  touchProcesses(turns: ReadonlySet<number>, locations: ChatLocationNodeIndex): void {
-    for (const turn of turns) {
-      for (const key of locations.getTurn(turn)) this.dirtyProcessKeys.add(key)
+  touchProcesses(spans: ReadonlySet<string>, locations: ChatLocationNodeIndex): void {
+    for (const span of spans) {
+      const [turn, step] = span.split(':')
+      if (turn === undefined || step === undefined) continue
+      for (const key of locations.getStep(Number(turn), Number(step))) this.dirtyProcessKeys.add(key)
     }
   }
 
   replaceProcesses(order: readonly string[], locations: ChatLocationNodeIndex): void {
-    this.touchProcesses(this.turnProcesses.replace(order, locations, this), locations)
+    this.touchProcesses(this.spanFolds.replace(order, locations, this), locations)
   }
 
   updateProcesses(turns: ReadonlySet<number>, locations: ChatLocationNodeIndex): void {
-    this.touchProcesses(this.turnProcesses.update(turns, locations, this), locations)
+    this.touchProcesses(this.spanFolds.update(turns, locations, this), locations)
   }
 
   publish(): void {
@@ -300,116 +301,33 @@ function locationTurnStatus(location: ConversationLocation): string | undefined 
   return location.kind === 'turn' || location.kind === 'step' ? location.turn.status : undefined
 }
 
-function processPresentationInputChanged(
+function spanPresentationInputChanged(
   previous: ChatNode | undefined,
   next: ChatNode,
   structural: boolean,
 ): boolean {
   if (structural || previous === undefined) return true
   if (locationTurnStatus(previous.location) !== locationTurnStatus(next.location)) return true
-  if (previous.kind === 'turn-process' && next.kind === 'turn-process') {
-    return previous.data !== next.data
-  }
-  return previous.kind === 'assistant-step'
-    && next.kind === 'assistant-step'
-    && previous.data.step !== next.data.step
-}
-
-interface TurnProcessPresentation {
-  readonly control?: ChatNode<'turn-process'>
-  readonly openingHumanAnchor?: number
-  readonly earliestProcessAnchor?: number
-}
-
-function turnProcessPresentations(
-  nodes: readonly ChatConversationViewNode[],
-): ReadonlyMap<number, TurnProcessPresentation> {
-  const presentations = new Map<number, TurnProcessPresentation>()
-  for (const raw of nodes) {
-    const node = raw as ChatNode
-    if (node.kind === 'turn-process') {
-      presentations.set(node.data.turn, { ...presentations.get(node.data.turn), control: node })
-    }
-  }
-  for (const raw of nodes) {
-    const node = raw as ChatNode
-    const location = node.location
-    if (location.kind !== 'turn' && location.kind !== 'step') continue
-    const current: TurnProcessPresentation = presentations.get(location.turn.turn) ?? {}
-    if ((node.kind === 'user' || node.kind === 'steering')
-      && node.anchorSeq < (current.control?.data.controlAnchorSeq ?? Number.POSITIVE_INFINITY)) {
-      presentations.set(location.turn.turn, {
-        ...current,
-        openingHumanAnchor: Math.min(current.openingHumanAnchor ?? node.anchorSeq, node.anchorSeq),
-      })
-      continue
-    }
-    if (TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)) continue
-    presentations.set(location.turn.turn, {
-      ...current,
-      earliestProcessAnchor: Math.min(current.earliestProcessAnchor ?? node.anchorSeq, node.anchorSeq),
-    })
-  }
-  return presentations
-}
-
-interface PresentationPosition {
-  readonly anchor: number
-  readonly rank: number
-  readonly originalAnchor: number
-}
-
-function presentationPosition(
-  raw: ChatConversationViewNode,
-  presentations: ReadonlyMap<number, TurnProcessPresentation>,
-): PresentationPosition {
-  const node = raw as ChatNode
-  const location = node.location
-  if (location.kind !== 'turn' && location.kind !== 'step') {
-    return { anchor: node.anchorSeq, rank: 0, originalAnchor: node.anchorSeq }
-  }
-  const presentation = presentations.get(location.turn.turn)
-  if (presentation === undefined) {
-    return { anchor: node.anchorSeq, rank: 0, originalAnchor: node.anchorSeq }
-  }
-  const openingHumanAnchor = presentation.openingHumanAnchor
-  if (openingHumanAnchor !== undefined
-    && node.anchorSeq < openingHumanAnchor
-    && !TURN_PROCESS_INDEPENDENT_KINDS.has(node.kind)) {
-    return { anchor: openingHumanAnchor, rank: 2, originalAnchor: node.anchorSeq }
-  }
-  if (presentation.control !== undefined && node.key === presentation.control.key) {
-    return openingHumanAnchor === undefined
-      ? {
-        anchor: presentation.earliestProcessAnchor ?? node.anchorSeq,
-        rank: -1,
-        originalAnchor: node.anchorSeq,
-      }
-      : { anchor: openingHumanAnchor, rank: 1, originalAnchor: node.anchorSeq }
-  }
-  return { anchor: node.anchorSeq, rank: 0, originalAnchor: node.anchorSeq }
+  if (previous.kind === 'tool-call' && next.kind === 'tool-call') return previous.data !== next.data
+  if (previous.kind !== next.kind) return true
+  return (previous.kind === 'assistant-step-start'
+    || previous.kind === 'assistant-step-end'
+    || previous.kind === 'assistant-step-reason')
+    && previous.data !== next.data
 }
 
 /**
- * Order visible Chat Nodes without changing existing relative order as process
- * eligibility changes. Opening human input precedes process candidates, while
- * each synthetic process control sits between them.
+ * Order visible Chat Nodes by anchor: the raw stream already interleaves each
+ * span's opener, its members, and its closer.
  * @param nodes - currently materialized Chat Nodes.
  * @returns visible Nodes in presentation order.
  */
 export function orderedVisibleChatNodes(
   nodes: readonly ChatConversationViewNode[],
 ): ChatConversationViewNode[] {
-  const visible = nodes.filter(node => node.visibility === 'visible')
-  const presentations = turnProcessPresentations(visible)
-  return visible.sort((left, right) => {
-    const leftPosition = presentationPosition(left, presentations)
-    const rightPosition = presentationPosition(right, presentations)
-    return leftPosition.anchor - rightPosition.anchor
-      || leftPosition.rank - rightPosition.rank
-      || leftPosition.originalAnchor - rightPosition.originalAnchor
-      || left.key.localeCompare(right.key)
-  })
+  return nodes
+    .filter(node => node.visibility === 'visible')
+    .sort((left, right) => left.anchorSeq - right.anchorSeq || left.key.localeCompare(right.key))
 }
 
 function referenceMessageSeq(node: ChatConversationViewNode): number | undefined {
@@ -732,7 +650,9 @@ function legacyContribution(raw: ChatConversationViewNode): LegacyContribution {
   // Content-free settled Assistants remain in the finalized compatibility
   // stream so StatsPills preserves its pre-assembly step counts; hidden running
   // attempts have no final Node to contribute.
-  if (raw.visibility !== 'visible' && node.kind !== 'assistant-step') return EMPTY_CONTRIBUTION
+  if (raw.visibility !== 'visible' && node.kind !== 'assistant-step-message') {
+    return EMPTY_CONTRIBUTION
+  }
   switch (node.kind) {
     case 'user':
     case 'steering':
@@ -743,7 +663,7 @@ function legacyContribution(raw: ChatConversationViewNode): LegacyContribution {
     case 'turn-max-tokens':
     case 'unknown':
       return { anchorSeq: node.anchorSeq, nodes: [node.data], partial: null, running: null }
-    case 'assistant-step': {
+    case 'assistant-step-message': {
       const data = node.data
       if (data.status === 'running') {
         if (raw.visibility !== 'visible') return EMPTY_CONTRIBUTION
@@ -1006,7 +926,7 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
         || locationIdentity(previous.location) !== locationIdentity(node.location)
       structural ||= nodeStructural
       if (!nodeStructural) contentOnly.push(node)
-      if (processPresentationInputChanged(previous as ChatNode | undefined, node as ChatNode, nodeStructural)) {
+      if (spanPresentationInputChanged(previous as ChatNode | undefined, node as ChatNode, nodeStructural)) {
         const previousTurn = previous === undefined ? undefined : locationCoordinates(previous.location).turn
         const nextTurn = locationCoordinates(node.location).turn
         if (previousTurn !== undefined) processTurns.add(previousTurn)

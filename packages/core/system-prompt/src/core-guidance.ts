@@ -54,7 +54,7 @@ export const CORE_RULE_PROVE_IT_SECTION = 'harness:core-rule:prove-it'
 
 /** @remarks Model-visible verbatim; snapshots pin this text. */
 export const CORE_RULE_PROVE_IT_TEXT =
-  'Core Rule: Prove It - A claim nobody ran is an assertion, and the check is what turns it into evidence. Declare one claim per condition, which keeps a failure local by naming the condition that broke; bind a shell check that exits zero only when it holds, which makes the claim testable rather than described; run it inside the turn, because the boundary verifier reads the final state and only the agent can repair what it finds. This covers coding turns, which edit, create, or delete repository files or run shell commands to verify such a change; explanation-only turns change no artifact, so there is nothing to verify. Finish all edits, test runs, and repairs before the turn ends. Example: after a fix, declare_claim with title tests pass and a script that runs the focused test file and exits with nonzero status on failure, then run_claim and repair if it fails.'
+  'Core Rule: Prove It - A claim nobody ran is an assertion, and the check is what turns it into evidence. State one claim per condition, which keeps a failure local by naming the condition that broke; choose a check that exits zero only when the condition holds, which makes the claim testable rather than described; run it inside the turn, because only the agent can repair what a check finds. This covers coding turns, which edit, create, or delete repository files or run shell commands to verify such a change; explanation-only turns change no artifact, so there is nothing to verify. Finish all edits, test runs, and repairs before the turn ends. Example: after a fix, run the focused test file and read a nonzero exit status as a failure to repair, not as a pass to report.'
 
 export const CORE_RULE_BATCH_SECTION = 'harness:core-rule:batch'
 
@@ -92,7 +92,7 @@ export const CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION = 'harness:core-rule:ex
 export const CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT =
   'Core Rule: Explore Through Explorers - Reading broad territory in your own context re-sends every page on each later turn and loses detail to compression, so send discovery to explorer readers that write nothing and report findings only: parallel readers return sooner (speed), each hands back capped verified findings instead of your own fading memory of long files (correctness), and the capped handoff is paid once at its flat rate while pages read in session echo at the cache rate on every later turn (cost). One explore call may carry several prompts as a `tasks` array whose children run in parallel; the per-turn cap counts every child, so a batch spends the whole budget in one call. Convert accepted handoffs into todo items before acting on them. Example: three unknown modules earn one explore call carrying three `tasks` entries, and the plan cites their handoffs instead of a private reading log.'
 
-/** Built-in core rule sections in prompt order (prove-it included; text is conditional on tool availability). */
+/** Built-in core rule sections in prompt order (explore-through-explorers text is conditional on tool availability). */
 export const CORE_RULE_SECTIONS: ReadonlyArray<{ readonly name: string; readonly text: string }> = [
   { name: CORE_RULE_CONCISE_SECTION, text: CORE_RULE_CONCISE_TEXT },
   { name: CORE_RULE_ANSWER_STRUCTURE_SECTION, text: CORE_RULE_ANSWER_STRUCTURE_TEXT },
@@ -123,18 +123,15 @@ export const BUILT_IN_CORE_GUIDANCE_SECTION_NAMES: readonly string[] = [
 export function coreGuidanceParagraphs(options?: {
   personality?: boolean
   rules?: boolean
-  proveIt?: boolean
   explore?: boolean
 }): string[] {
   const personality = options?.personality ?? true
   const rules = options?.rules ?? true
-  const proveIt = options?.proveIt ?? true
   const explore = options?.explore ?? true
   const parts: string[] = []
   if (personality) parts.push(CORE_PERSONALITY_TEXT)
   if (rules) {
     for (const rule of CORE_RULE_SECTIONS) {
-      if (rule.name === CORE_RULE_PROVE_IT_SECTION && !proveIt) continue
       if (rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION && !explore) continue
       parts.push(rule.text)
     }

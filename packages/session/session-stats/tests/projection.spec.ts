@@ -53,6 +53,7 @@ function appendEmptyAssistantMessage(session: Session, turn: number, step: numbe
 function totals(overrides: Partial<SessionStatsProjection> = {}): SessionStatsProjection {
   return {
     turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
+    recent5DecodeMs: 0, recent5DecodeTokens: 0,
     ...overrides,
   }
 }
@@ -206,6 +207,29 @@ describe('sessionStats wall-time fold (controlled timestamps)', () => {
       at(4_900, 'step/end', { turn: 1, step: 1 }),
     ])).toEqual(totals({
       turns: 1, steps: 1, llmMs: 3_800, ttftMs: 800, ttftSteps: 1, decodeMs: 3_000, decodeTokens: 60,
+      recent5DecodeMs: 3_000, recent5DecodeTokens: 60,
+    }))
+  })
+
+  it('pools at most the five newest sampled steps into the recency fields', () => {
+    const events: SessionEvent[] = []
+    for (let step = 1; step <= 7; step++) {
+      const base = step * 10_000
+      events.push(at(base, 'step/start', { turn: 1, step }))
+      events.push(at(base + 3_000, 'assistant/message', {
+        turn: 1,
+        step,
+        message,
+        stream: [{ type: 'chunk', time: base + 800, chunk: { type: 'text-delta', index: 0, text: 'a' } }],
+        usage: { inputTokens: 0, outputTokens: 10 * step },
+      }))
+      events.push(at(base + 3_100, 'step/end', { turn: 1, step }))
+    }
+    // Newest five (steps 7..3): 250 tokens over five 2.2s decodes; the two older
+    // readings age out of the ring while the whole-log totals keep all seven.
+    expect(fold(events)).toEqual(totals({
+      turns: 1, steps: 7, llmMs: 21_000, ttftMs: 5_600, ttftSteps: 7,
+      decodeMs: 15_400, decodeTokens: 280, recent5DecodeMs: 11_000, recent5DecodeTokens: 250,
     }))
   })
 

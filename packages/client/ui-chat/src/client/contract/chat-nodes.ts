@@ -42,6 +42,15 @@ export type FinalAssistantChatData = AssistantChatData & {
   readonly finalNode: AssistantMessageNode
 }
 
+/** Span opener or closer payload: one Assistant Step's boundary row. */
+export interface AssistantStepBoundaryChatData {
+  readonly turn: number
+  readonly step: number
+  /** Running until the Step's durable `step/end`. */
+  readonly status: 'running' | 'closed'
+  readonly time: number
+}
+
 /** Root Tool row payload; the root lifecycle owns all recursive subcalls. */
 export interface ToolChatData {
   readonly root: ToolCallBlock
@@ -95,19 +104,6 @@ export interface TurnTailChatData {
   readonly tokensPerSecond?: number
   /** Exact per-Turn accounting; absent when the loaded evidence is incomplete. */
   readonly tokenUsage?: TurnTokenUsage
-}
-
-/** Turn-level process disclosure projected before the finalized answer. */
-export interface TurnProcessChatData {
-  readonly turn: number
-  readonly controlAnchorSeq: number
-  readonly processStartSeq: number
-  readonly answerAnchorSeq: number | null
-  readonly answerStep: number | null
-  readonly inlineReasoning: boolean
-  readonly messageCount: number
-  readonly toolCallCount: number
-  readonly subagentCount: number
 }
 
 /**

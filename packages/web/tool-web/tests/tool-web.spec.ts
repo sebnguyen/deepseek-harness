@@ -985,5 +985,5 @@ describe('scope-aware web guidance', () => {
 
 /** Preserve the default persona (including the built-in guidance) and exact section separators in the oracle. */
 function withPersona(...sections: string[]): string {
-  return [...coreGuidanceParagraphs({ proveIt: false, explore: false }), ...sections].join('\n\n')
+  return [...coreGuidanceParagraphs({ explore: false }), ...sections].join('\n\n')
 }

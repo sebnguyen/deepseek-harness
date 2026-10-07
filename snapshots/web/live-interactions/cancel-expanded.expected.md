@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,16 +12,20 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts" [expanded]:
+  - text: 2 contexts
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
-  - img
-- button "Thought for a while" [expanded]:
-  - text: Thought for a while
   - img
 - button "Context injection @deepseek-ai/dsh-system-prompt":
   - img
   - img
   - text: Context injection @deepseek-ai/dsh-system-prompt
+- button "Context injection staged-escalation":
+  - img
+  - img
+  - text: Context injection staged-escalation
 - paragraph: partial
 - text: Stopped
 - button "Copy":
@@ -32,8 +34,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
@@ -45,7 +48,14 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "Send message" [disabled]
 - button "1 turns 1 steps":
   - img
   - text: 1 turns 1 steps
+- button "Cost $0.00":
+  - img
+  - text: Cost $0.00

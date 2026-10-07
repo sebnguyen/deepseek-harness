@@ -123,13 +123,14 @@ describe('web e2e: user-explicit skill invocation through the composer', () => {
     expect(await bubble.textContent()).toBe(`/${SKILL_NAME}`)
 
     // The rendered body arrives as a context-injection row named after the
-    // skill. Context plus the final answer contributes no summary count, so
-    // the Turn uses the fallback title while the row's own disclosure remains usable.
+    // skill; the host claims it once the turn's first step starts, so it folds
+    // into that span rail and counts into the disclosure's context segment
+    // beside the system-prompt and skill-catalog injections.
     const injectionFlow = page.locator('[data-chat-flow-kind="context"]').filter({ hasText: SKILL_NAME })
     await injectionFlow.waitFor({ state: 'attached', timeout: 15_000 })
     await page.getByText('USER_INVOKE_REPLY', { exact: false }).first().waitFor({ timeout: 20_000 })
     await settled
-    const process = page.getByRole('button', { name: 'Thought for a while', exact: true })
+    const process = page.getByRole('button', { name: '3 contexts', exact: true })
     await process.waitFor({ state: 'visible', timeout: 10_000 })
     // The chip derives from the step's logged injection, so it must survive
     // every later Node rebuild of the Turn (process publication, turn close).
@@ -165,11 +166,12 @@ describe('web e2e: user-explicit skill invocation through the composer', () => {
     await page.reload({ waitUntil: 'load' })
     const skill = page.locator('[data-chat-flow-kind="user"] [data-ref-chip="skill"]').first()
     await skill.waitFor({ timeout: 15_000 })
-    const preview = page.locator('[data-document-markdown]')
+    const preview = page.locator('[data-editor-preview]')
     await skill.hover()
     await expect.poll(() => skill.evaluate(el => getComputedStyle(el).textDecorationStyle)).toBe('dotted')
     await skill.click()
-    await expect.poll(() => preview.textContent(), { timeout: 10_000 }).toContain('Reply with the fixture acknowledgement line.')
+    // First open after reload boots the markdown bundle; give it real budget.
+    await expect.poll(() => preview.textContent(), { timeout: 30_000 }).toContain('Reply with the fixture acknowledgement line.')
     const file = page.locator('[data-chat-flow-kind="user"] [data-ref-chip="file"]').first()
     await file.hover()
     expect(await file.evaluate(el => getComputedStyle(el).textDecorationStyle)).toBe('dotted')

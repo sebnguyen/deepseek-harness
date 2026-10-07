@@ -82,3 +82,22 @@ button.leading {
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-secondary);
 }
+
+/* Expanded content slides with its disclosure instead of popping: the
+   BodyShell keeps the collapsed `data-fold-out` style applied across the
+   hidden flip and releases it a frame later, so both directions animate
+   with plain transitions (the hidden-swap exit is browser-fragile). */
+.body {
+  transition: opacity 160ms ease, translate 160ms ease;
+}
+
+.body[data-fold-out] {
+  opacity: 0;
+  translate: 0 -4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    transition: none;
+  }
+}

@@ -464,6 +464,8 @@
     "feature/2026-09-08-sidebar-default-pages.md": "sha256:9c7e3414643add8a6af4debf0e6be55cc7c1a216b74852a685235ff51c267684",
     "feature/2026-09-08-web-explicit-file-delivery.md": "sha256:85af3c80ee0583e3e8466cd230a6495b74623e6ec5fa56d27811d2a6157b753b",
     "feature/2026-09-29-snapshot-only-job-reads.md": "sha256:df0cf0844b805625dc5ec7529fb70cec3c8fc95825c1b7a21b1c418697cd8945",
+    "feature/2026-09-30-live-turn-process-folding.md": "sha256:7d37c9fbe4bb83c62e17446087f5f9c22a533f9be71ebefa45637781df3ec7b0",
+    "feature/2026-10-05-grouped-tool-folds-with-replies-between.md": "sha256:c8f04dacfc6d7836ffeb19b54fcfb388308e3ef60f0d4c444b372cf288c47a42",
     "process/2026-06-11-doc-sync-enforcement.md": "sha256:e7a5f3dfebaaaa664d2e9461aab15f85d1e45d4d99717be86ac8aac18c43c957",
     "process/2026-06-11-tsdown-over-dumble.md": "sha256:e9b927f730f14b8e34204474bab6fae4d1d10b8645411040fdedc3ef243391d8",
     "process/2026-06-11-vendor-cordis-as-source.md": "sha256:673402ce51e90ee76e2d6f412d58072e13330a2958166c23dab76f82a5ad0256",

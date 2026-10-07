@@ -11,7 +11,7 @@ import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-tes
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
-  StatsPills, deriveStats, formatDuration, lastRequestTps, type StatsPillsProps,
+  StatsPills, deriveStats, formatDuration, recentRequestTps, type StatsPillsProps,
 } from '../src/client/chat/StatsPills.tsx'
 import { formatUsdMicros } from '../src/client/contract/token-format.ts'
 import { formatTokens } from '../src/client/contract/token-format.ts'
@@ -91,7 +91,7 @@ describe('deriveStats', () => {
     // tokenUsage projection); decodeTokens is a throughput input, not a
     // billed total.
     expect(Object.keys(stats).sort()).toEqual(
-      ['decodeMs', 'decodeTokens', 'llmMs', 'steps', 'toolMs', 'ttftMs', 'ttftSteps', 'turns'],
+      ['decodeMs', 'decodeTokens', 'llmMs', 'recent5DecodeMs', 'recent5DecodeTokens', 'steps', 'toolMs', 'ttftMs', 'ttftSteps', 'turns'],
     )
   })
 
@@ -138,21 +138,24 @@ describe('deriveStats', () => {
     // The usage-less step contributes no decode share, keeping the ratio honest.
     expect(stats.decodeMs).toBe(3_000)
     expect(stats.decodeTokens).toBe(40)
+    // The recency pool mirrors the sampled fold over the newest five.
+    expect(stats.recent5DecodeMs).toBe(3_000)
+    expect(stats.recent5DecodeTokens).toBe(40)
   })
 })
 
-describe('lastRequestTps', () => {
+describe('recentRequestTps', () => {
   const timed = (seq: number, usage?: unknown): AssistantMessageNode => ({
     ...assistant(seq, 1, usage),
     timing: { stepStartTime: 1_000, firstTokenTime: 1_800, completedTime: 4_800 },
   })
 
   it('returns null until some settled step carries both timing and usage', () => {
-    expect(lastRequestTps([])).toBeNull()
-    expect(lastRequestTps([assistant(1, 1), timed(2)])).toBeNull()
+    expect(recentRequestTps([], 1)).toBeNull()
+    expect(recentRequestTps([assistant(1, 1), timed(2)], 1)).toBeNull()
   })
 
-  it('reads the newest sampled step and skips unsampled tails', () => {
+  it('reads the newest sampled step at limit 1 and skips unsampled tails', () => {
     const zeroDecode: AssistantMessageNode = {
       ...assistant(3, 2, { outputTokens: 9 }),
       timing: { stepStartTime: 1_000, firstTokenTime: 1_800, completedTime: 1_800 },
@@ -163,8 +166,17 @@ describe('lastRequestTps', () => {
     }
     // 60 tokens over a 3s decode → 20 tok/s; later zero-decode, usage-less, or
     // tool nodes are skipped in favor of it.
-    expect(lastRequestTps([timed(1, { outputTokens: 60 }), zeroDecode, tool])).toBe(20)
-    expect(lastRequestTps([timed(1, { outputTokens: 60 }), timed(2, { outputTokens: 30 })])).toBe(10)
+    expect(recentRequestTps([timed(1, { outputTokens: 60 }), zeroDecode, tool], 1)).toBe(20)
+    expect(recentRequestTps([timed(1, { outputTokens: 60 }), timed(2, { outputTokens: 30 })], 1)).toBe(10)
+  })
+
+  it('pools the newest limit sampled steps, or every one when fewer are available', () => {
+    const steps = [1, 2, 3, 4, 5, 6, 7].map(seq => timed(seq, { outputTokens: 10 * seq }))
+    // Newest five (seq 7..3): 250 tokens over 15s of decode → 50/3 tok/s; the two
+    // older steps stay out of the pool.
+    expect(recentRequestTps(steps, 5)).toBeCloseTo(250 / 15)
+    // A limit beyond availability pools all seven: 280 tokens over 21s.
+    expect(recentRequestTps(steps, 9)).toBeCloseTo(280 / 21)
   })
 })
 
@@ -198,6 +210,7 @@ describe('StatsPills', () => {
   function sessionStats(overrides: Record<string, number>): Record<string, number> {
     return {
       turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0,
+      recent5DecodeMs: 0, recent5DecodeTokens: 0,
       ...overrides,
     }
   }
@@ -291,8 +304,8 @@ describe('StatsPills', () => {
     const { source } = makeSource({ nodes: [timedStep()] })
     const view = render(<StatsPills {...props(source)} />)
     const timePill = view.getAllByRole('button')[0]!
-    expect(timePill.textContent).toBe('1 turns 1 steps·Avg 20 tok/s·Last 20 tok/s')
-    expect(timePill.getAttribute('aria-label')).toBe('1 turns 1 steps · Avg 20 tok/s · Last 20 tok/s')
+    expect(timePill.textContent).toBe('1 turns 1 steps·Last 5 20 tok/s·Last 20 tok/s')
+    expect(timePill.getAttribute('aria-label')).toBe('1 turns 1 steps · Last 5 20 tok/s · Last 20 tok/s')
   })
 
   it('click-opens the time-and-speed dialog carrying the time split and speeds', () => {
@@ -318,6 +331,7 @@ describe('StatsPills', () => {
     expect(details.textContent).not.toContain('Tool time')
     expect(details.textContent).toContain('Avg time to first token (TTFT)0.8s')
     expect(details.textContent).toContain('Average tokens per second (TPS)20 tok/s')
+    expect(details.textContent).toContain('Last 5 request speed20 tok/s')
     expect(details.textContent).toContain('Last request speed20 tok/s')
     // Token accounting lives on the usage pill's own dialog, not here.
     expect(dialog.textContent).not.toContain('Token usage')
@@ -385,7 +399,7 @@ describe('StatsPills', () => {
     const { source } = makeSource({ nodes: [timedStep()] })
     const view = render(<StatsPills {...props(source, { tokenUsage: tokenUsage(9_995, 5) })} t={t} />)
     const [timePill, usagePill] = [...view.getAllByRole('button')] as [HTMLElement, HTMLElement]
-    expect(timePill.textContent).toBe('1 轮 1 步·平均 20 tok/s·上次 20 tok/s')
+    expect(timePill.textContent).toBe('1 轮 1 步·近 5 次 20 tok/s·上次 20 tok/s')
     // cacheRead 9995 compacts to 10K.
     expect(usagePill.textContent).toBe('输入 5·缓存 10K·输出 1·命中 99.95%')
     fireEvent.click(timePill)
@@ -394,6 +408,7 @@ describe('StatsPills', () => {
     expect(timeDialog.textContent).toContain('模型用时3.8秒')
     expect(timeDialog.textContent).toContain('首 token 平均（TTFT）0.8秒')
     expect(timeDialog.textContent).toContain('平均输出速度（TPS）20 tok/s')
+    expect(timeDialog.textContent).toContain('近 5 次请求速度20 tok/s')
     expect(timeDialog.textContent).toContain('上次请求速度20 tok/s')
     fireEvent.keyDown(document, { key: 'Escape' })
     fireEvent.click(usagePill)
@@ -477,18 +492,20 @@ describe('StatsPills', () => {
       sessionStats: sessionStats({
         turns: 200, steps: 200, llmMs: 100_000, toolMs: 62_000,
         ttftMs: 1_600, ttftSteps: 2, decodeMs: 3_000, decodeTokens: 60,
+        recent5DecodeMs: 3_000, recent5DecodeTokens: 60,
       }),
     })} />)
     const timePill = view.getAllByRole('button')[0]!
-    // The untimed loaded window yields no last-request reading: only the
-    // projection-backed average renders.
-    expect(timePill.textContent).toBe('200 turns 200 steps·Avg 20 tok/s')
+    // The untimed loaded window yields no newest-request reading, but the
+    // recent-five pool rides the durable projection.
+    expect(timePill.textContent).toBe('200 turns 200 steps·Last 5 20 tok/s')
     fireEvent.click(timePill)
     const dialog = view.getByRole('dialog')
     expect(dialog.textContent).toContain('LLM time1m40s')
     expect(dialog.textContent).toContain('Tool time1m2s')
     expect(dialog.textContent).toContain('Avg time to first token (TTFT)0.8s')
     expect(dialog.textContent).toContain('Average tokens per second (TPS)20 tok/s')
+    expect(dialog.textContent).toContain('Last 5 request speed20 tok/s')
     expect(dialog.textContent).not.toContain('Last request speed')
   })
 

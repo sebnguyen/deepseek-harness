@@ -123,7 +123,11 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     // The marker IS the synchronization: the second call is provably parked,
     // so the first step's message and tool result are already durable.
     await expect.poll(() => existsSync(marker), { timeout: 20_000 }).toBe(true)
-    expect(await page.locator('[data-turn-process]').count()).toBe(0)
+    // Both live spans fold while the parked turn stays open: step 1's run
+    // behind its counts disclosure, and the parked model call behind the
+    // working disclosure.
+    expect(await page.locator('[data-turn-process]').count()).toBe(2)
+    expect(await page.getByRole('button', { name: 'Bash Print alpha to stdout' }).isVisible()).toBe(false)
     await expect.poll(
       () => page.getByRole('status').filter({ hasText: 'Deep diving...' }).isVisible(),
       { timeout: 10_000 },
@@ -209,12 +213,16 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     const process = page.locator('[data-turn-process]')
     await expect.poll(() => process.count(), { timeout: 10_000 }).toBe(1)
     expect(await process.getAttribute('aria-expanded')).toBe('false')
-    expect(await process.evaluate(element => getComputedStyle(element).borderBottomWidth)).toBe('1px')
-    const processBottom = await process.evaluate(element =>
-      element.closest<HTMLElement>('[data-chat-flow-kind="turn-process"]')?.getBoundingClientRect().bottom)
-    const answerTop = await page.getByText('DONE', { exact: true }).evaluate(element =>
-      element.closest<HTMLElement>('[data-chat-flow-kind="assistant-step"]')?.getBoundingClientRect().top)
-    expect(answerTop).toBe((processBottom ?? 0) + 8)
+    // The disclosure rides the span opener row, and the collapsed tool row of
+    // the process-only first Step stays out of sight.
+    expect(await process.evaluate(element =>
+      element.closest<HTMLElement>('[data-chat-flow-kind]')?.getAttribute('data-chat-flow-kind')))
+      .toBe('assistant-step-start')
+    expect(await page.getByRole('button', { name: 'Bash Print alpha to stdout' }).isVisible()).toBe(false)
+    // The standing narration of the span is visible while the folded
+    // tool row of the process-only first Step stays out of sight.
+    expect(await page.getByText(NARRATION, { exact: true }).first().isVisible()).toBe(true)
+    expect(await page.getByRole('button', { name: 'Bash Print alpha to stdout' }).isVisible()).toBe(false)
     await process.focus()
     const completed = await captureStableAria(page, '[class*="centerCol"]', scaffold!.workspaceCwd)
     await compareOrRefreshGolden(COMPLETED_EXPECTED, completed, MODE)
@@ -222,9 +230,9 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(tripwire.warnings).toEqual([])
   }, 60_000)
 
-  it('switches a completed Turn between Compact and Normal', async () => {
+  it('expands the folded span and collapses it again', async () => {
     await launch()
-    onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-process-setting'))
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-span-expansion'))
     const { settled } = await sendPrompt()
     await settled
     const process = page.locator('[data-turn-process]')
@@ -233,40 +241,56 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(await process.getAttribute('aria-expanded')).toBe('false')
     expect(await tool.isVisible()).toBe(false)
 
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'Settings' })
-    await dialog.getByRole('button', { name: 'Compact', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Normal', exact: true }).click()
-    await page.keyboard.press('Escape')
-
-    await expect.poll(() => process.count(), { timeout: 10_000 }).toBe(0)
+    await process.click()
+    expect(await process.getAttribute('aria-expanded')).toBe('true')
     await tool.waitFor({ state: 'visible', timeout: 10_000 })
-    await expect.poll(async () => readFile(join(scaffold!.harnessHome, 'settings.yaml'), 'utf8'), { timeout: 5_000 })
-      .toMatch(/ui-chat:\n\s+transcriptView: normal/)
 
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const restored = page.getByRole('dialog', { name: 'Settings' })
-    await restored.getByRole('button', { name: 'Normal', exact: true }).click()
-    await page.getByRole('menuitem', { name: 'Compact', exact: true }).click()
-    await page.keyboard.press('Escape')
-    await process.waitFor({ timeout: 10_000 })
+    await process.click()
+    // Collapse glides the row to its closed box first, so the row only
+    // leaves once the glide hands it to hidden="until-found".
+    await expect.poll(() => tool.isVisible(), { timeout: 10_000 }).toBe(false)
     expect(await process.getAttribute('aria-expanded')).toBe('false')
-    expect(await tool.isVisible()).toBe(false)
     expect(tripwire.pageErrors).toEqual([])
     expect(tripwire.warnings).toEqual([])
+  }, 60_000)
+
+  it('lets settled span boundaries hold no column space', async () => {
+    await launch()
+    const { settled } = await sendPrompt()
+    await settled
+    await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
+    // Once every step settles, the boundary renderers decline their rows; the
+    // column rhythm skips those seats instead of holding a blank gap for each,
+    // so two standing messages of one multi-step turn stay one flow gap apart.
+    await expect.poll(() => page.evaluate(() => {
+      const column = [...document.querySelectorAll<HTMLElement>('[class*="column"]')].sort(
+        (a, b) => b.querySelectorAll('[data-chat-flow-kind]').length
+          - a.querySelectorAll('[data-chat-flow-kind]').length,
+      )[0]
+      const messages = [...(column?.querySelectorAll<HTMLElement>(
+        '[data-chat-flow-kind="assistant-step-message"]',
+      ) ?? [])]
+      const [first, second] = messages
+      if (first === undefined || second === undefined) return -1
+      return Math.round(second.getBoundingClientRect().top - first.getBoundingClientRect().bottom)
+    }), { timeout: 10_000 }).toBe(16)
   }, 60_000)
 
   it('keeps a focused process member open when the completed reply arrives', async () => {
     await launch(undefined, 200)
     onTestFailed(() => saveFailureShot(page, 'web-e2e-turn-tail-actions-focused'))
     const { settled } = await sendPrompt()
+    // The live span folds as its members arrive, so expanding it is what
+    // puts the tool row on screen for the focus scenario.
+    const process = page.locator('[data-turn-process]')
+    await process.first().waitFor({ timeout: 30_000 })
+    await process.first().click()
     const tool = page.getByRole('button', { name: 'Bash Print alpha to stdout' })
     await tool.waitFor({ timeout: 30_000 })
     await tool.focus()
     expect(await tool.evaluate(element => element.ownerDocument.activeElement === element)).toBe(true)
     await settled
     await expect.poll(() => page.getByText('DONE', { exact: true }).count(), { timeout: 10_000 }).toBe(1)
-    const process = page.locator('[data-turn-process]')
     await expect.poll(() => process.count(), { timeout: 10_000 }).toBe(1)
     expect(await process.getAttribute('aria-expanded')).toBe('true')
     expect(await tool.evaluate(element => element.ownerDocument.activeElement === element)).toBe(true)

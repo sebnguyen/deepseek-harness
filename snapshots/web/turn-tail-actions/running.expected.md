@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,23 +12,17 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts · 1 thought · 1 tool call":
+  - text: 2 contexts · 1 thought · 1 tool call
+  - img
 - text: Begin your reply with the plain sentence "Reading the workspace now." as text, and in that same message call the bash tool with the command "echo alpha". After the tool result, reply with the single word DONE and stop. {{clock}}
 - button "Copy":
   - img
 - tooltip "Copy"
-- button "Context injection @deepseek-ai/dsh-system-prompt":
-  - img
-  - img
-  - text: Context injection @deepseek-ai/dsh-system-prompt
-- button "Think The user wants me to begin with \"Reading the workspace now.\" and call bash with \"echo alpha\" in the same message. Then after the tool result, reply with the single word DONE and stop.":
-  - img
-  - img
-  - text: Think The user wants me to begin with "Reading the workspace now." and call bash with "echo alpha" in the same message. Then after the tool result, reply with the single word DONE and stop.
 - paragraph: Reading the workspace now.
-- button "Bash Print alpha to stdout":
+- button "Working":
+  - text: Working
   - img
-  - img
-  - text: Bash Print alpha to stdout
 - paragraph: partial
 - status: Deep diving...
 - textbox "Message or run a task, / commands, @ files or sessions"
@@ -40,11 +32,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "6% of context used"
 - button "Stop generating"
-- button "1 turns 1 steps · {{throughput}} tok/s":
+- button "1 turns 1 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 1 steps{{throughput}} tok/s
-- button "7.9K tok · Cache hit 0%":
+  - text: 1 turns 1 stepsLast 5 {{throughput}} tok/s
+- button "In 7.8K · Cache 0 · Out 109 · Hit 0%":
   - img
-  - text: 7.9K tokCache hit 0%
+  - text: In 7.8KCache 0Out 109Hit 0%
+- button "Cost $0.0011 · $0.142/M tok":
+  - img
+  - text: Cost $0.0011$0.142/M tok

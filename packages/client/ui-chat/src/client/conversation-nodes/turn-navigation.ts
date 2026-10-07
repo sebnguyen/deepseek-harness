@@ -46,7 +46,7 @@ function promptText(node: ChatNode): string {
 }
 
 function responseText(node: ChatNode): string {
-  if (node.kind !== 'assistant-step') return ''
+  if (node.kind !== 'assistant-step-message') return ''
   return preview(
     node.data.blocks.flatMap(block => block.kind === 'text' ? [block.text] : []),
     RESPONSE_PREVIEW_LIMIT,

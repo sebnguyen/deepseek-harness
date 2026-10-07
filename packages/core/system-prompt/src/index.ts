@@ -14,8 +14,6 @@ import {
   CORE_PERSONALITY_TEXT,
   CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION,
   CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT,
-  CORE_RULE_PROVE_IT_SECTION,
-  CORE_RULE_PROVE_IT_TEXT,
   CORE_RULE_SECTIONS,
 } from './core-guidance.ts'
 
@@ -561,13 +559,7 @@ export class SystemPrompt extends Service {
         this.section({
           name: rule.name,
           order: this.getSectionOrder(orderName),
-          text: rule.name === CORE_RULE_PROVE_IT_SECTION
-            ? (assemblyContext) => {
-              const names = assemblyContext.registeredToolNames
-              if (names === undefined) return ''
-              return names.has('declare_claim') && names.has('run_claim') ? CORE_RULE_PROVE_IT_TEXT : ''
-            }
-            : rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
+          text: rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
               ? (assemblyContext) => {
                 const names = assemblyContext.registeredToolNames
                 if (names === undefined) return ''

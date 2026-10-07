@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,12 +12,13 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts · 1 thought · 1 tool call":
+  - text: 2 contexts · 1 thought · 1 tool call
+  - img
 - text: Begin your reply with the plain sentence "Reading the workspace now." as text, and in that same message call the bash tool with the command "echo alpha". After the tool result, reply with the single word DONE and stop. {{clock}}
 - button "Copy":
   - img
-- button "1 tool call · 1 message":
-  - text: 1 tool call · 1 message
-  - img
+- paragraph: Reading the workspace now.
 - paragraph: DONE
 - button "Copy":
   - img
@@ -27,8 +26,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Usage 15.8K tok" [expanded]:
   - img
   - text: Usage 15.8K tok
@@ -43,11 +43,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "6% of context used"
 - button "Send message" [disabled]
-- button "1 turns 2 steps · {{throughput}} tok/s":
+- button "1 turns 2 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 2 steps{{throughput}} tok/s
-- button "15.8K tok · Cache hit 50%":
+  - text: 1 turns 2 stepsLast 5 {{throughput}} tok/s
+- button "In 7.9K · Cache 7.8K · Out 112 · Hit 50%":
   - img
-  - text: 15.8K tokCache hit 50%
+  - text: In 7.9KCache 7.8KOut 112Hit 50%
+- button "Cost $0.0014 · $0.0857/M tok":
+  - img
+  - text: Cost $0.0014$0.0857/M tok

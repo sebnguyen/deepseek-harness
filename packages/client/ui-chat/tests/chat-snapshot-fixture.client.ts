@@ -1,11 +1,12 @@
 import type {
-  AssistantChatData, AssistantMessageNode, ChatConversationViewNode, ChatNode, ChatSnapshot, ConversationNode,
-  ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore,
-  ChatTurnProcessPresentation, CompactionSummaryNode, FinalAssistantChatData, LegacyConversationSlice,
+  AssistantBlock, AssistantChatData, AssistantMessageNode, ChatConversationViewNode, ChatNode, ChatSnapshot,
+  ConversationNode, ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore,
+  StepSpanFold, CompactionSummaryNode, FinalAssistantChatData, LegacyConversationSlice,
   PartialAssistant, RunningToolCall, ToolCallBlock, TurnNavigationItem,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
-  ConversationLocationDataSource, ConversationLocationDataStore, ConversationTurnDataMap, TurnLocation,
+  ConversationLocationDataSource, ConversationLocationDataStore, ConversationStepDataMap,
+  ConversationTurnDataMap, StepLocation, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TurnTokenUsage } from '../src/client/contract/chat-nodes.ts'
 import { deriveTurnMetrics } from '../src/client/contract/turn-metrics.ts'
@@ -13,12 +14,7 @@ import {
   sameTurnNavigationItem, turnNavigationItem,
 } from '../src/client/conversation-nodes/turn-navigation.ts'
 import { orderedVisibleChatNodes } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
-import { ChatTurnProcessProjector } from '../src/client/conversation-nodes/turn-process-presentation.ts'
-import { hasAssistantReplyContent } from '../src/client/contract/assistant-content.ts'
-import {
-  isSubagentDelegationTool, sameTurnProcessSpec, TURN_PROCESS_INDEPENDENT_KINDS,
-  type TurnProcessSpec,
-} from '../src/client/contract/turn-process.ts'
+import { ChatSpanFoldProjector } from '../src/client/conversation-nodes/span-fold-presentation.ts'
 
 const EMPTY: readonly never[] = []
 
@@ -60,19 +56,17 @@ function sameFixtureLocation(
 }
 
 function nodeSource(node: ChatConversationViewNode): unknown {
-  if (node.kind === 'assistant-step') {
+  if (node.kind === 'assistant-step-message' || node.kind === 'assistant-step-reason') {
     const data = node.data as AssistantChatData
     return data.finalNode ?? data.blocks
+  }
+  if (node.kind === 'assistant-step-start' || node.kind === 'assistant-step-end') {
+    return (node.data as { readonly status: string }).status
   }
   if (node.kind === 'tool-call') return (node.data as { readonly root: ToolCallBlock }).root
   if (node.kind === 'model-retry') return (node.data as { readonly current: unknown }).current
   if (node.kind === 'turn-tail') return (node.data as { readonly seq: number }).seq
-  if (node.kind === 'turn-process') return node.data
   return node.data
-}
-
-function toolCallName(call: ToolCallBlock): string | null {
-  return 'name' in call ? call.name : call.call?.name ?? null
 }
 
 class FixtureSource<Value> {
@@ -102,9 +96,9 @@ class FixtureSource<Value> {
 
 class FixtureNodeStore implements ChatNodeStore {
   private byKey = new Map<string, ChatConversationViewNode>()
-  private readonly turnProcesses = new ChatTurnProcessProjector()
+  private readonly spanFolds = new ChatSpanFoldProjector()
   private readonly sources = new Map<string, FixtureSource<ChatConversationViewNode | undefined>>()
-  private readonly processSources = new Map<string, FixtureSource<ChatTurnProcessPresentation | undefined>>()
+  private readonly processSources = new Map<string, FixtureSource<StepSpanFold | undefined>>()
   private readonly dirtyKeys = new Set<string>()
   private readonly dirtyProcessKeys = new Set<string>()
   private list: readonly ChatConversationViewNode[] = EMPTY
@@ -121,8 +115,8 @@ class FixtureNodeStore implements ChatNodeStore {
     return cachedSource(this.processSources, key, () => new FixtureSource(() => this.process(key)))
   }
 
-  process(key: string): ChatTurnProcessPresentation | undefined {
-    return this.turnProcesses.get(this.get(key) as ChatNode | undefined)
+  process(key: string): StepSpanFold | undefined {
+    return this.spanFolds.get(this.get(key) as ChatNode | undefined)
   }
 
   values(): readonly ChatConversationViewNode[] {
@@ -157,9 +151,11 @@ class FixtureNodeStore implements ChatNodeStore {
   }
 
   replaceProcesses(order: readonly string[], locations: ChatLocationNodeIndex): void {
-    const changed = this.turnProcesses.replace(order, locations, this)
-    for (const turn of changed) {
-      for (const key of locations.getTurn(turn)) this.dirtyProcessKeys.add(key)
+    const changed = this.spanFolds.replace(order, locations, this)
+    for (const span of changed) {
+      const [turn, step] = span.split(':')
+      if (turn === undefined || step === undefined) continue
+      for (const key of locations.getStep(Number(turn), Number(step))) this.dirtyProcessKeys.add(key)
     }
   }
 
@@ -175,22 +171,32 @@ class FixtureNodeStore implements ChatNodeStore {
 
 class FixtureLocationIndex implements ChatLocationNodeIndex {
   private turns = new Map<number, readonly string[]>()
+  private steps = new Map<string, readonly string[]>()
 
   getTurn(turn: number): readonly string[] {
     return this.turns.get(turn) ?? EMPTY
   }
 
-  getStep(): readonly string[] {
-    return EMPTY
+  getStep(turn: number, step: number): readonly string[] {
+    return this.steps.get(`${turn}:${step}`) ?? EMPTY
   }
 
-  replace(next: ReadonlyMap<number, readonly string[]>): void {
-    const stable = new Map<number, readonly string[]>()
-    for (const [turn, keys] of next) {
+  replace(
+    nextTurns: ReadonlyMap<number, readonly string[]>,
+    nextSteps: ReadonlyMap<string, readonly string[]>,
+  ): void {
+    const stableTurns = new Map<number, readonly string[]>()
+    for (const [turn, keys] of nextTurns) {
       const previous = this.turns.get(turn) ?? EMPTY
-      stable.set(turn, sameValues(previous, keys) ? previous : keys)
+      stableTurns.set(turn, sameValues(previous, keys) ? previous : keys)
     }
-    this.turns = stable
+    this.turns = stableTurns
+    const stableSteps = new Map<string, readonly string[]>()
+    for (const [step, keys] of nextSteps) {
+      const previous = this.steps.get(step) ?? EMPTY
+      stableSteps.set(step, sameValues(previous, keys) ? previous : keys)
+    }
+    this.steps = stableSteps
   }
 }
 
@@ -228,6 +234,25 @@ class FixtureTurnDataStore implements ConversationLocationDataStore<Conversation
   }
 }
 
+class FixtureStepDataStore implements ConversationLocationDataStore<ConversationStepDataMap> {
+  private readonly emptySource = new FixtureSource<unknown>(() => undefined)
+
+  get<Key extends Extract<keyof ConversationStepDataMap, string>>(
+  ): Readonly<ConversationStepDataMap[Key]> | undefined {
+    return undefined
+  }
+
+  source<Key extends Extract<keyof ConversationStepDataMap, string>>(
+  ): ConversationLocationDataSource<Readonly<ConversationStepDataMap[Key]> | undefined> {
+    return this.emptySource as ConversationLocationDataSource<
+      Readonly<ConversationStepDataMap[Key]> | undefined
+    >
+  }
+}
+
+/** Step locations never carry business data in the legacy fixture. */
+const EMPTY_STEP_DATA = new FixtureStepDataStore()
+
 function assistantData(node: AssistantMessageNode): FinalAssistantChatData {
   return {
     status: node.interrupted === true ? 'interrupted' as const : 'settled' as const,
@@ -239,12 +264,28 @@ function assistantData(node: AssistantMessageNode): FinalAssistantChatData {
   }
 }
 
+function blockIsVisible(block: AssistantBlock): boolean {
+  if (block.kind === 'tool-call') return false
+  if (block.kind === 'text' || block.kind === 'reasoning') return block.text.trim() !== ''
+  return true
+}
+
+function sectionBlocks(
+  section: 'reasoning' | 'message',
+  blocks: readonly AssistantBlock[],
+): AssistantBlock[] {
+  return blocks.filter(block => section === 'reasoning'
+    ? block.kind === 'reasoning'
+    : block.kind !== 'reasoning' && block.kind !== 'tool-call')
+}
+
 function settledNode(
   node: ConversationNode,
   turns: ReadonlyMap<number, TurnLocation>,
-  inferredTurn?: number,
+  inferred?: { readonly turn: number; readonly step: number },
 ): ChatConversationViewNode {
-  const ownTurn = 'turn' in node && typeof node.turn === 'number' ? node.turn : inferredTurn
+  const ownTurn = 'turn' in node && typeof node.turn === 'number' ? node.turn : inferred?.turn
+  const ownStep = 'step' in node && typeof node.step === 'number' ? node.step : inferred?.step
   const turn = ownTurn === undefined ? undefined : turns.get(ownTurn)
   const base = {
     key: `fixture:${node.kind}:${node.seq}`,
@@ -253,12 +294,12 @@ function settledNode(
     anchorSeq: node.seq,
     location: turn === undefined
       ? { kind: 'session' as const }
-      : { kind: 'turn' as const, turn },
+      : ownStep === undefined
+        ? { kind: 'turn' as const, turn }
+        : stepLocation(turn, ownStep),
     visibility: 'visible' as const,
   }
   switch (node.kind) {
-    case 'assistant':
-      return { ...base, kind: 'assistant-step', data: assistantData(node) }
     case 'tool-result':
       return { ...base, key: `fixture:tool:${node.callId}`, kind: 'tool-call', data: { root: node } }
     case 'model-retry':
@@ -266,6 +307,80 @@ function settledNode(
     default:
       return { ...base, kind: node.kind, data: node }
   }
+}
+
+function stepLocation(turn: TurnLocation, step: number): { kind: 'step'; turn: TurnLocation; step: StepLocation } {
+  return {
+    kind: 'step',
+    turn,
+    step: {
+      turn: turn.turn,
+      step,
+      start: undefined,
+      end: undefined,
+      status: turn.status === 'closed' ? 'closed' : 'open',
+      data: EMPTY_STEP_DATA,
+    },
+  }
+}
+
+/** The section rows one settled Assistant publishes under the span model. */
+function assistantSectionNodes(
+  node: AssistantMessageNode,
+  turns: ReadonlyMap<number, TurnLocation>,
+): ChatConversationViewNode[] {
+  const turn = turns.get(node.turn)
+  if (turn === undefined) {
+    return [{
+      key: `fixture:assistant:${node.seq}`,
+      id: String(node.seq),
+      target: 'chat',
+      kind: 'assistant-step-message',
+      anchorSeq: node.seq,
+      location: { kind: 'session' },
+      visibility: 'visible',
+      data: assistantData(node),
+    }]
+  }
+  const status = node.interrupted === true ? 'interrupted' as const : 'settled' as const
+  const rows: ChatConversationViewNode[] = []
+  const reasoning = sectionBlocks('reasoning', node.blocks)
+  if (reasoning.some(blockIsVisible)) {
+    rows.push({
+      key: `fixture:assistant-reason:${node.seq}`,
+      id: String(node.seq),
+      target: 'chat',
+      kind: 'assistant-step-reason',
+      anchorSeq: node.seq,
+      location: stepLocation(turn, node.step),
+      visibility: 'visible',
+      data: {
+        status, turn: node.turn, step: node.step, blocks: reasoning, time: node.time,
+      },
+    })
+  }
+  const message = sectionBlocks('message', node.blocks)
+  if (message.some(blockIsVisible)) {
+    rows.push({
+      key: `fixture:assistant:${node.seq}`,
+      id: String(node.seq),
+      target: 'chat',
+      kind: 'assistant-step-message',
+      anchorSeq: node.seq,
+      location: stepLocation(turn, node.step),
+      visibility: 'visible',
+      data: {
+        status,
+        turn: node.turn,
+        step: node.step,
+        blocks: message,
+        time: node.time,
+        finalNode: node,
+        ...node.usage === undefined ? {} : { usage: node.usage },
+      },
+    })
+  }
+  return rows
 }
 
 /** Build the canonical Chat fixture corresponding to one legacy test slice. */
@@ -334,31 +449,56 @@ export function chatSnapshotFixture(input: {
       }
     }
     if (node.kind === 'compaction' && linkedCompactions.has(node)) return []
-    const inferredTurn = node.kind === 'tool-result'
-      ? legacy.nodes.slice(0, index).findLast(
-        (candidate): candidate is AssistantMessageNode => candidate.kind === 'assistant',
-      )?.turn
+    if (node.kind === 'assistant') return assistantSectionNodes(node, turns)
+    const inferred = node.kind === 'tool-result'
+      ? (() => {
+        const owner = legacy.nodes.slice(0, index).findLast(
+          (candidate): candidate is AssistantMessageNode => candidate.kind === 'assistant',
+        )
+        return owner === undefined ? undefined : { turn: owner.turn, step: owner.step }
+      })()
       : undefined
-    return [settledNode(node, turns, inferredTurn)]
+    return [settledNode(node, turns, inferred)]
   })
   if (legacy.partial !== null) {
     const turn = turns.get(legacy.partial.turn)
-    nodes.push({
-      key: `fixture:assistant:${legacy.partial.turn}:${legacy.partial.step}`,
+    const partialBase = {
       id: `${legacy.partial.turn}:${legacy.partial.step}`,
-      target: 'chat',
-      kind: 'assistant-step',
+      target: 'chat' as const,
       anchorSeq: Number.MAX_SAFE_INTEGER - 1,
-      location: turn === undefined ? { kind: 'session' } : { kind: 'turn', turn },
-      visibility: 'visible',
-      data: {
-        status: 'running',
-        turn: legacy.partial.turn,
-        step: legacy.partial.step,
-        blocks: legacy.partial.blocks,
-        time: 0,
-      },
-    })
+      location: turn === undefined ? { kind: 'session' as const } : stepLocation(turn, legacy.partial.step),
+      visibility: 'visible' as const,
+    }
+    const reasoning = sectionBlocks('reasoning', legacy.partial.blocks)
+    const message = sectionBlocks('message', legacy.partial.blocks)
+    if (reasoning.some(blockIsVisible)) {
+      nodes.push({
+        ...partialBase,
+        key: `fixture:assistant-reason:${legacy.partial.turn}:${legacy.partial.step}`,
+        kind: 'assistant-step-reason',
+        data: {
+          status: 'running',
+          turn: legacy.partial.turn,
+          step: legacy.partial.step,
+          blocks: reasoning,
+          time: 0,
+        },
+      })
+    }
+    if (message.some(blockIsVisible)) {
+      nodes.push({
+        ...partialBase,
+        key: `fixture:assistant:${legacy.partial.turn}:${legacy.partial.step}`,
+        kind: 'assistant-step-message',
+        data: {
+          status: 'running',
+          turn: legacy.partial.turn,
+          step: legacy.partial.step,
+          blocks: message,
+          time: 0,
+        },
+      })
+    }
   }
   for (const call of legacy.runningCalls) {
     const turn = turns.get(call.turn)
@@ -368,80 +508,60 @@ export function chatSnapshotFixture(input: {
       target: 'chat',
       kind: 'tool-call',
       anchorSeq: Number.MAX_SAFE_INTEGER,
-      location: turn === undefined ? { kind: 'session' } : { kind: 'turn', turn },
+      location: turn === undefined
+        ? { kind: 'session' }
+        : stepLocation(turn, call.step),
       visibility: 'visible',
       data: { root: call },
     })
   }
-  for (const [turnNumber, dataStore] of turnData) {
-    const inTurn = nodes.filter((candidate) => {
-      const location = candidate.location
-      return (location.kind === 'turn' || location.kind === 'step') && location.turn.turn === turnNumber
-    })
-    const assistants = inTurn
-      .filter(candidate => candidate.kind === 'assistant-step')
-      .map(candidate => candidate.data as AssistantChatData)
-    const toolCalls = inTurn
-      .filter(candidate => candidate.kind === 'tool-call')
-      .map(candidate => (candidate.data as { readonly root: ToolCallBlock }).root)
-    const latestStep = Math.max(
-      0,
-      ...assistants.map(candidate => candidate.step),
-      ...inTurn.flatMap((candidate) => {
-        if (candidate.kind !== 'tool-call') return []
-        const root = (candidate.data as { root: ToolCallBlock }).root as ToolCallBlock & { step?: unknown }
-        const step: unknown = root.step
-        return typeof step === 'number' ? [step] : []
-      }),
-    )
-    const answer = assistants.findLast((candidate): candidate is FinalAssistantChatData =>
-      candidate.step === latestStep
-      && candidate.finalNode !== undefined
-      && hasAssistantReplyContent(candidate.blocks)
-      && !candidate.blocks.some(block => block.kind === 'tool-call'))
-    const controlAnchor = inTurn.find(candidate => candidate.kind === 'assistant-step'
-      || candidate.kind === 'tool-call'
-      || candidate.kind === 'model-retry')
-    if (controlAnchor === undefined) continue
-    const processStart = inTurn.find(candidate => !TURN_PROCESS_INDEPENDENT_KINDS.has(candidate.kind))
-      ?? controlAnchor
-    const inlineReasoning = answer?.blocks.some(block => block.kind === 'reasoning' && block.text.trim() !== '') === true
-    const candidate: TurnProcessSpec = {
-      turn: turnNumber,
-      controlAnchorSeq: controlAnchor.anchorSeq,
-      processStartSeq: processStart.anchorSeq,
-      answerAnchorSeq: answer?.finalNode.seq ?? null,
-      answerStep: answer?.step ?? null,
-      inlineReasoning: answer !== undefined && inlineReasoning,
-      messageCount: answer === undefined
-        ? assistants.filter(candidate => hasAssistantReplyContent(candidate.blocks)).length
-        : assistants.filter(candidate => candidate.step < answer.step
-          && hasAssistantReplyContent(candidate.blocks)).length,
-      toolCallCount: toolCalls.filter((call) => {
-        const name = toolCallName(call)
-        return name === null || !isSubagentDelegationTool(name)
-      }).length,
-      subagentCount: toolCalls.filter((call) => {
-        const name = toolCallName(call)
-        return name !== null && isSubagentDelegationTool(name)
-      }).length,
+  // One span opener per Step that grew Assistant sections; a closed Turn also
+  // lands the durable closer so the projector settles the span.
+  const spanSteps = new Map<string, { readonly turn: number; readonly step: number; min: number; max: number }>()
+  for (const node of nodes) {
+    if (node.kind !== 'assistant-step-message' && node.kind !== 'assistant-step-reason') continue
+    const location = node.location
+    if (location.kind !== 'step') continue
+    const key = `${location.turn.turn}:${location.step.step}`
+    const seed = spanSteps.get(key)
+    if (seed === undefined) {
+      spanSteps.set(key, {
+        turn: location.turn.turn, step: location.step.step, min: node.anchorSeq, max: node.anchorSeq,
+      })
+    } else {
+      spanSteps.set(key, {
+        ...seed,
+        min: Math.min(seed.min, node.anchorSeq),
+        max: Math.max(seed.max, node.anchorSeq),
+      })
     }
-    const previousSpec = dataStore.get('turn-process')
-    const spec = previousSpec !== undefined && sameTurnProcessSpec(previousSpec, candidate)
-      ? previousSpec
-      : candidate
-    dataStore.set('turn-process', spec)
+  }
+  for (const { turn: turnNumber, step, min, max } of spanSteps.values()) {
     const turn = turns.get(turnNumber)
-    if (turn !== undefined) {
+    if (turn === undefined) continue
+    const closed = legacy.turnEnds.has(turnNumber)
+    nodes.push({
+      key: `fixture:step-start:${turnNumber}:${step}`,
+      id: `${turnNumber}:${step}`,
+      target: 'chat',
+      kind: 'assistant-step-start',
+      anchorSeq: min - 0.5,
+      location: stepLocation(turn, step),
+      visibility: 'visible',
+      data: {
+        turn: turnNumber, step, status: closed ? 'closed' : 'running', time: turn.start?.time ?? 0,
+      },
+    })
+    if (closed) {
       nodes.push({
-        key: `fixture:turn-process:${String(turnNumber)}`,
-        id: String(turnNumber),
+        key: `fixture:step-end:${turnNumber}:${step}`,
+        id: `${turnNumber}:${step}`,
         target: 'chat',
-        kind: 'turn-process',
-        anchorSeq: spec.controlAnchorSeq - 0.1,
-        location: { kind: 'turn', turn },
+        kind: 'assistant-step-end',
+        anchorSeq: max + 0.5,
+        location: stepLocation(turn, step),
         visibility: 'visible',
-        data: spec,
+        data: { turn: turnNumber, step, status: 'closed', time: turn.end?.time ?? 0 },
       })
     }
   }
@@ -457,6 +577,9 @@ export function chatSnapshotFixture(input: {
       .map(assistantData)
       .at(-1) ?? null
     const preceding = nodes.findLast((candidate) => {
+      if (candidate.kind === 'assistant-step-start' || candidate.kind === 'assistant-step-end') {
+        return false
+      }
       const location = candidate.location
       return (location.kind === 'turn' || location.kind === 'step')
         && location.turn.turn === turnNumber
@@ -469,8 +592,8 @@ export function chatSnapshotFixture(input: {
       time: turn.end?.time ?? 0,
       closing,
       branchUnavailable: closing === null
-        || preceding?.kind !== 'assistant-step'
-        || (preceding.data as ReturnType<typeof assistantData>).finalNode.seq !== closing.finalNode.seq,
+        || preceding?.kind !== 'assistant-step-message'
+        || (preceding.data as AssistantChatData).finalNode?.seq !== closing.finalNode.seq,
       ...metrics?.ttftMs === undefined ? {} : { ttftMs: metrics.ttftMs },
       ...metrics?.tokensPerSecond === undefined ? {} : { tokensPerSecond: metrics.tokensPerSecond },
       ...tokenUsage === undefined ? {} : { tokenUsage },
@@ -481,7 +604,8 @@ export function chatSnapshotFixture(input: {
       id: String(turnNumber),
       target: 'chat',
       kind: 'turn-tail',
-      anchorSeq: endSeq,
+      // The logged turn/end trails the step closers; keep the tail last.
+      anchorSeq: endSeq + 0.5,
       location: { kind: 'turn', turn },
       visibility: 'visible',
       data: tailData,
@@ -495,17 +619,29 @@ export function chatSnapshotFixture(input: {
   const nextOrder = ordered.map(node => node.key)
   const order = previous !== undefined && sameValues(previous.order, nextOrder) ? previous.order : nextOrder
   const byTurn = new Map<number, readonly string[]>()
+  const byStep = new Map<string, readonly string[]>()
   for (const turn of turns.keys()) {
     byTurn.set(turn, order.filter((key) => {
       const location = byKey.get(key)?.location
       return location?.kind === 'turn' && location.turn.turn === turn
         || location?.kind === 'step' && location.turn.turn === turn
     }))
+    for (const step of new Set(order.flatMap((key) => {
+      const location = byKey.get(key)?.location
+      return location?.kind === 'step' && location.turn.turn === turn ? [location.step.step] : []
+    }))) {
+      byStep.set(`${turn}:${step}`, order.filter((key) => {
+        const location = byKey.get(key)?.location
+        return location?.kind === 'step'
+          && location.turn.turn === turn
+          && location.step.step === step
+      }))
+    }
   }
   const locations = previous?.locations instanceof FixtureLocationIndex
     ? previous.locations
     : new FixtureLocationIndex()
-  locations.replace(byTurn)
+  locations.replace(byTurn, byStep)
   store.replaceProcesses(order, locations)
   const timeline = previous !== undefined
     && previous.legacy.turnTimings === legacy.turnTimings

@@ -5,8 +5,6 @@
   - text: Standard mode
   - button "More actions":
     - img
-  - button "Open right sidebar":
-    - img
   - tablist:
     - tab "Chat" [selected]
     - tab "Trajectory"
@@ -14,22 +12,26 @@
   - img
   - img
   - text: System prompt
+- button "2 contexts · 1 thought" [expanded]:
+  - text: 2 contexts · 1 thought
+  - img
 - text: Reply with a one-sentence description of event sourcing, then stop. {{clock}}
 - button "Copy":
-  - img
-- button "Thought for a while" [expanded]:
-  - text: Thought for a while
   - img
 - button "Context injection @deepseek-ai/dsh-system-prompt":
   - img
   - img
   - text: Context injection @deepseek-ai/dsh-system-prompt
+- button "Context injection staged-escalation":
+  - img
+  - img
+  - text: Context injection staged-escalation
 - group:
   - status: Retried model request (1/5) · {{duration}}
-- button "Think The user is asking for a one-sentence description of event sourcing. This is a straightforward knowledge question that doesn't require any skill loading or tool calls.":
+- button "Think Finished":
   - img
   - img
-  - text: Think The user is asking for a one-sentence description of event sourcing. This is a straightforward knowledge question that doesn't require any skill loading or tool calls.
+  - text: Think Finished
 - paragraph: Event sourcing is a pattern where all changes to an application's state are stored as an immutable, append-only sequence of events, rather than persisting only the current state, enabling full auditability, temporal queries, and event-driven architectures.
 - button "Copy":
   - img
@@ -37,8 +39,9 @@
   - img
 - button "Bad response":
   - img
-- button "Branch into a new conversation":
+- button "Branch into a new conversation" [disabled]:
   - img
+- text: Available only on the last message of a completed turn
 - button "Ran for {{duration}}":
   - img
   - text: Ran for {{duration}}
@@ -50,11 +53,18 @@
 - button "Select model, current DeepSeek-V4-Flash":
   - text: DeepSeek-V4-Flash
   - img
+- slider "Sampling temperature": "0.2"
+- text: "0.20"
+- slider "Step pace": "0"
+- text: {{duration}}
 - button "6% of context used"
 - button "Send message" [disabled]
-- button "1 turns 1 steps · {{throughput}} tok/s":
+- button "1 turns 1 steps · Last 5 {{throughput}} tok/s":
   - img
-  - text: 1 turns 1 steps{{throughput}} tok/s
-- button "7.9K tok · Cache hit 99%":
+  - text: 1 turns 1 stepsLast 5 {{throughput}} tok/s
+- button "In 110 · Cache 7.7K · Out 79 · Hit 99%":
   - img
-  - text: 7.9K tokCache hit 99%
+  - text: In 110Cache 7.7KOut 79Hit 99%
+- button "Cost $0.0003 · $0.0322/M tok":
+  - img
+  - text: Cost $0.0003$0.0322/M tok
