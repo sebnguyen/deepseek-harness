@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-client-ui-editor",
   "description": "CodeMirror 6 file editor as a right-Sidebar tab type: open, edit, and save workspace files with version-conflict safety",
-  "version": "0.1.5-rc.2",
+  "version": "0.1.5-rc.3",
   "publishConfig": {
     "access": "public"
   },
