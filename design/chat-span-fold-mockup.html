@@ -76,7 +76,8 @@
   .working .dot:nth-child(3) { animation-delay: .4s; }
   @keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 
-  .rail { border-left: 2px solid var(--line); padding-left: 10px; margin: 2px 0 10px; }
+  /* The product draws this rule as a 2px inset shadow (hairline contract). */
+  .rail { box-shadow: inset 2px 0 0 var(--line); padding-left: 10px; margin: 2px 0 10px; }
   .rail .fold { margin: 0 0 4px; display: inline-flex; }
   .rail .members { margin: 0 0 4px; border-left: 0; padding-left: 8px; }
 

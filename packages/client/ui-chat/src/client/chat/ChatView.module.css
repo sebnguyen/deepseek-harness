@@ -76,9 +76,11 @@
 }
 
 /* The process rail draws one left rule through a span disclosure and its
-   folded members; consecutive rail seats tighten to a header rhythm. */
+   folded members; consecutive rail seats tighten to a header rhythm. The
+   rule is an inset shadow, not a border: elevation keeps 0.5px neutral
+   hairlines as the only layout-consuming neutral stroke. */
 .flowItem[data-rail="process"] {
-  border-left: 2px solid var(--dsw-alias-border-l2);
+  box-shadow: inset 2px 0 0 var(--dsw-alias-border-l2);
   padding-left: 10px;
 }
 .column > [data-rail="process"]:not([hidden]):not(.flowItem:empty)
