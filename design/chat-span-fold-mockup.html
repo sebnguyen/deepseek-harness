@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Step Span Folds — DeepSeek-styled transcript draft</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --page: #f7f8fa;
+    --ink: #1d2129;
+    --ink-2: #4e5969;
+    --ink-3: #86909c;
+    --ink-4: #c9cdd1;
+    --line: #e5e6eb;
+    --accent: #4d6bfe;
+    --hover: #f2f3f5;
+    --red: #f53f3f;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--ink);
+    font: 15px/1.75 -apple-system, "Segoe UI", Roboto, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  }
+  .chrome { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+  .chrome-inner { max-width: 768px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 10px; }
+  .logo { color: var(--accent); font-weight: 700; }
+  .session-title { color: var(--ink-2); font-size: 14px; }
+  main { max-width: 768px; margin: 0 auto; padding: 24px 20px 120px; background: var(--bg); min-height: 100vh; box-shadow: 0 0 0 1px var(--line); }
+  .page-note { color: var(--ink-3); font-size: 13px; margin: 0 0 8px; }
+  h2 { font-size: 14px; color: var(--ink-2); margin: 34px 0 6px; font-weight: 600; }
+  .legend { color: var(--ink-3); font-size: 12.5px; margin: 0 0 14px; }
+
+  .user { display: flex; justify-content: flex-end; margin: 18px 0; }
+  .user p { margin: 0; max-width: 70%; padding: 10px 14px; background: var(--hover); border-radius: 14px 14px 2px 14px; }
+
+  .turn { margin: 4px 0 30px; }
+
+  .fold {
+    display: inline-flex; align-items: center; gap: 6px;
+    margin: 2px 0 6px; padding: 3px 8px; border: 0; background: transparent;
+    color: var(--ink-3); font: inherit; font-size: 13px; line-height: 1.6;
+    border-radius: 8px; cursor: pointer;
+  }
+  .fold:hover { background: var(--hover); color: var(--ink-2); }
+  .fold .chev { transition: transform .16s ease; font-size: 11px; }
+  .fold[aria-expanded="true"] .chev { transform: rotate(180deg); }
+  .fold b { font-weight: 600; color: var(--ink-3); }
+
+  .members { display: none; margin: 0 0 10px; padding: 2px 0 2px 10px; border-left: 1px solid var(--line); }
+  .fold[aria-expanded="true"] + .members { display: block; }
+  .tool { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+  .tool:hover { background: var(--hover); }
+  .tool .glyph { width: 20px; height: 20px; border-radius: 6px; flex: none; display: grid; place-items: center; background: var(--hover); color: var(--ink-3); font-size: 11px; }
+  .tool .sub { color: var(--ink-4); margin-left: auto; font-size: 12px; }
+  .thought { padding: 3px 8px; color: var(--ink-3); font-size: 13px; font-style: italic; }
+  .thought::before { content: "◦ "; color: var(--ink-4); font-style: normal; }
+  .ctx { display: flex; align-items: center; gap: 8px; padding: 4px 8px; color: var(--ink-3); font-size: 12.5px; }
+  .ctx .glyph { width: 20px; height: 20px; border-radius: 6px; flex: none; display: grid; place-items: center; background: var(--hover); color: var(--ink-4); font-size: 10px; }
+  .ctx .sub { color: var(--ink-4); margin-left: auto; font-size: 12px; }
+
+  .msg { margin: 2px 0 14px; }
+  .msg p { margin: 0 0 10px; }
+  .msg code { background: var(--hover); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+
+  .actions { display: flex; gap: 2px; margin-top: 2px; color: var(--ink-4); }
+  .actions button { border: 0; background: transparent; color: inherit; cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 13px; }
+  .actions button:hover { background: var(--hover); color: var(--ink-2); }
+
+  .tail { display: flex; gap: 8px; margin-top: 10px; }
+  .pill { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; color: var(--ink-3); font-size: 12px; padding: 2px 10px; cursor: pointer; }
+  .pill:hover { background: var(--hover); }
+
+  .working .dot { display: inline-block; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-4); margin-left: 3px; animation: pulse 1.2s infinite; }
+  .working .dot:nth-child(2) { animation-delay: .2s; }
+  .working .dot:nth-child(3) { animation-delay: .4s; }
+  @keyframes pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+
+  .rail { border-left: 2px solid var(--line); padding-left: 10px; margin: 2px 0 10px; }
+  .rail .fold { margin: 0 0 2px; display: inline-flex; }
+  .rail .members { margin: 0 0 6px; border-left: 0; padding-left: 8px; }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 10px 0 8px; }
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .card.old { background: #fafafa; }
+  .card-title { font-size: 12px; color: var(--ink-3); margin: 0 0 8px; }
+  .card.old .too-loud { color: var(--red); }
+  .card .msg p { font-size: 14px; }
+  .badge { display: inline-block; font-size: 11px; border-radius: 999px; padding: 0 8px; border: 1px solid var(--line); color: var(--ink-3); margin-left: 6px; }
+  .badge.bad { color: var(--red); border-color: #fdd7d7; }
+  .badge.proposal { color: var(--accent); border-color: #c9d4ff; }
+
+  @media (max-width: 640px) { .pair { grid-template-columns: 1fr; } }
+  @media (prefers-reduced-motion: reduce) { .working .dot { animation: none; } .fold .chev { transition: none; } }
+</style>
+</head>
+<body>
+<div class="chrome"><div class="chrome-inner">
+  <span class="logo">deepseek</span>
+  <span class="session-title">span-fold transcript draft</span>
+</div></div>
+<main>
+  <p class="page-note">A step streams <b>thought · message · tool call</b> in any combination. Every chip carries its step range so back-to-back folds explain themselves. Click the pills.</p>
+
+  <h2>1 · The three step shapes, tagged</h2>
+  <p class="legend">The step tag answers "why is this a separate fold": the range names the steps the fold covers.</p>
+
+  <div class="pair">
+    <div class="card">
+      <p class="card-title">process-only step</p>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 2</b> 1 thought · 1 tool call <span class="chev">▾</span></button>
+      <div class="members">
+        <div class="thought">read the workspace first</div>
+        <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">echo alpha</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <p class="card-title">narration step — only the sentence stands</p>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 4</b> 1 thought · 1 tool call <span class="chev">▾</span></button>
+      <div class="members">
+        <div class="thought">read the workspace first</div>
+        <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">echo alpha</span></div>
+      </div>
+      <div class="msg"><p>Reading the workspace now.</p></div>
+    </div>
+  </div>
+
+  <div class="pair">
+    <div class="card">
+      <p class="card-title">reply step — zero process</p>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 7</b> Thought for a while <span class="chev">▾</span></button>
+      <div class="members"><div class="thought">weigh page direction against fold stability</div></div>
+      <div class="msg"><p>Done — the loader now pages backward.</p></div>
+    </div>
+    <div class="card">
+      <p class="card-title">kind chip on the live span</p>
+      <button class="fold working" aria-expanded="false" onclick="toggle(this)"><b>Step 8</b> Working<span class="dot"></span><span class="dot"></span><span class="dot"></span> <span class="chev">▾</span></button>
+      <div class="members">
+        <div class="thought">draft the standalone mockup</div>
+        <div class="tool"><span class="glyph">✎</span> edit <span class="sub">writing…</span></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2 · Runs merge under one range, replies stand between</h2>
+  <p class="legend">Count order stays subagents · thoughts · tool calls; the range leads.</p>
+
+  <div class="user"><p>Refactor the session loader and keep live folds stable</p></div>
+  <div class="turn">
+    <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Steps 1–3</b> 1 subagent · 3 thoughts · 6 tool calls <span class="chev">▾</span></button>
+    <div class="members">
+      <div class="thought">which projection feeds the chat target</div>
+      <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg orderedVisibleChatNodes · 4 hits</span></div>
+      <div class="tool"><span class="glyph">≡</span> read <span class="sub">chat-snapshot-builder.ts</span></div>
+      <div class="thought">step bounds re-derive from anchors</div>
+      <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">pnpm exec vitest run ui-chat</span></div>
+      <div class="tool"><span class="glyph">⇄</span> subagent <span class="sub">migrate fixture specs · 12 files</span></div>
+      <div class="tool"><span class="glyph">✎</span> edit <span class="sub">span-fold-presentation.ts</span></div>
+    </div>
+
+    <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 4</b> 1 thought · 1 tool call <span class="chev">▾</span></button>
+    <div class="members">
+      <div class="thought">replay the long-session bench before claiming green</div>
+      <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">bench conversation-fold</span></div>
+    </div>
+    <div class="msg"><p>The fold now lives on the Step span: steps that never spoke merge into one collapse, and its range says exactly which steps stayed quiet.</p></div>
+
+    <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Steps 5–6</b> 2 thoughts · 3 tool calls <span class="chev">▾</span></button>
+    <div class="members">
+      <div class="thought">which gate pinned the old group heuristics</div>
+      <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">pnpm run test:gui · 5548 passed</span></div>
+      <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">pnpm exec tsc -b · clean</span></div>
+      <div class="thought">corner-shape gate pairs the rail circle</div>
+      <div class="tool"><span class="glyph">✎</span> edit <span class="sub">TokenEfficiency.module.css</span></div>
+    </div>
+
+    <div class="msg">
+      <p>Done. Turn-level grouping is gone; every fold derives from the steps' own rows.</p>
+      <div class="actions"><button title="Copy">⧉</button><button title="Regenerate">⟳</button><button title="Branch">⑂</button></div>
+    </div>
+    <div class="tail"><button class="pill">Usage 15.8K tok</button><button class="pill">Ran for 1m 40s</button></div>
+  </div>
+
+  <h2>3 · Back-to-back chips: ranges then a rail</h2>
+  <p class="legend">Two consecutive folds are correct information; the range makes them read as "then," not "again." The shared rail keeps them one block.</p>
+
+  <div class="pair">
+    <div class="card old">
+      <p class="card-title">no ranges: reads as repetition <span class="badge bad">before</span></p>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)">1 subagent · 3 thoughts · 6 tool calls <span class="chev">▾</span></button>
+      <div class="members"><div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg …</span></div></div>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)">1 thought · 1 tool call <span class="chev">▾</span></button>
+      <div class="members"><div class="tool"><span class="glyph">⌘</span> bash <span class="sub">bench …</span></div></div>
+      <p class="card-title">why two? the reader has to guess</p>
+    </div>
+    <div class="card">
+      <p class="card-title">ranges on the rail: reads as one process header <span class="badge">after</span></p>
+      <div class="rail">
+        <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Steps 1–3</b> 1 subagent · 3 thoughts · 6 tool calls <span class="chev">▾</span></button>
+        <div class="members">
+          <div class="thought">which projection feeds the chat target</div>
+          <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg orderedVisibleChatNodes</span></div>
+          <div class="tool"><span class="glyph">⇄</span> subagent <span class="sub">migrate specs</span></div>
+        </div>
+        <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Step 4</b> 1 thought · 1 tool call <span class="chev">▾</span></button>
+        <div class="members">
+          <div class="thought">replay the bench</div>
+          <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">bench conversation-fold</span></div>
+        </div>
+      </div>
+      <div class="msg"><p>The ranges alone already separate the folds; the rail is the finish that groups them.</p></div>
+    </div>
+  </div>
+
+  <h2>4 · Mid-turn context injections ride their step's rail <span class="badge proposal">proposal — mock only</span></h2>
+  <p class="legend">Not the system prompt — that is turn chrome and keeps its own standing row. The injections that read as noise are the ones that land <i>inside</i> a started step: reminder injections, reasoning-prefetch snapshots, async tool results injected back into model history. They all arrive after some <code>step/start</code>, so the session carries their step coordinates for free and they fold onto that step's rail like its thoughts and tool rows.</p>
+
+  <div class="card">
+    <p class="card-title">one turn, three injection families</p>
+    <div class="ctx"><span class="glyph">≡</span> System prompt <span class="sub">turn chrome · stands — unchanged</span></div>
+    <div class="rail">
+      <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Steps 1–2</b> 1 context · 1 thought · 1 tool call <span class="chev">▾</span></button>
+      <div class="members">
+        <div class="ctx"><span class="glyph">↻</span> reminder: step pace tuned to 0 <span class="sub">injected at step 1</span></div>
+        <div class="thought">which projection feeds the chat target</div>
+        <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg orderedVisibleChatNodes</span></div>
+      </div>
+      <button class="fold" aria-expanded="false" onclick="toggle(this)"><b>Step 3</b> 2 context · 1 tool call <span class="chev">▾</span></button>
+      <div class="members">
+        <div class="ctx"><span class="glyph">∴</span> reasoning-prefetch snapshot <span class="sub">injected at step 3</span></div>
+        <div class="ctx"><span class="glyph">⇣</span> async tool result: bench suite finished <span class="sub">injected at step 3</span></div>
+        <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">bench conversation-fold</span></div>
+      </div>
+    </div>
+    <div class="msg"><p>Reading the workspace now.</p></div>
+    <p class="card-title">counts gain a leading context figure per span; expansions show the injection rows where they were injected. An injection that precedes the turn's first step (rare) just stands at the turn head, as today.</p>
+  </div>
+
+  <h2>5 · A live turn</h2>
+  <p class="legend">Finished runs collapse; the running span reads Working with its step already tagged.</p>
+  <div class="turn">
+    <button class="fold" aria-expanded="true" onclick="toggle(this)"><b>Step 1</b> 1 thought · 2 tool calls <span class="chev">▾</span></button>
+    <div class="members">
+      <div class="thought">draft the standalone mockup before the product pass</div>
+      <div class="tool"><span class="glyph">≡</span> read <span class="sub">locale.ts</span></div>
+      <div class="tool"><span class="glyph">✎</span> edit <span class="sub">StepSpanDisclosure.tsx</span></div>
+    </div>
+    <div class="msg"><p>Interim read: one collapse per finished run.</p></div>
+    <button class="fold working" aria-expanded="false" onclick="toggle(this)"><b>Step 2</b> Working<span class="dot"></span><span class="dot"></span><span class="dot"></span> <span class="chev">▾</span></button>
+    <div class="members">
+      <div class="thought">narration plus a tool call in the same step</div>
+      <div class="tool"><span class="glyph">✎</span> edit <span class="sub">writing…</span></div>
+    </div>
+  </div>
+
+<script>
+  function toggle (button) {
+    button.setAttribute('aria-expanded', button.getAttribute('aria-expanded') !== 'true')
+  }
+</script>
+</main>
+</body>
+</html>
