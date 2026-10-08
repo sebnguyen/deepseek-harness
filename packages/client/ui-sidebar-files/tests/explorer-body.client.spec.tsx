@@ -107,16 +107,31 @@ describe('ExplorerBody', () => {
     expect(open).toHaveBeenCalledWith(fileAddressFor(SESSION, ROOT, `${ROOT}/README.md`))
   })
 
-  it('a reveal expands the file ancestors, lists what is missing, and highlights the row', async () => {
+  it('a reveal expands the file ancestors, re-lists every listed one, and highlights the row', async () => {
     const { view, script, channel, instance } = mountExplorer()
     await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    script.list.mockClear()
     act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/src/a.ts` }) })
-    // The ancestor without a level is listed; the root is not asked again.
-    expect(script.list).toHaveBeenLastCalledWith(SESSION, `${ROOT}/src`, expect.any(AbortSignal))
+    // The listed root is re-asked and the never-listed ancestor is listed.
+    expect(script.list.mock.calls.map(call => call[1])).toEqual([ROOT, `${ROOT}/src`])
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
     await act(() => script.settle({ ok: true, value: { entries: [{ name: 'a.ts', type: 'file' }], truncated: false } }))
     expect(view.container.querySelector(`[data-files-path="${ROOT}/src/a.ts"] > button`)
       ?.getAttribute('data-files-highlighted')).not.toBeNull()
     expect(instance.getSnapshot().byTree[SESSION]?.expanded).toEqual([ROOT, `${ROOT}/src`])
+  })
+
+  it('a reveal re-lists a stale root so a file created after mount appears and highlights', async () => {
+    const { view, script, channel } = mountExplorer()
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    script.list.mockClear()
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/new.md` }) })
+    expect(script.list.mock.calls.map(call => call[1])).toEqual([ROOT])
+    // The stale rows stay visible while the re-ask is in flight.
+    expect(view.container.querySelector(`[data-files-path="${ROOT}/README.md"]`)).not.toBeNull()
+    await act(() => script.settle({ ok: true, value: { entries: [{ name: 'new.md', type: 'file', size: 3 }], truncated: false } }))
+    expect(view.container.querySelector(`[data-files-path="${ROOT}/new.md"] > button`)
+      ?.getAttribute('data-files-highlighted')).not.toBeNull()
   })
 
   it('a reveal of a path outside the workspace leaves the tree untouched', async () => {
@@ -126,6 +141,7 @@ describe('ExplorerBody', () => {
     act(() => { channel.request({ sessionId: SESSION, path: '/elsewhere/a.ts' }) })
     expect(script.list).not.toHaveBeenCalled()
     expect(view.container.querySelector('[data-files-highlighted]')).toBeNull()
+    expect(script.outstanding()).toEqual([])
   })
 
   it('a reveal for another session is ignored by this tree', async () => {

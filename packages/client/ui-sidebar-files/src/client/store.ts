@@ -110,13 +110,17 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
         d.byTree[key] = { root, levels: {}, expanded: [root], highlighted: null }
       },
       /**
-       * Mark one directory as being listed.
+       * Mark one directory as being listed. A level that already shows rows
+       * keeps them while a re-ask is in flight, so the reveal's refresh of a
+       * listed ancestor swaps in the new listing on settlement instead of
+       * flashing loading rows.
        * @param d - draft state.
        * @param key - the tree being drawn.
        * @param path - absolute directory path.
        */
-      loading: (d, key: TreeKey, path: string) => {
-        bucket(d, key).levels[path] = { kind: 'loading' }
+      loading: (d, key, path) => {
+        const state = bucket(d, key)
+        if (state.levels[path]?.kind !== 'ready') state.levels[path] = { kind: 'loading' }
       },
       /**
        * Record one directory's contents.

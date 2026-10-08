@@ -32,7 +32,7 @@ const REVEAL_HIGHLIGHT_MS = 2500
 /**
  * The explorer column's body: the workspace root's name and reload above the
  * shared tree, a file click opens into the panes beside it, and a reveal
- * request expands the file's ancestors and highlights its row.
+ * request expands and re-lists the file's ancestors and highlights its row.
  */
 export function ExplorerBody({
   sessionId, useSessions, useStore, actions, start, load, toggle, open, subscribeReveals, t,
@@ -62,8 +62,12 @@ export function ExplorerBody({
     const ancestors = ancestorsWithin(current.root, path)
     if (ancestors.length === 0) return
     actions.expandedPaths(sessionId, ancestors)
+    // A call may have created files after the column listed a level — the
+    // mount-time root listing is the common case — so a reveal re-asks every
+    // ancestor that is not still in flight, and the fresh listing makes the
+    // highlighted row exist.
     for (const dir of ancestors) {
-      if (stateRef.current?.levels[dir] === undefined) load(sessionId, dir, signal)
+      if (stateRef.current?.levels[dir]?.kind !== 'loading') load(sessionId, dir, signal)
     }
     actions.highlightedSet(sessionId, path)
     if (highlightTimer.current !== undefined) clearTimeout(highlightTimer.current)
