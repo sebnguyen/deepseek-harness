@@ -146,8 +146,12 @@ describe('Chat inject API', () => {
     const revealIn = vi.fn<(sessionId: SessionId, path: string) => void>()
     const withReveal = await bench(revealIn)
     expect(withReveal.chatViewApi(ROOT).injected.revealFile).toBeTypeOf('function')
+    // Authored workspace-relative paths reveal against the session root; absolute
+    // spellings pass through untouched.
     withReveal.chatViewApi(ROOT).injected.revealFile?.('src/a.ts')
-    expect(revealIn).toHaveBeenCalledWith(ROOT, 'src/a.ts')
+    expect(revealIn).toHaveBeenLastCalledWith(ROOT, '/proj/src/a.ts')
+    withReveal.chatViewApi(ROOT).injected.revealFile?.('/proj/src/a.ts')
+    expect(revealIn).toHaveBeenLastCalledWith(ROOT, '/proj/src/a.ts')
     await withReveal.runtime.dispose()
 
     const bare = await bench()

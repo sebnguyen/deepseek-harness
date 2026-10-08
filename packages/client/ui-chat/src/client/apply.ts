@@ -10,7 +10,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
-import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
+import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -104,7 +104,11 @@ export function apply(ctx: Context): void {
         const chat = chatSource(binding)
         // Tool rows reveal their file in the explorer only while ui-sidebar-files
         // mounts its column; without it the chip stays the trajectory inspect.
+        // The rows hand over the path the call authored — batched writes carry it
+        // workspace-relative — and the explorer's tree is absolute, so the reveal
+        // resolves the authored path against the viewed session's root first.
         const revealIn = ctx.get('sidebarFilesExtensions')?.revealIn
+        const revealCwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
         return {
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),
@@ -131,7 +135,7 @@ export function apply(ctx: Context): void {
             await Promise.resolve()
           },
           ...(revealIn === undefined ? {} : {
-            revealFile: (path: string) => { revealIn(sessionId, path) },
+            revealFile: (path: string) => { revealIn(sessionId, resolveWorkspacePath(revealCwd, path)) },
           }),
           openSkill: (name) => {
             const scope = ctx.sessions.scope(sessionId)
