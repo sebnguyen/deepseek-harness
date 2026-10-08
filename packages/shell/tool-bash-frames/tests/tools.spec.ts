@@ -231,48 +231,62 @@ function sandboxAgent(
 }
 
 describe('bash tool', () => {
-  it('returns stdout for a successful command', async () => {
+  it('returns stdout for a successful element', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'echo hello', description: 'test command' })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo hello' }] })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('expected bash success')
     expect(result.value).toMatchObject({
-      kind: 'foreground',
-      exitCode: 0,
-      signal: null,
-      timedOut: false,
-      aborted: false,
-      stdout: { text: 'hello\n', truncated: false },
-      stderr: { text: '', truncated: false },
+      kind: 'frames',
+      frames: [{
+        index: 0,
+        command: 'echo hello',
+        outcome: {
+          kind: 'foreground',
+          exitCode: 0,
+          signal: null,
+          timedOut: false,
+          aborted: false,
+          stdout: { text: 'hello\n', truncated: false },
+          stderr: { text: '', truncated: false },
+        },
+      }],
     })
-    expect(text(result)).toBe('hello\n')
+    expect(text(result)).toBe('[1/1] $ echo hello\nhello\n')
   })
 
   it('reports (no output) for silent commands', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'true', description: 'test command' })
-    expect(text(result)).toBe('(no output)')
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'true' }] })
+    expect(text(result)).toBe('[1/1] $ true\n(no output)')
   })
 
   it('marks stderr sections', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'echo out; echo err >&2', description: 'test command' })
-    expect(text(result)).toBe('out\n[stderr]\nerr\n')
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo out; echo err >&2' }] })
+    expect(text(result)).toBe('[1/1] $ echo out; echo err >&2\nout\n[stderr]\nerr\n')
     expect(result.isError).toBe(false)
   })
 
   it('reports non-zero exits without isError', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'echo failing; exit 3', description: 'test command' })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo failing; exit 3' }] })
     expect(result.isError).toBe(false)
-    expect(text(result)).toBe('failing\n[exit code: 3]')
+    expect(text(result)).toBe('[1/1] $ echo failing; exit 3\nfailing\n[exit code: 3]')
   })
 
   it('reports timeout kills with both markers (timeout first)', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', timeoutMs: 100 })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'sleep 60', timeoutMs: 100 }] })
     expect(result.isError).toBe(false)
-    expect(text(result)).toBe('(no output)\n[timed out after 100ms]\n[killed by signal: SIGTERM]')
+    expect(text(result)).toBe('[1/1] $ sleep 60\n(no output)\n[timed out after 100ms]\n[killed by signal: SIGTERM]')
+  })
+
+  it('applies the call-level timeout to elements without their own', async () => {
+    const ctx = await setup()
+    const result = await call(ctx, 'bash', { description: 'test command', timeoutMs: 100, commands: [{ command: 'sleep 60' }] })
+    expect(result.isError).toBe(false)
+    expect(text(result)).toContain('[timed out after 100ms]')
   })
 
   it('reports a timeout even when the command traps the signal and exits 0', async () => {
@@ -281,7 +295,7 @@ describe('bash tool', () => {
     // print "Terminated" to stderr for the killed sleep — environment
     // dependent — so assert the marker, not the exact body.)
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'trap "exit 0" TERM; sleep 60', description: 'test command', timeoutMs: 100 })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'trap "exit 0" TERM; sleep 60', timeoutMs: 100 }] })
     expect(result.isError).toBe(false)
     expect(text(result)).toContain('[timed out after 100ms]')
     expect(text(result)).not.toContain('[exit code:')
@@ -296,20 +310,22 @@ describe('bash tool', () => {
     await ctx.plugin(LocalBashExecutor, { maxOutputBytes: 100, graceMs: 200 })
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(ToolBashFrames)
-    const result = await call(ctx, 'bash', { command: 'for i in $(seq 1 100); do printf "line-%04d\\n" $i; done', description: 'test command' })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'for i in $(seq 1 100); do printf "line-%04d\\n" $i; done' }] })
     expect(text(result)).toContain('[output truncated; full output: ')
     expect(text(result)).toContain('line-0100')
   })
 
-  it('honors workdir', async () => {
+  it('honors an element workdir and the call-level workdir fallback', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'pwd', description: 'test command', workdir: '/tmp' })
-    expect(text(result).trim()).toMatch(/\/tmp$/)
+    const element = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'pwd', workdir: '/tmp' }] })
+    expect(text(element).trim()).toMatch(/\/tmp$/)
+    const root = await call(ctx, 'bash', { description: 'test command', workdir: '/tmp', commands: [{ command: 'pwd' }] })
+    expect(text(root).trim()).toMatch(/\/tmp$/)
   })
 
   it('surfaces spawn failures as isError', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'true', description: 'test command', workdir: '/nonexistent-dsh' })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'true', workdir: '/nonexistent-dsh' }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toMatch(/ENOENT/)
   })
@@ -320,7 +336,7 @@ describe('bash tool', () => {
     const pending = ctx.tools.execute({
       callId: ToolCallId('call-abort'),
       name: 'bash',
-      arguments: { command: 'sleep 60', description: 'test command' },
+      arguments: { description: 'test command', commands: [{ command: 'sleep 60' }] },
       signal: controller.signal,
     })
     setTimeout(() => { controller.abort() }, 50)
@@ -335,14 +351,13 @@ describe('bash tool', () => {
   // Type and required-key violations are rejected by the harness
   // (defineTool validates against the ParameterSchemaSpec — the arg-validation Agent Note) before execute.
   it.each([
-    [{}, /missing required property "description"/],
-    [{ command: 42, description: 'd' }, /"command" must be a string/],
+    [{ description: 'd' }, /missing required property "commands"/],
     [{ commands: 'ls', description: 'd' }, /"commands" must be an array/],
     [{ commands: [{}], description: 'd' }, /missing required property "commands\[0\]\.command"/],
-    [{ command: 'x', description: 7 }, /"description" must be a string/],
-    [{ command: 'x', description: 'd', timeoutMs: 'soon' }, /"timeoutMs" must be a number/],
-    [{ command: 'x', description: 'd', workdir: 7 }, /"workdir" must be a string/],
-    [{ command: 'x', description: 'd', run_in_background: 'yes' }, /"run_in_background" must be a boolean/],
+    [{ commands: [{ command: 'x' }], description: 7 }, /"description" must be a string/],
+    [{ commands: [{ command: 'x' }], description: 'd', timeoutMs: 'soon' }, /"timeoutMs" must be a number/],
+    [{ commands: [{ command: 'x' }], description: 'd', workdir: 7 }, /"workdir" must be a string/],
+    [{ commands: [{ command: 'x', run_in_background: 'yes' }], description: 'd' }, /"commands\[0\]\.run_in_background" must be a boolean/],
   ])('rejects schema-invalid args %j', async (args, pattern) => {
     const ctx = await setup()
     const result = await call(ctx, 'bash', args)
@@ -352,15 +367,16 @@ describe('bash tool', () => {
 
   // Value constraints the ParameterSchemaSpec can't express stay in the tool body.
   it.each([
-    [{ command: '  ', description: 'd' }, /invalid command/],
-    [{ command: 'x', description: '   ' }, /invalid description/],
-    [{ command: 'x', description: 'd', timeoutMs: -1 }, /invalid timeoutMs/],
+    [{ commands: [{ command: '  ' }], description: 'd' }, /invalid commands element/],
+    [{ commands: [{ command: 'x' }], description: '   ' }, /invalid description/],
+    [{ commands: [{ command: 'x' }], description: 'd', timeoutMs: -1 }, /invalid timeoutMs/],
+    [{ commands: [{ command: 'x', timeoutMs: -1 }], description: 'd' }, /invalid commands element timeoutMs/],
     [{ commands: [], description: 'd' }, /invalid commands: expected a non-empty array/],
-    [{ command: 'x', commands: [{ command: 'y' }], description: 'd' }, /mutually exclusive/],
     [{ commands: Array.from({ length: 9 }, () => ({ command: 'y' })), description: 'd' }, /at most 8 elements/],
-    [{ commands: [{ command: ' ' }], description: 'd' }, /invalid commands element/],
-    [{ commands: [{ command: 'y', timeoutMs: -1 }], description: 'd' }, /invalid commands element timeoutMs/],
-    [{ commands: [{ command: 'y' }], description: 'd', sandbox_permissions: 'workspace-write', justification: 'j' }, /sandbox_permissions applies to one-command calls only/],
+    [{ commands: [{ command: 'y', description: '  ' }], description: 'd' }, /invalid commands element description/],
+    [{ commands: [{ command: 'y', sandbox_permissions: 'workspace-write' }], description: 'd' }, /sandbox_permissions requires/],
+    [{ commands: [{ command: 'y', justification: 'j' }], description: 'd' }, /justification is only valid together with sandbox_permissions/],
+    [{ commands: [{ command: 'y' }], description: 'd', sandbox_permissions: 'workspace-write', justification: 'j' }, /apply per commands element/],
   ])('rejects value-invalid args %j', async (args, pattern) => {
     const ctx = await setup()
     const result = await call(ctx, 'bash', args)
@@ -371,22 +387,24 @@ describe('bash tool', () => {
   it('rejects a non-JSON numeric argument before tool-specific validation', async () => {
     const ctx = await setup()
     const result = await call(ctx, 'bash', {
-      command: 'x', description: 'd', timeoutMs: Number.NaN,
+      commands: [{ command: 'x' }], description: 'd', timeoutMs: Number.NaN,
     })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('tool execution arguments must be losslessly JSON-serializable')
   })
 
-  it('registers the bash schema with run_in_background exposed by default', async () => {
+  it('registers the commands-only schema with element run_in_background exposed by default', async () => {
     const ctx = await setup()
     const schemas = ctx.tools.schemas()
     expect(schemas.map(schema => schema.name)).toEqual(['bash'])
     const bashSchema = schemas[0]!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
-      required: ['description', PURPOSE_KEY],
+      required: ['commands', 'description', PURPOSE_KEY],
     })
-    expect(Object.keys(bashSchema.parameters.properties as Record<string, unknown>))
+    const properties = bashSchema.parameters.properties as Record<string, { items?: { properties?: Record<string, unknown> } }>
+    expect(Object.keys(properties)).toEqual(['commands', 'description', 'timeoutMs', 'workdir', PURPOSE_KEY])
+    expect(Object.keys(properties['commands']?.items?.properties as Record<string, unknown>))
       .toContain('run_in_background')
     expect(bashSchema.description).toContain('job_output')
   })
@@ -465,19 +483,20 @@ describe('bash tool', () => {
     await ctx.plugin(LocalBashExecutor, {})
     ToolBashFrames.apply(ctx, {})
     const schema = ctx.tools.schemas()[0]!
-    expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
+    const items = (schema.parameters.properties as { commands: { items: { properties: Record<string, unknown> } } }).commands.items
+    expect(Object.keys(items.properties))
       .toContain('run_in_background')
   })
 })
 
 describe('background execution through the job runtime', () => {
-  it('run_in_background acks with the job id, readable through the REAL job_output tool', async () => {
+  it('a background element acks with the job id inside its frame, readable through the REAL job_output tool', async () => {
     const ctx = await setupWithTasks()
-    const started = await call(ctx, 'bash', { command: 'echo bg-ok', description: 'test command', run_in_background: true })
+    const started = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo bg-ok', run_in_background: true }] })
     expect(started.isError).toBe(false)
     if (started.isError) throw new Error('expected background bash success')
-    expect(started.value).toEqual({ kind: 'background', jobId: 'bash-1' })
-    expect(text(started)).toBe('started background job bash-1')
+    expect(started.value).toMatchObject({ kind: 'frames', frames: [{ outcome: { kind: 'job', jobId: 'bash-1' } }] })
+    expect(text(started)).toBe('[1/1] $ echo bg-ok\nstarted background job bash-1')
 
     const read = await callUntilText(ctx, 'job_output', { job_id: 'bash-1' }, 'bg-ok')
     expect(text(read)).toContain('bg-ok')
@@ -488,7 +507,7 @@ describe('background execution through the job runtime', () => {
 
   it('a running background job is killable through the REAL job_kill tool', async () => {
     const ctx = await setupWithTasks()
-    await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
+    await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'sleep 60', run_in_background: true }] })
 
     const killed = await call(ctx, 'job_kill', { job_id: 'bash-1' })
     expect(text(killed)).toBe('requested cancellation of job bash-1')
@@ -500,7 +519,7 @@ describe('background execution through the job runtime', () => {
 
   it('a self-signal background exit is reported as killed through the REAL job_output tool', async () => {
     const ctx = await setupWithTasks()
-    await call(ctx, 'bash', { command: 'kill -TERM $$', description: 'test command', run_in_background: true })
+    await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'kill -TERM $$', run_in_background: true }] })
 
     const final = await call(ctx, 'job_output', { job_id: 'bash-1' })
     expect(text(final)).toContain('[status: killed, signal: SIGTERM]')
@@ -510,8 +529,8 @@ describe('background execution through the job runtime', () => {
     // The producer must forward exec.agent as the job owner.
     const ctx = await setupWithTasks()
     const agent = registerFakeAgent(ctx, 'sess-owner')
-    const started = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true }, agent)
-    expect(text(started)).toBe('started background job bash-1')
+    const started = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'sleep 60', run_in_background: true }] }, agent)
+    expect(text(started)).toContain('started background job bash-1')
 
     const anon = await call(ctx, 'job_output', { job_id: 'bash-1' })
     expect(anon.isError).toBe(true)
@@ -524,7 +543,7 @@ describe('background execution through the job runtime', () => {
 
   it('fails loud when the job runtime is not loaded', async () => {
     const ctx = await setup() // no LocalJobRegistry / ToolTasks
-    const result = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'sleep 60', run_in_background: true }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('background jobs unavailable: load @deepseek-ai/dsh-jobs and @deepseek-ai/dsh-tool-jobs')
   })
@@ -545,7 +564,7 @@ describe('background execution through the job runtime', () => {
     const result = await ctx.tools.execute({
       callId: ToolCallId('call-pre-aborted'),
       name: 'bash',
-      arguments: { command: 'sleep 60', description: 'test command', run_in_background: true },
+      arguments: { description: 'test command', commands: [{ command: 'sleep 60', run_in_background: true }] },
       signal: controller.signal,
     })
     expect(result.isError).toBe(true)
@@ -568,14 +587,14 @@ describe('background execution through the job runtime', () => {
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(ToolBashFrames)
 
-    const result = await call(ctx, 'bash', { command: 'sleep 60', description: 'test command', run_in_background: true })
+    const result = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'sleep 60', run_in_background: true }] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('no job controller serves this agent')
     // Declare-then-execute: the failed preflight means no process ever ran.
     expect((ctx.shell as CountingStartExecutor).starts).toBe(0)
   })
 
-  it('enableRunInBackground: false removes the parameter and flips the description', async () => {
+  it('enableRunInBackground: false removes the element parameter and flips the description', async () => {
     const ctx = new Context()
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
@@ -586,28 +605,32 @@ describe('background execution through the job runtime', () => {
 
     const schema = ctx.tools.schemas().find(s => s.name === 'bash')!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
-      .toEqual(['command', 'commands', 'description', 'timeoutMs', 'workdir', PURPOSE_KEY])
+      .toEqual(['commands', 'description', 'timeoutMs', 'workdir', PURPOSE_KEY])
+    const items = (schema.parameters.properties as { commands: { items: { properties: Record<string, unknown> } } }).commands.items
+    expect(items.properties).not.toHaveProperty('run_in_background')
     expect(schema.description).toContain('Background execution is not available')
-    expect(schema.description).not.toContain('run_in_background')
+    expect(schema.description).not.toContain('run_in_background: true')
     // The registry-held definition agrees (schema and capability never disagree).
-    const parameters = ctx.tools.get('bash')!.parameters as { properties: Record<string, unknown> }
-    expect('run_in_background' in parameters.properties).toBe(false)
+    const parameters = ctx.tools.get('bash')!.parameters as { properties: { commands: { items: { properties: Record<string, unknown> } } } }
+    expect('run_in_background' in parameters.properties.commands.items.properties).toBe(false)
 
     // Schema omission is advertising; execution must also enforce the opt-out.
-    const forced = await call(ctx, 'bash', { command: 'echo hi', description: 'test command', run_in_background: true })
+    const forced = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo hi', run_in_background: true }] })
     expect(forced.isError).toBe(true)
     expect(text(forced)).toContain('run_in_background is disabled for this deployment')
-    const foreground = await call(ctx, 'bash', { command: 'echo hi', description: 'test command' })
+    const foreground = await call(ctx, 'bash', { description: 'test command', commands: [{ command: 'echo hi' }] })
     expect(foreground.isError).toBe(false)
   })
 })
 
 describe('sandbox escalation through the generic task producer', () => {
   const escalate = {
-    command: 'true',
     description: 'test escalation',
-    sandbox_permissions: 'workspace-write',
-    justification: 'the command needs workspace writes',
+    commands: [{
+      command: 'true',
+      sandbox_permissions: 'workspace-write',
+      justification: 'the command needs workspace writes',
+    }],
   }
 
   it('fails load when a confining executor has no shared sandbox-policy resolver', async () => {
@@ -619,17 +642,20 @@ describe('sandbox escalation through the generic task producer', () => {
     await expect(ctx.plugin(ToolBashFrames)).rejects.toThrow('tool-bash-frames: the mounted bash executor confines but ctx.sandboxPolicy is missing')
   })
 
-  it('advertises the sandbox fields and validates their pairing', async () => {
+  it('advertises the sandbox fields on elements and validates their pairing', async () => {
     const { ctx } = await setupSandboxed()
     const schema = ctx.tools.schemas().find(item => item.name === 'bash')!
-    const properties = schema.parameters.properties as Record<string, { enum?: string[] }>
-    expect(properties['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
+    const properties = schema.parameters.properties as {
+      commands: { items: { properties: Record<string, { enum?: string[] }> } }
+    }
+    const items = properties.commands.items
+    expect(items.properties['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
     expect(schema.description).toContain('approval prompt')
 
     for (const args of [
-      { command: 'true', description: 'd', sandbox_permissions: 'workspace-write' },
-      { command: 'true', description: 'd', justification: 'why' },
-      { command: 'true', description: 'd', sandbox_permissions: 'workspace-write', justification: ' ' },
+      { description: 'd', commands: [{ command: 'true', sandbox_permissions: 'workspace-write' }] },
+      { description: 'd', commands: [{ command: 'true', justification: 'why' }] },
+      { description: 'd', commands: [{ command: 'true', sandbox_permissions: 'workspace-write', justification: ' ' }] },
     ]) {
       expect((await call(ctx, 'bash', args)).isError).toBe(true)
     }
@@ -642,7 +668,7 @@ describe('sandbox escalation through the generic task producer', () => {
     const { ctx } = await setupSandboxed(true)
     const prompted = vi.fn()
     ctx.on('approval/request', () => { prompted(); return Promise.resolve<ApprovalOutcome>('allowed-once') })
-    const result = await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'workspace-write' }, sandboxAgent('workspace-write'))
+    const result = await call(ctx, 'bash', { ...escalate, commands: [{ ...escalate.commands[0]!, sandbox_permissions: 'workspace-write' }] }, sandboxAgent('workspace-write'))
     expect(text(result)).toContain('not strictly wider')
     expect(prompted).not.toHaveBeenCalled()
 
@@ -675,22 +701,56 @@ describe('sandbox escalation through the generic task producer', () => {
     expect(bash.modes).toEqual([])
   })
 
-  it('runs a granted foreground or background call under the approved mode', async () => {
+  it('runs only the escalated element under the approved mode', async () => {
     const { ctx, bash } = await setupSandboxed(true)
     ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
     const agent = sandboxAgent(undefined, ctx)
     ctx.agents.register(agent)
-    const foreground = await ctx.tools.execute({
+    const result = await ctx.tools.execute({
       callId: ToolCallId('sandbox-signal'),
       name: 'bash',
-      arguments: escalate,
+      arguments: {
+        description: 'one plain element and one escalated element',
+        commands: [{ command: 'true' }, escalate.commands[0]!],
+      },
       agent,
       signal: new AbortController().signal,
     })
-    expect(foreground.isError).toBe(false)
-    const background = await call(ctx, 'bash', { ...escalate, run_in_background: true }, agent)
-    expect(text(background)).toBe('started background job bash-1')
-    expect(bash.modes).toEqual(['workspace-write', 'workspace-write'])
+    expect(result.isError).toBe(false)
+    expect(bash.modes).toEqual(['read-only', 'workspace-write'])
+  })
+
+  it('a granted background element runs under the approved mode', async () => {
+    const { ctx, bash } = await setupSandboxed(true)
+    ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    const agent = sandboxAgent(undefined, ctx)
+    ctx.agents.register(agent)
+    const background = await call(ctx, 'bash', {
+      description: 'escalated background element',
+      commands: [{ ...escalate.commands[0]!, run_in_background: true }],
+    }, agent)
+    expect(text(background)).toContain('started background job bash-1')
+    expect(bash.modes).toEqual(['workspace-write'])
+  })
+
+  it('a cancellation during the approval settles a foreground element as not-run', async () => {
+    const { ctx, bash } = await setupSandboxed(true)
+    const controller = new AbortController()
+    const agent = sandboxAgent(undefined, ctx, (type) => {
+      if (type === 'approval/decided') controller.abort()
+    })
+    ctx.agents.register(agent)
+    ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
+    const tool = ctx.tools.get('bash')!
+    const value = await (tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
+      escalate,
+      { signal: controller.signal, callId: ToolCallId('cancelled-escalation-foreground'), agent },
+    )
+    expect(value).toMatchObject({
+      kind: 'frames',
+      frames: [{ outcome: { kind: 'not-run', reason: 'call aborted' } }],
+    })
+    expect(bash.modes).toEqual([])
   })
 
   it('does not publish detached work when cancellation follows the escalation grant', async () => {
@@ -706,7 +766,7 @@ describe('sandbox escalation through the generic task producer', () => {
     const result = await ctx.tools.execute({
       callId: ToolCallId('cancelled-escalation-background'),
       name: 'bash',
-      arguments: { ...escalate, run_in_background: true },
+      arguments: { description: 'd', commands: [{ ...escalate.commands[0]!, run_in_background: true }] },
       agent,
       signal: controller.signal,
     })
@@ -722,26 +782,27 @@ describe('sandbox escalation through the generic task producer', () => {
   it('uses the session override for ordinary calls and evaluates widening against it', async () => {
     const { ctx, bash } = await setupSandboxed(true)
     const agent = sandboxAgent('workspace-write')
-    await call(ctx, 'bash', { command: 'true', description: 'ordinary' }, agent)
+    await call(ctx, 'bash', { description: 'ordinary', commands: [{ command: 'true' }] }, agent)
     ctx.on('approval/request', () => Promise.resolve<ApprovalOutcome>('allowed-once'))
-    await call(ctx, 'bash', { ...escalate, sandbox_permissions: 'danger-full-access' }, agent)
+    await call(ctx, 'bash', {
+      description: 'widen past the session override',
+      commands: [{ command: 'true', sandbox_permissions: 'danger-full-access', justification: 'the command needs full access' }],
+    }, agent)
     expect(bash.modes).toEqual(['workspace-write', 'danger-full-access'])
   })
 
   it('omits sandbox facts the executor did not acquire from the canonical result', async () => {
     const { ctx } = await setupSandboxed()
     const result = await call(ctx, 'bash', {
-      command: 'without optional sandbox facts',
       description: 'exercise optional sandbox facts',
+      commands: [{ command: 'without optional sandbox facts' }],
     })
 
     if (result.isError) throw new Error('expected foreground bash success')
-    expect(result.value).toMatchObject({
-      kind: 'foreground',
-      sandbox: { mode: 'read-only', denied: false },
-    })
-    expect((result.value as { sandbox: object }).sandbox).not.toHaveProperty('enforcement')
-    expect((result.value as { sandbox: object }).sandbox).not.toHaveProperty('runnerFailed')
+    const outcome = (result.value as { frames: { outcome: { sandbox?: Record<string, unknown> } }[] }).frames[0]!.outcome
+    expect(outcome).toMatchObject({ sandbox: { mode: 'read-only', denied: false } })
+    expect(outcome.sandbox).not.toHaveProperty('enforcement')
+    expect(outcome.sandbox).not.toHaveProperty('runnerFailed')
   })
 
   it('keeps the exhaustiveness backstop for a rogue approval implementation', async () => {
@@ -840,27 +901,27 @@ describe('session-cwd routing (per-session workdir)', () => {
 
   it('defaults bash to the agent\'s session cwd (not the server launch dir)', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd('/tmp'))
+    const result = await call(ctx, 'bash', { description: 'pwd', commands: [{ command: 'pwd' }] }, agentInCwd('/tmp'))
     expect(text(result).trim()).toMatch(/\/tmp$/)
   })
 
   it('an explicit absolute workdir overrides the session cwd', async () => {
     const ctx = await setup()
-    const result = await call(ctx, 'bash', { command: 'pwd', description: 'pwd', workdir: '/tmp' }, agentInCwd('/'))
+    const result = await call(ctx, 'bash', { description: 'pwd', commands: [{ command: 'pwd', workdir: '/tmp' }] }, agentInCwd('/'))
     expect(text(result).trim()).toMatch(/\/tmp$/)
   })
 
   it('a relative workdir is resolved against the session cwd', async () => {
     const ctx = await setup()
     // session cwd /usr + relative 'bin' → /usr/bin
-    const result = await call(ctx, 'bash', { command: 'pwd', description: 'pwd', workdir: 'bin' }, agentInCwd('/usr'))
+    const result = await call(ctx, 'bash', { description: 'pwd', commands: [{ command: 'pwd', workdir: 'bin' }] }, agentInCwd('/usr'))
     expect(text(result).trim()).toMatch(/\/usr\/bin$/)
   })
 
   it('two sessions with different cwds each run bash in their own dir', async () => {
     const ctx = await setup()
-    const inUsr = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd('/usr'))
-    const inTmp = await call(ctx, 'bash', { command: 'pwd', description: 'pwd' }, agentInCwd('/tmp'))
+    const inUsr = await call(ctx, 'bash', { description: 'pwd', commands: [{ command: 'pwd' }] }, agentInCwd('/usr'))
+    const inTmp = await call(ctx, 'bash', { description: 'pwd', commands: [{ command: 'pwd' }] }, agentInCwd('/tmp'))
     expect(text(inUsr).trim()).toMatch(/\/usr$/)
     expect(text(inTmp).trim()).toMatch(/\/tmp$/)
   })
@@ -868,7 +929,7 @@ describe('session-cwd routing (per-session workdir)', () => {
   it('falls back to the executor default when the agent has no session cwd', async () => {
     const ctx = await setup()
     // No exec.agent at all → executor uses its config/process.cwd() default.
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('cwd-noagent'), name: 'bash', arguments: { command: 'pwd', description: 'pwd' } })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('cwd-noagent'), name: 'bash', arguments: { description: 'pwd', commands: [{ command: 'pwd' }] } })
     expect(result.isError).toBe(false)
     expect(text(result).trim().length).toBeGreaterThan(0)
   })
@@ -942,108 +1003,38 @@ describe('renderResult', () => {
 })
 
 describe('tool-owned UI presentation (presentCall / presentResult)', () => {
-  it('bash presentCall: a foreground run is a terminal card (command title, description, workdir → cwd absolute or relative)', async () => {
+  it('bash presentCall: a pending batch is a generic execute card listing every command', async () => {
     const ctx = await setup()
-    // No explicit workdir → a terminal card with no cwd (the UI bridge fills the
-    // session cwd it owns; the pure presenter can't see it).
-    expect(ctx.tools.get('bash')?.presentCall?.({ command: 'ls -la src', description: 'List files in src' }))
-      .toEqual({ card: 'terminal', title: 'ls -la src', description: 'List files in src' })
-    // An ABSOLUTE workdir is surfaced verbatim as the terminal cwd header.
-    expect(ctx.tools.get('bash')?.presentCall?.({ command: 'pwd', description: 'Print dir', workdir: '/tmp/x' }))
-      .toEqual({ card: 'terminal', title: 'pwd', description: 'Print dir', cwd: '/tmp/x' })
-    // A RELATIVE workdir is passed through AS-IS (the bridge resolves it against
-    // the session cwd, matching where execution runs) — not dropped.
-    expect(ctx.tools.get('bash')?.presentCall?.({ command: 'pwd', description: 'Print dir', workdir: 'sub' }))
-      .toEqual({ card: 'terminal', title: 'pwd', description: 'Print dir', cwd: 'sub' })
+    expect(ctx.tools.get('bash')?.presentCall?.({
+      description: 'Two checks',
+      commands: [{ command: 'ls -la src' }, { command: 'pwd' }],
+    }))
+      .toEqual({
+        card: 'generic',
+        title: '2 commands: ls -la src',
+        kind: 'execute',
+        rawInput: JSON.stringify([{ command: 'ls -la src' }, { command: 'pwd' }]),
+        content: [{ type: 'text', text: '$ ls -la src\n$ pwd' }],
+      })
   })
 
-  it('bash presentResult: a terminal result carries RAW output (newlines intact) + parsed exit code', async () => {
+  it('bash presentResult: settled output is fenced console text without an exit pill', async () => {
     const ctx = await setup()
     const present = ctx.tools.get('bash')!.presentResult!(
-      { command: 'printf "hi\\n\\n"', description: 'echo' },
-      // A clean run renders no exit marker at all, so the body is the raw bytes.
+      { description: 'd', commands: [{ command: 'x' }] },
+      { content: [{ type: 'text', text: '[1/1] $ x\noops\n[exit code: 3]' }], isError: false },
+    )
+    expect(present).toEqual({ card: 'generic', content: [{ type: 'text', text: '```console\n[1/1] $ x\noops\n[exit code: 3]\n```' }] })
+  })
+
+  it('bash presentResult: trailing blank lines are trimmed inside the fence', async () => {
+    const ctx = await setup()
+    const present = ctx.tools.get('bash')!.presentResult!(
+      { description: 'd', commands: [{ command: 'printf "hi\\n\\n"' }] },
+      // A clean run renders no exit marker, so the body is the raw bytes.
       { content: [{ type: 'text', text: 'hi\n\n' }], isError: false },
     )
-    // A terminal result keeps the RAW bytes (newlines intact) a terminal renderer
-    // needs; the bridge derives the fenced fallback.
-    expect(present).toEqual({ card: 'terminal', output: 'hi\n\n', exitCode: 0 })
-  })
-
-  it('bash presentResult: a non-zero exit and a signal kill parse into exitCode / signal', async () => {
-    const ctx = await setup()
-    const args = { command: 'x', description: 'x' }
-    const nonzero = ctx.tools.get('bash')!.presentResult!(args, { content: [{ type: 'text', text: 'oops\n[exit code: 3]' }], isError: false })
-    expect(nonzero).toEqual({ card: 'terminal', output: 'oops', exitCode: 3 })
-    const killed = ctx.tools.get('bash')!.presentResult!(args, { content: [{ type: 'text', text: 'gone\n[killed by signal: SIGKILL]' }], isError: false })
-    expect(killed).toEqual({ card: 'terminal', output: 'gone', signal: 'SIGKILL' })
-  })
-
-  it('bash presentResult: markers a pill CANNOT show (timeout, sandbox denial) stay in the terminal output', async () => {
-    const ctx = await setup()
-    const args = { command: 'x', description: 'x' }
-    const timedOut = ctx.tools.get('bash')!.presentResult!(
-      args,
-      { content: [{ type: 'text', text: 'slow\n[timed out after 100ms]\n[exit code: 143]' }], isError: false },
-    )
-    expect(timedOut).toEqual({ card: 'terminal', output: 'slow\n[timed out after 100ms]', exitCode: 143 })
-  })
-
-  it('bash presentResult exit parse is the inverse of renderResult markers (round-trip)', async () => {
-    const ctx = await setup()
-    const present = ctx.tools.get('bash')!
-    // For each renderResult outcome, the rendered text fed back through
-    // presentResult recovers the matching structured exit — the parse and the
-    // marker emission co-evolve in one file, so this pins the pair.
-    const base = {
-      aborted: false,
-      timeoutMs: 1000,
-      stdout: { text: 'out', truncated: false },
-      stderr: { text: '', truncated: false },
-    }
-    const cases = [
-      { result: { ...base, exitCode: 0, signal: null, timedOut: false }, expect: { exitCode: 0 } },
-      { result: { ...base, exitCode: 7, signal: null, timedOut: false }, expect: { exitCode: 7 } },
-      { result: { ...base, exitCode: null, signal: 'SIGTERM' as const, timedOut: false }, expect: { signal: 'SIGTERM' } },
-      // A trapped-timeout run that exits 0 has no signal/exit marker → reads as exit 0 (it did exit 0).
-      { result: { ...base, exitCode: 0, signal: null, timedOut: true }, expect: { exitCode: 0 } },
-    ]
-    for (const c of cases) {
-      const rendered = renderResult(c.result)
-      const out = present.presentResult!({ command: 'x', description: 'x' }, { content: [{ type: 'text', text: rendered }], isError: false })
-      // Drop card + output; the remaining fields are the parsed exit.
-      const { card: _c, output, ...exit } = out as { card: string; output?: string; exitCode?: number; signal?: string }
-      expect(exit).toEqual(c.expect)
-      // Whatever the parse consumed is gone from the body, so a card with an exit
-      // pill never shows the same status twice.
-      expect(output).not.toMatch(/\[exit code: \d+\]|\[killed by signal: /)
-    }
-  })
-
-  it('bash presentResult: a clean exit-0 whose output ENDS in marker-like text is NOT read as a failure', async () => {
-    const ctx = await setup()
-    const args = { command: 'printf "[exit code: 5]"', description: 'print' }
-    // A successful command may print marker-like text. A clean result appends no marker or
-    // newline; parsing requires the leading newline emitted for real markers, so this stays exit 0.
-    const out = ctx.tools.get('bash')!.presentResult!(args, { content: [{ type: 'text', text: '[exit code: 5]' }], isError: false })
-    expect(out).toEqual({ card: 'terminal', output: '[exit code: 5]', exitCode: 0 })
-    // Unparsed marker-like text is real output, so it is NOT stripped from the body.
-    // Same for a fake signal marker with no leading newline.
-    const sig = ctx.tools.get('bash')!.presentResult!(args, { content: [{ type: 'text', text: '[killed by signal: SIGKILL]' }], isError: false })
-    expect(sig).toEqual({ card: 'terminal', output: '[killed by signal: SIGKILL]', exitCode: 0 })
-  })
-
-  it('bash presentCall/presentResult: a run_in_background call is a generic card and its ack carries no exit pill', async () => {
-    const ctx = await setup()
-    // The background start returns a task-id ack, not a streamed run — a generic
-    // execute card with the command as rawInput and the description as content.
-    const call = ctx.tools.get('bash')!.presentCall!({ command: 'sleep 100', description: 'wait', run_in_background: true })
-    expect(call).toEqual({ card: 'generic', title: 'sleep 100', kind: 'execute', rawInput: 'sleep 100', content: [{ type: 'text', text: 'wait' }] })
-    // The ack result is a generic fenced-text card — no terminal output / exit pill.
-    const result = ctx.tools.get('bash')!.presentResult!(
-      { command: 'sleep 100', description: 'wait', run_in_background: true },
-      { content: [{ type: 'text', text: 'started background job bash-1' }], isError: false },
-    )
-    expect(result).toEqual({ card: 'generic', content: [{ type: 'text', text: '```console\nstarted background job bash-1\n```' }] })
+    expect(present).toEqual({ card: 'generic', content: [{ type: 'text', text: '```console\nhi\n```' }] })
   })
 
   it('bash presentResult: an isError result is a generic card (no real process exit to report)', async () => {
@@ -1051,7 +1042,7 @@ describe('tool-owned UI presentation (presentCall / presentResult)', () => {
     // A spawn failure / abort has no process exit — the body is an error message,
     // not renderResult output, so a generic fenced card, no terminal output/exit.
     const out = ctx.tools.get('bash')!.presentResult!(
-      { command: 'x', description: 'x' },
+      { description: 'd', commands: [{ command: 'x' }] },
       { content: [{ type: 'text', text: 'tool call aborted' }], isError: true },
     )
     expect(out).toEqual({ card: 'generic', content: [{ type: 'text', text: '```console\ntool call aborted\n```' }] })
@@ -1060,7 +1051,7 @@ describe('tool-owned UI presentation (presentCall / presentResult)', () => {
   it('bash presentResult: leaves a non-text (unexpected) result untouched → undefined (UI keeps raw content)', async () => {
     const ctx = await setup()
     const present = ctx.tools.get('bash')!.presentResult!(
-      { command: 'x', description: 'x' },
+      { description: 'd', commands: [{ command: 'x' }] },
       { content: [{ type: 'reasoning', text: 'unexpected' }], isError: false },
     )
     expect(present).toBeUndefined()
@@ -1068,7 +1059,7 @@ describe('tool-owned UI presentation (presentCall / presentResult)', () => {
 
   it('bash presentResult: a result that is not exactly one block → undefined (no single text to fence)', async () => {
     const ctx = await setup()
-    const args = { command: 'x', description: 'x' }
+    const args = { description: 'd', commands: [{ command: 'x' }] }
     // Empty content (no block) and multi-block content both fall through.
     expect(ctx.tools.get('bash')!.presentResult!(args, { content: [], isError: false })).toBeUndefined()
     expect(ctx.tools.get('bash')!.presentResult!(args, {
@@ -1077,7 +1068,7 @@ describe('tool-owned UI presentation (presentCall / presentResult)', () => {
     })).toBeUndefined()
   })
 
-  it('presentCall validates softly: malformed args (missing required description) return undefined, never throw', async () => {
+  it('presentCall validates softly: args without the required batch return undefined, never throw', async () => {
     const ctx = await setup()
     // `defineTool` soft-validates replayed logged args before presentation. Invalid shapes return
     // undefined for generic UI rendering rather than throwing; `presentCall` accepts `unknown`.
@@ -1103,6 +1094,7 @@ describe('the model-facing bash tool builds its request from named args only (no
    */
   class RecordingBashExecutor extends ShellExecutor {
     readonly requests: ShellExecRequest[] = []
+
     resolve(request: ShellExecRequest): ShellExecSpec {
       this.requests.push(request)
       return {
@@ -1163,7 +1155,7 @@ describe('the model-facing bash tool builds its request from named args only (no
       signal: testToolSignal,
       callId: ToolCallId('session-env-fg'),
       name: 'bash',
-      arguments: { command: 'true', description: 'run command' },
+      arguments: { description: 'run command', commands: [{ command: 'true' }] },
       agent,
     })
 
@@ -1175,7 +1167,7 @@ describe('the model-facing bash tool builds its request from named args only (no
     expect(process.env.DSH_SESSION_ID).toBe(ambient)
   })
 
-  it('injects the same trusted variables into a background request without forwarding model env', async () => {
+  it('injects the same trusted variables into a background element request without forwarding model env', async () => {
     const { ctx, bash } = await setupRecording()
     const agent = registerFakeAgent(ctx, 'request-bg', () => undefined)
 
@@ -1184,10 +1176,12 @@ describe('the model-facing bash tool builds its request from named args only (no
       callId: ToolCallId('session-env-bg'),
       name: 'bash',
       arguments: {
-        command: 'sleep 1',
         description: 'run command',
-        run_in_background: true,
-        env: { DSH_SESSION_ID: 'spoofed' },
+        commands: [{
+          command: 'sleep 1',
+          run_in_background: true,
+          env: { DSH_SESSION_ID: 'spoofed' },
+        }],
       },
       agent,
     })
@@ -1210,7 +1204,7 @@ describe('the model-facing bash tool builds its request from named args only (no
         signal: testToolSignal,
         callId: ToolCallId(`session-env-${callId}`),
         name: 'bash',
-        arguments: { command: 'true', description: 'run command' },
+        arguments: { description: 'run command', commands: [{ command: 'true' }] },
         agent,
       })
     }
@@ -1239,8 +1233,8 @@ describe('the model-facing bash tool builds its request from named args only (no
       callId: ToolCallId('no-forward-1'),
       name: 'bash',
       arguments: {
-        command: 'echo hi',
         description: 'echo',
+        commands: [{ command: 'echo hi' }],
         env: { SNEAKY_API_KEY: 'leak' },
         stdin: 'malicious payload',
         stdoutMaxBytes: 999_999,
@@ -1254,25 +1248,27 @@ describe('the model-facing bash tool builds its request from named args only (no
     expect('stdoutMaxBytes' in request).toBe(false)
   })
 
-  it('a background bash call likewise carries no trusted-only fields', async () => {
+  it('a background element likewise carries no trusted-only fields', async () => {
     const { ctx, bash } = await setupRecording()
     const result = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('no-forward-2'),
       name: 'bash',
       arguments: {
-        command: 'sleep 1',
         description: 'sleep',
-        run_in_background: true,
-        env: { TOKEN: 'leak' },
-        stdin: 'x',
+        commands: [{
+          command: 'sleep 1',
+          run_in_background: true,
+          env: { TOKEN: 'leak' },
+          stdin: 'x',
+        }],
         stdoutMaxBytes: 999_999,
       },
     })
     // The call really went down the background path (the recorder sees the real
     // request the consumer built, so the absent env/stdin below is a real
     // negative, not a recorder that drops everything).
-    expect(text(result)).toBe('started background job bash-1')
+    expect(text(result)).toContain('started background job bash-1')
     expect(bash.requests).toHaveLength(1)
     const request = bash.requests[0]!
     expect(request.command).toBe('sleep 1')

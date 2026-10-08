@@ -100,7 +100,9 @@ describe('bash tool through the agent loop', () => {
     vi.stubEnv('DSH_STALE_PARENT', 'stale')
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'bash', {
-        command: 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "${DSH_STALE_PARENT-unset}"',
+        commands: [{
+          command: 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "${DSH_STALE_PARENT-unset}"',
+        }],
         description: 'inspect session environment',
       }),
       textResponse('Session environment inspected.'),
@@ -116,13 +118,13 @@ describe('bash tool through the agent loop', () => {
     await waitForIdle(ctx, agent)
 
     const result = findEvent(events(agent), 'tool/result')
-    expect(resultText(result)).toBe(`${dshHome}\n1\nsession-env-id\nunset\n`)
+    expect(resultText(result)).toContain(`${dshHome}\n1\nsession-env-id\nunset\n`)
     await handle.dispose()
   })
 
   it('foreground: model calls bash, sees the result, replies', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', { command: 'echo integration-ok', description: 'test command' }, 'Running it.'),
+      toolCallResponse('call-1', 'bash', { commands: [{ command: 'echo integration-ok' }], description: 'test command' }, 'Running it.'),
       textResponse('The command printed integration-ok.'),
     ])
     const ctx = await harness(adapter)
@@ -137,7 +139,7 @@ describe('bash tool through the agent loop', () => {
 
     const toolResult = findEvent(log, 'tool/result')
     expect(toolResult.data.message.content[0].isError).toBe(false)
-    expect(resultText(toolResult)).toBe('integration-ok\n')
+    expect(resultText(toolResult)).toBe('[1/1] $ echo integration-ok\nintegration-ok\n')
 
     // The second model call saw the tool result in its derived history.
     const lastRequest = adapter.requests.at(-1)
@@ -154,7 +156,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: non-zero exit is reported in the result text, not as isError', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', { command: 'exit 9', description: 'test command' }),
+      toolCallResponse('call-1', 'bash', { commands: [{ command: 'exit 9' }], description: 'test command' }),
       textResponse('It failed with code 9.'),
     ])
     const ctx = await harness(adapter)
@@ -182,9 +184,11 @@ describe('bash tool through the agent loop', () => {
     // so the script can name `bash-1` without threading a generated id.
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'bash', {
-        command: `while [ ! -f ${JSON.stringify(sentinel)} ]; do sleep 0.02; done; echo bg-ok`,
+        commands: [{
+          command: `while [ ! -f ${JSON.stringify(sentinel)} ]; do sleep 0.02; done; echo bg-ok`,
+          run_in_background: true,
+        }],
         description: 'test command',
-        run_in_background: true,
       }),
       textResponse('Started it in the background.'),
       toolCallResponse('call-2', 'job_output', { job_id: 'bash-1', timeout_ms: 100 }),
@@ -198,7 +202,7 @@ describe('bash tool through the agent loop', () => {
 
     const firstResult = findEvent(events(agent), 'tool/result')
     expect(firstResult.data.message.content[0].isError).toBe(false)
-    expect(resultText(firstResult)).toBe('started background job bash-1')
+    expect(resultText(firstResult)).toContain('started background job bash-1')
     // The turn closed with the task still running, so the notice cannot exist yet.
     const isNotice = (e: SessionEvent): e is SessionEvent<'user/message'> =>
       e.type === 'user/message' && e.data.source.kind === 'plugin'

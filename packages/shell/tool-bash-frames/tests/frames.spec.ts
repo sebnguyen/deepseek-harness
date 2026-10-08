@@ -394,20 +394,17 @@ describe('the commands face', () => {
     expect(rendered).toContain('[2/2] $ echo b\n[not run: call aborted]')
   })
 
-  it('presents empty batches, workdir-less foreground calls, and invalid results', async () => {
+  it('presents empty batches and invalid results as generic cards', async () => {
     const ctx = await setup()
     const tool = ctx.tools.get('bash')!
     const emptyView = tool.presentCall!({ description: 'No commands', commands: [] }) as {
       card: string
       title?: string
+      content?: { type: string; text: string }[]
     }
     expect(emptyView.title).toBe('0 commands: ')
-    const noWorkdir = tool.presentCall!({ command: 'pwd', description: 'Print dir' }) as {
-      card: string
-      cwd?: string
-    }
-    expect(noWorkdir).not.toHaveProperty('cwd')
-    const invalid = tool.presentResult!({ description: 'd' }, {
+    expect(emptyView.content?.[0]?.text).toBe('')
+    const invalid = tool.presentResult!({ description: 'd', commands: [{ command: 'x' }] }, {
       content: [{ type: 'text', text: 'raw' }],
       isError: true,
     }) as { card: string }
@@ -431,20 +428,10 @@ describe('the commands face', () => {
 })
 
 describe('presentation and config edges', () => {
-  it('presents singular calls whose args carry no command text', async () => {
+  it('soft-validates presentCall args: a call without the batch yields no view', async () => {
     const ctx = await setup()
     const tool = ctx.tools.get('bash')!
-    const bg = tool.presentCall!({ description: 'Start later', run_in_background: true }) as {
-      card: string
-      title?: string
-      rawInput?: string
-    }
-    expect(bg.card).toBe('generic')
-    expect(bg.title).toBe('')
-    expect(bg.rawInput).toBe('')
-    const fg = tool.presentCall!({ description: 'Foreground, no text yet' }) as { card: string; title?: string }
-    expect(fg.card).toBe('terminal')
-    expect(fg.title).toBe('')
+    expect(tool.presentCall!({ description: 'Start later' })).toBeUndefined()
   })
 
   it('presents non-object args and multi-block results without a view', async () => {

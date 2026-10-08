@@ -2982,7 +2982,7 @@ Requires: `tools` · `shell` · `systemPrompt` · `shellEnv`
 ```ts config-catalog
 /** Configuration for the frames bash tool. */
 export interface Config {
-  /** Expose `run_in_background` (default true); disabled calls are also rejected. */
+  /** Expose element `run_in_background` (default true); disabled elements are also rejected. */
   enableRunInBackground?: boolean
   /** Maximum elements one `commands` invocation may carry (default 8). */
   maxCommandsPerCall?: number

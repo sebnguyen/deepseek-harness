@@ -216,6 +216,39 @@ describe('renderToolsSdk', () => {
     expect(renderToolsSdk([constrained])).toContain('tools.bash({ command: \'pwd\' })')
   })
 
+  it('renders the batch example for the commands-only frames schema', () => {
+    const frames = {
+      ...bash,
+      parameters: parameterSchemaSpecToJsonSchema({
+        commands: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: true,
+            properties: { command: { type: 'string', required: true } },
+          },
+        },
+        description: { type: 'string', required: true },
+      }) as unknown as Record<string, unknown>,
+    }
+    expect(renderToolsSdk([frames]))
+      .toContain('tools.bash({ commands: [{ command: \'pwd\' }], description: \'Show current directory\' })')
+    // A root requiring both faces is not a schema this example understands.
+    const bothRequired = {
+      ...bash,
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string' },
+          commands: { type: 'array', items: { type: 'object', properties: { command: { type: 'string' } } } },
+        },
+        required: ['command', 'commands'],
+      },
+    }
+    expect(renderToolsSdk([bothRequired])).not.toContain('tools.bash(')
+  })
+
   it('is deterministic: same tool set, byte-identical text regardless of input order', () => {
     expect(renderToolsSdk([bash, exotic])).toBe(renderToolsSdk([exotic, bash]))
     // Equal names sort stably (the comparator's equal arm).

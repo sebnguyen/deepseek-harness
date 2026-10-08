@@ -259,7 +259,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
       await ctx.plugin(ToolBashFrames)
     },
     note:
-      'The frames provider keeps the v1 singular bash face and adds the `commands` batch face: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms beside the singular result facts. Escalation stays singular-only, so a denied element must be retried as a singular call to widen the sandbox mode.',
+      'The frames provider registers the `bash` tool with the `commands` batch face as its only call shape: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms. Element `run_in_background` starts a background job collected/stopped through the `job_*` tools, and element `sandbox_permissions`/`justification` widens the sandbox mode for that element alone through the shared approval sequence.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-present',

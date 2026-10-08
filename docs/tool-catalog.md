@@ -19,7 +19,7 @@ This table connects model-visible tool names to the plugin package and service s
 | `@deepseek-ai/dsh-tools` | `run_code` | `ctx.tools`, `ctx.codeRuntime (execution time)`, `ctx.systemPrompt` | `tool/call`, `one tool/ptc-dispatch-start + tool/ptc-dispatch pair per bridged sub-call`, `tool/result` | - | Owned by the tool registry as a reserved transport outside filterable capability layers under `mode: ptc` / `mode: both` (see the PTC mode Agent Note). Under `ptc` it is the registry's only wire contribution; the other visible capabilities are declared in a generated SDK section in the loaded runtime's language, and a program calls them through bindings scheduled under the native concurrency contract (submission-ordered starts and policy; concurrency-safe bodies overlap up to `maxParallelSubCalls`) that re-enter the complete guarded tool pipeline and link each nested execution to this outer result. |
 | `@deepseek-ai/dsh-plan-mode` | `exit_plan_mode` | `ctx.tools`, `ctx.systemPrompt`, `ctx.userQuestions (execution time, opportunistic)` | `tool/call`, `plan/mode inactive on an approved review`, `tool/result` | - | exit_plan_mode stays in the model-facing schema while planning is inactive so transitions add no tool-catalog churn on top of the plan-policy change. Its execute path rejects calls outside plan mode; in plan mode it presents the plan over the user-questions seam (approve / keep planning with feedback), and approval logs plan mode inactive at the step boundary. |
 | `@deepseek-ai/dsh-tool-bash` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The bash tool is the model-facing consumer of the bash executor seam. A `run_in_background` run registers with the generic `ctx.jobs` runtime and is collected/stopped through the `job_*` tools from `@deepseek-ai/dsh-tool-jobs`; the `enableRunInBackground` config (default true) removes the parameter entirely when disabled. |
-| `@deepseek-ai/dsh-tool-bash-frames` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for background elements` | `tool/call`, `tool/result` | - | The frames provider keeps the v1 singular bash face and adds the `commands` batch face: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms beside the singular result facts. Escalation stays singular-only, so a denied element must be retried as a singular call to widen the sandbox mode. |
+| `@deepseek-ai/dsh-tool-bash-frames` | `bash` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for background elements` | `tool/call`, `tool/result` | - | The frames provider registers the `bash` tool with the `commands` batch face as its only call shape: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms. Element `run_in_background` starts a background job collected/stopped through the `job_*` tools, and element `sandbox_permissions`/`justification` widens the sandbox mode for that element alone through the shared approval sequence. |
 | `@deepseek-ai/dsh-tool-present` | `present` | `ctx.tools`, `ctx.fs`, `ctx.sessionProjections` | `tool/call`, `deliverables/presented after a successful final result`, `tool/result` | - | Deliveries belong to the calling Session; Web ui-deliverables supplies source-file opening and cards. |
 | `@deepseek-ai/dsh-tool-pwsh` | `pwsh` | `ctx.tools`, `ctx.shell`, `ctx.systemPrompt`, `ctx.shellEnv`, `ctx.jobs at call time for run_in_background` | `tool/call`, `tool/result` | - | The pwsh tool is the PowerShell-dialect consumer of the bash executor seam for Windows compositions (a PowerShell executor such as `@deepseek-ai/dsh-pwsh-local` backs `ctx.shell`); it mirrors the bash tool call-for-call minus sandbox controls — `run_in_background` runs register with the generic `ctx.jobs` runtime and are collected/stopped through the `job_*` tools, and the managed `DSH_*` environment comes from `@deepseek-ai/dsh-shell-env`. Each call runs in a fresh process (no persistent PTY session), with native `C:\...` paths and `$env:NAME` variables. |
 | `@deepseek-ai/dsh-tool-cordis` | `cordis_define`, `cordis_inspect_list`, `cordis_inspect_query`, `cordis_inspect_self`, `cordis_run`, `cordis_stop`, `cordis_undefine` | `ctx.tools`, `ctx.dynamicCordisRunner` | `tool/call`, `tool/result`, `process-local dynamic package lifecycle` | - | Not in any shipped tree (a deliberate opt-in — dynamic package code reaches the real runtime, see .agents/notes/implemented/feature/2026-07-08-self-referential-cordis-toolset.md). The toolset injects `ctx.dynamicCordisRunner` from `@deepseek-ai/dsh-cordis-host-runner`, which owns the definition registry and the vm sandbox; a composition missing it never activates the tools. A running package may register ADDITIONAL model-visible tools until it is stopped, undefined, or DSH restarts; a full changed request header logs those tool-set changes. |
@@ -248,19 +248,15 @@ The bash tool is the model-facing consumer of the bash executor seam. A `run_in_
 
 ### `bash`
 
-Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Pass a `commands` array to run several independent commands in one call: elements run in written order, each settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker), and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`.
+Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, each settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker), and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "command": {
-      "type": "string",
-      "description": "The bash command to execute. Mutually exclusive with `commands`."
-    },
     "commands": {
       "type": "array",
-      "description": "Independent bash commands to run in one call, in written order; each element settles into its own labeled frame.",
+      "description": "The bash commands to execute, in written order; each element settles into its own labeled frame with its own exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
       "items": {
         "type": "object",
         "additionalProperties": true,
@@ -297,15 +293,11 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
     },
     "timeoutMs": {
       "type": "number",
-      "description": "Timeout in milliseconds. The executor applies its configured default and cap, and kills the command on expiry."
+      "description": "Timeout in milliseconds for elements without their own. The executor applies its configured default and cap, and kills the element on expiry."
     },
     "workdir": {
       "type": "string",
-      "description": "Working directory for this command. Defaults to the session workspace; a relative path is resolved against it."
-    },
-    "run_in_background": {
-      "type": "boolean",
-      "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
+      "description": "Working directory for elements without their own. Defaults to the session workspace; a relative path is resolved against it."
     },
     "_dsh_harness_purpose": {
       "type": "string",
@@ -313,6 +305,7 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
     }
   },
   "required": [
+    "commands",
     "description",
     "_dsh_harness_purpose"
   ]
@@ -321,7 +314,7 @@ Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs 
 
 Source: [`packages/shell/tool-bash-frames/src/index.ts`](../packages/shell/tool-bash-frames/src/index.ts)
 
-The frames provider keeps the v1 singular bash face and adds the `commands` batch face: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms beside the singular result facts. Escalation stays singular-only, so a denied element must be retried as a singular call to widen the sandbox mode.
+The frames provider registers the `bash` tool with the `commands` batch face as its only call shape: elements dispatch serially through the same resolve/run path and settle into one labeled frame each, with `job` and `not-run` outcome arms. Element `run_in_background` starts a background job collected/stopped through the `job_*` tools, and element `sandbox_permissions`/`justification` widens the sandbox mode for that element alone through the shared approval sequence.
 
 <a id="deepseek-aidsh-tool-present"></a>
 

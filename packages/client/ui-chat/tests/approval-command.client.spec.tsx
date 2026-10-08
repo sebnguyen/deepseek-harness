@@ -26,6 +26,13 @@ describe('commandOf', () => {
     expect(commandOf({ callId: 'c1', argsRaw: '{"command":42}' })).toBeUndefined()
     expect(commandOf({ callId: 'c1', argsRaw: '{"command":"pnpm test"}' })).toBe('pnpm test')
   })
+
+  it('falls back to the first command of the commands batch face', () => {
+    expect(commandOf({ callId: 'c1', argsRaw: '{"commands":[{"command":"echo a"},{"command":"echo b"}]}' })).toBe('echo a')
+    expect(commandOf({ callId: 'c1', argsRaw: '{"commands":[{},42,{"command":"echo b"}]}' })).toBe('echo b')
+    expect(commandOf({ callId: 'c1', argsRaw: '{"commands":[]}' })).toBeUndefined()
+    expect(commandOf({ callId: 'c1', argsRaw: '{"commands":"ls"}' })).toBeUndefined()
+  })
 })
 
 describe('ApprovalCommand', () => {
