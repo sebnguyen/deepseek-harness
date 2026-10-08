@@ -20,8 +20,12 @@ export interface TextRefRange {
   readonly trigger: '/' | '@'
 }
 
-/** Token matcher: a trigger char at line start or after whitespace, then a word-ish name (never crosses \n). */
-const TEXT_REF_RE = /(^|\s)([/@])([\w-]+)/g
+/**
+ * Token matcher: a trigger char at line start or after whitespace, then a
+ * word-ish name (never crosses \n). An `@` name may carry `#turn#call-id`
+ * snapshot tails; the lexicon membership test still gates every hit.
+ */
+const TEXT_REF_RE = /(^|\s)([/@])([\w.-]+(?:#[\w-]+)*)/g
 const FOLDER_REF_RE = /(^|\s)(@(?:"[^"\n]*\/|[^\s"]+\/))/g
 /**
  * What may follow a `/name` token: whitespace or the draft end, the boundary
@@ -52,6 +56,8 @@ export function scanTextRefs(
       const trigger = m[2] as '/' | '@'
       const name = m[3] ?? ''
       if (trigger === '/' && !SLASH_TOKEN_END_RE.test(draft.slice(m.index + m[0].length))) continue
+      // A snapshot tail (`#turn#call-id`) is an `@` address form, never a skill.
+      if (name.includes('#') && trigger === '/') continue
       if (lexicon.get(trigger)?.includes(name)) {
         const start = m.index + (m[1]?.length ?? 0)
         out.push({ start, end: start + 1 + name.length, trigger })

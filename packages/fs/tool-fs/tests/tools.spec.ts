@@ -494,6 +494,32 @@ describe('unified write program arm', () => {
     expect(fs.files.get('key:a.txt')).toBe('# top\none\nthree')
   })
 
+  it('hands the committed write to the checkpoint capture when mounted', async () => {
+    const { ctx } = await setupDefault()
+    const captured: Array<{ call: { callId: string; name: string }; file: { path: string; before: string | null; after: string } }> = []
+    ctx.provide('checkpoint', {
+      captureWrite: async (call: unknown, file: unknown) => {
+        captured.push({ call: call as never, file: file as never })
+      },
+    } as never)
+    const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'new\n' }, { session: { header: {} } })
+    expect(result.isError).toBe(false)
+    expect(captured).toHaveLength(1)
+    const entry = captured[0]
+    expect(entry?.file.path).toMatch(/a\.txt$/)
+    expect(entry?.file.before).toBeNull()
+    expect(entry?.file.after).toBe('new\n')
+    expect(entry?.call.name).toBe('write')
+    expect(entry?.call.callId).toContain('call-')
+  })
+
+  it('commits a write unchanged when no checkpoint capture is mounted', async () => {
+    const { ctx, fs } = await setupDefault()
+    const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'new\n' })
+    expect(result.isError).toBe(false)
+    expect(fs.files.get('key:a.txt')).toBe('new\n')
+  })
+
   it('content plus edits materializes the stream then patches it', async () => {
     const { ctx, fs } = await setupDefault()
     const result = await call(ctx, 'write', { file_path: 'a.txt', content: 'alpha beta', edits: [{ old_string: 'beta', new_string: 'BETA' }] })

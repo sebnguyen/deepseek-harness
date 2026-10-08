@@ -55,6 +55,20 @@ function request(
   }
 }
 
+/** One fake checkpoint timeline row set, shared by the bench's Remote doubles. */
+const STOP_TIMELINES = [{
+  path: 'notes.md',
+  stops: [{
+    seq: 3,
+    time: NOW,
+    callId: 'call-9',
+    toolName: 'write',
+    turn: 2,
+    step: 1,
+    after: 'sha256:after',
+  }],
+}]
+
 async function bench(
   files: RemoteLookup<FileReferenceCandidate> = vi.fn(() => Promise.resolve({
     ok: true as const,
@@ -75,9 +89,18 @@ async function bench(
     }],
   })),
   listed: Record<string, { updatedAt: number }> = {},
-): Promise<{ ctx: Context; fiber: ReturnType<Context['plugin']>; source: InputTriggerSource }> {
+  checkpoint: {
+    stops?: (sessionId: SessionId, path?: string, signal?: AbortSignal) => Promise<RemoteEnvelope<typeof STOP_TIMELINES>>
+    blob?: (sessionId: SessionId, digest: string, signal?: AbortSignal) => Promise<RemoteEnvelope<string | null>>
+  } = {},
+): Promise<{ ctx: Context; fiber: ReturnType<Context['plugin']>; source: InputTriggerSource; openResource: ReturnType<typeof vi.fn> }> {
+  const openResource = vi.fn()
   const ctx = new Context()
-  ctx.provide('sidebarRight', { openResource: vi.fn() })
+  ctx.provide('sidebarRight', { openResource })
+  ctx.provide('remote.checkpoint', {
+    stops: checkpoint.stops ?? vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
+    blob: checkpoint.blob ?? vi.fn(() => Promise.resolve({ ok: true as const, value: 'frozen\n' })),
+  })
   let source: InputTriggerSource | undefined
   ctx.provide('inputTriggers', {
     registerSource(candidate: InputTriggerSource) {
@@ -100,14 +123,14 @@ async function bench(
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   if (source === undefined) throw new Error('reference source was not registered')
-  return { ctx, fiber, source }
+  return { ctx, fiber, source, openResource }
 }
 
 describe('apply', () => {
   it('declares its services and releases the @ reference registration on disposal', async () => {
     expect(inject).toEqual([
       'inputTriggers', 'locale', 'sessions', 'remote', 'remote.fileReferences',
-      'remote.sessionReferenceResolver', 'sidebarRight',
+      'remote.sessionReferenceResolver', 'remote.checkpoint', 'sidebarRight',
     ])
     const { fiber } = await bench()
     let registered: InputTriggerSource | undefined
@@ -129,6 +152,10 @@ describe('apply', () => {
     new RemoteService(ctx)
     ctx.provide('remote.fileReferences', { list: () => Promise.resolve({ ok: true, value: [] }) })
     ctx.provide('remote.sessionReferenceResolver', { candidates: () => Promise.resolve({ ok: true, value: [] }) })
+    ctx.provide('remote.checkpoint', {
+      stops: () => Promise.resolve({ ok: true, value: [] }),
+      blob: () => Promise.resolve({ ok: true, value: null }),
+    })
     ctx.provide('locale', new LocaleRuntime(ctx))
     ctx.provide('sessions', { list: { getSnapshot: () => ({ byId: {} }) } })
     const ownFiber = ctx.plugin({ inject: [...inject], apply })
@@ -497,7 +524,7 @@ describe('pick and codec', () => {
       },
     })
     expect(source.codec?.clipboardText(mention)).toBe(mention)
-    await expect(source.codec?.serialize(mention, new AbortController().signal)).resolves.toBe(mention)
+    await expect(source.codec?.serialize({ sessionId: sid('s-1') }, mention, new AbortController().signal)).resolves.toBe(mention)
   })
 
   it('ignores candidates that do not carry a source-owned value', async () => {
@@ -512,11 +539,112 @@ describe('reference preview', () => {
     const openResource = vi.spyOn(ctx.sidebarRight, 'openResource')
     expect(source.openReference?.(session, { ref: '@notes/readme.md', appearance: 'file' })).toBe(true)
     expect(source.openReference?.(session, { ref: '@"docs/a b.md"', appearance: 'file' })).toBe(true)
-    expect(openResource).toHaveBeenNthCalledWith(1, 'dsh-resource://file/session/target/notes/readme.md')
-    expect(openResource).toHaveBeenNthCalledWith(2, 'dsh-resource://file/session/target/docs/a%20b.md')
+    expect(openResource).toHaveBeenNthCalledWith(1, 'dsh-resource://file/session/target/notes/readme.md', undefined)
+    expect(openResource).toHaveBeenNthCalledWith(2, 'dsh-resource://file/session/target/docs/a%20b.md', undefined)
     expect(source.openReference?.(session, { ref: '@docs/', appearance: 'folder' })).toBe(false)
     expect(source.openReference?.(session, { ref: '@[Research](dsh-session:abc)', appearance: 'session' })).toBe(false)
     expect(openResource).toHaveBeenCalledTimes(2)
     await fiber.dispose()
+  })
+
+  it('opens a snapshot chip onto the editor Changes display at its stop', async () => {
+    const withStops = { stops: vi.fn(() => Promise.resolve({ ok: true as const, value: STOP_TIMELINES })) }
+    const { source, openResource } = await bench(undefined, undefined, {}, withStops)
+    expect(source.openReference?.(session, { ref: '@notes.md#2#call-9', appearance: 'snapshot' })).toBe(true)
+    expect(openResource).toHaveBeenCalledWith('dsh-resource://file/session/target/notes.md', {
+      params: { display: 'changes', stop: 'call-9' },
+    })
+  })
+})
+
+describe('snapshot stops', () => {
+  const withStops = () => ({
+    stops: vi.fn(() => Promise.resolve({ ok: true as const, value: STOP_TIMELINES })),
+  })
+  const pick = (source: InputTriggerSource, candidate: InputTriggerCandidate) => source.onPick({
+    candidate, session, position: 'inline', via: 'menu', action: 'pick' as const, span: { start: 0, end: 1, draftRev: 1 },
+  })
+
+  it('ranks serializable stops between files and sessions', async () => {
+    const { source } = await bench(undefined, undefined, {}, withStops())
+    const rows = await source.candidates(session, request('notes'))
+    expect(rows.map(row => row.section)).toEqual(['Files & folders', 'Files & folders', 'Snapshot stops', 'Sessions'])
+    const stop = rows.find(row => row.section === 'Snapshot stops')
+    expect(stop).toEqual(expect.objectContaining({
+      name: 'notes.md#2#call-9',
+      label: 'turn 2 · write',
+      icon: 'file',
+    }))
+    expect(stop).not.toHaveProperty('description')
+    const ranked = await source.candidates(session, request('zzz'))
+    expect(ranked.some(row => row.section === 'Snapshot stops')).toBe(false)
+  })
+
+  it('suppresses stop rows under an open quoted path and keeps the lexicon cold', async () => {
+    const { source } = await bench(undefined, undefined, {}, withStops())
+    const rows = await source.candidates(session, request('', { quoted: true }))
+    expect(rows.some(row => row.section === 'Snapshot stops')).toBe(false)
+    expect(source.lexicon?.(session)).toBeUndefined()
+  })
+
+  it('settles a stop pick as a snapshot chip', async () => {
+    const { source } = await bench(undefined, undefined, {}, withStops())
+    const rows = await source.candidates(session, request('notes'))
+    const stop = rows.find(row => row.section === 'Snapshot stops')!
+    expect(pick(source, stop)).toEqual({
+      insert: {
+        source: 'reference',
+        ref: 'notes.md#2#call-9',
+        label: 'notes.md',
+        appearance: 'snapshot',
+        clipboardText: 'notes.md#2#call-9',
+      },
+    })
+  })
+
+  it('warms the lexicon roll and refreshes it as menus poll', async () => {
+    const { source } = await bench(undefined, undefined, {}, withStops())
+    expect(source.lexicon?.(session)).toBeUndefined()
+    source.warm?.(session)
+    await vi.waitFor(() => expect(source.lexicon?.(session)).toEqual(['notes.md#2#call-9']))
+    const listener = vi.fn()
+    const off = source.subscribeLexicon?.(session, listener)
+    await source.candidates(session, request(''))
+    expect(listener).toHaveBeenCalled()
+    off?.()
+  })
+
+  it('serializes a snapshot chip as its address over the fenced frozen text', async () => {
+    const { source } = await bench(undefined, undefined, {}, withStops())
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
+      .resolves.toBe('@notes.md#2#call-9\n```\nfrozen\n\n```')
+  })
+
+  it('refuses serialization when the address names no retained stop', async () => {
+    const { source } = await bench()
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
+      .rejects.toThrow('no retained after text')
+  })
+
+  it('refuses serialization when the retained blob was pruned', async () => {
+    const checkpoint = {
+      ...withStops(),
+      blob: vi.fn(() => Promise.resolve({ ok: true as const, value: null })),
+    }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
+      .rejects.toThrow('pruned')
+  })
+
+  it('refuses serialization when the stops remote fails', async () => {
+    const checkpoint = {
+      stops: vi.fn(() => Promise.resolve({
+        ok: false as const,
+        error: { code: 'checkpoint/down', message: 'gone', details: {} },
+      })),
+    }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
+      .rejects.toThrow('checkpoint.stops failed')
   })
 })

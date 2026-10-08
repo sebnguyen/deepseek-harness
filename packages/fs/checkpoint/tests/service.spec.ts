@@ -163,6 +163,29 @@ describe('checkpoint capture', () => {
   })
 })
 
+describe('checkpoint stops remote', () => {
+  it('folds scan rows into per-file stops joined to their tool/call facts', async () => {
+    const stack = await harness()
+    stack.session.append('tool/call', {
+      turn: 1, step: 0, callId: ToolCallId('c1'), name: 'writer', arguments: '{}', purpose: 'stated',
+    })
+    await stack.run('writer', 'c1', { content: 'one' })
+    await stack.run('writer', 'c2', { content: 'two' })
+    const service = stack.ctx.get('checkpoint') as CheckpointService
+    const [timeline] = await service.stops(stack.session)
+    expect(timeline?.path).toBe('a.txt')
+    expect(timeline?.stops.map(stop => ({
+      callId: stop.callId, turn: stop.turn, purpose: stop.purpose, after: stop.after,
+    }))).toEqual([
+      { callId: 'c1', turn: 1, purpose: 'stated', after: digestOf('one') },
+      { callId: 'c2', turn: undefined, purpose: undefined, after: digestOf('two') },
+    ])
+    const [only] = await service.stops(stack.session, 'a.txt')
+    expect(only?.stops).toHaveLength(2)
+    expect(await service.stops(stack.session, 'other.txt')).toEqual([])
+  })
+})
+
 describe('checkpoint restore surface', () => {
   it('serves retained text and restores a file through the remote surface', async () => {
     const stack = await harness()

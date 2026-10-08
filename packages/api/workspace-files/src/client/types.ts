@@ -21,6 +21,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export interface WorkspaceFileParams {
   /** 1-based line to scroll into view; absent leaves the position alone. */
   readonly line?: number
+  /** Reveal the file on its frozen Changes display instead of the live body. */
+  readonly display?: 'changes'
+  /** The stop call id the Changes display selects on open, when `display` is set. */
+  readonly stop?: string
 }
 
 declare module '@deepseek-ai/dsh-typert-protocol' {

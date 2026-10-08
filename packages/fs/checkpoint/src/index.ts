@@ -18,7 +18,7 @@ import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { CheckpointStore } from './store.ts'
-import type { SnapshotDigest } from './types.ts'
+import type { CheckpointStop, CheckpointTimeline, SnapshotDigest } from './types.ts'
 
 export type * from './types.ts'
 export { CheckpointStore, digestOf } from './store.ts'
@@ -190,6 +190,52 @@ export class CheckpointService extends TypertRemoteService {
   @Remote('restore')
   async restore(session: Session, path: string, digest: string): Promise<string> {
     return await this.restoreBlob(session, path, digest)
+  }
+
+  /**
+   * One file's retained stops for the frozen Changes display and the `@`
+   * picker: `checkpoint/scan` rows joined to the `tool/call` that stated
+   * their turn and step, oldest first, paths in path order.
+   * @param session - the owning session whose log is folded.
+   * @param path - when set, only this session-relative path is returned.
+   * @returns every timeline the session captured, folded like the client fold.
+   */
+  @Remote('stops')
+  async stops(session: Session, path?: string): Promise<CheckpointTimeline[]> {
+    const calls = new Map<string, { turn: number; step: number; purpose?: string }>()
+    const timelines = new Map<string, CheckpointStop[]>()
+    for (const event of session.ownEvents()) {
+      if (event.type === 'tool/call') {
+        calls.set(event.data.callId, {
+          turn: event.data.turn,
+          step: event.data.step,
+          ...event.data.purpose === undefined ? {} : { purpose: event.data.purpose },
+        })
+        continue
+      }
+      if (event.type !== 'checkpoint/scan') continue
+      for (const row of event.data.rows) {
+        if (path !== undefined && row.path !== path) continue
+        const facts = calls.get(row.callId)
+        const purpose = row.purpose ?? facts?.purpose
+        const stop: CheckpointStop = {
+          seq: event.seq,
+          time: event.time,
+          callId: row.callId,
+          toolName: row.toolName,
+          ...purpose === undefined ? {} : { purpose },
+          ...facts === undefined ? {} : { turn: facts.turn, step: facts.step },
+          ...row.before === undefined ? {} : { before: row.before },
+          ...row.after === undefined ? {} : { after: row.after },
+        }
+        const list = timelines.get(row.path)
+        if (list === undefined) timelines.set(row.path, [stop])
+        else list.push(stop)
+      }
+    }
+    return [...timelines]
+      .map(([timelinePath, stops]) => ({ path: timelinePath, stops: stops as readonly CheckpointStop[] }))
+      .sort((left, right) => left.path.localeCompare(right.path))
   }
 
   /**

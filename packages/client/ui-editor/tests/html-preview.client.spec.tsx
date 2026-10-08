@@ -94,6 +94,11 @@ function Harness(props: { address: string; load: unknown; save: unknown }): Reac
     useResource: () => ({ status: 'none' }),
     load: props.load,
     save: props.save,
+    useFileHistory: (selector: (snapshot: unknown) => unknown) => selector({ files: [] }),
+    useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
+    inputActions: { setDraft: () => {} },
+    blob: async () => ({ ok: true, value: null }),
+    restore: async () => ({ ok: true, value: 'a.html' }),
     t,
   } as never)
 }

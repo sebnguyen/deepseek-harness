@@ -24,6 +24,9 @@
       "path": "../locale"
     },
     {
+      "path": "../ui-conversation"
+    },
+    {
       "path": "../ui-renderer"
     },
     {
@@ -37,6 +40,9 @@
     },
     {
       "path": "../ui-sidebar-right"
+    },
+    {
+      "path": "../ui-sidebar-documentpreview"
     },
     {
       "path": "../ui-slots"

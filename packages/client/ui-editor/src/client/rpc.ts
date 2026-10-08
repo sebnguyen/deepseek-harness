@@ -73,6 +73,12 @@ export interface EditorFilesRemote {
       signal?: AbortSignal,
     ): Promise<RemoteResult<WorkspaceFileStat>>
   }
+  readonly checkpoint: {
+    /** One retained snapshot text of this session's store; null when the object is absent. */
+    blob(sessionId: SessionId, digest: string): Promise<RemoteResult<string | null>>
+    /** Restore one workspace file to a recorded stop's bytes. */
+    restore(sessionId: SessionId, path: string, digest: string): Promise<RemoteResult<string>>
+  }
 }
 
 /**

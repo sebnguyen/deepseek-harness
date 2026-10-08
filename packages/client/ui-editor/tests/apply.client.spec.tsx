@@ -23,6 +23,8 @@ describe('ui-editor client apply', () => {
     const injected: string[] = []
     const reads: string[] = []
     const writes: string[] = []
+    const blobs: string[] = []
+    const restores: string[] = []
     let specification: { inject: () => unknown } | undefined
     ctx.provide('sidebarRightTabs', {
       register: (definition: SidebarRightTabDefinition) => {
@@ -47,8 +49,19 @@ describe('ui-editor client apply', () => {
           return { ok: true, value: { absolutePath: '/w/a', version: 'v2' } }
         },
       },
+      checkpoint: {
+        blob: async (sessionId: string, digest: string) => {
+          blobs.push(`${sessionId}/${digest}`)
+          return { ok: true, value: 'text' }
+        },
+        restore: async (sessionId: string, path: string, digest: string) => {
+          restores.push(`${sessionId}/${path}@${digest}`)
+          return { ok: true, value: path }
+        },
+      },
     } as never)
     ctx.provide('remote.workspaceFiles', {} as never)
+    ctx.provide('remote.checkpoint', {} as never)
     ctx.provide('slots', {
       inject: (seat: string, register: () => () => void) => {
         injected.push(seat)
@@ -79,12 +92,18 @@ describe('ui-editor client apply', () => {
     const face = specification.inject() as {
       load: (file: unknown, signal: AbortSignal) => Promise<unknown>
       save: (file: unknown, content: string, version: string | undefined, signal: AbortSignal) => Promise<unknown>
+      blob: (file: unknown, digest: string) => Promise<unknown>
+      restore: (file: unknown, digest: string) => Promise<unknown>
     }
     const file = { sessionId: 's-1', path: 'notes.txt' }
     await face.load(file, new AbortController().signal)
     await face.save(file, 'text', undefined, new AbortController().signal)
+    await face.blob(file, 'sha256:aa')
+    await face.restore(file, 'sha256:aa')
     expect(reads).toEqual(['s-1/notes.txt'])
     expect(writes).toEqual(['s-1/notes.txt:text'])
+    expect(blobs).toEqual(['s-1/sha256:aa'])
+    expect(restores).toEqual(['s-1/notes.txt@sha256:aa'])
     hostApply()
     await fiber.dispose()
     expect(disposed.sort()).toEqual(['body', 'locale', 'sidebar.right.pane.tab', 'type'])
