@@ -302,6 +302,59 @@ Checkpoint capture service: retains the before/after text of each committed writ
 async captureWrite( call: { readonly agent?: { readonly session: Session }; readonly callId: string; readonly name: string; readonly purpose?: string }, file: { readonly path: string; readonly before: string | null; readonly after: string }, ): Promise<void>
 
 /**
+ * Append one slot to the session's register and return the persisted row.
+ * Throws when a label or retained text exceeds its configured byte bound,
+ * when the minted id already has a row, or when the retained text cannot be
+ * stored; `retained`, when present, is hashed into the blob store and wins
+ * over an explicit `after`. The register is append-only; release is the one
+ * hide mechanism and it appends too. Not a Remote method: a failing put must
+ * reject its caller, the opposite of `captureWrite`'s observation posture.
+ * @param session - the owning session whose register the slot joins.
+ * @param slot - the producer-minted id, kind, path, label, optional scopes,
+ * digests, retained text, and per-kind detail.
+ * @returns the persisted slot, path relativized to the session cwd.
+ */
+async putSlot(session: Session, slot: CheckpointSlotPut): Promise<CheckpointSlot>
+
+/**
+ * Append the release tombstone for one slot: views fold the slot absent and
+ * the row stays, so mentions that already serialized keep resolving.
+ * Releasing an absent slot or a released one appends a redundant tombstone;
+ * the fold treats both the same. A disabled service appends nothing.
+ * @param session - the owning session whose register the tombstone joins.
+ * @param slotId - the slot the producer is releasing.
+ */
+async releaseSlot(session: Session, slotId: string): Promise<void>
+
+/**
+ * The register as a file-to-live-slot map, oldest first, paths in path order:
+ * `slots.jsonl` rows folded over tombstones, with each slot's turn joined
+ * from its `tool/call` event when the producer stamped none. Register state
+ * is store-only: the fold reads no slot event, and a session whose log never
+ * mentions slots still lists them after a restart.
+ * @param session - the owning session whose register is folded.
+ * @param path - when set, only this session-relative path is returned.
+ * @returns every file that holds live slots.
+ */
+@Remote('slots') async slots(session: Session, path?: string): Promise<CheckpointSlotTimeline[]>
+
+/**
+ * The Web producer path over the register: the same append as the host idiom
+ * with its byte bounds enforced at `putSlot`.
+ * @param session - the owning session whose register the slot joins.
+ * @param slot - the producer-minted slot, as `putSlot` takes it.
+ * @returns the persisted slot.
+ */
+@Remote('slotPut') async putSlotRemote(session: Session, slot: CheckpointSlotPutWire): Promise<CheckpointSlot>
+
+/**
+ * The Web release path over the register: appends the tombstone row.
+ * @param session - the owning session whose register the tombstone joins.
+ * @param slotId - the slot the producer is releasing.
+ */
+@Remote('slotRelease') async releaseSlotRemote(session: Session, slotId: string): Promise<void>
+
+/**
  * Restore one file to the exact bytes captured for a digest.
  * @param session - the owning session whose store retains the blob.
  * @param path - workspace-relative file path to restore.
@@ -309,6 +362,17 @@ async captureWrite( call: { readonly agent?: { readonly session: Session }; read
  * @returns the restored path.
  */
 @Remote('restore') async restore(session: Session, path: string, digest: string): Promise<string>
+
+/**
+ * One file's retained stops for the frozen Changes display and the `@`
+ * picker: `checkpoint/scan` rows joined to the `tool/call` that stated
+ * their turn and step, oldest first, paths in path order. Row paths rooted
+ * at the session working directory fold relative, like the client fold.
+ * @param session - the owning session whose log is folded.
+ * @param path - when set, only this session-relative path is returned.
+ * @returns every timeline the session captured, folded like the client fold.
+ */
+@Remote('stops') async stops(session: Session, path?: string): Promise<CheckpointTimeline[]>
 
 /**
  * One stop's retained text for the timeline's frozen diff view.

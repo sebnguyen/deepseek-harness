@@ -2,7 +2,7 @@
 
 Status: proposed
 
-Companion design record for the presentation fixed in [delta-aware workspace snapshots](./2026-10-07-delta-aware-workspace-snapshots-and-critique-timeline.md); [the viewable mock](./2026-10-07-delta-aware-workspace-snapshots-and-critique-timeline.mock.html) is shared. The workspace snapshot timeline (PRs 1–3 shipped: capture bracket, blob store, `checkpoint/scan`, `blob`/`restore` remotes, `FileStop` fold) gains its CodeMirror half inside the base editor and retires the Files conversation view that carried the first presentation.
+Companion design record for the presentation fixed in [delta-aware workspace snapshots](./2026-10-07-delta-aware-workspace-snapshots-and-critique-timeline.md); [the viewable mock](./2026-10-07-delta-aware-workspace-snapshots-and-critique-timeline.mock.html) is shared. The workspace snapshot timeline (PRs 1–3 shipped: capture bracket, blob store, `checkpoint/scan`, `blob`/`restore` remotes, `FileStop` fold) gains its CodeMirror half inside the base editor and retires the Files conversation view that carried the first presentation. The stream's remaining client work — the turn-tail chat chip row, the typed-`@` submit expansion, the sent-message snapshot chips, the tick hover card and source markers, and this note's Files view retirement — is taken over by [the line-anchored editor notes note](./2026-10-08-line-anchored-editor-notes-as-prompt-snapshots.md) as tasks on its slot spine; this note stays the design record for the shipped Changes display, its `@` grammar, and the chip-row presentation.
 
 ## Problem
 
@@ -207,8 +207,8 @@ The `dsh-client-ui-file-history` conversation view (register at `packages/client
 
 1. `dsh-client-ui-primitives`: promoted editor assembly, `snapshot-ref.ts`, `changes.ts`, `@codemirror/merge` dependency, locale keys for the display and the scrubber captions.
 2. `dsh-client-ui-editor`: `changes` mode, scrubber, purpose box, controls-row icons, face `blob`/`restore` on `remote.checkpoint` (type-only `dsh-checkpoint` edge). PR4 in the parent note lands here.
-3b. `dsh-checkpoint` (host): capture is write-gated — `dsh-tool-fs` hands each committed write's before/after text to `captureWrite`, one row per written file, no stat-walk; the presentation adds a `stops(session, path)` remote ordered by log seq feeding the Changes scrubber and the picker; `blob` and `restore` ship.
-3. `dsh-client-ui-reference`: stop rolls in the `@` lexicon, `#` in the text-ref name class, snapshot branch of `serializeReference`, `openReference` routing.
-4. `dsh-client-ui-file-history`: view removal; PR4 in the parent note lands with step 2.
+3. `dsh-checkpoint` (host): capture is write-gated — `dsh-tool-fs` hands each committed write's before/after text to `captureWrite`, one row per written file, no stat-walk; the presentation adds a `stops(session, path)` remote ordered by log seq feeding the Changes scrubber and the picker; `blob` and `restore` ship.
+4. `dsh-client-ui-reference`: stop rolls in the `@` lexicon, `#` in the text-ref name class, snapshot branch of `serializeReference`, `openReference` routing.
+5. `dsh-client-ui-file-history`: view removal; PR4 in the parent note lands with step 2.
 
 Each step carries the repository's process weight: 100% per-package coverage, locale dictionaries, HMR disposal tests for every mounted view, package READMEs, `verify-client-packages`/`verify-package-dependencies` green, and both notes updated as facts land.

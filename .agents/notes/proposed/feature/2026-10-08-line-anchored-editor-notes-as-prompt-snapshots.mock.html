@@ -1,0 +1,417 @@
+<!doctype html>
+<!-- Interactive mock v2, rebuilt on the SHIPPED web chrome, not an invented one:
+     right sidebar = dockkit tab strip (28px tabs, 12px radius, active on
+     markdown-tag) over the editor tab (root bg-layer-1, footer with the
+     segmented Edit/Preview/Changes toggle on interactive-bg-hover, 0.5px
+     border-l2 Save/Revert buttons); the code surface is the CodeMirror theme
+     geometry from editor.ts (13px/1.7 --ds-font-family-code, caption-colored
+     gutter numbers with a 0.5px border-l1 right rule and 0 8px 0 12px padding,
+     16px line padding, hovered line on interactive-bg-hover) with editor.ts's
+     token palette (keyword business-primary, string success-primary, number
+     warn-primary, type warn-label, punctuation label-secondary); the Changes
+     display is ChangesSurface verbatim (24px strip on bg-layer-2, 2px rail on
+     border-l2, 2x10 brand ticks, 11px playhead, 12px-radius purpose box on
+     bg-layer-2, 28px round + quote button on bg-layer-3), note stops riding the
+     scrubber as the warn diamond geometry filled; the composer is InputBar's
+     card (22px radius, specific-input-major, elevation-soft with a border-l2
+     stroke, 14/24 input, 34px round info-fill send, 28px round attach) and notes
+     quote as INLINE reference chips in business-primary ink (padding 0 4px,
+     6px radius, business-tertiary hover fill, 14px glyph) exactly like shipped
+     @-mentions; the + affordance and note reader ride HoverCard chrome
+     (#202426, 12px radius, shadow-lv3) with shipped tooltips (bluish-700
+     bubble, 13/20, 500ms). All colors are the dark resolved --dsw-* alias
+     values (design-platform.css body[data-ds-dark-theme]); motion rides the
+     --ds-* easing/duration variables behind a prefers-reduced-motion guard;
+     every full-round shape pairs corner-shape: round under @supports. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Line notes as prompt snapshots — on the shipped chrome</title>
+<style>
+  :root {
+    /* static scale, dark-resolved */
+    --bluish-950: rgb(18, 22, 24);  --bluish-900: rgb(23, 27, 29);
+    --bluish-875: rgb(27, 31, 33);  --bluish-850: rgb(32, 36, 38);
+    --bluish-800: rgb(37, 41, 42);  --bluish-750: rgb(46, 50, 52);
+    --bluish-700: rgb(65, 74, 75);
+    /* aliases, dark */
+    --bg-base: var(--bluish-950);
+    --layer-1: var(--bluish-875);  --layer-2: var(--bluish-850);  --layer-3: var(--bluish-800);
+    --code-block: var(--bluish-900);
+    --l1: rgba(247, 248, 248, 0.06);  --l2: rgba(247, 248, 248, 0.12);
+    --l3: rgba(247, 248, 248, 0.16);  --l4: rgba(247, 248, 248, 0.2);
+    --t1: rgb(247, 248, 248);  --t2: rgb(160, 162, 163);  --t3: rgb(145, 159, 158);  --cap: rgb(132, 134, 135);
+    --biz: rgb(148, 198, 204);  --biz-tert: rgb(46, 67, 75);  --brand: rgb(96, 165, 175);
+    --ok: rgb(134, 239, 172);  --err: rgb(252, 165, 165);
+    --warn-lbl: rgb(252, 211, 77);  --warn-2: rgb(218, 165, 73);  --warn-1: rgb(208, 135, 48);
+    --warn-bg: rgba(245, 158, 11, 0.12);
+    --hover: rgba(255, 255, 255, 0.08);  --active: rgba(255, 255, 255, 0.14);
+    --elev-fill: var(--bluish-750);
+    --hovercard: #202426;
+    --tooltip-bg: var(--bluish-700);
+    --stroke-soft: 0 0 0 0.5px var(--l2), 0 4px 16px 0 rgba(0,0,0,0.03), 0 0 24px 0 rgba(0,0,0,0.03);
+    --lv3: 0 0 1px 0 rgba(0,0,0,0.2), 0 0 4px 0 rgba(0,0,0,0.02), 0 12px 32px 0 rgba(0,0,0,0.08);
+    --ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);  --t-fast: 0.1s;  --t-norm: 0.2s;
+  }
+  @supports (corner-shape: superellipse(1.5)) { *, *::before, *::after { corner-shape: superellipse(1.5); } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg-base); color: var(--t2); font: 14px/22px var(--ui); -webkit-font-smoothing: antialiased; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { border-radius: 999px; corner-shape: round; background: rgb(56, 59, 61); background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background-color: rgb(70, 73, 75); }
+  button { font-family: var(--ui); }
+  button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--biz); outline-offset: 2px; }
+  a { color: var(--t2); text-decoration: underline dotted var(--t3); text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
+  a:hover { color: var(--t1); }
+
+  .app { display: grid; grid-template-columns: minmax(0,1fr) 600px; height: 100vh; }
+  [hidden] { display: none !important; }
+  .pagecap { position: fixed; top: 8px; left: 16px; color: var(--cap); font: 11px/16px var(--ui); z-index: 9; }
+
+  /* ————— conversation column ————— */
+  .convo { display: flex; flex-direction: column; min-width: 0; padding: 32px 16px 8px; }
+  .chain { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+  .msg { max-width: 680px; padding: 2px 4px; font: 14px/24px var(--ui); color: var(--t2); white-space: pre-wrap; word-break: break-word; }
+  .msg.user { color: var(--t1); }
+  .refChip { display: inline-flex; align-items: baseline; gap: 3px; max-width: 240px; padding: 0 4px; border-radius: 6px; color: var(--biz); font-weight: 500; white-space: nowrap; user-select: none; vertical-align: baseline; cursor: default; }
+  .refChip:hover { background: var(--biz-tert); }
+  .refChip svg { flex: none; align-self: center; }
+  .cinput .refChip { cursor: pointer; }
+  /* flat 24px tool row, shipped chrome */
+  .row { position: relative; overflow: hidden; display: flex; align-items: center; height: 24px; padding: 0 2px; min-width: 0; }
+  .row .lead { position: relative; flex: none; width: 16px; height: 16px; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--t3); }
+  .row .lead .ic, .row .lead .chev { position: absolute; inset: 0; margin: auto; display: inline-flex; align-items: center; justify-content: center; transition: opacity var(--t-fast) var(--ease); }
+  .row .lead .chev { opacity: 0; }
+  .row:hover .ic { opacity: 0; } .row:hover .chev { opacity: 1; }
+  .row .title { flex: none; font-size: 13px; line-height: 24px; color: var(--t2); }
+  .row .sep { flex: none; width: 2px; height: 2px; border-radius: 1px; margin: 0 8px; background: var(--cap); }
+  .row .sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 24px; color: var(--t3); }
+  .row.running::after { content: ''; position: absolute; top: 0; bottom: 0; left: -300px; width: 300px; pointer-events: none; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-base) 60%, transparent) 55%, transparent); animation: sweep 2.6s ease-out infinite; }
+  @keyframes sweep { 0% { left: -300px; } 90%, 100% { left: 100%; } }
+
+  /* composer = InputBar card */
+  .composer { flex: none; max-width: 712px; width: 100%; margin: 6px auto 0; display: flex; flex-direction: column; gap: 12px; padding: 8px 0 2px; border: 0; border-radius: 22px; background: var(--layer-2); box-shadow: var(--stroke-soft); font-size: 14px; line-height: 24px; }
+  .cinput { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; min-height: 36px; padding: 4px 8px 0 14px; color: var(--t1); }
+  .cinput input { flex: 1; min-width: 120px; border: 0; background: transparent; color: inherit; font: inherit; padding: 0 6px 4px 6px; }
+  .cinput input::placeholder { color: var(--cap); }
+  .cinput input:focus { outline: none; caret-color: var(--biz); }
+  .crow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 2px 8px 6px; }
+  .crow .left { display: flex; gap: 8px; align-items: center; }
+  .add { width: 28px; height: 28px; border: 0; border-radius: 999px; corner-shape: round; background: var(--layer-3); color: var(--t2); font-size: 15px; cursor: pointer; }
+  .add:hover { color: var(--t1); }
+  .select { height: 28px; padding: 0 20px 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--t2); font-size: 13px; line-height: 20px; font-weight: 500; cursor: pointer; }
+  .select:hover { background: var(--hover); color: var(--t1); }
+  .send { width: 34px; height: 34px; border: 0; border-radius: 999px; corner-shape: round; background: var(--biz); color: #fff; transform: translateY(-2px); transition: background-color 100ms ease; cursor: pointer; }
+  .send:disabled { opacity: 0.4; cursor: default; }
+
+  /* ————— right sidebar = dock + editor tab ————— */
+  .panel { min-width: 0; display: flex; flex-direction: column; background: var(--bg-base); border-left: 0.5px solid var(--l4); }
+  .tabStrip { flex: none; display: flex; gap: 4px; height: 38px; padding: 10px 6px 0 10px; align-items: flex-end; }
+  .tab { position: relative; min-width: 80px; max-width: 170px; height: 28px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--t2); font-size: 13px; line-height: 1; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .tab:hover { background: var(--hover); }
+  .tab.on { color: var(--t1); background: var(--layer-2); }
+  .tab .x { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 20px; corner-shape: round; background: transparent; color: var(--t3); font-size: 11px; line-height: 20px; text-align: center; opacity: 0; cursor: pointer; font-family: var(--ui); }
+  .tab:hover .x { opacity: 1; }
+
+  .edroot { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--layer-1); }
+  .edbody { flex: 1; min-height: 0; overflow: auto; position: relative; }
+  .ecode { position: relative; padding: 6px 0 22px; font: 13px/22.1px var(--code); }
+  .ln { position: relative; display: flex; min-height: 22.1px; }
+  .ecode .ln:hover, .ecode .ln:focus-within { background: var(--hover); }
+  .ln .g { flex: none; min-width: 24px; padding: 0 8px 0 12px; text-align: right; color: var(--cap); user-select: none; border-right: 0.5px solid var(--l1); }
+  .ln .c { padding: 0 16px; color: var(--t1); white-space: pre; }
+  /* GitHub-diff idiom: the comment control rides the gutter, LEFT of the line
+     number, in a reserved column so the code column never shifts on hover. */
+  .ln .act { flex: none; width: 22px; display: flex; align-items: center; justify-content: center; align-self: stretch; }
+  .kw { color: var(--biz); } .st { color: var(--ok); } .nu { color: var(--warn-1); }
+  .ty { color: var(--warn-lbl); } .fn { color: var(--biz); } .op { color: var(--t2); } .cm { color: var(--t3); font-style: italic; }
+  .plus { width: 18px; height: 18px; border: 0; border-radius: 999px; corner-shape: round; background: transparent; color: var(--t2); font-size: 13px; line-height: 18px; opacity: 0; cursor: pointer; transition: opacity var(--t-fast) var(--ease); }
+  .plus:focus-visible { opacity: 1; }
+  .ecode .ln:hover .plus, .ln:focus-within .plus { opacity: 1; }
+  .plus:hover { background: var(--hover); color: var(--t1); }
+  .ln.hasnote .plus { display: none; }
+  .marker { width: 18px; height: 18px; border: 0; border-radius: 999px; corner-shape: round; background: var(--warn-bg); color: var(--warn-lbl); font-size: 10px; cursor: pointer; }
+  .marker:hover { background: color-mix(in srgb, var(--warn-2) 26%, transparent); }
+
+  /* Changes display = ChangesSurface geometry */
+  .strip { position: relative; display: flex; align-items: center; flex: none; height: 24px; background: var(--layer-2); border-bottom: 0.5px solid var(--l2); }
+  .edge { flex: none; padding: 0 8px; color: var(--cap); font-size: 11px; line-height: 16px; }
+  .track { position: relative; flex: 1; height: 100%; }
+  .track .line { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; border-radius: 1px; background: var(--l2); }
+  .tick { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 16px; height: 20px; padding: 0; border: 0; background: none; cursor: pointer; overflow: visible; }
+  .tick::before { content: ''; position: absolute; left: 50%; top: 50%; width: 2px; height: 10px; transform: translate(-50%, -50%); border-radius: 1px; background: var(--brand); }
+  .tick.on::before { height: 14px; background: var(--biz); }
+  .tick .dia { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; transform: translate(-50%, -50%) rotate(45deg); background: var(--warn-2); }
+  .tick:has(.dia)::before { display: none; }
+  .tick.on .dia { background: var(--warn-lbl); box-shadow: 0 0 0 2px color-mix(in srgb, var(--warn-lbl) 25%, transparent); }
+  .playh { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 11px; height: 11px; border-radius: 50%; corner-shape: round; border: 2px solid var(--layer-2); background: var(--biz); pointer-events: none; z-index: 1; }
+  .diff { flex: 1; min-height: 0; margin: 0; padding: 6px 0; overflow: auto; font: 12px/19px var(--code); }
+  .diff .ln { min-height: 19px; }
+  .diff .ln i { flex: none; width: 36px; padding-right: 10px; text-align: right; color: var(--cap); font-style: normal; user-select: none; border-right: 0.5px solid var(--l1); }
+  .diff .ln .c { padding: 0 16px; }
+  .diff .ln.add { background: rgba(134, 239, 172, 0.08); }
+  .diff .ln.del { background: rgba(252, 165, 165, 0.07); }
+  .diff .ln.del .c, .diff .ln.del i { color: var(--err); }
+  .diff .ln.add .c, .diff .ln.add i { color: var(--ok); }
+  .diff .ln.noted .c { box-shadow: inset 2px 0 0 var(--warn-2); }
+  .prow { display: flex; gap: 8px; align-items: center; margin: 8px 12px 10px; }
+  .addb { flex: none; width: 28px; height: 28px; border: 0; border-radius: 999px; corner-shape: round; background: var(--layer-3); color: var(--t1); font-size: 14px; cursor: pointer; }
+  .addb:hover { background: var(--tooltip-bg); }
+  .pbox { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; padding: 12px 16px; border: 0.5px solid var(--l1); border-radius: 12px; background: var(--layer-2); }
+  .pbox .ttl { color: var(--t1); font-size: 12px; font-weight: 500; line-height: 16px; display: flex; align-items: baseline; gap: 8px; }
+  .pbox .meta { color: var(--cap); font-size: 11px; line-height: 16px; font-weight: 400; }
+  .pbox p { margin: 0; color: var(--t1); font-size: 12px; line-height: 20px; }
+
+  /* editor footer */
+  .efoot { flex: none; display: flex; gap: 8px; align-items: center; padding: 5px 12px; color: var(--t3); font-size: 12px; background: var(--layer-1); border-top: 0.5px solid var(--l1); }
+  .modes { display: inline-flex; gap: 2px; padding: 2px; background: var(--hover); border-radius: 6px; }
+  .modes button { padding: 2px 10px; color: var(--t2); background: transparent; border: none; border-radius: 4px; cursor: pointer; font-size: 12px; line-height: 18px; }
+  .modes button:hover { color: var(--t1); }
+  .modes button[aria-pressed="true"] { color: var(--t1); background: var(--elev-fill); }
+  .modes button:disabled { cursor: default; opacity: 0.5; }
+  .efoot .status { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .efoot > button { padding: 3px 10px; color: var(--t2); background: transparent; border: 0.5px solid var(--l2); border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 16px; }
+  .efoot > button:hover { color: var(--t1); background: var(--hover); }
+
+  /* note popover = HoverCard chrome */
+  .pop { position: absolute; left: 84px; width: 440px; max-width: calc(100% - 100px); padding: 12px 16px; border: 0; border-radius: 12px; background: var(--hovercard); box-shadow: var(--lv3); z-index: 20; animation: popin 150ms var(--ease); }
+  @keyframes popin { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+  .pop .ph { display: flex; align-items: baseline; gap: 6px; color: var(--cap); font-size: 11px; line-height: 16px; margin-bottom: 6px; font-family: var(--code); }
+  .pop .ph .addr { color: var(--warn-lbl); }
+  .pop .frozen { display: block; margin: 0 0 8px; padding: 5px 10px; border-radius: 8px; background: var(--code-block); border: 0.5px solid var(--l1); color: var(--t1); font: 12px/19px var(--code); white-space: pre; overflow-x: auto; }
+  .pop textarea { display: block; width: 100%; min-height: 52px; resize: vertical; border: 0; border-radius: 8px; background: var(--layer-1); color: var(--t1); font: 13px/20px var(--ui); padding: 6px 8px; }
+  .pop textarea:focus { outline: none; box-shadow: 0 0 0 2px var(--biz); }
+  .pop .pbtns { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 10px; }
+  .pop .pbtns .note-text { margin: 0 auto 0 0; color: var(--t1); font-size: 13px; line-height: 20px; }
+  .pbtn { padding: 3px 10px; color: var(--t2); background: transparent; border: 0.5px solid var(--l2); border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 16px; }
+  .pbtn:hover { color: var(--t1); background: var(--hover); }
+  .pbtn.danger { color: var(--err); }
+  .pbtn.danger:hover { background: rgba(252, 165, 165, 0.15); }
+  .pbtn.primary { background: var(--elev-fill); color: var(--t1); border-color: transparent; }
+
+  .tooltip { position: fixed; z-index: 100; padding: 3px 7px; border-radius: 8px; background: var(--tooltip-bg); color: var(--t1); font-size: 13px; line-height: 20px; pointer-events: none; animation: popin 150ms var(--ease); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<span class="pagecap">mock — hover an editor line for +; ✎ stops ride the Changes scrubber; Quote lands an inline chip in the composer</span>
+<div class="app">
+  <div class="convo">
+    <div class="chain" id="chain">
+      <div class="msg user">the 401 on line 7 never reaches the audit sink — <span class="refChip"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></svg>@src/handler.ts#L7#note-1</span> please record the rejection before responding</div>
+      <div class="row"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h10M2 11h7" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">read</span><span class="sep"></span><span class="sum"><a>src/handler.ts</a></span></div>
+      <div class="row running"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">write</span><span class="sep"></span><span class="sum"><a>src/handler.ts</a></span></div>
+    </div>
+    <div class="composer" id="composer">
+      <div class="cinput" id="cinput">
+        <input id="drafttext" placeholder="Ask the agent — quote a ✎ note to pin it to the exact line…">
+      </div>
+      <div class="crow">
+        <span class="left">
+          <button class="add" type="button" title="Attach">＋</button>
+          <button class="select" type="button">deepseek-chat ▾</button>
+        </span>
+        <button class="send" id="send" type="button" title="Send"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" style="display:block;margin:auto"><path d="M8 12V4M4.5 7.5L8 4l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="tabStrip"><button class="tab" type="button">Files</button><button class="tab on" type="button"><svg width="12" height="12" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h10M2 11h7" stroke="currentColor"/></svg>src/handler.ts<span class="x" title="Close">✕</span></button></div>
+    <div class="edroot">
+      <div class="strip" id="strip" hidden></div>
+      <div class="edbody" id="edbody"></div>
+      <div class="efoot">
+        <div class="modes" role="group" aria-label="Display modes">
+          <button id="m-edit" type="button" aria-pressed="true">Edit</button>
+          <button id="m-prev" type="button" disabled>Preview</button>
+          <button id="m-chg" type="button" aria-pressed="false">Changes</button>
+        </div>
+        <span class="status" id="status">Saved · utf-8 · typescript</span>
+        <button type="button">Save</button>
+        <button type="button">Revert</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FILE = 'src/handler.ts'
+const PLAIN = [
+  [1, "import type { Request } from './types.ts'"], [2, ''], [3, 'const AUDIT = new AuditSink()'], [4, ''],
+  [5, 'export async function handle(req: Request) {'], [6, "  const token = req.headers.get('authorization')"],
+  [7, '  if (!token) return respond(401)'], [8, '  const user = await verify(token)'],
+  [9, '  if (user === undefined) return respond(401)'], [10, '  AUDIT.record(user.id, req.url)'],
+  [11, '  return route(user, req)'], [12, '}'], [13, ''], [14, 'function respond(status: number) {'],
+  [15, '  return new Response(null, { status })'], [16, '}'],
+]
+const HL = [
+  [1, "<span class='kw'>import type</span> <span class='op'>{</span> <span class='ty'>Request</span> <span class='op'>}</span> <span class='kw'>from</span> <span class='st'>'./types.ts'</span>"],
+  [2, ''],
+  [3, "<span class='kw'>const</span> AUDIT <span class='op'>=</span> <span class='kw'>new</span> <span class='ty'>AuditSink</span><span class='op'>()</span>"],
+  [4, ''],
+  [5, "<span class='kw'>export async function</span> <span class='fn'>handle</span><span class='op'>(</span>req<span class='op'>:</span> <span class='ty'>Request</span><span class='op'>)</span> <span class='op'>{</span>"],
+  [6, "  <span class='kw'>const</span> token <span class='op'>=</span> req<span class='op'>.</span>headers<span class='op'>.</span><span class='fn'>get</span><span class='op'>(</span><span class='st'>'authorization'</span><span class='op'>)</span>"],
+  [7, "  <span class='kw'>if</span> <span class='op'>(!</span>token<span class='op'>)</span> <span class='kw'>return</span> <span class='fn'>respond</span><span class='op'>(</span><span class='nu'>401</span><span class='op'>)</span>"],
+  [8, "  <span class='kw'>const</span> user <span class='op'>=</span> <span class='kw'>await</span> <span class='fn'>verify</span><span class='op'>(</span>token<span class='op'>)</span>"],
+  [9, "  <span class='kw'>if</span> <span class='op'>(</span>user <span class='op'>===</span> <span class='nu'>undefined</span><span class='op'>)</span> <span class='kw'>return</span> <span class='fn'>respond</span><span class='op'>(</span><span class='nu'>401</span><span class='op'>)</span>"],
+  [10, "  AUDIT<span class='op'>.</span><span class='fn'>record</span><span class='op'>(</span>user<span class='op'>.</span>id<span class='op'>,</span> req<span class='op'>.</span>url<span class='op'>)</span>"],
+  [11, "  <span class='kw'>return</span> <span class='fn'>route</span><span class='op'>(</span>user<span class='op'>,</span> req<span class='op'>)</span>"],
+  [12, "<span class='op'>}</span>"],
+  [13, ''],
+  [14, "<span class='kw'>function</span> <span class='fn'>respond</span><span class='op'>(</span>status<span class='op'>:</span> <span class='ty'>number</span><span class='op'>)</span> <span class='op'>{</span>"],
+  [15, "  <span class='kw'>return new</span> <span class='ty'>Response</span><span class='op'>(</span><span class='nu'>null</span><span class='op'>,</span> <span class='op'>{</span> status <span class='op'>})</span>"],
+  [16, "<span class='op'>}</span>"],
+]
+let NOTES = [
+  { id: 1, line: 7, turn: 2, text: 'This early 401 skips the audit sink — record an auth.rejected entry before responding.', frozen: '  if (!token) return respond(401)', digest: 'sha256:41c2e8' },
+]
+let nextId = 2
+let mode = 'edit'
+let selStop = 1
+let chips = []
+const addr = n => `@${FILE}#L${n.line}#note-${n.id}`
+const plain = line => (PLAIN.find(l => l[0] === line) ?? [line, ''])[1]
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const stops = () => [{ turn: 1, kind: 'write', title: 'write · turn 1', meta: 'call-7f3a · after sha256:0b91aa', body: 'create handler with auth gate', diff: [[5, 'add', 'export async function handle(req: Request) {'], [7, 'add', '  if (!token) return respond(401)'], [12, 'add', '}']] },
+  ...NOTES.map(n => ({ turn: n.turn, kind: 'note', note: n, title: '✎ note-' + n.id + ' · line ' + n.line, meta: addr(n) + ' · ' + n.digest, body: n.text, diff: [[n.line, 'noted', n.frozen]] }))].sort((a, b) => a.turn - b.turn)
+
+/* tooltips, shipped bubble with the consumer's 500ms dwell */
+let tipEl = null, tipTimer = 0
+function tip(text, x, y) {
+  untip()
+  tipTimer = setTimeout(() => {
+    tipEl = document.createElement('div')
+    tipEl.className = 'tooltip'
+    tipEl.textContent = text
+    tipEl.style.left = Math.min(x, innerWidth - 260) + 'px'
+    tipEl.style.top = (y + 24) + 'px'
+    document.body.appendChild(tipEl)
+  }, 500)
+}
+function untip() { clearTimeout(tipTimer); if (tipEl) { tipEl.remove(); tipEl = null } }
+document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); tip(t.dataset.tip, r.left, r.top) } })
+document.addEventListener('mouseout', e => { if (!e.relatedTarget?.closest?.('[data-tip]')) untip() })
+
+function renderEditor() {
+  const body = document.getElementById('edbody')
+  const strip = document.getElementById('strip')
+  if (mode === 'edit') {
+    strip.hidden = true
+    body.innerHTML = '<div class="ecode">' + HL.map(([n, code]) => {
+      const note = NOTES.find(x => x.line === n)
+      const rail = note
+        ? `<button class="marker" type="button" data-tip="note-${note.id} · ${esc(note.text.slice(0, 60))}" onclick="openNote(${note.id})">✎</button>`
+        : `<button class="plus" type="button" data-tip="Add a note on line ${n}" onclick="openCreate(${n})">+</button>`
+      return `<div class="ln${note ? ' hasnote' : ''}"><span class="act">${rail}</span><span class="g">${n}</span><span class="c">${code}</span></div>`
+    }).join('') + '</div>'
+  } else {
+    const S = stops()
+    selStop = Math.min(selStop, S.length - 1)
+    const cur = S[selStop]
+    const turns = S.map(s => s.turn)
+    const min = Math.min(...turns), max = Math.max(...turns)
+    const pct = t => (max === min ? 50 : ((t - min) / (max - min)) * 86 + 7)
+    strip.hidden = false
+    strip.innerHTML = `<span class="edge">t${min}</span><div class="track"><div class="line"></div>` + S.map((s, i) =>
+      `<button class="tick${i === selStop ? ' on' : ''}" type="button" style="left:${pct(s.turn)}%" data-tip="${esc(s.title)}" onclick="selStopAt(${i})">${s.kind === 'note' ? '<span class="dia"></span>' : ''}</button>`).join('') +
+      `<span class="playh" style="left:${pct(cur.turn)}%"></span></div><span class="edge">t${max}</span>`
+    body.innerHTML = '<pre class="diff">' + cur.diff.map(([n, kind, text]) =>
+      `<div class="ln ${kind}"><i>${n}</i><span class="c">${kind === 'add' ? '+ ' : kind === 'del' ? '- ' : '  '}${esc(text)}</span></div>`).join('') + '</pre>'
+      + `<div class="prow"><button class="addb" type="button" data-tip="Quote this stop into the composer" onclick="${cur.kind === 'note' ? `quote(${cur.note.id})` : ''}">＋</button><div class="pbox"><span class="ttl">${esc(cur.title)}<span class="meta">${esc(cur.meta)}</span></span><p>${esc(cur.body)}</p></div></div>`
+  }
+  document.getElementById('m-edit').setAttribute('aria-pressed', String(mode === 'edit'))
+  document.getElementById('m-chg').setAttribute('aria-pressed', String(mode === 'changes'))
+}
+function setMode(m) { mode = m; closePop(); renderEditor() }
+document.getElementById('m-edit').onclick = () => setMode('edit')
+document.getElementById('m-chg').onclick = () => setMode('changes')
+function selStopAt(i) { selStop = i; renderEditor() }
+
+/* note popovers on HoverCard chrome */
+function closePop() { const p = document.getElementById('pop'); if (p) p.remove() }
+function mount(line) {
+  closePop()
+  const el = document.createElement('div')
+  el.className = 'pop'
+  el.id = 'pop'
+  const idx = HL.findIndex(l => l[0] === line)
+  el.style.top = (6 + (idx + 1) * 22.1 + 2) + 'px'
+  document.getElementById('edbody').appendChild(el)
+  return el
+}
+function openCreate(line) {
+  const el = mount(line)
+  el.innerHTML = `<div class="ph"><span class="addr">${FILE}:${line}</span><span>· ${esc(plain(line))}</span></div>
+    <textarea id="poptext" placeholder="What should the agent know about this line?"></textarea>
+    <div class="pbtns"><button class="pbtn" type="button" onclick="closePop()">Cancel</button><button class="pbtn primary" type="button" onclick="addNote(${line})">Add note</button></div>`
+  el.querySelector('textarea').focus()
+}
+function openNote(id) {
+  const n = NOTES.find(x => x.id === id)
+  if (!n) return
+  const el = mount(n.line)
+  el.innerHTML = `<div class="ph"><span class="addr">${addr(n)}</span><span>· frozen at turn ${n.turn} · ${n.digest}</span></div>
+    <code class="frozen">${esc(n.frozen)}</code>
+    <div class="pbtns"><p class="note-text">${esc(n.text)}</p><button class="pbtn danger" type="button" onclick="delNote(${id})">Delete</button><button class="pbtn" type="button" onclick="closePop()">Close</button><button class="pbtn primary" type="button" onclick="quote(${id})">Quote ＋</button></div>`
+}
+function addNote(line) {
+  const text = document.getElementById('poptext').value.trim()
+  if (!text) { document.getElementById('poptext').focus(); return }
+  NOTES.push({ id: nextId++, line, turn: 4, text, frozen: plain(line), digest: 'sha256:' + Math.random().toString(16).slice(2, 8) })
+  closePop(); renderEditor()
+}
+function delNote(id) {
+  NOTES = NOTES.filter(n => n.id !== id)
+  chips = chips.filter(c => c !== id)
+  closePop(); renderEditor(); renderChips()
+}
+function quote(id) {
+  if (!chips.includes(id)) chips.push(id)
+  closePop(); renderChips()
+  document.getElementById('drafttext').focus()
+}
+function unchip(id) { chips = chips.filter(c => c !== id); renderChips() }
+const PENCIL = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></svg>'
+function renderChips() {
+  const host = document.getElementById('cinput')
+  host.querySelectorAll('.refChip').forEach(el => el.remove())
+  const input = document.getElementById('drafttext')
+  for (const id of chips) {
+    const n = NOTES.find(x => x.id === id)
+    if (!n) continue
+    const chip = document.createElement('span')
+    chip.className = 'refChip'
+    chip.title = n.text + '\n' + n.frozen
+    chip.innerHTML = PENCIL + addr(n)
+    chip.onclick = () => openNote(id)
+    host.insertBefore(chip, input)
+  }
+}
+function send() {
+  const text = document.getElementById('drafttext').value
+  if (!text && chips.length === 0) return
+  const msg = document.createElement('div')
+  msg.className = 'msg user'
+  msg.innerHTML = chips.map(id => {
+    const n = NOTES.find(x => x.id === id)
+    return `<span class="refChip">${PENCIL}${addr(n)}</span>`
+  }).join(' ') + (chips.length && text ? ' ' : '') + esc(text)
+  document.getElementById('chain').appendChild(msg)
+  chips = []
+  document.getElementById('drafttext').value = ''
+  renderChips()
+  document.getElementById('chain').scrollTop = 1e6
+}
+document.getElementById('send').onclick = send
+document.getElementById('drafttext').addEventListener('keydown', e => { if (e.key === 'Enter') send() })
+addEventListener('keydown', e => { if (e.key === 'Escape') closePop() })
+document.addEventListener('click', e => { if (!e.target.closest('.pop,.marker,.plus,.tick,.refChip,.addb')) closePop() })
+renderEditor()
+</script>
+</body>
+</html>

@@ -604,10 +604,44 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'call', description: 'the write call this file belongs to.' }, { name: 'file', description: 'the path and the before/after text the write already holds.' }],
       },
       {
+        signature: 'async putSlot(session: Session, slot: CheckpointSlotPut): Promise<CheckpointSlot>',
+        description: 'Append one slot to the session\'s register and return the persisted row. Throws when a label or retained text exceeds its configured byte bound, when the minted id already has a row, or when the retained text cannot be stored; `retained`, when present, is hashed into the blob store and wins over an explicit `after`. The register is append-only; release is the one hide mechanism and it appends too. Not a Remote method: a failing put must reject its caller, the opposite of `captureWrite`\'s observation posture.',
+        parameters: [{ name: 'session', description: 'the owning session whose register the slot joins.' }, { name: 'slot', description: 'the producer-minted id, kind, path, label, optional scopes, digests, retained text, and per-kind detail.' }],
+        returns: 'the persisted slot, path relativized to the session cwd.',
+      },
+      {
+        signature: 'async releaseSlot(session: Session, slotId: string): Promise<void>',
+        description: 'Append the release tombstone for one slot: views fold the slot absent and the row stays, so mentions that already serialized keep resolving. Releasing an absent slot or a released one appends a redundant tombstone; the fold treats both the same. A disabled service appends nothing.',
+        parameters: [{ name: 'session', description: 'the owning session whose register the tombstone joins.' }, { name: 'slotId', description: 'the slot the producer is releasing.' }],
+      },
+      {
+        signature: '@Remote(\'slots\') async slots(session: Session, path?: string): Promise<CheckpointSlotTimeline[]>',
+        description: 'The register as a file-to-live-slot map, oldest first, paths in path order: `slots.jsonl` rows folded over tombstones, with each slot\'s turn joined from its `tool/call` event when the producer stamped none. Register state is store-only: the fold reads no slot event, and a session whose log never mentions slots still lists them after a restart.',
+        parameters: [{ name: 'session', description: 'the owning session whose register is folded.' }, { name: 'path', description: 'when set, only this session-relative path is returned.' }],
+        returns: 'every file that holds live slots.',
+      },
+      {
+        signature: '@Remote(\'slotPut\') async putSlotRemote(session: Session, slot: CheckpointSlotPutWire): Promise<CheckpointSlot>',
+        description: 'The Web producer path over the register: the same append as the host idiom with its byte bounds enforced at `putSlot`.',
+        parameters: [{ name: 'session', description: 'the owning session whose register the slot joins.' }, { name: 'slot', description: 'the producer-minted slot, as `putSlot` takes it.' }],
+        returns: 'the persisted slot.',
+      },
+      {
+        signature: '@Remote(\'slotRelease\') async releaseSlotRemote(session: Session, slotId: string): Promise<void>',
+        description: 'The Web release path over the register: appends the tombstone row.',
+        parameters: [{ name: 'session', description: 'the owning session whose register the tombstone joins.' }, { name: 'slotId', description: 'the slot the producer is releasing.' }],
+      },
+      {
         signature: '@Remote(\'restore\') async restore(session: Session, path: string, digest: string): Promise<string>',
         description: 'Restore one file to the exact bytes captured for a digest.',
         parameters: [{ name: 'session', description: 'the owning session whose store retains the blob.' }, { name: 'path', description: 'workspace-relative file path to restore.' }, { name: 'digest', description: 'digest recorded on the row being restored.' }],
         returns: 'the restored path.',
+      },
+      {
+        signature: '@Remote(\'stops\') async stops(session: Session, path?: string): Promise<CheckpointTimeline[]>',
+        description: 'One file\'s retained stops for the frozen Changes display and the `@` picker: `checkpoint/scan` rows joined to the `tool/call` that stated their turn and step, oldest first, paths in path order. Row paths rooted at the session working directory fold relative, like the client fold.',
+        parameters: [{ name: 'session', description: 'the owning session whose log is folded.' }, { name: 'path', description: 'when set, only this session-relative path is returned.' }],
+        returns: 'every timeline the session captured, folded like the client fold.',
       },
       {
         signature: '@Remote(\'blob\') async blob(session: Session, digest: string): Promise<string | null>',
@@ -3957,6 +3991,42 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type BrandedNumber<B extends string> = number & {\n    readonly [BRAND]: B;\n};',
   },
   {
+    name: 'CheckpointSlot',
+    declaration: 'export interface CheckpointSlot {\n    readonly slotId: CheckpointSlotId;\n    readonly kind: string;\n    readonly path: string;\n    readonly label: string;\n    readonly turn?: number;\n    readonly callId?: string;\n    readonly line?: number;\n    readonly before?: SnapshotDigest;\n    readonly after?: SnapshotDigest;\n    readonly createdAt: number;\n    readonly detail: CheckpointSlotDetail;\n}',
+  },
+  {
+    name: 'CheckpointSlotDetail',
+    declaration: 'export type CheckpointSlotDetail = CheckpointSlotDetailMap[keyof CheckpointSlotDetailMap];',
+  },
+  {
+    name: 'CheckpointSlotDetailMap',
+    declaration: 'export interface CheckpointSlotDetailMap {\n    readonly note: {\n        readonly text: string;\n    };\n    readonly worktree: {\n        readonly toolName: string;\n    };\n}',
+  },
+  {
+    name: 'CheckpointSlotId',
+    declaration: 'export type CheckpointSlotId = string & {\n    readonly __checkpointSlotId: never;\n};',
+  },
+  {
+    name: 'CheckpointSlotPut',
+    declaration: 'export interface CheckpointSlotPut {\n    readonly slotId: string;\n    readonly kind: string;\n    readonly path: string;\n    readonly label: string;\n    readonly turn?: number;\n    readonly callId?: string;\n    readonly line?: number;\n    readonly before?: SnapshotDigest;\n    readonly after?: SnapshotDigest;\n    readonly retained?: string;\n    readonly detail: CheckpointSlotDetail;\n}',
+  },
+  {
+    name: 'CheckpointSlotPutWire',
+    declaration: 'export type CheckpointSlotPutWire = Omit<CheckpointSlotPut, \'after\'> & {\n    readonly after?: string;\n};',
+  },
+  {
+    name: 'CheckpointSlotTimeline',
+    declaration: 'export interface CheckpointSlotTimeline {\n    readonly path: string;\n    readonly slots: readonly CheckpointSlot[];\n}',
+  },
+  {
+    name: 'CheckpointStop',
+    declaration: 'export interface CheckpointStop {\n    readonly seq: number;\n    readonly time: number;\n    readonly callId: string;\n    readonly toolName: string;\n    readonly purpose?: string;\n    readonly turn?: number;\n    readonly step?: number;\n    readonly before?: SnapshotDigest;\n    readonly after?: SnapshotDigest;\n}',
+  },
+  {
+    name: 'CheckpointTimeline',
+    declaration: 'export interface CheckpointTimeline {\n    readonly path: string;\n    readonly stops: readonly CheckpointStop[];\n}',
+  },
+  {
     name: 'Claim',
     declaration: 'export interface Claim {\n    readonly id: ClaimId;\n    readonly turn: number;\n    readonly revision: number;\n    readonly title: string;\n    readonly description: string;\n    readonly verifier: Verifier;\n    readonly results: readonly VerifierResult[];\n    readonly settlement: ClaimSettlement;\n}',
   },
@@ -5895,6 +5965,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'SkillViewOptions',
     declaration: 'export interface SkillViewOptions extends SkillLookupOptions {\n    readonly scope?: ScopeKey | undefined;\n}',
+  },
+  {
+    name: 'SnapshotDigest',
+    declaration: 'export type SnapshotDigest = string & {\n    readonly __snapshotDigest: never;\n};',
   },
   {
     name: 'SpawnTeammateRequest',

@@ -61,6 +61,78 @@ export interface CheckpointTimeline {
   readonly stops: readonly CheckpointStop[]
 }
 
+/** Identity of one slot in one session's register; the producer mints it. */
+export type CheckpointSlotId = string & { readonly __checkpointSlotId: never }
+
+/** Core record every slot carries; what the generic client renders and filters. */
+export interface CheckpointSlot {
+  readonly slotId: CheckpointSlotId
+  /** Producer kind key; the merged detail map is keyed by it. */
+  readonly kind: string
+  /** Session-relative path, slash-separated, relativized like CheckpointRow.path. */
+  readonly path: string
+  /** Producer-supplied one-liner: tooltip and transcript chip text. */
+  readonly label: string
+  /** Optional turn scope; the remote fold joins `tool/call` for absent turns. */
+  readonly turn?: number
+  /** Optional tool-call scope; the worktree producer mints its slotId from it. */
+  readonly callId?: string
+  /** Line anchor when the producer has one; the note kind pins it. */
+  readonly line?: number
+  /** Shadow snapshots in the blob store; digests only, both optional. */
+  readonly before?: SnapshotDigest
+  readonly after?: SnapshotDigest
+  /** Host-assigned creation time in Unix epoch milliseconds. */
+  readonly createdAt: number
+  /** Per-producer payload from the merged detail map. */
+  readonly detail: CheckpointSlotDetail
+}
+
+/** Per-producer payload; declaration-merged like SessionEventMap. */
+export interface CheckpointSlotDetailMap {
+  /** A line the user pinned; the comment producer. */
+  readonly note: { readonly text: string }
+  /** A committed write the capture gate recorded; slotId reuses the call id. */
+  readonly worktree: { readonly toolName: string }
+}
+
+/** The wire-safe union of every merged payload; the register's stored payload type. */
+export type CheckpointSlotDetail = CheckpointSlotDetailMap[keyof CheckpointSlotDetailMap]
+
+/** The fields a producer passes to `CheckpointService.putSlot`. */
+export interface CheckpointSlotPut {
+  readonly slotId: string
+  readonly kind: string
+  readonly path: string
+  readonly label: string
+  readonly turn?: number
+  readonly callId?: string
+  readonly line?: number
+  readonly before?: SnapshotDigest
+  readonly after?: SnapshotDigest
+  readonly retained?: string
+  readonly detail: CheckpointSlotDetail
+}
+
+/** The wire twin of {@link CheckpointSlotPut}: a fresh digest crosses as a plain string. */
+export type CheckpointSlotPutWire = Omit<CheckpointSlotPut, 'after'> & { readonly after?: string }
+
+/** One file's live slots over the remote surface, oldest first. */
+export interface CheckpointSlotTimeline {
+  /** Session-relative path, slash-separated. */
+  readonly path: string
+  readonly slots: readonly CheckpointSlot[]
+}
+
+/**
+ * One persisted row of `slots.jsonl`. Put rows carry the full slot; release
+ * rows carry only the tombstone key. The register is append-only and
+ * undeletable: no writer ever removes or rewrites a row.
+ */
+export type CheckpointSlotRecord =
+  | (CheckpointSlot & { readonly released?: never })
+  | { readonly slotId: CheckpointSlotId; readonly released: true }
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**

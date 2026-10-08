@@ -8,10 +8,10 @@
  */
 
 import { createHash } from 'node:crypto'
-import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
+import { appendFile, chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ScannedStat } from './scan.ts'
-import type { SnapshotDigest } from './types.ts'
+import type { CheckpointSlotRecord, SnapshotDigest } from './types.ts'
 
 /** One persisted frontier row: the content digest plus the stat the next scan diffs. */
 export interface FrontierRecord {
@@ -170,4 +170,68 @@ export class CheckpointStore {
       return false
     }
   }
+
+  /**
+   * Append one register row to the session's `slots.jsonl`. Append-only by
+   * construction: the register has no rewrite or remove path, and releasing a
+   * slot is itself an appended tombstone row.
+   * @param record - the put or release row to persist verbatim.
+   */
+  async appendSlotRow(record: CheckpointSlotRecord): Promise<void> {
+    await this.ensureDir(this.sessionRoot)
+    await appendFile(
+      join(this.sessionRoot, 'slots.jsonl'),
+      `${JSON.stringify(record)}\n`,
+      { encoding: 'utf8', mode: 0o600 },
+    )
+  }
+
+  /**
+   * Read the register log in write order. A missing file is an empty register.
+   * A malformed line — a half-written tail from a crash, or hand-edited garbage —
+   * is skipped rather than fatal: the register degrades to its readable prefix,
+   * the same posture the frontier cache takes.
+   * @returns every parseable row, oldest first.
+   */
+  async loadSlotRows(): Promise<CheckpointSlotRecord[]> {
+    let text: string
+    try {
+      text = await readFile(join(this.sessionRoot, 'slots.jsonl'), 'utf8')
+    } catch {
+      return []
+    }
+    const rows: CheckpointSlotRecord[] = []
+    for (const line of text.split('\n')) {
+      if (line === '') continue
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(line)
+      } catch {
+        continue
+      }
+      const record = readSlotRecord(parsed)
+      if (record !== undefined) rows.push(record)
+    }
+    return rows
+  }
+}
+
+/**
+ * One parsed `slots.jsonl` line that names a slot; put rows must additionally
+ * carry the core fields the fold renders, release rows only the tombstone key.
+ * @param value - the parsed JSON line.
+ * @returns the row, or undefined when the line is not a register row.
+ */
+function readSlotRecord(value: unknown): CheckpointSlotRecord | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const row = value as Record<string, unknown>
+  if (typeof row['slotId'] !== 'string' || row['slotId'] === '') return undefined
+  if (row['released'] === true) return { slotId: row['slotId'] as CheckpointSlotRecord['slotId'], released: true }
+  if (row['released'] !== undefined) return undefined
+  if (typeof row['kind'] !== 'string' || row['kind'] === '') return undefined
+  if (typeof row['path'] !== 'string') return undefined
+  if (typeof row['label'] !== 'string') return undefined
+  if (typeof row['createdAt'] !== 'number' || !Number.isFinite(row['createdAt'])) return undefined
+  if (typeof row['detail'] !== 'object' || row['detail'] === null) return undefined
+  return row as unknown as CheckpointSlotRecord
 }

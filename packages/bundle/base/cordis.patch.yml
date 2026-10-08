@@ -449,6 +449,8 @@
       name: '@deepseek-ai/dsh-checkpoint'
       config:
         enabled: true
+        maxLabelBytes: 2048
+        maxRetainedBytes: 8192
 
     # Compacts oversized tool results before the broader conversation compactor
     # runs, preserving the model-visible result within the configured budget.

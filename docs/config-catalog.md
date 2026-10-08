@@ -360,10 +360,14 @@ export interface Config {
   enabled: boolean
   /** Optional `DSH_HOME` override for the per-session object store root. */
   dshHome?: string
+  /** Byte bound of one register slot's label. */
+  maxLabelBytes: number
+  /** Byte bound of one register slot's retained text. */
+  maxRetainedBytes: number
 }
 ```
 
-Source: [`packages/fs/checkpoint/src/index.ts:36`](../packages/fs/checkpoint/src/index.ts)
+Source: [`packages/fs/checkpoint/src/index.ts:41`](../packages/fs/checkpoint/src/index.ts)
 
 <a id="deepseek-aidsh-claim-settlement"></a>
 

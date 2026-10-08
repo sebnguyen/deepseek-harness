@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-`dsh-checkpoint` records each file a committed `write` hands it and keeps the bytes needed to review or undo that write. The write tool already holds the file's before and after text; capture stores those two strings by sha256 digest and appends one `checkpoint/scan` row for the file, attributed to the call. Rows carry the previous and current digests, so a consumer can reconstruct a per-file timeline and diff any two adjacent stops without the log holding file contents. The service also exposes `blob` and `restore` over Typert and registers the model-facing `checkpoint_restore` tool. Choose it when sessions need a restorable record of write-tool commits; skip it when shell edits and deletes must appear in the same timeline.
+`dsh-checkpoint` records each file a committed `write` hands it and keeps the bytes needed to review or undo that write. The write tool already holds the file's before and after text; capture stores those two strings by sha256 digest and appends one `checkpoint/scan` row for the file, attributed to the call. Rows carry the previous and current digests, so a consumer can reconstruct a per-file timeline and diff any two adjacent stops without the log holding file contents. Beside the rows the service owns the slot register: one append-only, undeletable row family per session keyed by file, which producers (the worktree capture, or any plugin over the `slotPut` Remote) write and clients read as a file-to-slot-array map. The service also exposes `blob` and `restore` over Typert and registers the model-facing `checkpoint_restore` tool. Choose it when sessions need a restorable record of write-tool commits; skip it when shell edits and deletes must appear in the same timeline.
 
 ## Table of Contents
 
@@ -33,14 +33,20 @@ Mount the service where sessions should capture write-tool commits. It requires 
 
 | Field | Default | Meaning |
 |---|---|---|
-| `enabled` | none (required) | Whether capture and the restore surface are mounted |
+| `enabled` | none (required) | Whether capture, the register, and the restore surface are mounted |
 | `dshHome` | `DSH_HOME` or `~/.dsh` | Override for the per-session store root |
+| `maxLabelBytes` | none (required) | Byte bound of one register slot's label |
+| `maxRetainedBytes` | none (required) | Byte bound of one register slot's retained text |
 
-Capture is observation, never policy: a failed store write degrades to no event and never fails the write it was observing. A dry run and a failed write element are not recorded.
+Capture is observation, never policy: a failed store write degrades to no event and never fails the write it was observing. A dry run and a failed write element are not recorded. Register puts take the opposite posture: a `putSlot` whose label or retained text exceeds its bound, or whose id already has a row, rejects its caller.
 
 ### Reading a timeline
 
 Rows arrive as `checkpoint/scan` session events, one row per committed write file. A consumer joins `row.callId` with the session's `tool/call` events to recover the turn, step, purpose, and arguments of the change. `row.before` is absent when the write supplied no prior text. To render a diff, read the two digests with the `blob` Remote method; to undo a stop, call `restore`, or let the model call `checkpoint_restore`.
+
+### The slot register
+
+Every session holds one `slots.jsonl` under the store root: an append-only record of slot puts and release tombstones. Worktree slots ride `captureWrite` with their `slotId` equal to the call id, so the shipped `@path#turn#call-id` grammar resolves by filtering the register; producer plugins mint their own ids and payloads through the `slotPut` Remote and the declaration-merged `CheckpointSlotDetailMap`. The `slots` Remote returns the live map — file to slot array, tombstones folded to absent — with no session event involved, so register state survives restarts and reaches a second client regardless of the log. Releasing a slot appends a tombstone; no method removes or rewrites a row, so a mention that already serialized keeps resolving.
 
 -----
 
@@ -63,7 +69,7 @@ Rows arrive as `checkpoint/scan` session events, one row per committed write fil
 | [`src/index.ts`](src/index.ts) | Plugin entry: `CheckpointService`, `captureWrite`, config schema, restore tool, Remote methods |
 | [`src/store.ts`](src/store.ts) | Content-addressed store: `digestOf`, `put`, `read`, `has`, frontier persistence |
 | [`src/scan.ts`](src/scan.ts) | Pruned workspace walk, `SimpleIgnoreMatcher`, stat diff. Capture does not call it |
-| [`src/types.ts`](src/types.ts) | `CheckpointRow`, `SnapshotDigest`, the `checkpoint/scan` event declaration |
+| [`src/types.ts`](src/types.ts) | `CheckpointRow`, `SnapshotDigest`, the slot vocabulary, the `checkpoint/scan` event declaration |
 
 </details>
 
@@ -101,7 +107,7 @@ None on its own. The tool's schema participates in the stable prefix like every 
 
 - **Write commits only** — bash, deletes, `str_replace` editor writes, restores, and edits made outside the write tool leave no row.
 - **Text the write already holds** — capture stores `before` and `after` as UTF-8 strings. When `before` is null, the row omits the before digest. `blob` answers `null` for a digest the store does not have.
-- **No pruning policy** — objects are retained for the life of the session directory; nothing reclaims them.
+- **No pruning policy** — objects and register rows are retained for the life of the session directory; nothing reclaims them, including released slots, by the undeletable invariant.
 
 <a id="dev-note"></a>
 ### Dev Note

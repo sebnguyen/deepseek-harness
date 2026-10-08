@@ -24,6 +24,7 @@ describe('SimpleIgnoreMatcher', () => {
       'bare.txt',
       '!keep.log',
       '   ',
+      'sub/leaf.txt',
     ].join('\n'))
     expect(matcher.matches('dist')).toBe(true)
     expect(matcher.matches('dist/nested/a.js')).toBe(true)
@@ -35,6 +36,8 @@ describe('SimpleIgnoreMatcher', () => {
     expect(matcher.matches('bare.txt')).toBe(true)
     expect(matcher.matches('nested/bare.txt')).toBe(true)
     expect(matcher.matches('kept.ts')).toBe(false)
+    // A interior-slash rule is none of the honored forms and adds nothing.
+    expect(matcher.matches('sub/leaf.txt')).toBe(false)
   })
 
   it('matches nothing when the body is empty', () => {
