@@ -50,6 +50,39 @@
   padding-right: 56px;
 }
 
+/* A path header in its openable file-link form: same dotted underline the row
+   chrome draws, reset as a bare button so the row types like a body line. */
+button.pathLink {
+  display: block;
+  width: fit-content;
+  margin: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--dsw-alias-label-tertiary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+button.pathLink:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Localized outcome note riding the body's top-right, clear of the floating
+   copy control and the first path header. */
+.accessory {
+  position: absolute;
+  top: 8px;
+  right: 52px;
+  z-index: 1;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
 /* A same-file second hunk's separator (a scattered edit), in the dim tone. */
 .gap {
   color: var(--dsw-alias-label-tertiary);

@@ -11,6 +11,7 @@ import type {
 } from '@deepseek-ai/dsh-client-modules/client'
 import { bootClient } from './boot-client.ts'
 import { BootPage } from './boot-page.ts'
+import { awaitDataReady } from './data-ready.ts'
 import { mountClient } from './mount.ts'
 import { getStaticModules } from './seed.ts'
 import './base.css'
@@ -84,6 +85,11 @@ export class AppWebEntry {
         manifest: this.manifest,
         onEntryState: (name, state) => { this.page.setState(name, state) },
       })
+      // Data-ready gate: the boot page stays up until the Host connection is
+      // established and the Workspace and Session baselines arrive, so the
+      // first painted frame carries sidebar and hero data, not an empty
+      // shell; a stuck Host releases the gate through the timeout.
+      await awaitDataReady(ctx)
       await mountClient(ctx, this.container)
     } catch (reason) {
       console.error(reason)

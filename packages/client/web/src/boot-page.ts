@@ -3,6 +3,7 @@
  * client plugin fails because React arrives only with the UI renderer.
  * @module @deepseek-ai/dsh-client-web/src/boot-page
  */
+import { installPixelLoaderStyles, pixelLoaderInner } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { LoaderEntryState } from './loader-status.ts'
 import css from './boot-page.module.css'
 
@@ -37,6 +38,10 @@ export class BootPage {
     this.wordmark = div(css.wordmark, 'HARNESS')
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
+    // The shared pixel sweep; the div hosts it so the roster ratio can shift
+    // the sweep window through --dsh-boot-arc without touching the svg markup.
+    installPixelLoaderStyles()
+    this.spinner.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">${pixelLoaderInner(24, 24)}</svg>`
     this.hint = div(css.hint, 'Loading plugins…')
     this.card.append(this.wordmark, this.spinner, this.hint)
     this.root.append(this.card)
@@ -45,7 +50,7 @@ export class BootPage {
   }
 
   /**
-   * Set the number of loader entries represented by the progress arc.
+   * Set the number of loader entries represented by the sweep window.
    * @param total - Complete boot roster size.
    */
   setTotal(total: number): void {
@@ -95,7 +100,7 @@ export class BootPage {
     this.card.replaceChildren(this.wordmark, report)
   }
 
-  /** Grow the rotating arc monotonically as loader entries activate. */
+  /** Shift the sweep window monotonically as loader entries activate. */
   private updateProgress(): void {
     const ratio = this.total === 0 ? 0 : Math.min(this.active.size / this.total, 1)
     this.spinner.style.setProperty('--dsh-boot-arc', `${String(Math.round(72 + ratio * 216))}deg`)

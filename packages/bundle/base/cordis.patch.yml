@@ -289,11 +289,19 @@
     - id: tool-jobs
       name: '@deepseek-ai/dsh-tool-jobs'
 
-    - id: knowledge-notes
-      name: '@deepseek-ai/dsh-knowledge-notes'
-
+    # `knowledge-notes` is shelved: the file-anchored notes feature gets no
+    # composition for now, per the base/preset plane standardization proposal
+    # (2026-10-07-base-host-plane-presets-agent-plane). Compose it again by adding
+    # a row here once its plane is chosen.
     - id: tool-fs
       name: '@deepseek-ai/dsh-tool-fs'
+      config:
+        # The shipped faces are `files` batches; the recorded-session corpus
+        # replays committed singular calls, and test-lane boots (vitest-hosted
+        # suites plus snapshot subprocesses inheriting VITEST) keep the singular
+        # faces until the corpus is re-recorded. Live runtime sessions always
+        # batch.
+        legacyFaces: !!js process.env.VITEST === 'true'
 
     # `tool-fs-search` (glob, grep) is deliberately unmounted: text search runs
     # through the shell, and `read` stays as the recorded-observation path the

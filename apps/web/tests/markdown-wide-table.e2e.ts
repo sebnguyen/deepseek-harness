@@ -62,15 +62,16 @@ const TABLE_NAMES = ['fill', 'wide', 'long-cell']
 
 /**
  * Viewport sweep. The wide stops leave the transcript far wider than the
- * 748px message column, so the breakout relation holds with a fat margin on
- * every platform; the narrow stop drops the transcript below the message
- * column, which must clamp the breakout to neutral. The sidebar is collapsed
- * for the whole sweep (see beforeAll), so the transcript width follows the
- * viewport identically on overlay- and classic-scrollbar platforms.
+ * readable-measure content column (431px at the default face), so the
+ * breakout relation holds with a fat margin on every platform; the narrow
+ * stop drops the transcript below the content column, which must clamp the
+ * breakout to neutral. The sidebar is collapsed for the whole sweep (see
+ * beforeAll), so the transcript width follows the viewport identically on
+ * overlay- and classic-scrollbar platforms.
  */
 const WIDTHS = [1680, 1100, 640]
 
-/** A sentence long enough that three of them cannot sit unwrapped in the 748px column. */
+/** A sentence long enough that three of them cannot sit unwrapped in the content column. */
 const SENTENCE = 'This cell carries one full sentence so the unwrapped table is far wider than the message column.'
 /** Unbroken path-like token (no scheme, so GFM does not autolink it and no anchor joins the tab order). */
 const LONG_TOKEN = 'workspace/deepseek-harness/packages/client/ui-primitives/src/markdown/render.tsx/'.repeat(3)

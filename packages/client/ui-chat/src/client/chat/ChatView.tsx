@@ -2,18 +2,15 @@
 // otherwise this view owns it. Each row subscribes to one stable node key.
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
-import type {
-  ConversationTimelineSnapshot, RenderMessageImages,
-} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
-import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14, Modal, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
 import type { ChatSnapshot } from '../contract/snapshot.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { TurnNavigator } from './TurnNavigator.tsx'
 import { mergeTurnRailItems, type TurnRailItem } from './turn-rail-items.ts'
-import { formatRunDuration } from './message-chrome.ts'
 import css from './ChatView.module.css'
 
 const FOLLOW_THRESHOLD = 24
@@ -156,46 +153,15 @@ function observedRpcIds(
   return observed
 }
 
-function runningTurnStartTime(timeline: ConversationTimelineSnapshot): number | null {
-  let latest: number | null = null
-  for (const turn of timeline.turns.values()) {
-    if (turn.status === 'open') latest = turn.start?.time ?? null
-  }
-  return latest
-}
-
 /** Turn-level model activity label retained across first-token, tool, and streaming phases. */
-function TurnStatus({ startTime, t }: {
-  /** The running turn's logged `turn/start` time; null falls back to mount
-   *  time when that boundary is outside the window. */
-  startTime: number | null
+function TurnStatus({ t }: {
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
 }) {
-  const [mountedAt] = useState(() => Date.now())
-  // Anchored to turn/start so a mid-turn reload keeps the real
-  // elapsed time and the final footer's Ran-for label matches this clock.
-  const anchor = startTime ?? mountedAt
-  const [elapsedMs, setElapsedMs] = useState(() => Math.max(0, Date.now() - anchor))
-  useEffect(() => {
-    const tick = (): void => {
-      setElapsedMs(Math.max(0, Date.now() - anchor))
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => { clearInterval(id) }
-  }, [anchor])
-  // Short turns keep the plain label; the clock only appears once the turn
-  // has clearly been running for a while.
-  const showClock = elapsedMs >= 15_000
   return (
     <div className={css.turnStatus} role="status" aria-live="polite">
+      <PixelLoader className={css.turnStatusSpinner} />
       {t('chat.deepDiving')}
-      {showClock && (
-        <span className={css.turnStatusClock} aria-hidden>
-          {formatRunDuration(elapsedMs, t)}
-        </span>
-      )}
     </div>
   )
 }
@@ -232,7 +198,6 @@ export function ChatView({
     () => mergeTurnRailItems(turnNavigationItems, turnOutline),
     [turnNavigationItems, turnOutline],
   )
-  const timeline = useChat(s => s.timeline)
   const inbox = useSession(s => s.queue)
   // Workspace root off the session list row: path summaries display relative to it.
   const cwd = useSessions(s => s.byId[sessionId]?.cwd)
@@ -298,8 +263,6 @@ export function ChatView({
     owner => renderSlot('conversation.message.images', { ...owner, loadImage }),
     [loadImage, renderSlot],
   )
-  const runningTurnStart = useMemo(() => runningTurnStartTime(timeline), [timeline])
-
   const listRef = useRef<HTMLDivElement | null>(null)
   const columnRef = useRef<HTMLDivElement | null>(null)
   // A saved position starts disarmed; the first layout effect synchronously
@@ -802,7 +765,7 @@ export function ChatView({
               double-render the same wait. */}
           {/* Turn-level loading signal: rides the whole running turn (first-token
               wait, tool execution, streaming) so it never flickers per step. */}
-          {running && <TurnStatus startTime={runningTurnStart} t={t} />}
+          {running && <TurnStatus t={t} />}
           {pendingSteering.map(item => (
             <PendingSteeringBubble
               key={item.id}

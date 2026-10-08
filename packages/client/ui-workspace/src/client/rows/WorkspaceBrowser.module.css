@@ -358,10 +358,30 @@
 
 .searchStatus,
 .searchWarning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   padding: 10px 12px;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary);
+}
+
+.listStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.listStatusSpinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: inherit;
 }
 
 .searchWarning {

@@ -423,3 +423,10 @@ describe('writeClipboard', () => {
     await expect(writeClipboard('payload')).resolves.toBe(false)
   })
 })
+
+describe('TerminalBlock accessory', () => {
+  it('renders the accessory text ahead of the copy control', () => {
+    const { container } = render(<TerminalBlock command="ls" accessory="0.3s" />)
+    expect(container.textContent).toContain('0.3s')
+  })
+})

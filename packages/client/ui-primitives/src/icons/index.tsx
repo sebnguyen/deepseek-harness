@@ -874,6 +874,16 @@ export const IconInspectOutline12 = ({ size = 12, className }: IconProps) => (
   </svg>
 )
 
+/** detach_outline_12 (shell element handed off to a background job: an arrow
+ *  descending into an open tray, so the row states the work left the call) */
+export const IconDetachOutline12 = ({ size = 12, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+    <path d="M10.5 6.5V9.5A1.5 1.5 0 0 1 9 11H3A1.5 1.5 0 0 1 1.5 9.5V6.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 1V7.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    <path d="M3.6 4.9 6 7.3 8.4 4.9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+)
+
 /** skill_outline_16 (skill tool-row glyph; document instructions + sparkle) */
 export const IconSkillOutline16 = ({ size = 16, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">

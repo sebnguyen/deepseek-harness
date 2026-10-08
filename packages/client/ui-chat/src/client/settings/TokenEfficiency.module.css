@@ -66,7 +66,7 @@
   position: relative;
   z-index: 1;
   box-sizing: border-box;
-  width: min(860px, calc(100vw - 48px));
+  width: min(1080px, calc(100vw - 48px));
   max-height: min(800px, calc(100vh - 48px));
   overflow: auto;
   padding: 20px 24px;
@@ -110,21 +110,38 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-.sub {
-  margin: 4px 0 12px;
-  color: var(--dsw-alias-label-tertiary);
+/* Anchor tiles: spend total plus the three chip denominators. */
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
 }
 
-.chips {
+.tiles > div {
   display: flex;
-  gap: 16px;
-  margin-bottom: 12px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.tileKey {
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tileValue {
+  color: var(--dsw-alias-label-primary);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Fixed-column table: declared column widths keep content from ever
-   resizing a column; the bar track owns the only flexible visual. */
+   resizing a column; the mix bar owns the only flexible visual. */
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -154,41 +171,95 @@
 
 .num { text-align: right; }
 
-.cnt { text-align: center; }
+.cName { width: 20%; }
 
-.cName { width: 26%; }
+.cMix { width: 15%; }
+
+.cRate { width: 8%; }
+
+.cMedian { width: 9%; }
+
+.cAvg { width: 9%; }
+
+.cMax { width: 9%; }
+
+.cHit { width: 6%; }
+
+.cSpend { width: 8%; }
+
+.cTokens { width: 8%; }
 
 .cModels { width: 8%; }
 
-.cBar { width: 18%; }
-
-.cRate { width: 12%; }
-
-.cSpend { width: 11%; }
-
-.cTokens { width: 10%; }
-
-.cHit { width: 15%; }
-
-/* The bar lives in a fixed-width track; only the fill inside scales. */
-.track {
-  display: block;
-  height: 8px;
-  border-radius: 4px;
-  background: var(--dsw-alias-bg-layer-3);
+/* Token mix bar: one fixed track, four bucket segments share its width. */
+.mix {
+  display: flex;
+  height: 6px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--dsw-alias-bg-module-platform);
   cursor: help;
 }
 
-.fill {
+.mix i {
   display: block;
   height: 100%;
-  border-radius: 4px;
-  background: var(--dsw-alias-button-primary-fill);
+}
+
+.trackEmpty {
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+/* Bar segments paint with the opaque DO mid-steps — kelp-400, tentacle-400,
+   coral-400 behind the state-secondaries — because the walrus tint surfaces
+   that chips ride are nearly invisible at bar scale; the brand fill marks
+   output. */
+.mixUncached { background: var(--dsw-alias-state-error-secondary); }
+
+.mixCacheRead { background: var(--dsw-alias-state-success-secondary); }
+
+.mixCacheWrite { background: var(--dsw-alias-state-warn-secondary); }
+
+.mixOutput { background: var(--dsw-alias-button-primary-fill); }
+
+/* Multiple chips: left-aligned in their columns so the pills stack down a
+   straight edge; the pill's own digits stay centered inside it. */
+.good {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-bg);
+}
+
+.near {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-bg);
+}
+
+.high {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-alias-state-error-bg);
+}
+
+.good, .near, .high {
+  display: inline-block;
+  min-width: 40px;
+  padding: 0 7px;
+  border-radius: 9px;
+  line-height: 18px;
+  text-align: center;
+  cursor: help;
+}
+
+.none {
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .dotted {
   cursor: help;
-  border-bottom: 0.5px dotted var(--dsw-alias-label-tertiary);
+  /* Dashed affordances keep 1px; solid neutral hairlines draw at 0.5px. */
+  border-bottom: 1px dotted var(--dsw-alias-label-tertiary);
 }
 
 .child .name {
@@ -231,10 +302,31 @@
   margin-right: 4px;
 }
 
+/* Mix legend under the table; the band scale rides the trailing run. */
+.legend {
+  display: flex;
+  gap: 14px;
+  margin-top: 12px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+}
+
+.legend i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 5px;
+}
+
+.legendBands {
+  margin-left: auto;
+}
+
 .empty {
   margin-top: 16px;
   padding: 28px;
-  border: 0.5px dashed var(--dsw-alias-border-l2);
+  border: 1px dashed var(--dsw-alias-border-l2);
   border-radius: 12px;
   text-align: center;
   color: var(--dsw-alias-label-tertiary);

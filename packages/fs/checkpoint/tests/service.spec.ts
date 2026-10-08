@@ -1,8 +1,8 @@
-/** Covers workspace capture: the dispatch bracket, row attribution, restore, and disposal. */
+/** Covers write-file capture: row attribution from before/after text, restore, and disposal. */
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { SessionId, SessionStore, type Session } from '@deepseek-ai/dsh-session'
@@ -30,8 +30,8 @@ interface Harness {
 }
 
 /** Mount the capture stack over a fresh temp workspace and a fresh session store. */
-async function harness(options: { enabled?: boolean; home?: string; sessionId?: string } = {}): Promise<Harness> {
-  const root = await mkdtemp(join(tmpdir(), 'dsh-checkpoint-ws-'))
+async function harness(options: { enabled?: boolean; home?: string; sessionId?: string; root?: string } = {}): Promise<Harness> {
+  const root = options.root ?? await mkdtemp(join(tmpdir(), 'dsh-checkpoint-ws-'))
   const home = options.home ?? await mkdtemp(join(tmpdir(), 'dsh-checkpoint-home-'))
   const ctx = new Context()
   await ctx.plugin(SystemPrompt)
@@ -48,8 +48,17 @@ async function harness(options: { enabled?: boolean; home?: string; sessionId?: 
     description: 'write a.txt with the given content',
     parameters: { content: { type: 'string', required: true } },
     output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: String(value) }] },
-    execute: async (args) => {
-      await writeFile(join(root, 'a.txt'), args.content, 'utf8')
+    execute: async (args, exec) => {
+      const content = String(args.content)
+      let before: string | null
+      try {
+        before = await readFile(join(root, 'a.txt'), 'utf8')
+      } catch {
+        // a.txt is absent until the first write in this workspace
+        before = null
+      }
+      await writeFile(join(root, 'a.txt'), content, 'utf8')
+      await ctx.get('checkpoint')?.captureWrite(exec, { path: 'a.txt', before, after: content })
       return 'written'
     },
   }))
@@ -104,17 +113,16 @@ describe('checkpoint capture', () => {
     })
   })
 
-  it('records a removal row carrying the prior digest and no after', async () => {
+  it('records nothing for a delete the write tool did not hand over', async () => {
     const stack = await harness()
     await stack.run('writer', 'c1', { content: 'one' })
     await stack.run('remover', 'c2', {})
-    expect(stack.rows()[1]).toEqual({
-      path: 'a.txt', callId: 'c2', toolName: 'remover', before: digestOf('one'),
-    })
+    expect(stack.rows()).toHaveLength(1)
   })
 
-  it('appends nothing when a call leaves the workspace untouched', async () => {
+  it('appends nothing when a call does not hand over a file', async () => {
     const stack = await harness()
+    await writeFile(join(stack.root, 'a.txt'), 'one', 'utf8')
     await stack.run('noop', 'c1', {})
     expect(stack.rows()).toEqual([])
   })
@@ -133,14 +141,25 @@ describe('checkpoint capture', () => {
     expect(stack.rows()).toEqual([])
   })
 
-  it('keeps continuity across a fresh process through the store frontier', async () => {
+  it('chains before from the text the next write reads, including in a new process', async () => {
     const first = await harness({ sessionId: 'resumed' })
     await first.run('writer', 'c1', { content: 'one' })
-    const second = await harness({ home: first.home, sessionId: 'resumed' })
-    await second.run('writer', 'c2', { content: 'two' })
+    const second = await harness({ home: first.home, sessionId: 'resumed', root: first.root })
+    await second.run('writer', 'c2', { content: 'two!' })
     expect(second.rows()).toEqual([
-      { path: 'a.txt', callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two') },
+      { path: 'a.txt', callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two!') },
     ])
+  })
+
+  it('records nothing when the object store cannot retain the bytes', async () => {
+    const stack = await harness()
+    await chmod(stack.home, 0)
+    try {
+      await stack.run('writer', 'c1', { content: 'one' })
+      expect(stack.rows()).toEqual([])
+    } finally {
+      await chmod(stack.home, 0o700)
+    }
   })
 })
 

@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 import { IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
+import { readFramesRowModel } from '../models/frames-row-model.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow, type ToolRowProps } from '../components/ToolRow.tsx'
 
@@ -39,6 +40,11 @@ export function readFamilyRow(
   card: ReadFamilyCard,
 ): ReactNode {
   const model = toolRowModel(toolName, block, cwd, home)
+  // A settled batched `read` stacks one card per frame instead of the
+  // single first-frame card; its summary names the batch and its link opens
+  // the first element at that window's line.
+  const frames = card.read !== undefined ? readFramesRowModel(block, cwd, home) : null
+  const firstRead = frames?.items.find(item => item.kind === 'read')
   return (
     <ToolRow
       t={t}
@@ -46,13 +52,20 @@ export function readFamilyRow(
       toolName={toolName}
       icon={<IconBrowseOutline16 size={14} />}
       title={t(model.titleKey)}
-      summary={model.summary}
+      summary={frames === null
+        ? model.summary
+        : t('read.batchSummary', { count: frames.count, first: frames.firstLabel })}
       bodyRaw={null}
       output={model.output}
       errorSummary={model.errorSummary}
       {...card}
+      read={frames === null ? card.read : undefined}
+      frames={frames ?? undefined}
       state={model.state}
-      filePath={model.filePath}
+      filePath={frames === null ? model.filePath : frames.firstPath}
+      filePathLine={frames === null
+        ? card.filePathLine
+        : firstRead !== undefined && firstRead.kind === 'read' ? firstRead.read.line : undefined}
       onOpenFile={openFile}
       inspect={inspect}
     />

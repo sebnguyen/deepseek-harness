@@ -1,117 +1,128 @@
 <!doctype html>
-<!-- Static visual mock, v5: the file's snapshot timeline rides the TOP of the
-     editor's Changes display as a trajectory-style header strip, and the
-     _dsh_harness_purpose critique surface rides the BOTTOM in the chat
-     input's own seat. Same shipped chrome (facts from ui-layout /
-     ui-conversation / ui-sidebar-right / ui-dockkit / ui-trajectory source;
-     literals are the dark appearance of design-platform.css).
+<!-- Static visual mock, v6 — restyled to the SHIPPED design language (v5 facts
+     from ui-layout / ui-conversation / ui-sidebar / ui-dockkit / ui-trajectory
+     source stay; literals now match design-platform.css dark appearance:
+     bluish layers 950/900/875/850/800, business/links deepseek-300
+     rgb(148,198,204), user bubble violet-950, white-alpha hairlines l1-l4,
+     success/warn/error at 134,239,172 / 208,135,48 / 252,165,165, tooltip
+     rgb(65,74,75), elevation-soft composer, elevation-prominent menus,
+     composer card 22px, menus 20px/rows 10px, tooltip 8px, inline reference
+     6px; radii are literal in every shipped sheet and the global
+     corner-shape superellipse(1.5) has no static twin. Tool calls in chat
+     draw as borderless DisclosureRow chrome — icon + name + ellipsized
+     purpose + uncolored 11px code diff stat, per-turn grouped on a 2px inset
+     rail; user turns are violet bubbles with no author line.
 
-     Top strip: the family-1 continuous scrubber on a turn axis — a thin
-     24px turn-proportional band on bg-layer-2 (0.5px l2 bottom rule, end
-     labels turn 1 and the current turn), a 2px track carrying 2x10px
-     event ticks (the gap is a warn-stroked hollow diamond) and a
-     draggable playhead: a 1.5px business hairline with an 11px round
-     handle, snapped to the selected stop. Mid-drag a dashed ghost
-     playhead live-previews the scrub while the frozen diff below
-     answers, and release snaps to the nearest stop. The center header
-     lists Chat and Trajectory only: the Files view retires, its duties
-     folded into the scrubber and dockkit chips. The conversation draws
-     every agent turn dead with a mention row: one chip per file whose
-     state at the turn's last snapshot differs from its state at the
-     previous turn's last snapshot — the chip is the file's end-of-turn
-     address and its badges are the snapshot-to-snapshot aggregate for
-     the whole turn, so multi-call turns collapse to one chip per file;
-     a gap diamond rides a chip whose chain from the prior snapshot
-     broke; a chip click opens that stop in Changes. Hover or focus over a tick opens a tight card: tool name on
-     the first row, the stored +/− badges side by side on the second (the
-     gap diamond labels itself "unattributed"); a click selects.
-     The controls row under the dockkit strip is icons whose labels appear
-     only on hover: code chevrons Source, ± Changes, eye Preview, tray
-     arrow Save, rotation arrow Revert.
+     Top strip: the family-1 continuous scrubber on a turn axis — a 24px
+     turn-proportional band on bg-layer-2 (0.5px l2 bottom rule, end labels
+     turn 1 and the current turn), a 2px track carrying 2x10px event ticks
+     (the gap is a warn-stroked hollow diamond) and a draggable playhead:
+     a 1.5px business hairline with an 11px round handle, snapped to the
+     selected stop. Mid-drag a dashed ghost playhead live-previews; release
+     snaps to the nearest stop. The center header lists Chat and Trajectory
+     only: the Files view retires into the scrubber and dockkit chips; the
+     sidebar carries the brand row, which doubled as the New Session
+     shortcut expanded, so no New Session bar exists on its own. Transcript
+     and composer sit at the shipped centered measure — min(64% of the
+     column, 37em of content size), the card 32px wider. The
+     conversation draws every dead agent turn with a snapshot-chip row: the
+     turn is framed by turn-start and turn-end snapshots and each file whose
+     state differs across the frame appears as one capsule chip reading
+     filename +n −n; the hover title holds the @path#turn#call-id address
+     of the turn-end stop and a click snaps the Changes playhead there; a
+     gap row inside the frame rides the chip as a warn diamond.
 
-     Middle keeps the frozen single-page unified diff (context rows, red −,
-     green +, both numbers in the gutter); the display bottom holds the
-     selected stop's purpose box — a Purpose heading with turn/tool/call
-     meta and the stored text full beneath it, stacked vertically — and a
-     round left-aligned ＋ button beside the box. Snapshots are
-     addressable exactly like files: an @ reference of the form
-     @scan.ts#4#call-7f2 (path + turn + tool-call id, the log's own
-     identity stack; a stop whose call never logged a turn uses #gap in
-     the turn slot) rides the composer's existing file picker, which
-     nests each open file's stops under it with tool, time, and stored
-     badges; the ＋ inserts that address as a
-     chip plus the cited purpose quote into the next draft; sending
-     posts an ordinary user message carrying the chip and the quote
-     line. No chat element lives in the right panel; one window, one
-     element.
+     Middle keeps the frozen single-page unified diff (both numbers in the
+     gutter, success/error line text); the display bottom holds the
+     selected stop's purpose box — Purpose heading with turn/tool/call meta
+     and the stored text full beneath, stacked — with the round
+     left-aligned ＋ beside it. Snapshots are addressable like files: an @
+     reference @scan.ts#4#call-7f2 (path + turn + tool-call id; #gap in the
+     turn slot when the call never logged one) rides the composer's picker,
+     which nests each open file's stops under it; the ＋ inserts the chip
+     plus the cited purpose quote into the next draft; sending posts an
+     ordinary violet user bubble carrying chip and quote line.
 
-     Alternate states sheet below unchanged: Source's VS Code-style change
-     markers, and the sandboxed HTML Preview. Data is hand-rolled but
-     internally consistent (cell badges equal the drawn hunks). The shipped
-     surface consumes the --dsw-* variables, not these literals. -->
+     Alternate states sheet below: Source's VS Code-style markers and the
+     sandboxed HTML Preview. Data is hand-rolled but internally consistent.
+     The shipped surface consumes --dsw-* tokens, not these literals. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Snapshot timeline — header strip, unified diff, bottom purpose dock</title>
 <style>
   :root {
-    --bg: rgb(21,21,23); --l1f: rgb(35,35,36); --l2f: rgb(44,44,46); --l3f: rgb(53,54,56);
-    --side: rgb(27,27,28); --elev: rgb(67,69,74); --tag: rgb(44,44,46); --input: rgb(44,44,46);
-    --b1: rgba(255,255,255,.06); --b2: rgba(255,255,255,.12); --b3: rgba(255,255,255,.16); --b4: rgba(255,255,255,.20);
-    --t1: rgb(249,250,251); --t2: rgb(207,211,214); --t3: rgb(173,178,184); --cap: rgb(129,133,140);
-    --hover: rgba(255,255,255,.08); --act: rgba(255,255,255,.14);
-    --biz: rgb(103,158,254); --acc: rgb(86,134,254); --link: rgb(103,158,254);
-    --ok: rgb(34,197,94); --warn: rgb(221,134,41); --err: rgb(242,90,90);
+    --bg: rgb(18,22,24); --l1f: rgb(27,31,33); --l2f: rgb(32,36,38); --l3f: rgb(37,41,42);
+    --side: rgb(23,27,29); --elev: rgb(37,41,42); --tag: rgb(37,41,42); --input: rgb(32,36,38);
+    --b1: rgba(247,248,248,.06); --b2: rgba(247,248,248,.12); --b3: rgba(247,248,248,.16); --b4: rgba(247,248,248,.2);
+    --t1: rgb(247,248,248); --t2: rgb(160,162,163); --t3: rgb(145,159,158); --cap: rgb(132,134,135);
+    --hover: rgba(255,255,255,.08); --act: rgb(46,67,75);
+    --biz: rgb(148,198,204); --acc: rgb(96,165,175); --link: rgb(148,198,204);
+    --ok: rgb(134,239,172); --warn: rgb(208,135,48); --err: rgb(252,165,165);
+    --bub: rgb(55,32,47); --tipbg: rgb(65,74,75);
     --ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
     --code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--t2); font: 14px/20px var(--ui); -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg); color: var(--t2); font: 14px/24px var(--ui); -webkit-font-smoothing: antialiased; }
   .frame { display: grid; grid-template-columns: 280px minmax(0,1fr) 640px; grid-template-rows: 100vh; height: 100vh; }
 
   .side { background: var(--side); border-right: .5px solid var(--b3); padding: 6px 12px; display: flex; flex-direction: column; }
-  .logo { height: 60px; display: flex; align-items: center; gap: 8px; padding: 8px 0 8px 4px; }
-  .logo .mark { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(from 210deg, var(--acc), #7ee0c3, var(--acc)); }
-  .logo b { color: var(--t1); font-size: 18px; font-weight: 600; letter-spacing: .04em; }
-  .new { height: 38px; margin: 0 2px 8px; padding: 8px 16px; border: .5px solid var(--b3); border-radius: 12px;
-         background: var(--elev); color: var(--t1); font: 500 14px/20px var(--ui); cursor: pointer; text-align: left; }
-  .sess { min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; color: var(--t2); cursor: pointer; }
+  .logo { height: 44px; display: flex; align-items: center; gap: 8px; padding: 4px 0 4px 4px; }
+  .logo .mark { width: 16px; height: 16px; border-radius: 50%; background: conic-gradient(from 210deg, var(--acc), #7ee0c3, var(--acc)); }
+  .logo b { color: var(--t1); font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+  /* expanded, the brand row IS the New Session shortcut: pointer only */
+  .logo { cursor: pointer; }
+  .sess { min-height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 8px; border-radius: 8px; color: var(--t1);
+          font-size: 14px; line-height: 20px; cursor: pointer; }
   .sess:hover { background: var(--hover); }
-  .sess.on { background: var(--act); color: var(--t1); font-weight: 500; }
-  .sess time { margin-left: auto; color: var(--cap); font-size: 12px; }
+  .sess.on { background: var(--hover); font-weight: 500; }
+  .sess time { margin-left: auto; color: var(--t3); font-size: 12px; line-height: 20px; }
 
   .center { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
   .chead { min-height: 76px; padding: 10px 28px 0 20px; border-bottom: .5px solid var(--b3); }
-  .crumb { min-height: 30px; display: flex; align-items: center; gap: 8px; color: var(--t1); }
-  .crumb .ws { color: var(--t3); font-size: 12px; }
+  .crumb { min-height: 30px; display: flex; align-items: center; gap: 10px; color: var(--t3); font-size: 14px; line-height: 20px; }
+  .crumb b { color: var(--t1); font-weight: 500; }
+  .crumb .ws { color: var(--t3); font-size: 14px; }
   .vtabs { position: relative; display: flex; gap: 36px; margin-top: 10px; padding-left: 8px; }
   .vtab { position: relative; padding: 0 0 9px; border: 0; background: none; cursor: pointer; font: 500 13px/16px var(--ui); color: var(--t3); }
   .vtab::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; }
   .vtab.on { color: var(--biz); } .vtab.on::after { background: var(--biz); }
-  .chat { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px; display: flex; flex-direction: column; gap: 12px; }
-  .msg .who { color: var(--t3); font-size: 12px; margin-bottom: 2px; }
-  .msg p { margin: 0; color: var(--t1); }
-  .card { border: .5px solid var(--b1); background: var(--l1f); border-radius: 12px; padding: 8px 12px;
-          display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
-  .card .tool { font: 12px/18px var(--code); color: var(--t1); background: var(--l2f); border-radius: 6px; padding: 1px 8px; }
-  .card .pur { color: var(--t2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .card .plus { color: var(--ok); } .card .minus { color: var(--err); }
+  .chat { flex: 1; min-height: 0; overflow: auto; padding: 16px 32px; scrollbar-width: thin; }
+  /* the shipped centered transcript measure: min(64% of column, 37em) */
+  .chatcol { width: min(100%, 518px); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  /* one dead agent turn: DisclosureRow-chrome tool rows on a 2px inset rail */
+  .rail { border-left: 2px solid var(--b1); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; }
+  .trow { display: flex; align-items: center; gap: 8px; min-height: 24px; font-size: 13px; }
+  .trow .icn { flex: none; color: var(--t3); display: inline-flex; }
+  .trow .icn svg { width: 12px; height: 12px; }
+  .trow .tool { color: var(--t2); font-weight: 400; }
+  .trow .pur { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--t3); }
+  .trow .ds { margin-left: 10px; font-family: var(--code); font-size: 11px; color: var(--cap); }
+  /* user turn: violet bubble, right-seated, no author line */
+  .ub { align-self: flex-end; max-width: 100%; background: var(--bub); border-radius: 22px; padding: 10px 16px;
+        color: var(--t1); font-size: 14px; line-height: 22px; white-space: pre-wrap; overflow-wrap: break-word; }
+  .ub .q { display: block; margin-top: 4px; color: var(--t3); font-size: 13px; line-height: 20px; }
 
-  /* the chat's own composer card, so the right panel's dock reads as a sibling */
-  .composerSeat { padding: 0 16px 8px; }
-  .composerCard { box-sizing: border-box; border-radius: 22px; background: var(--input);
-                  border: .5px solid var(--b2); box-shadow: 0 2px 10px rgba(0,0,0,.35);
-                  padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 10px; }
-  .composerCard .ph { color: var(--cap); font-size: 13px; }
-  .composerCard .row { display: flex; gap: 8px; align-items: center; }
-  .composerCard .row .ic { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--hover); color: var(--t2); cursor: pointer; }
+  /* the chat's own composer card, elevation-soft with an l2 hairline stroke */
+  .composerSeat { padding: 0 16px 8px; display: flex; justify-content: center; }
+  /* composer card = chat measure + 32px, centered like the live seat */
+  .composeWrap { position: relative; width: min(550px, 100%); }
+  .composerCard { border: 0; border-radius: 22px; background: var(--input);
+                  box-shadow: 0 0 0 .5px var(--b2), 0 4px 16px rgba(0,0,0,.03), 0 0 24px rgba(0,0,0,.03);
+                  padding: 8px 8px 6px; display: flex; flex-direction: column; gap: 12px; }
+  .composerCard .ph { color: var(--cap); font-size: 14px; line-height: 24px; padding: 0 8px 0 14px;
+                    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .composerCard .row { display: flex; gap: 12px; align-items: center; padding: 2px 8px 6px; }
+  .composerCard .row .ic { width: 28px; height: 28px; border-radius: 999px; border: 0; background: var(--l3f); color: var(--t1); cursor: pointer; }
+  .composerCard .row .ic:hover { background: var(--elev); filter: brightness(1.15); }
   .composerCard .row .sp { flex: 1; }
-  .composerCard .row .send { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--t1); color: rgb(21,21,23); cursor: pointer; }
+  .composerCard .row .send { width: 34px; height: 34px; border-radius: 999px; border: 0; background: var(--biz); color: #fff; cursor: pointer; }
 
   .right { position: relative; background: var(--bg); border-left: .5px solid var(--b4); display: flex; flex-direction: column; min-height: 0; }
   .strip { display: flex; align-items: center; gap: 4px; height: 28px; flex: none; padding: 10px 6px 0 10px; }
   .chip { display: flex; align-items: center; height: 28px; min-width: 80px; max-width: 170px; padding: 0 10px;
-          border-radius: 12px; color: var(--t2); font-size: 13px; line-height: 1; white-space: nowrap; cursor: pointer; }
+          border-radius: 8px; color: var(--t2); font-size: 13px; line-height: 1; white-space: nowrap; cursor: pointer; }
   .chip.on { background: var(--tag); color: var(--t1); }
   .chip .x { margin-left: 6px; width: 16px; height: 16px; border-radius: 50%; border: 0; background: var(--hover); color: var(--t2); font-size: 10px; cursor: pointer; }
   .slot { width: 10px; height: 28px; position: relative; flex: none; }
@@ -124,84 +135,96 @@
 
   .ebody { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--l1f); position: relative; }
 
-  /* top: trajectory-style stop strip */
+  /* top: turn-axis scrubber on layer-2 */
   .tstrip { position: relative; height: 24px; flex: none; background: var(--l2f); border-bottom: .5px solid var(--b2); }
-  .tt { position: absolute; top: 50%; transform: translateY(-50%); color: var(--cap); font-size: 10px; }
+  .tt { position: absolute; top: 50%; transform: translateY(-50%); color: var(--cap); font-size: 11px; line-height: 16px; }
   .tt.l { left: 8px; } .tt.r { right: 8px; }
-  .tplot { position: absolute; left: 40px; right: 40px; top: 0; bottom: 0; }
+  .tplot { position: absolute; left: 44px; right: 44px; top: 0; bottom: 0; }
   .tline { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: var(--b2); border-radius: 1px; }
   .mk { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 16px; height: 20px;
         border: 0; padding: 0; background: none; cursor: pointer; }
   .mk .g { position: absolute; left: 50%; top: 50%; width: 2px; height: 10px; transform: translate(-50%,-50%); border-radius: 1px; background: var(--acc); }
-  .mk:hover .g { box-shadow: 0 0 0 2px rgba(86,134,254,.18); }
-  .mk.on .g { height: 14px; }
+  .mk:hover .g { box-shadow: 0 0 0 2px rgba(96,165,175,.22); }
+  .mk.on .g { height: 14px; background: var(--biz); }
   .mk.gap .g { width: 7px; height: 7px; transform: translate(-50%,-50%) rotate(45deg); background: transparent; border: 1px solid var(--warn); border-radius: 0; }
   .play { position: absolute; top: 2px; bottom: 2px; width: 1.5px; background: var(--biz); }
   .play .playh { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 11px; height: 11px;
-             border-radius: 50%; background: var(--biz); border: 2px solid var(--l2f); box-shadow: 0 0 6px rgba(103,158,254,.5); }
-  .gh { position: absolute; top: 3px; bottom: 3px; border-left: 1px dashed rgba(103,158,254,.6); }
+             border-radius: 50%; background: var(--biz); border: 2px solid var(--l2f); box-shadow: 0 0 6px rgba(148,198,204,.45); }
+  .gh { position: absolute; top: 3px; bottom: 3px; border-left: 1px dashed rgba(148,198,204,.6); }
   .gh::after { content: attr(data-tip); position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
-               background: var(--l3f); border: .5px solid var(--b2); border-radius: 6px; padding: 2px 8px;
-               font: 10px/14px var(--ui); color: var(--biz); white-space: nowrap; z-index: 40; }
+               background: var(--tipbg); border: 0; border-radius: 8px; padding: 3px 7px;
+               font: 12px/16px var(--ui); color: var(--t1); white-space: nowrap; z-index: 40; }
   .mk .tip { display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-             width: max-content; background: var(--l3f); border: .5px solid var(--b2);
-             border-radius: 8px; padding: 3px 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 40; text-align: left; }
+             width: max-content; background: var(--tipbg); border: 0;
+             border-radius: 8px; padding: 3px 7px; z-index: 40; text-align: left; }
   .mk:hover .tip, .mk.open .tip { display: block; }
-  .mk .tip .nm { display: block; font: 11px/14px var(--code); color: var(--t1); }
-  .mk .tip .nm.warn { color: var(--warn); font: 11px/14px var(--ui); }
+  .mk .tip .nm { display: block; font: 11px/16px var(--code); color: var(--t1); }
+  .mk .tip .nm.warn { color: rgb(252,211,77); font: 12px/16px var(--ui); }
   .mk .tip .pm { display: flex; gap: 6px; }
-  .mk .tip .pm b { font-weight: 500; font-size: 11px; line-height: 14px; }
+  .mk .tip .pm b { font-weight: 500; font-size: 11px; line-height: 16px; }
   .mk .tip .plus { color: var(--ok); } .mk .tip .minus { color: var(--err); }
 
-  pre.cm0 { margin: 0; padding: 6px 0; font: 13px/1.7 var(--code); overflow: auto; flex: 1; min-height: 0; }
+  pre.cm0 { margin: 0; padding: 6px 0; font: 12px/19px var(--code); overflow: auto; flex: 1; min-height: 0; }
   .ln { display: flex; }
   .ln i { width: 30px; flex: none; text-align: right; padding-right: 8px; color: var(--cap); font-style: normal; user-select: none; }
   .ln i.gn { width: 36px; border-right: .5px solid var(--b1); padding-right: 10px; }
   .ln s { display: inline-block; width: 14px; flex: none; text-align: center; text-decoration: none; color: var(--cap); }
   .ln s.add { color: var(--ok); } .ln s.del { color: var(--err); }
   .ln code { padding-right: 16px; white-space: pre; color: var(--t2); }
-  .ln.add { background: rgba(34,197,94,.14); }
-  .ln.del { background: rgba(242,90,90,.12); }
+  .ln.add { background: rgba(134,239,172,.08); }
+  .ln.add code { color: var(--t1); }
+  .ln.del { background: rgba(252,165,165,.07); }
   .ln.del code { color: var(--t3); }
   .kw { color: var(--link); } .fn { color: var(--t1); } .hd { color: var(--cap); }
 
-  /* snapshot address chip, ReferenceChip metrics: @path#N reads as a file path */
-  .anch { display: inline-flex; align-items: baseline; margin-left: 6px;
-          color: var(--biz); font: 12px/18px var(--code); user-select: none; }
+  /* inline snapshot address inside a bubble, ReferenceChip metrics: 6px, teal */
+  .anch { display: inline; padding: 0 4px; border-radius: 6px; color: var(--biz);
+          font: 12px/19px var(--code); user-select: none; }
+  .anch:hover { background: var(--act); }
   .anch b { font-weight: 500; }
-  .quote { margin: 2px 0 0; color: var(--t3); font-size: 12px; }
-  .tend { display: flex; align-items: center; gap: 6px; color: var(--cap); font-size: 11px; }
-  .tend b { font-weight: 500; }
-  .dia { display: inline-block; width: 6px; height: 6px; transform: rotate(45deg);
-         border: 1px solid var(--warn); margin-left: 2px; }
-  /* purpose box at the display bottom */
-  .pbox { margin: 8px 0 10px; border: .5px solid var(--b2); border-radius: 12px;
-          background: var(--l2f); padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .anch .frag { color: var(--biz); }
+  .tend { display: flex; align-items: center; gap: 4px; color: var(--cap); font-size: 11px; line-height: 16px; flex-wrap: wrap; }
+  /* snapshot chip: the shipped inline-reference treatment — transparent teal
+     text reading filename +n −n, 6px radius, business-tertiary only on hover */
+  .tchip { display: inline-flex; align-items: center; gap: 4px; padding: 0 4px;
+           border-radius: 6px; color: var(--biz); cursor: pointer; user-select: none;
+           font: 11px/16px var(--code); }
+  .tchip:hover { background: var(--act); }
+  .tchip b { font-weight: 500; }
+  .tchip .plus { color: var(--ok); } .tchip .minus { color: var(--err); }
+  .tchip .new { color: var(--cap); font-style: normal; font-size: 10px; }
+  .dia { display: inline-block; width: 5px; height: 5px; transform: rotate(45deg);
+         border: 1px solid var(--warn); }
+  /* purpose box at the display bottom: ioCard metrics */
+  .pbox { margin: 8px 0 10px; border: .5px solid var(--b1); border-radius: 12px;
+          background: var(--l2f); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; }
   .pbox .r1 { display: flex; align-items: center; gap: 8px; }
-  .pbox .ttl { font: 600 12px/16px var(--ui); color: var(--t1); }
-  .pbox .tn { color: var(--cap); font-size: 11px; }
-  .pbox p { margin: 0; color: var(--t1); font-size: 12px; }
+  .pbox .ttl { font: 500 12px/16px var(--ui); color: var(--t1); }
+  .pbox .tn { color: var(--cap); font-size: 11px; line-height: 16px; }
+  .pbox p { margin: 0; color: var(--t1); font-size: 12px; line-height: 20px; }
   .prow { display: flex; align-items: center; gap: 8px; margin: 8px 12px 10px; }
   .prow .pbox { flex: 1; margin: 0; }
-  .addb { flex: none; width: 28px; height: 28px; border: .5px solid var(--b2); border-radius: 50%;
-          background: var(--l2f); color: var(--t2); font-size: 14px; cursor: pointer; }
-  .addb:hover { background: var(--hover); color: var(--t1); }
-  /* @ picker popover over the composer, listing stops nested under files */
-  .composerSeat { position: relative; }
-  .pick { position: absolute; left: 16px; right: 16px; bottom: calc(100% + 4px); z-index: 50;
-          background: var(--l3f); border: .5px solid var(--b2); border-radius: 12px;
-          padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
-  .pi { padding: 4px 10px; border-radius: 6px; font: 12px/18px var(--code); color: var(--t2); }
-  .pi.on { background: var(--hover); color: var(--t1); }
+  .addb { flex: none; width: 28px; height: 28px; border: 0; border-radius: 999px;
+          background: var(--l3f); color: var(--t1); font-size: 14px; cursor: pointer; }
+  .addb:hover { background: var(--hover); }
+  /* @ picker popover: shipped menu metrics, prominent elevation, l1 stroke */
+  .pick { position: absolute; left: 0; right: 0; bottom: calc(100% + 4px); z-index: 50;
+          background: var(--l3f); border: 0; border-radius: 20px;
+          padding: 4px; min-width: 218px;
+          box-shadow: 0 0 0 .5px var(--b1), 0 3px 8px rgba(0,0,0,.04), 0 0 20px rgba(0,0,0,.05); }
+  .pi { min-height: 26px; display: flex; align-items: center; gap: 6px; padding: 2px 10px; border-radius: 10px; font: 12px/18px var(--code); color: var(--t2); cursor: pointer; }
+  .pi:hover, .pi.on { background: var(--hover); color: var(--t1); }
   .pi.sub { padding-left: 26px; }
   .pi .frag { color: var(--biz); }
   .pi b { font-weight: 500; } .pi .plus { color: var(--ok); } .pi .minus { color: var(--err); }
-  .draft { display: flex; gap: 6px; align-items: baseline; }
-  .qq { color: var(--t3); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .qx { border: 0; background: none; color: var(--cap); font-size: 10px; cursor: pointer; }
+  .draft { display: flex; gap: 8px; align-items: baseline; padding: 10px 12px 0; }
+  .qq { color: var(--t3); font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qx { border: 0; background: none; color: var(--cap); font-size: 10px; cursor: pointer; align-self: center; }
+  /* glyph buttons center their mark; the shipped sheets seat icons flex-centered */
+  button.ic, button.send, .addb, .plus, .chip .x, .qx { display: inline-flex; align-items: center; justify-content: center; line-height: 0; padding: 0; }
 
   .efoot { display: flex; gap: 8px; align-items: center; padding: 5px 12px; flex: none;
-           font-size: 12px; color: var(--t3); background: var(--l1f); border-bottom: .5px solid var(--b1); }
+           font-size: 12px; line-height: 16px; color: var(--t3); background: var(--l1f); border-bottom: .5px solid var(--b1); }
   .segs { display: inline-flex; gap: 2px; padding: 2px; background: var(--hover); border-radius: 6px; }
   .icb { position: relative; display: inline-flex; align-items: center; justify-content: center;
          width: 24px; height: 22px; border: 0; border-radius: 4px; background: transparent;
@@ -210,8 +233,8 @@
   .icb.on { background: var(--elev); color: var(--t1); }
   .icb svg { width: 14px; height: 14px; }
   .icb::after { content: attr(data-tip); position: absolute; top: calc(100% + 4px); left: 50%;
-                transform: translateX(-50%); background: var(--l3f); border: .5px solid var(--b2);
-                border-radius: 6px; padding: 2px 8px; font: 11px/16px var(--ui); color: var(--t1);
+                transform: translateX(-50%); background: var(--tipbg); border: 0;
+                border-radius: 8px; padding: 3px 7px; font: 12px/16px var(--ui); color: var(--t1);
                 white-space: nowrap; display: none; z-index: 45; }
   .icb:hover::after { display: block; }
   .efoot .st { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -219,8 +242,9 @@
   /* state sheet under the frame */
   .sheet { padding: 20px 28px 48px; display: flex; flex-direction: column; gap: 18px; }
   .tagrow { display: flex; align-items: baseline; gap: 10px; color: var(--t3); font-size: 12px; }
-  .tagrow b { color: var(--t1); font-weight: 600; }
-  .panel { width: 640px; background: var(--bg); border: .5px solid var(--b4); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .tagrow b { color: var(--t1); font-weight: 500; }
+  .panel { width: 640px; background: var(--l1f); border: 0; border-radius: 12px; overflow: hidden; display: flex; flex-direction: column;
+           box-shadow: 0 0 0 .5px var(--b3), 0 3px 8px rgba(0,0,0,.03), 0 0 16px rgba(0,0,0,.02); }
   .panel .strip { padding-top: 8px; }
   .bar { position: absolute; left: 40px; top: 3px; bottom: 3px; width: 2px; }
   .bar.add { background: var(--ok); } .bar.mod { background: var(--acc); } .bar.del { background: var(--err); }
@@ -228,7 +252,7 @@
   .ovr u { position: absolute; left: 0; width: 4px; height: 8px; border-radius: 1px; }
   .page { overflow: auto; background: #fff; color: #111; padding: 20px 24px; font: 15px/1.5 Georgia, 'Times New Roman', serif; min-height: 120px; }
   .page h1 { font-size: 1.5em; margin: 0 0 .4em; }
-  .page button { font: 13px/1 var(--ui); color: #fff; background: rgb(37,99,235); border: 0; border-radius: 6px; padding: 8px 12px; }
+  .page button { font: 13px/1 var(--ui); color: #fff; background: rgb(38,145,234); border: 0; border-radius: 6px; padding: 8px 12px; }
 </style>
 </head>
 <body>
@@ -236,7 +260,6 @@
 
   <aside class="side">
     <div class="logo"><span class="mark"></span><b>DeepSeek</b></div>
-    <button class="new">New Session</button>
     <div class="sess on">Snapshot timeline mock<time>14:32</time></div>
     <div class="sess">Refactor auth to dsh-client-store<time>09:12</time></div>
     <div class="sess">Docs Q&amp;A with repo explore<time>Mon</time></div>
@@ -244,41 +267,48 @@
 
   <main class="center">
     <div class="chead">
-      <div class="crumb">Snapshot timeline mock <span class="ws">· ~/dev/demo</span></div>
+      <div class="crumb"><b>Snapshot timeline mock</b> <span class="ws">/ ~/dev/demo</span></div>
       <div class="vtabs"><button class="vtab on">Chat</button><button class="vtab">Trajectory</button></div>
     </div>
     <div class="chat">
-      <div class="card"><span class="tool">write</span><span class="pur">turn 1 · create src/scan.ts with the pruned stat walk</span>
-        <b class="plus">+120</b></div>
-      <div class="tend">turn 1 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#1#call-1a2</span></span><b class="plus">+120</b> <i style="color:var(--cap);font-style:normal">new file</i></div>
-      <div class="card"><span class="tool">str_replace_editor</span><span class="pur">turn 2 · honor the workspace excludes</span>
-        <b class="plus">+14</b> <b class="minus">−3</b></div>
-      <div class="tend">turn 2 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#2#call-2c4</span></span><b class="plus">+14</b> <b class="minus">−3</b> ·<span class="anch"><b>@</b>demo.html<span class="frag">#2#call-3b8</span></span><b class="plus">+8</b> <b class="minus">−1</b></div>
-      <div class="card"><span class="tool">bash</span><span class="pur">turn 3 · sed -i: sort rows before return</span>
-        <b class="plus">+6</b> <b class="minus">−2</b></div>
-      <div class="tend">turn 3 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#3#call-6d1</span></span><b class="plus">+6</b> <b class="minus">−2</b></div>
-      <div class="msg"><div class="who">you</div><p>raise the oversize cap and surface dropped files</p></div>
-      <div class="card"><span class="tool">bash</span><span class="pur">surface dropped files as gap rows instead of silently skipping oversize reads</span>
-        <b class="plus">+2</b> <b class="minus">−1</b></div>
-      <div class="tend">turn 4 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span><span class="dia" title="chain broke mid-turn: an unattributed write is inside this delta"></span><b class="plus">+3</b> <b class="minus">−1</b></div>
-      <div class="msg"><div class="who">you <span class="anch"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span></div>
-        <p>noteGap should append a row kind, not a toast — the timeline stays the source of truth.</p>
-        <p class="quote">↳ surface dropped files as gap rows instead of silently skipping oversize reads</p></div>
+      <div class="chatcol">
+      <div class="rail">
+        <div class="trow"><span class="icn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg></span><span class="tool">write</span><span class="pur">turn 1 · create src/scan.ts with the pruned stat walk</span><span class="ds">+120 -0</span></div>
+        <div class="tend">turn 1 ended ·<span class="tchip" title="@scan.ts#1#call-1a2">scan.ts <b class="plus">+120</b> <i class="new">new</i></span></div>
+      </div>
+      <div class="rail">
+        <div class="trow"><span class="icn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg></span><span class="tool">str_replace_editor</span><span class="pur">turn 2 · honor the workspace excludes</span><span class="ds">+14 -3</span></div>
+        <div class="trow"><span class="icn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg></span><span class="tool">str_replace_editor</span><span class="pur">turn 2 · seed demo.html</span><span class="ds">+8 -1</span></div>
+        <div class="tend">turn 2 ended ·<span class="tchip" title="@scan.ts#2#call-2c4">scan.ts <b class="plus">+14</b> <b class="minus">−3</b></span><span class="tchip" title="@demo.html#2#call-3b8">demo.html <b class="plus">+8</b> <b class="minus">−1</b></span></div>
+      </div>
+      <div class="rail">
+        <div class="trow"><span class="icn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg></span><span class="tool">bash</span><span class="pur">turn 3 · sed -i: sort rows before return</span><span class="ds">+6 -2</span></div>
+        <div class="tend">turn 3 ended ·<span class="tchip" title="@scan.ts#3#call-6d1">scan.ts <b class="plus">+6</b> <b class="minus">−2</b></span></div>
+      </div>
+      <div class="ub">raise the oversize cap and surface dropped files</div>
+      <div class="rail">
+        <div class="trow"><span class="icn"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg></span><span class="tool">bash</span><span class="pur">surface dropped files as gap rows instead of silently skipping oversize reads</span><span class="ds">+2 -1</span></div>
+        <div class="tend">turn 4 ended ·<span class="tchip" title="@scan.ts#4#call-7f2"><span class="dia" title="unattributed write inside this frame"></span>scan.ts <b class="plus">+3</b> <b class="minus">−1</b></span></div>
+      </div>
+      <div class="ub"><span class="anch"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span> noteGap should append a row kind, not a toast — the timeline stays the source of truth.<span class="q">↳ surface dropped files as gap rows instead of silently skipping oversize reads</span></div>
+      </div>
     </div>
     <div class="composerSeat">
+      <div class="composeWrap">
       <div class="pick">
         <div class="pi">@scan.ts</div>
-        <div class="pi sub on"><span class="frag">@scan.ts#4#call-7f2</span> · turn 4 · bash · <b class="plus">+2</b> <b class="minus">−1</b></div>
+        <div class="pi sub on"><span class="tchip"><span class="dia"></span>scan.ts <b class="plus">+2</b> <b class="minus">−1</b></span> · turn 4 · bash</div>
         <div class="pi sub"><span class="frag">@scan.ts#gap#call-5e0</span> · gap · unattributed</div>
         <div class="pi">@demo.html</div>
         <div class="pi sub"><span class="frag">@demo.html#2#call-3b8</span> · turn 2 · str_replace_editor · <b class="plus">+8</b> <b class="minus">−1</b></div>
       </div>
       <div class="composerCard">
-        <div class="draft"><span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span>
+        <div class="draft"><span class="tchip" title="@scan.ts#4#call-7f2"><span class="dia"></span>scan.ts <b class="plus">+2</b> <b class="minus">−1</b></span>
             <span class="qq">↳ surface dropped files as gap rows instead of silently skipping oversize reads</span>
             <button class="qx" aria-label="remove purpose from draft">✕</button></div>
           <span class="ph">Rebut or refine this change…</span>
         <div class="row"><button class="ic">＋</button><span class="sp"></span><button class="send">↑</button></div>
+      </div>
       </div>
     </div>
   </main>

@@ -117,7 +117,7 @@ async function setup() {
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(FakeFs)
   await ctx.plugin(FsPolicy)
-  await ctx.plugin(ToolFs)
+  await ctx.plugin(ToolFs, { legacyFaces: true })
   const fs = ctx.fs as FakeFs
   return { ctx, fs }
 }
@@ -128,7 +128,7 @@ async function setupDefault() {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(FakeFs)
-  await ctx.plugin(ToolFs)
+  await ctx.plugin(ToolFs, { legacyFaces: true })
   const fs = ctx.fs as FakeFs
   return { ctx, fs }
 }
@@ -484,10 +484,12 @@ describe('unified write program arm', () => {
   it('applies line-range and insert forms in one commit', async () => {
     const { ctx, fs } = await setupDefault()
     fs.files.set('key:a.txt', 'one\ntwo\nthree')
-    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [
-      { after_line: 0, new_string: '# top' },
-      { first_line: 3, last_line: 3, new_string: '' },
-    ] })
+    const result = await call(ctx, 'write', {
+      file_path: 'a.txt', edits: [
+        { after_line: 0, new_string: '# top' },
+        { first_line: 3, last_line: 3, new_string: '' },
+      ],
+    })
     expect(result.isError).toBe(false)
     expect(fs.files.get('key:a.txt')).toBe('# top\none\nthree')
   })
@@ -509,6 +511,14 @@ describe('unified write program arm', () => {
     expect(preview.committed).toBe(false)
     expect(text(result)).toContain('Dry run — no commit.')
     expect(fs.files.get('key:a.txt')).toBe('a')
+  })
+
+  it('dry_run reports a failed preview read and commits nothing', async () => {
+    const { ctx, fs } = await setupDefault()
+    fs.readText = async () => { throw new FsError('missing', 'FS_NOT_FOUND') }
+    const result = await call(ctx, 'write', { file_path: 'a.txt', edits: [{ old_string: 'a', new_string: 'b' }], dry_run: true })
+    expect(result.isError).toBe(true)
+    expect(fs.files.has('key:a.txt')).toBe(false)
   })
 
   it('rejects identical old/new strings', async () => {
@@ -674,12 +684,14 @@ describe('tool-owned presentation (pure presentCall)', () => {
   })
 
   it('write: a patch card carries one snippet per entry, one line for all four forms', async () => {
-    expect(await presentCall('write', { file_path: 'a.txt', edits: [
-      { old_string: 'a', new_string: 'b' },
-      { pattern: 'c(.*)', new_string: 'C$1' },
-      { first_line: 2, last_line: 3, new_string: '' },
-      { after_line: 1, new_string: 'x' },
-    ] })).toEqual({
+    expect(await presentCall('write', {
+      file_path: 'a.txt', edits: [
+        { old_string: 'a', new_string: 'b' },
+        { pattern: 'c(.*)', new_string: 'C$1' },
+        { first_line: 2, last_line: 3, new_string: '' },
+        { after_line: 1, new_string: 'x' },
+      ],
+    })).toEqual({
       card: 'diff', title: 'Patch a.txt',
       diffs: [
         { path: 'a.txt', oldText: 'a', newText: 'b' },
@@ -789,7 +801,7 @@ describe('read caps are plugin config', () => {
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(FakeFs)
     await ctx.plugin(FsPolicy)
-    await ctx.plugin(ToolFs, config)
+    await ctx.plugin(ToolFs, { ...config, legacyFaces: true })
     return { ctx, fs: ctx.fs as FakeFs }
   }
 
@@ -892,7 +904,7 @@ describe('sandbox escalation API (write)', () => {
     await ctx.plugin(SandboxingFakeFs)
     await ctx.plugin(FsPolicy)
     if (opts.approval === true) await ctx.plugin(ApprovalService)
-    await ctx.plugin(ToolFs)
+    await ctx.plugin(ToolFs, { legacyFaces: true })
     return { ctx, fs: ctx.fs as SandboxingFakeFs }
   }
 
@@ -1142,7 +1154,7 @@ describe('scope-aware PTC guidance', () => {
     await ctx.plugin(GuidanceCodeRuntime)
     await ctx.plugin(ToolRuntime, { mode })
     await ctx.plugin(FakeFs)
-    await ctx.plugin(ToolFs)
+    await ctx.plugin(ToolFs, { legacyFaces: true })
     const { key, scope } = await guidanceScope(ctx)
     try {
       const baseline = renderPrompt(await ctx.systemPrompt.assemble({ scope: key }))

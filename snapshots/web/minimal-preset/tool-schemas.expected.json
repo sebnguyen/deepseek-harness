@@ -2,129 +2,130 @@
   "initial": [
     {
       "name": "bash",
-      "description": "Run commands in a bash shell\n* When invoking this tool, the contents of the \"command\" parameter does NOT need to be XML-escaped.\n* Network access depends on the task environment. Prefer configured mirrors/proxies when they are available.\n* State is persistent across command calls and discussions with the user.\n* To inspect a particular line range of a file, e.g. lines 10-25, try 'sed -n 10,25p /path/to/the/file'.\n* Please avoid commands that may produce a very large amount of output.\n* Please run long lived commands in the background, e.g. 'sleep 10 &' or start a server in the background.",
+      "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` and a one-sentence `justification` on that element (the wider mode applies to that element alone). Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.",
       "parameters": {
         "type": "object",
         "properties": {
-          "command": {
-            "type": "string",
-            "description": "The bash command to run. Relative path is preferred in the command."
-          },
-          "run_in_background": {
-            "type": "boolean",
-            "description": "Run the command in its own background shell and return a job id immediately (collect with job_output, stop with job_kill). The command starts from the workspace rather than from this shell's state, keeps running with no timeout, and leaves this shell free for the next call."
-          }
-        },
-        "required": [
-          "command"
-        ]
-      }
-    },
-    {
-      "name": "abandon_claim",
-      "description": "Give up on one claim because it named the wrong condition. Refused until its bound check has run at least once — call run_claim first if it has not. Record why it was wrong.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The claim id, as returned by declare_claim."
-          },
-          "reason": {
-            "type": "string",
-            "description": "Why the declared condition was the wrong one."
-          }
-        },
-        "required": [
-          "id",
-          "reason"
-        ]
-      }
-    },
-    {
-      "name": "declare_claim",
-      "description": "Declare one claim for this turn: a short title, a description of what must be true when it is settled, and the one bound shell check that proves it. The check must exit 0 only when the description genuinely holds. A claim is immutable in content once declared; a turn may declare several claims, one per independent condition.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "A short label for this claim (a few words). Keep it brief — put the full detail in `description`."
+          "commands": {
+            "type": "array",
+            "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The bash command this element runs in its own fresh shell."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "One-line active-voice UI label for this element; defaults to the command text."
+                },
+                "workdir": {
+                  "type": "string",
+                  "description": "Working directory for this element; overrides the call-level workdir."
+                },
+                "timeoutMs": {
+                  "type": "number",
+                  "description": "Timeout in milliseconds for this element; overrides the call-level timeoutMs."
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output."
+                },
+                "sandbox_permissions": {
+                  "type": "string",
+                  "description": "The wider sandbox mode this element needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and widens this element alone.",
+                  "enum": [
+                    "workspace-write",
+                    "danger-full-access"
+                  ]
+                },
+                "justification": {
+                  "type": "string",
+                  "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact element needs the wider access."
+                }
+              },
+              "required": [
+                "command"
+              ]
+            }
           },
           "description": {
             "type": "string",
-            "description": "Everything this claim promises — the full detail of what must be true when the claim is settled."
+            "description": "Clear, concise description of what this call does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
           },
-          "script": {
+          "timeoutMs": {
+            "type": "number",
+            "description": "Timeout in milliseconds for elements without their own; the executor applies its configured default and cap, and kills the element on expiry."
+          },
+          "workdir": {
             "type": "string",
-            "description": "Shell script that exits non-zero unless the description holds. Exactly one check is bound to the claim."
+            "description": "Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "title",
+          "commands",
           "description",
-          "script"
+          "_dsh_harness_purpose"
         ]
       }
     },
     {
-      "name": "list_claims",
-      "description": "List every claim this turn declared, in declaration order, with each claim's id, title, description, and settlement. Call it when the transcript no longer shows what this turn declared — after context compaction, for example — before settling or ending the turn. Empty when this turn declared none.",
-      "parameters": {
-        "type": "object",
-        "properties": {}
-      }
-    },
-    {
-      "name": "read_note",
-      "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
+      "name": "checkpoint_restore",
+      "description": "Restore one workspace file to a recorded snapshot stop: the exact bytes captured for the given digest are written back through the fs capability.",
       "parameters": {
         "type": "object",
         "properties": {
-          "target": {
-            "type": "string",
-            "description": "Path of the source file whose note to read — the same path you would pass to `read`."
-          }
-        },
-        "required": [
-          "target"
-        ]
-      }
-    },
-    {
-      "name": "run_claim",
-      "description": "Run one open claim's bound check now, inside the turn. A pass settles the claim as passed; a fail is recorded with its evidence and the claim stays open, so you can repair the work and run_claim it again, or abandon_claim it once its check has run. Returns the outcome and the bounded verifier output.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "The claim id, as returned by declare_claim."
-          }
-        },
-        "required": [
-          "id"
-        ]
-      }
-    },
-    {
-      "name": "upsert_note",
-      "description": "Write, update, or remove the durable note for one source file. One note per file. State one fact worth knowing before changing the file; the harness stamps the note with the file's current content hash, so never compute or pass a hash. An empty `claim` removes the note.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "target": {
-            "type": "string",
-            "description": "Path of the source file the note describes — the same path you would pass to `read`."
+          "path": {
+            "type": "string"
           },
-          "claim": {
+          "digest": {
+            "type": "string"
+          },
+          "_dsh_harness_purpose": {
             "type": "string",
-            "description": "The one fact worth knowing, as prose that stands alone. The empty string removes the note."
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "target",
-          "claim"
+          "path",
+          "digest",
+          "_dsh_harness_purpose"
+        ]
+      }
+    },
+    {
+      "name": "request_escalation",
+      "description": "Cross to a later stage of this turn whenever you are ready. Pass the stage name and a justification. The call grants immediately; explore evidence is not required.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "description": "The stage to proceed to.",
+            "enum": [
+              "explore",
+              "act"
+            ]
+          },
+          "justification": {
+            "type": "string",
+            "description": "Why you are crossing to this stage."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "stage",
+          "justification",
+          "_dsh_harness_purpose"
         ]
       }
     }

@@ -1,12 +1,12 @@
 // The token efficiency window: a fixed-column table over every priced
 // sessions-list row's served sessionCost fold — one row per session with
-// its blended spend per million billed tokens, a fixed-width bar track
-// whose fill scales against the priced maximum (its hover and aria name
-// give the row's blended rate, its share of the max, and the max itself),
-// a Models cell whose hover
-// opens the per-model spend listing, and a Tokens cell with the displayed
-// billed total. Rows ladder under their parentId roots, latest session
-// first at every level; pooled micros-over-tokens rates headline the groups.
+// its token-mix bar over the four billed buckets, its blended spend per
+// million billed tokens, and that rate stated as a multiple of the three
+// whole-table anchors (the median root-family rate, the pooled average,
+// the priced maximum), each in its own column; hit, spend, billed
+// tokens, and the model count follow as plain numeric columns. Rows
+// ladder under their parentId roots, latest session first at every
+// level; headline tiles name the anchors and the pooled spend.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
@@ -16,8 +16,9 @@ import {
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { CostModelSpend } from '@deepseek-ai/dsh-session-stats/client'
 import {
-  displayedRate, efficiencyReading, orderEfficiencyReadings, pooledRates, spendTokens,
-  type EfficiencyReading, type IndentedReading,
+  efficiencyAnchors, efficiencyReading, formatMultiple, mixPercents, multipleBand,
+  orderEfficiencyReadings, spendTokens,
+  type EfficiencyAnchors, type EfficiencyReading, type IndentedReading,
 } from '../contract/cost-metrics.ts'
 import { formatTokens, formatUsdMicros } from '../contract/token-format.ts'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
@@ -56,44 +57,6 @@ function modelsTipText(
   return lines.join('\n')
 }
 
-/**
- * The bar's value line: the row's blended rate named outright, then its
- * share of the priced maximum the fill's 100% scales against.
- * @param rate - the row's displayed blended rate; null when nothing bills.
- * @param maxRate - the priced maximum blended rate; null when none bills.
- * @param t - chat locale seat.
- * @returns the one-line label shared by the hover and the aria name.
- */
-function barValueLine(
-  rate: number | null,
-  maxRate: number | null,
-  t: ChatViewSlotProps['t'],
-): string {
-  const percent = maxRate !== null && maxRate > 0 && rate !== null
-    ? Math.round((rate / maxRate) * 100)
-    : 0
-  return `${t('efficiency.barValue')} — ${t('stats.costPerMillion', { amount: formatUsdMicros(rate ?? 0, t) })} · ${t('efficiency.barShare', { percent })}`
-}
-
-/**
- * The bar hover text: the value line, then the maximum blended rate the
- * fill's 100% scales against.
- * @param rate - the row's displayed blended rate; null when nothing bills.
- * @param maxRate - the priced maximum blended rate; null when none bills.
- * @param t - chat locale seat.
- * @returns the two-line label.
- */
-function barTipText(
-  rate: number | null,
-  maxRate: number | null,
-  t: ChatViewSlotProps['t'],
-): string {
-  return [
-    barValueLine(rate, maxRate, t),
-    `${t('efficiency.barMax')} — ${t('stats.costPerMillion', { amount: formatUsdMicros(maxRate ?? 0, t) })}`,
-  ].join('\n')
-}
-
 /** The row's display values: the family rollup on roots, the own fold below. */
 function viewOf(row: IndentedReading) {
   return row.family ?? {
@@ -103,22 +66,74 @@ function viewOf(row: IndentedReading) {
     models: row.models,
     cacheHit: row.cacheHit,
     entries: row.spendEntries,
+    mix: row.mix,
   }
 }
 
+/** One anchored multiple column cell: a banded ×N chip, or a dash with no anchor. */
+function MultipleCell({ rate, anchor, tipKey, t }: {
+  rate: number | null
+  anchor: number | null
+  tipKey: 'efficiency.tipMedian' | 'efficiency.tipAvg' | 'efficiency.tipMax'
+  t: ChatViewSlotProps['t']
+}) {
+  if (rate === null || anchor === null || anchor <= 0) {
+    return <td><span className={css.none}>{t('efficiency.none')}</span></td>
+  }
+  const multiple = rate / anchor
+  const band = multipleBand(multiple)
+  const label = t('efficiency.multiple', { multiple: formatMultiple(multiple) })
+  const tip = t(tipKey, {
+    value: t('stats.costPerMillion', { amount: formatUsdMicros(rate, t) }),
+    anchor: t('stats.costPerMillion', { amount: formatUsdMicros(anchor, t) }),
+  })
+  return (
+    <td>
+      <Tooltip label={() => tip} side="top">
+        <span tabIndex={0} className={css[band]}>{label}</span>
+      </Tooltip>
+    </td>
+  )
+}
+
+/** The mix-bar cell: four bucket segments scaled to the row's billed total. */
+function MixCell({ mix, tokens, t }: {
+  mix: { uncached: number; cacheRead: number; cacheWrite: number; output: number }
+  tokens: number
+  t: ChatViewSlotProps['t']
+}) {
+  const percents = mixPercents(mix, tokens)
+  if (percents === null) return <td><span className={css.trackEmpty} aria-hidden="true" /></td>
+  const tip = t('efficiency.mixTip', {
+    uncached: `${percents[0]}%`,
+    cacheRead: `${percents[1]}%`,
+    cacheWrite: `${percents[2]}%`,
+    output: `${percents[3]}%`,
+  })
+  return (
+    <td>
+      <Tooltip label={() => tip} side="top">
+        <span tabIndex={0} className={css.mix} aria-label={tip}>
+          <i className={css.mixUncached} style={{ width: `${percents[0]}%` }} />
+          <i className={css.mixCacheRead} style={{ width: `${percents[1]}%` }} />
+          <i className={css.mixCacheWrite} style={{ width: `${percents[2]}%` }} />
+          <i className={css.mixOutput} style={{ width: `${percents[3]}%` }} />
+        </span>
+      </Tooltip>
+    </td>
+  )
+}
+
 /** One table row of the efficiency listing. */
-function TableRow({ row, maxRate, t, canExpand, open, onToggle }: {
+function TableRow({ row, anchors, t, canExpand, open, onToggle }: {
   row: IndentedReading
-  maxRate: number | null
+  anchors: EfficiencyAnchors
   t: ChatViewSlotProps['t']
   canExpand: boolean
   open: boolean
   onToggle: (id: string) => void
 }) {
   const view = viewOf(row)
-  const widthPercent = view.rate !== null && maxRate !== null && maxRate > 0
-    ? Math.round((view.rate / maxRate) * 100)
-    : 0
   return (
     <tr className={row.depth > 0 ? css.child : undefined}>
       <td className={css.name}>
@@ -140,34 +155,27 @@ function TableRow({ row, maxRate, t, canExpand, open, onToggle }: {
         {Array.from({ length: row.depth }, (_, index) => <span key={index} aria-hidden>{t('efficiency.childPrefix')}</span>)}
         {row.title}
       </td>
-      <td className={css.cnt}>
+      <MixCell mix={view.mix} tokens={view.tokens} t={t} />
+      <td className={css.num}>{formatUsdMicros(view.rate ?? 0, t)}</td>
+      <MultipleCell rate={view.rate} anchor={anchors.median} tipKey="efficiency.tipMedian" t={t} />
+      <MultipleCell rate={view.rate} anchor={anchors.average?.rate ?? null} tipKey="efficiency.tipAvg" t={t} />
+      <MultipleCell rate={view.rate} anchor={anchors.max} tipKey="efficiency.tipMax" t={t} />
+      <td className={css.num}>{view.cacheHit !== null ? `${view.cacheHit}%` : ''}</td>
+      <td className={css.num}>{formatUsdMicros(view.micros, t)}</td>
+      <td className={css.num}>{formatTokens(view.tokens, t)}</td>
+      <td className={css.num}>
         <Tooltip label={() => modelsTipText(row.title, view.models, view.entries, t)} side="top">
           <span className={css.dotted} tabIndex={0}>{view.models}</span>
         </Tooltip>
       </td>
-      <td>
-        <Tooltip label={() => barTipText(view.rate, maxRate, t)} side="top">
-          <span
-            className={css.track}
-            tabIndex={0}
-            aria-label={barValueLine(view.rate, maxRate, t)}
-          >
-            <i className={css.fill} style={{ width: `${widthPercent}%` }} />
-          </span>
-        </Tooltip>
-      </td>
-      <td className={css.num}>{formatUsdMicros(view.rate ?? 0, t)}</td>
-      <td className={css.num}>{formatUsdMicros(view.micros, t)}</td>
-      <td className={css.num}>{formatTokens(view.tokens, t)}</td>
-      <td className={css.num}>{view.cacheHit !== null ? `${view.cacheHit}%` : ''}</td>
     </tr>
   )
 }
 
 /**
- * The portaled efficiency window: header, pooled group rates, and the
- * fixed-column session table; Escape, mask click, and the header button
- * close it.
+ * The portaled efficiency window: header tiles over the three anchors,
+ * the fixed-column session table, and the mix legend; Escape, mask
+ * click, and the header button close it.
  * @param props - list rows, locale seat, close callback.
  * @returns the portaled dialog.
  */
@@ -181,17 +189,7 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
     return list
   }, [byId])
   const ordered = useMemo(() => orderEfficiencyReadings(readings), [readings])
-  const pooled = useMemo(() => pooledRates(ordered), [ordered])
-  const maxRate = useMemo(
-    () => ordered.reduce<number | null>(
-      (max, row) => {
-        const rate = displayedRate(row)
-        return rate !== null && (max === null || rate > max) ? rate : max
-      },
-      null,
-    ),
-    [ordered],
-  )
+  const anchors = useMemo(() => efficiencyAnchors(ordered), [ordered])
   const closeButton = useRef<HTMLButtonElement | null>(null)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set())
   const hasChildren = useMemo(() => {
@@ -224,6 +222,8 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
     document.addEventListener('keydown', onKeyDown)
     return () => { document.removeEventListener('keydown', onKeyDown) }
   }, [onClose])
+  const rate = (value: number | null): string =>
+    t('stats.costPerMillion', { amount: formatUsdMicros(value ?? 0, t) })
   return createPortal(
     <div className={css.overlay} role="presentation">
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
@@ -240,54 +240,82 @@ export function TokenEfficiencyWindow({ byId, t, onClose }: WindowProps) {
             <IconCloseOutline16 size={14} />
           </button>
         </div>
-        <p className={css.sub}>{t('efficiency.sub')}</p>
-        <div className={css.chips}>
-          {pooled.multi !== null && (
-            <span>{t('efficiency.pooledMulti', { amount: formatUsdMicros(pooled.multi.rate ?? 0, t) })}</span>
-          )}
-          {pooled.single !== null && (
-            <span>{t('efficiency.pooledSingle', { amount: formatUsdMicros(pooled.single.rate ?? 0, t) })}</span>
-          )}
-          <span>{t('efficiency.priced', { count: pooled.priced })}</span>
+        <div className={css.tiles}>
+          <div>
+            <span className={css.tileKey}>{t('efficiency.tileSpend')}</span>
+            <span className={css.tileValue}>
+              {t('efficiency.tileSpendValue', {
+                amount: formatUsdMicros(anchors.average?.micros ?? 0, t),
+                tokens: formatTokens(anchors.average?.tokens ?? 0, t),
+              })}
+            </span>
+          </div>
+          <div>
+            <span className={css.tileKey}>{t('efficiency.tileMedian')}</span>
+            <span className={css.tileValue}>{rate(anchors.median)}</span>
+          </div>
+          <div>
+            <span className={css.tileKey}>{t('efficiency.tileAvg')}</span>
+            <span className={css.tileValue}>{rate(anchors.average?.rate ?? null)}</span>
+          </div>
+          <div>
+            <span className={css.tileKey}>{t('efficiency.tileMax')}</span>
+            <span className={css.tileValue}>{rate(anchors.max)}</span>
+          </div>
         </div>
         {ordered.length === 0
           ? <div className={css.empty}>{t('efficiency.empty')}</div>
           : (
-            <table className={css.table}>
-              <colgroup>
-                <col className={css.cName} />
-                <col className={css.cModels} />
-                <col className={css.cBar} />
-                <col className={css.cRate} />
-                <col className={css.cSpend} />
-                <col className={css.cTokens} />
-                <col className={css.cHit} />
-              </colgroup>
-              <thead>
-                <tr>
-                  <th scope="col">{t('efficiency.colSession')}</th>
-                  <th scope="col" className={css.cnt}>{t('efficiency.colModels')}</th>
-                  <th scope="col">{t('efficiency.colBar')}</th>
-                  <th scope="col" className={css.num}>{t('efficiency.colRate')}</th>
-                  <th scope="col" className={css.num}>{t('efficiency.colSpend')}</th>
-                  <th scope="col" className={css.num}>{t('efficiency.colTokens')}</th>
-                  <th scope="col" className={css.num}>{t('efficiency.colHit')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {visible.map(row => (
-                  <TableRow
-                    key={row.id}
-                    row={row}
-                    maxRate={maxRate}
-                    t={t}
-                    canExpand={hasChildren.has(row.id)}
-                    open={expanded.has(row.id)}
-                    onToggle={toggle}
-                  />
-                ))}
-              </tbody>
-            </table>
+            <>
+              <table className={css.table}>
+                <colgroup>
+                  <col className={css.cName} />
+                  <col className={css.cMix} />
+                  <col className={css.cRate} />
+                  <col className={css.cMedian} />
+                  <col className={css.cAvg} />
+                  <col className={css.cMax} />
+                  <col className={css.cHit} />
+                  <col className={css.cSpend} />
+                  <col className={css.cTokens} />
+                  <col className={css.cModels} />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th scope="col">{t('efficiency.colSession')}</th>
+                    <th scope="col">{t('efficiency.colMix')}</th>
+                    <th scope="col" className={css.num}>{t('efficiency.colRate')}</th>
+                    <th scope="col">{t('efficiency.colMedian')}</th>
+                    <th scope="col">{t('efficiency.colAvg')}</th>
+                    <th scope="col">{t('efficiency.colMax')}</th>
+                    <th scope="col" className={css.num}>{t('efficiency.colHit')}</th>
+                    <th scope="col" className={css.num}>{t('efficiency.colSpend')}</th>
+                    <th scope="col" className={css.num}>{t('efficiency.colTokens')}</th>
+                    <th scope="col" className={css.num}>{t('efficiency.colModels')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visible.map(row => (
+                    <TableRow
+                      key={row.id}
+                      row={row}
+                      anchors={anchors}
+                      t={t}
+                      canExpand={hasChildren.has(row.id)}
+                      open={expanded.has(row.id)}
+                      onToggle={toggle}
+                    />
+                  ))}
+                </tbody>
+              </table>
+              <div className={css.legend}>
+                <span><i className={css.mixUncached} />{t('efficiency.mixUncached')}</span>
+                <span><i className={css.mixCacheRead} />{t('efficiency.mixCacheRead')}</span>
+                <span><i className={css.mixCacheWrite} />{t('efficiency.mixCacheWrite')}</span>
+                <span><i className={css.mixOutput} />{t('efficiency.mixOutput')}</span>
+                <span className={css.legendBands}>{t('efficiency.legendBands')}</span>
+              </div>
+            </>
           )}
       </div>
     </div>,

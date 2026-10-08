@@ -248,7 +248,7 @@ The bash tool is the model-facing consumer of the bash executor seam. A `run_in_
 
 ### `bash`
 
-Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, each settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker), and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.
+Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.
 
 ```json
 {
@@ -256,30 +256,30 @@ Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `comman
   "properties": {
     "commands": {
       "type": "array",
-      "description": "The bash commands to execute, in written order; each element settles into its own labeled frame with its own exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
+      "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
       "items": {
         "type": "object",
         "additionalProperties": true,
         "properties": {
           "command": {
             "type": "string",
-            "description": "The bash command for this element."
+            "description": "The bash command this element runs in its own fresh shell."
           },
           "description": {
             "type": "string",
-            "description": "One-line UI label for this element; defaults to the command text."
+            "description": "One-line active-voice UI label for this element; defaults to the command text."
           },
           "workdir": {
             "type": "string",
-            "description": "Working directory override for this element."
+            "description": "Working directory for this element; overrides the call-level workdir."
           },
           "timeoutMs": {
             "type": "number",
-            "description": "Timeout override in milliseconds for this element."
+            "description": "Timeout in milliseconds for this element; overrides the call-level timeoutMs."
           },
           "run_in_background": {
             "type": "boolean",
-            "description": "Run this element in the background; its frame carries the job id."
+            "description": "Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output."
           }
         },
         "required": [
@@ -289,15 +289,15 @@ Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `comman
     },
     "description": {
       "type": "string",
-      "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+      "description": "Clear, concise description of what this call does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
     },
     "timeoutMs": {
       "type": "number",
-      "description": "Timeout in milliseconds for elements without their own. The executor applies its configured default and cap, and kills the element on expiry."
+      "description": "Timeout in milliseconds for elements without their own; the executor applies its configured default and cap, and kills the element on expiry."
     },
     "workdir": {
       "type": "string",
-      "description": "Working directory for elements without their own. Defaults to the session workspace; a relative path is resolved against it."
+      "description": "Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it."
     },
     "_dsh_harness_purpose": {
       "type": "string",
@@ -876,23 +876,36 @@ Standalone view/create/unique literal replace/line insert tool over the filesyst
 
 ### `read`
 
-Read a UTF-8 text file and return line-numbered content.
+Read UTF-8 text files and return line-numbered content; each element of `files` runs and settles into its own labeled frame, in written order, earlier failures included.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "file_path": {
-      "type": "string",
-      "description": "Path to read, resolved by the filesystem backend."
-    },
-    "offset": {
-      "type": "number",
-      "description": "1-based first line to return. Defaults to 1."
-    },
-    "limit": {
-      "type": "number",
-      "description": "Maximum number of lines to return. Defaults to 2000."
+    "files": {
+      "type": "array",
+      "description": "The files to read, in written order; 1 to 8 elements. Independent reads of one thought belong in one call.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to read, resolved by the filesystem backend."
+          },
+          "offset": {
+            "type": "number",
+            "description": "1-based first line to return for this file. Defaults to 1."
+          },
+          "limit": {
+            "type": "number",
+            "description": "Maximum number of lines to return for this file. Defaults to 2000."
+          }
+        },
+        "required": [
+          "file_path"
+        ]
+      }
     },
     "_dsh_harness_purpose": {
       "type": "string",
@@ -900,7 +913,7 @@ Read a UTF-8 text file and return line-numbered content.
     }
   },
   "required": [
-    "file_path",
+    "files",
     "_dsh_harness_purpose"
   ]
 }
@@ -936,117 +949,130 @@ Source: [`packages/fs/tool-fs/src/index.ts`](../packages/fs/tool-fs/src/index.ts
 
 ### `write`
 
-Create, replace, or patch one UTF-8 text file; sed-style entries batch atomically.
+Create, replace, or patch several UTF-8 text files in one call; each `files` element runs its sed-style program in written order and commits atomically, settling into its own labeled frame — a failed element does not stop later ones.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "file_path": {
-      "type": "string",
-      "description": "Path of the file to write, resolved by the filesystem backend."
-    },
-    "content": {
-      "type": "string",
-      "description": "The input stream. Without edits, creates or fully replaces the file; with edits, this text — not the current disk content — is what the entries operate on."
-    },
-    "overwrite": {
-      "type": "boolean",
-      "description": "CLI -f style: explicitly allow content to replace an existing file this session has not read. Never needed for new files, for files read or written this session, or for edits-only calls; operations stay atomic against concurrent changes either way."
-    },
-    "edits": {
+    "files": {
       "type": "array",
-      "description": "Sed-style operations applied in order and committed atomically; later entries address the text produced by earlier ones. A failed entry commits nothing and reports its index. Use dry_run to preview.",
+      "description": "The files to write, in written order. Independent file changes of one thought belong in one call; an element that edits a file another element creates or edits addresses that element's result, since elements see earlier commits.",
       "items": {
-        "oneOf": [
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "old_string": {
-                "type": "string",
-                "description": "Literal match: the exact text to find. Must appear exactly once unless replace_all is true."
-              },
-              "new_string": {
-                "type": "string",
-                "description": "Replacement text; omitted or empty deletes each match."
-              },
-              "replace_all": {
-                "type": "boolean",
-                "description": "Replace every match instead of requiring exactly one. Defaults to false."
-              }
-            },
-            "required": [
-              "old_string"
-            ]
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path of the file to write, resolved by the filesystem backend."
           },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "pattern": {
-                "type": "string",
-                "description": "JavaScript regular-expression source matched against the text. Group references in new_string use $1 style."
-              },
-              "new_string": {
-                "type": "string",
-                "description": "Replacement text, $1-style groups allowed; omitted or empty deletes each match."
-              },
-              "replace_all": {
-                "type": "boolean",
-                "description": "Replace every match instead of the first only. Defaults to false."
-              }
-            },
-            "required": [
-              "pattern"
-            ]
+          "content": {
+            "type": "string",
+            "description": "The element's input stream. Without edits, creates or fully replaces the file; with edits, this text — not the current disk content — is what the entries operate on."
           },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "first_line": {
-                "type": "integer",
-                "description": "First (1-based, inclusive) of the lines to replace or delete; addresses the text after earlier entries."
-              },
-              "last_line": {
-                "type": "integer",
-                "description": "Last (1-based, inclusive) of the lines to replace or delete; must be >= first_line."
-              },
-              "new_string": {
-                "type": "string",
-                "description": "Lines to substitute for the range; omitted or empty deletes the range."
-              }
-            },
-            "required": [
-              "first_line",
-              "last_line"
-            ]
+          "overwrite": {
+            "type": "boolean",
+            "description": "CLI -f style for this element: explicitly allow content to replace an existing file this session has not read. Never needed for new files, for files read or written this session, or for edits-only elements; operations stay atomic against concurrent changes either way."
           },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "after_line": {
-                "type": "integer",
-                "description": "Insert new_string as new lines after this 1-based line; 0 inserts at the top, the file line count appends at the end."
-              },
-              "new_string": {
-                "type": "string",
-                "description": "The lines to insert; required non-empty for this form."
-              }
-            },
-            "required": [
-              "after_line",
-              "new_string"
-            ]
+          "edits": {
+            "type": "array",
+            "description": "Sed-style operations applied in order and committed atomically for this element; later entries address the text produced by earlier ones. A failed entry fails the element and reports its index in the frame.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "old_string": {
+                      "type": "string",
+                      "description": "Literal match: the exact text to find. Must appear exactly once unless replace_all is true."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Replacement text; omitted or empty deletes each match."
+                    },
+                    "replace_all": {
+                      "type": "boolean",
+                      "description": "Replace every match instead of requiring exactly one. Defaults to false."
+                    }
+                  },
+                  "required": [
+                    "old_string"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "pattern": {
+                      "type": "string",
+                      "description": "JavaScript regular-expression source matched against the text. Group references in new_string use $1 style."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Replacement text, $1-style groups allowed; omitted or empty deletes each match."
+                    },
+                    "replace_all": {
+                      "type": "boolean",
+                      "description": "Replace every match instead of the first only. Defaults to false."
+                    }
+                  },
+                  "required": [
+                    "pattern"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "first_line": {
+                      "type": "integer",
+                      "description": "First (1-based, inclusive) of the lines to replace or delete; addresses the text after earlier entries."
+                    },
+                    "last_line": {
+                      "type": "integer",
+                      "description": "Last (1-based, inclusive) of the lines to replace or delete; must be >= first_line."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "Lines to substitute for the range; omitted or empty deletes the range."
+                    }
+                  },
+                  "required": [
+                    "first_line",
+                    "last_line"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "after_line": {
+                      "type": "integer",
+                      "description": "Insert new_string as new lines after this 1-based line; 0 inserts at the top, the file line count appends at the end."
+                    },
+                    "new_string": {
+                      "type": "string",
+                      "description": "The lines to insert; required non-empty for this form."
+                    }
+                  },
+                  "required": [
+                    "after_line",
+                    "new_string"
+                  ]
+                }
+              ]
+            }
+          },
+          "dry_run": {
+            "type": "boolean",
+            "description": "Run this element's program in memory and commit nothing: returns the would-be content and per-entry match counts, bypassing the guards the real commit enforces."
           }
+        },
+        "required": [
+          "file_path"
         ]
       }
-    },
-    "dry_run": {
-      "type": "boolean",
-      "description": "Run the whole program in memory and commit nothing: returns the would-be content and per-entry match counts, bypassing the guards the real commit enforces."
     },
     "_dsh_harness_purpose": {
       "type": "string",
@@ -1054,7 +1080,7 @@ Create, replace, or patch one UTF-8 text file; sed-style entries batch atomicall
     }
   },
   "required": [
-    "file_path",
+    "files",
     "_dsh_harness_purpose"
   ]
 }

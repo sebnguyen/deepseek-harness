@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
-    /** File-tree type name, guide entry, row states, and failure lines. */
+    /** File-tree type name, row states, and failure lines. */
     sidebarFiles: SidebarFilesKey
   }
 }
@@ -21,8 +21,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Simplified Chinese dictionary and key-set source of truth. */
 export const zh = {
   'type.label': '文件',
-  'guide.title': '工作区文件',
-  'guide.description': '浏览会话工作区的文件',
   loading: '正在读取…',
   empty: '空目录',
   truncated: '条目太多，只显示了一部分。',
@@ -40,8 +38,6 @@ export type SidebarFilesKey = keyof typeof zh
 /** English dictionary, checked against the Chinese key set. */
 export const en = {
   'type.label': 'Files',
-  'guide.title': 'Workspace files',
-  'guide.description': 'Browse files in this session\'s workspace',
   loading: 'Reading…',
   empty: 'Empty directory',
   truncated: 'Too many entries, showing only some of them.',

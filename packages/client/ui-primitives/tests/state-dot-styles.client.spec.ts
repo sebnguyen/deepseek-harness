@@ -16,8 +16,9 @@ describe('StateDot.module.css', () => {
     expect(css).toContain(`.dot[data-state='${state}']`)
   })
 
-  it('keeps ongoing on the animated matrix rather than a solid-dot rule', () => {
+  it('keeps ongoing on the pixel loader wrapper in the state blue', () => {
     expect(css).not.toContain(".dot[data-state='ongoing']")
-    expect(css).toContain('@keyframes dsh-state-dot-chase')
+    expect(css).toContain('--dsw-alias-state-business-primary')
+    expect(css).not.toContain('@keyframes dsh-state-dot-chase')
   })
 })

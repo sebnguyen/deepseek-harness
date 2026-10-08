@@ -149,7 +149,7 @@
 }
 
 /* Nav cell (figma .Setting-nav-cell 501:29962): 164x40, r12, pad
-   (12,9,16,9), gap 8; label 14/400 lh22; selected fill #EBEEF2. */
+   (12,9,16,9), gap 8; label 14/400 lh22; selected fill #d9dede. */
 .navCell {
   display: flex;
   align-items: center;

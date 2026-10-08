@@ -272,6 +272,105 @@ describe('WorkspaceBrowser', () => {
     ])
   })
 
+  it('folds the flat list to five sessions while blank and live rows stay visible', () => {
+    const ordinary = Array.from({ length: 6 }, (_, index) => summary(`session-${index + 1}`, 9 - index))
+    const blank = summary('blank', 10, { blank: true })
+    const running = summary('running-late', 1, { running: true })
+    const delegated = summary('delegated-late', 0)
+    const child = summary('child', 2, { origin: 'subagent', running: true, parentId: sid('delegated-late') })
+    mount({
+      useSessions: hook(sessionState(
+        [blank, ...ordinary, running, delegated, child],
+        { current: blank.id },
+      )),
+      useWorkspaces: hook(workspaceState([workspace('alpha', [
+        blank.id, ...ordinary.map(item => item.id), running.id, delegated.id, child.id,
+      ])])),
+    })
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    expect(screen.getByText('新会话')).toBeTruthy()
+    for (const item of ordinary.slice(0, 5)) expect(screen.getByText(item.displayTitle)).toBeTruthy()
+    expect(screen.queryByText('session-6')).toBeNull()
+    expect(screen.getByText('running-late')).toBeTruthy()
+    expect(screen.getByText('delegated-late')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '展开其余 1 个会话' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: '展开其余 1 个会话' }))
+    expect(screen.getByText('session-6')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '收起' }))
+    expect(screen.queryByText('session-6')).toBeNull()
+  })
+
+  it('anchors collapsed flat drags before hidden rows so the source stays visible', async () => {
+    const items = Array.from({ length: 6 }, (_, index) => summary(`session-${index + 1}`, 6 - index))
+    const running = summary('running-late', 0, { running: true })
+    const b = mount({
+      useSessions: hook(sessionState([...items, running])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', [...items.map(item => item.id), running.id])])),
+    })
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    await waitFor(() => {
+      expect(b.store.getSnapshot().sessionOrderByAccount[FLAT_SESSION_ORDER_KEY])
+        .toEqual(['session-1', 'session-2', 'session-3', 'session-4', 'session-5', 'session-6', 'running-late'])
+    })
+    const rect = (row: HTMLElement, top: number): void => {
+      row.getBoundingClientRect = () => ({
+        top, bottom: top + 34, left: 0, right: 200, width: 200, height: 34,
+        x: 0, y: top, toJSON: () => ({}),
+      })
+    }
+    const session1 = screen.getByText('session-1').closest('[role="treeitem"]') as HTMLElement
+    const runningRow = screen.getByText('running-late').closest('[role="treeitem"]') as HTMLElement
+    rect(runningRow, 240)
+    // Past the pinned running row the source would land beyond the fold: rejected.
+    fireEvent.dragStart(session1, { dataTransfer: dragData() })
+    fireDrag(runningRow, 'drop', 270)
+    expect(b.store.getSnapshot().sessionOrderByAccount[FLAT_SESSION_ORDER_KEY])
+      .toEqual(['session-1', 'session-2', 'session-3', 'session-4', 'session-5', 'session-6', 'running-late'])
+
+    const session4 = screen.getByText('session-4').closest('[role="treeitem"]') as HTMLElement
+    rect(session4, 166)
+    fireEvent.dragStart(session1, { dataTransfer: dragData() })
+    fireDrag(session4, 'drop', 190)
+    expect(b.store.getSnapshot().sessionOrderByAccount[FLAT_SESSION_ORDER_KEY])
+      .toEqual(['session-2', 'session-3', 'session-4', 'session-1', 'session-5', 'session-6', 'running-late'])
+
+    fireEvent.click(screen.getByRole('button', { name: '展开其余 1 个会话' }))
+    const session6 = screen.getByText('session-6').closest('[role="treeitem"]') as HTMLElement
+    const session1Moved = screen.getByText('session-1').closest('[role="treeitem"]') as HTMLElement
+    rect(session1Moved, 132)
+    fireEvent.dragStart(session6, { dataTransfer: dragData() })
+    fireDrag(session1Moved, 'drop', 140)
+    expect(b.store.getSnapshot().sessionOrderByAccount[FLAT_SESSION_ORDER_KEY])
+      .toEqual(['session-2', 'session-3', 'session-4', 'session-6', 'session-1', 'session-5', 'running-late'])
+  })
+
+  it('unfolds the flat list to reveal a hidden session chosen from search', async () => {
+    const items = Array.from({ length: 7 }, (_, index) => summary(`session-${index + 1}`, 7 - index))
+    const target = summary('target', 0, { displayTitle: 'Needle session' })
+    const open = vi.fn()
+    mount({
+      useSessions: hook(sessionState([...items, target])),
+      useWorkspaces: hook(workspaceState([workspace('alpha', [...items.map(item => item.id), target.id])])),
+      open,
+    })
+    fireEvent.click(screen.getByRole('button', { name: '视图选项' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '单列表' }))
+    expect(screen.queryByText('Needle session')).toBeNull()
+    const input = screen.getByPlaceholderText<HTMLInputElement>('搜索会话…')
+    fireEvent.change(input, { target: { value: 'needle' } })
+    fireEvent.click(screen.getByRole('treeitem'))
+    expect(open).toHaveBeenCalledWith(sid('target'))
+    const targetRow = screen.getByText('Needle session').closest('[role="treeitem"]')
+    expect(targetRow).toBeTruthy()
+    await waitFor(() => {
+      expect(scrollIntoView.mock.instances.at(-1)).toBe(targetRow)
+    })
+    expect(screen.getByRole('button', { name: '收起' })).toBeTruthy()
+  })
+
   it('expands a group on click and opens a session row', () => {
     const open = vi.fn()
     mount({

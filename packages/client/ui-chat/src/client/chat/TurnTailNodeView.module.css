@@ -1,12 +1,11 @@
 .root {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .actions {
-  /* With tail content, this adds to the root gap; without it, the Chat flow's
-     preceding-item offset supplies the other 16px. */
-  margin-top: 4px;
+  /* The Chat flow seats the tail 4px under its message; the row adds no
+     top margin of its own so it reads as the message's caption. */
   margin-left: -6px;
 }

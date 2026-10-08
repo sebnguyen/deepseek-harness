@@ -11,8 +11,9 @@
  * announced only while the buffer is dirty: a clean buffer silently reloads on
  * the next open.
  *
- * A Markdown file opens rendered, the way the read-only preview draws it, and a
- * footer control swaps between that display and the source editor. The swap
+ * A Markdown file opens rendered, the way the read-only preview draws it, and
+ * an HTML file opens on a sandboxed rendered page of the buffer; a footer
+ * control swaps between the rendered display and the source editor. The swap
  * commits the live buffer into the document generation, so unsaved edits
  * survive the round trip; the rendered page always shows the buffer, saved or
  * not.
@@ -27,7 +28,7 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
-import { createEditorExtensions, isMarkdownPath, languageFor } from './editor.ts'
+import { createEditorExtensions, isHtmlPath, isMarkdownPath, languageFor } from './editor.ts'
 import { decodeText, failureLine, sessionFileOf, type SessionFile } from './rpc.ts'
 import css from './EditorBody.module.css'
 
@@ -80,6 +81,9 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
   const meta = useResource<'file'>(tab.contentId)
   const file = useMemo(() => sessionFileOf(tab.contentId), [tab.contentId])
   const markdown = useMemo(() => isMarkdownPath(file.path), [file.path])
+  const html = useMemo(() => isHtmlPath(file.path), [file.path])
+  /** Which rendered display this path opens on, when either claims it. */
+  const previewKind: 'markdown' | 'html' | undefined = markdown ? 'markdown' : html ? 'html' : undefined
   const [mode, setMode] = useState<EditorDisplayMode>('preview')
   const [doc, setDoc] = useState<LoadedDocument | undefined>(undefined)
   const [failed, setFailed] = useState<string | undefined>(undefined)
@@ -90,7 +94,7 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
   const loadedRef = useRef<{ text: string; version: string } | undefined>(undefined)
   const viewRef = useRef<EditorView | undefined>(undefined)
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const showPreview = markdown && mode === 'preview' && doc !== undefined
+  const showPreview = previewKind !== undefined && mode === 'preview' && doc !== undefined
 
   const copyLabel = t('code.copy')
   const copiedLabel = t('code.copied')
@@ -159,7 +163,7 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
       state: EditorState.create({
         doc: doc.text,
         extensions: [
-          ...createEditorExtensions(guardedSave, languageFor(file.path)),
+          ...createEditorExtensions(guardedSave, languageFor(file.path, doc.text)),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return
             const loaded = loadedRef.current
@@ -214,15 +218,21 @@ export function EditorBody({ useTabInfo, useResource, load, save, t }: EditorBod
       {failed !== undefined
         ? <div className={css.error}>{failed}</div>
         : showPreview
-          ? (
-            <div className={css.preview} data-editor-preview>
-              <MarkdownText text={doc.text} labels={labels} />
-            </div>
-          )
+          ? previewKind === 'html'
+            ? (
+              <div className={css.previewFrame} data-editor-preview>
+                <iframe className={css.frame} sandbox="" srcDoc={doc.text} title={t('html.rendered')} />
+              </div>
+            )
+            : (
+              <div className={css.preview} data-editor-preview>
+                <MarkdownText text={doc.text} labels={labels} />
+              </div>
+            )
           : <div className={css.host} ref={hostRef} />}
       {failed === undefined && (
         <div className={css.footer}>
-          {markdown && (
+          {previewKind !== undefined && (
             <div className={css.modeToggle} role="group" aria-label={t('displayModes')}>
               <button
                 type="button"

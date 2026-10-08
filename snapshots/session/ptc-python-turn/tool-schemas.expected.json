@@ -13,11 +13,16 @@
           "description": {
             "type": "string",
             "description": "Clear, concise description of what this program does in active voice, 5-10 words (shown in the UI). Examples: \"Count TODO markers across packages\"; \"Read failing test and its fixture\"; \"Rename config key in every cordis.yml\"."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "code",
-          "description"
+          "description",
+          "_dsh_harness_purpose"
         ]
       }
     }

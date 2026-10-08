@@ -235,3 +235,29 @@ describe('ReadBlock copy', () => {
     expect(view.queryByRole('button', { name: '复制' })).toBeNull()
   })
 })
+
+describe('ReadBlock label link', () => {
+  it('the label becomes a button firing the callback when onLabelClick is set', async () => {
+    const onLabelClick = vi.fn()
+    const { container } = render(<ReadBlock
+      label="src/a.ts"
+      lines={lines(2)}
+      totalLines={2}
+      onLabelClick={onLabelClick}
+    />)
+    const label = screen.getByText('src/a.ts')
+    expect(label.tagName).toBe('BUTTON')
+    fireEvent.click(label)
+    expect(onLabelClick).toHaveBeenCalledTimes(1)
+    // The window note is absent when the card already shows the whole file.
+    expect(container.textContent).not.toContain(readBlockLabels.window(2, 2))
+    await act(async () => {})
+  })
+
+  it('a click-activated label without a label text renders an empty button', () => {
+    const onLabelClick = vi.fn()
+    render(<ReadBlock lines={lines(1)} totalLines={1} onLabelClick={onLabelClick} />)
+    const label = document.querySelector('[data-read] button')
+    expect(label?.textContent).toBe('')
+  })
+})

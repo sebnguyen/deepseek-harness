@@ -1,0 +1,238 @@
+<!doctype html>
+<!-- Static visual mock v3, rebuilt on the shipped conversation chrome as it is in
+     source today, not an invented card language: the batched rows are the same
+     flat, border-less 24px DisclosureRow lines the conversation flow already draws
+     — [16 leading] gap6 [title 13/24] gap8 [2x2 dot] gap8 [summary fill] — with the
+     dotted-underline fileLink style the ToolRow already uses for one clickable
+     path, and the expanded body stacks cards on bash-row's 4px-indented .5px
+     border-l1 geometry. Colors are the dark theme's resolved alias values
+     (design-platform.css); the shipped surface consumes the --dsw-* variables.
+     Every path link is a real hash anchor opening the right pane: openFile to
+     the Sidebar text preview at the frame's start line; Inspect to the
+     trajectory's one raw call record. Collapsed rows swap their icon for a
+     chevron on hover; the running row carries the sweep glare. Inspect rides
+     each row's right end as the shipped labeled chip (icon + 'Inspect'),
+     present on collapsed and expanded rows alike (the change this note
+     proposes over the shipped hover gate). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Files-batch web cards v3 — shipped row chrome, clickable frames</title>
+<style>
+  :root {
+    --bg-base: rgb(18, 22, 24);            /* alias-bg-base = neutral-bluish-950 */
+    --block: rgb(23, 27, 29);            /* alias-markdown-code-block = neutral-bluish-900 */
+    --bannerb: rgb(32, 36, 38);          /* alias-markdown-code-block-banner = neutral-bluish-850 */
+    --l1: rgba(247, 248, 248, 0.06);     /* alias-border-l1 */
+    --t1: rgb(247, 248, 248);          /* alias-label-primary = neutral-bluish-50 */
+    --t2: rgb(160, 162, 163);          /* alias-label-secondary */
+    --t3: rgb(145, 159, 158);          /* alias-label-tertiary = neutral-bluish-300 */
+    --cap: rgb(132, 134, 135);         /* alias-label-caption */
+    --biz: rgb(148, 198, 204);         /* alias-state-business-primary = deepseek-300 */
+    --err: rgb(252, 165, 165);         /* alias-state-error-primary = red-400 */
+    --ok: rgb(134, 239, 172);          /* alias-state-success-primary */
+    --warn: rgb(218, 165, 73);         /* static-amber-400 */
+    --hoversolid: rgb(37, 41, 42);     /* alias-interactive-bg-hover-solid = neutral-bluish-800 */
+    --ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg-base); color: var(--t2); font: 13px/24px var(--ui); -webkit-font-smoothing: antialiased; }
+  .frame { display: grid; grid-template-columns: minmax(0,1fr) 420px; gap: 16px; width: 1240px; margin: 0 auto; padding: 28px 0 72px; }
+  .col { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  h1 { color: var(--t1); font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .cap { color: var(--cap); font-size: 12px; margin: 0 0 16px; }
+  a { color: inherit; text-decoration: none; }
+  .fileLink { color: var(--t2); text-decoration: underline; text-decoration-style: dotted; text-decoration-color: var(--t3); text-decoration-thickness: 1px; text-underline-offset: 2px; cursor: pointer; }
+  .fileLink:hover { color: var(--t1); }
+
+  /* DisclosureRow/ToolRow collapsed line: flat, 24px, transparent */
+  .row { position: relative; overflow: hidden; display: flex; align-items: center; height: 24px; min-width: 0; padding: 0 2px; }
+  .lead { position: relative; flex: none; width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; margin-right: 6px; color: var(--t3); }
+  .lead .ic, .lead .chev { position: absolute; inset: 0; margin: auto; display: inline-flex; align-items: center; justify-content: center; transition: opacity 100ms ease; }
+  .lead .chev { opacity: 0; color: var(--t2); }
+  .row:hover .ic { opacity: 0; }
+  .row:hover .chev { opacity: 1; }
+  .title { flex: none; font-size: 13px; line-height: 24px; color: var(--t2); font-weight: 400; }
+  .sep { flex: none; width: 2px; height: 2px; border-radius: 1px; margin: 0 8px; background: var(--cap); }
+  .sum { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 24px; color: var(--t3); }
+  .stat { flex: none; margin-left: 5px; font-family: var(--code); font-size: 11px; color: var(--cap); white-space: nowrap; }
+  .stat .p { color: var(--ok); } .stat .m { color: var(--err); }
+  .suf { flex: none; margin-left: auto; padding-left: 8px; font-size: 13px; color: var(--t3); white-space: nowrap; }
+  .row.running::after { content: ''; position: absolute; top: 0; bottom: 0; left: -300px; width: 300px; pointer-events: none; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--bg-base) 60%, transparent) 55%, transparent); animation: sweep 2.6s ease-out infinite; }
+  @keyframes sweep { 0% { left: -300px; } 90%, 100% { left: 100%; } }
+
+  .body { padding: 2px 0; }
+  .cardstack { margin: 4px 0 4px 4px; border: 0.5px solid var(--l1); border-radius: 10px; background: var(--block); overflow: hidden; }
+
+  /* ReadBlock anatomy: banner + 48px gutter + fold */
+  .rbanner { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 9px 14px; background: var(--bannerb); }
+  .rbanner .lab { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--code); font-size: 12px; line-height: 18px; color: var(--t1); }
+  .rbanner .act { display: flex; align-items: center; flex-shrink: 0; gap: 12px; }
+  .rcount { color: var(--t3); font-size: 13px; }
+  .rlang { color: var(--t3); font-family: var(--code); font-size: 12px; }
+  .copy { border: none; background: none; padding: 0; margin: 0; color: var(--t2); font-size: 13px; cursor: pointer; }
+  .copy:hover { color: var(--t1); }
+  .bodycode { margin: 0; padding: 12px 0; font: 12px/22px var(--code); overflow-x: auto; }
+  .ln { display: flex; min-height: 22px; }
+  .ln .g { flex: none; width: 48px; text-align: right; padding-right: 12px; color: var(--cap); user-select: none; }
+  .ln .c { color: var(--t1); white-space: pre; }
+  .ln .c .kw { color: var(--biz); } .ln .c .st { color: var(--ok); }
+  .fold { color: var(--t3); font-size: 12px; padding: 0 14px 10px; cursor: pointer; }
+  .fold:hover { color: var(--t1); }
+
+  /* DiffBlock anatomy: bold path row, drawn signs, floating copy, footer */
+  .dbody { position: relative; padding: 12px 14px; font: 12px/22px var(--code); overflow-x: auto; }
+  .dbody .copy { position: absolute; top: 10px; right: 14px; }
+  .dl { white-space: pre; min-height: 22px; }
+  .dl.path { color: var(--t1); font-weight: 600; margin-bottom: 2px; }
+  .dl.del, .dl.del::before { color: var(--err); }
+  .dl.add, .dl.add::before { color: var(--ok); }
+  .dl.del::before { content: '- '; } .dl.add::before { content: '+ '; }
+  .dfoot { display: flex; align-items: center; gap: 10px; padding: 4px 14px 8px; color: var(--cap); font-size: 12px; border-top: 0.5px solid var(--l1); }
+  .dfoot .p { color: var(--ok); } .dfoot .m { color: var(--err); }
+
+  /* bash-row detached shape for error/not-run frames */
+  .det { display: flex; align-items: flex-start; gap: 8px; margin: 4px 0 4px 4px; padding: 7px 12px; border: 0.5px solid var(--l1); border-radius: 10px; background: var(--block); }
+  .det .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; margin-top: 7px; }
+  .det.err .dot { background: var(--err); }
+  .det.warn .dot { border: 1px solid var(--cap); }
+  .det .col2 { display: flex; flex-direction: column; min-width: 0; }
+  .det .cmd { white-space: pre-wrap; word-break: break-word; color: var(--t2); font: 12px/18px var(--code); }
+  .det .line2 { white-space: pre-wrap; word-break: break-word; color: var(--t3); font-size: 12px; }
+  .det.err .line2 { color: var(--err); }
+
+  /* Inspect chip riding the summary line's right end — the shipped pill's form
+     (icon + label, 9px radius, hover-solid fill) on the line: present on collapsed
+     and expanded rows alike; the row click toggles, the chip stops propagation. */
+  .insel { flex: none; margin-left: 8px; display: inline-flex; align-items: center; gap: 4px; height: 18px; padding: 0 8px; border: 0.5px solid var(--l1); border-radius: 9px; background: var(--hoversolid); color: var(--t3); font-size: 11px; line-height: 16px; white-space: nowrap; }
+  .insel:hover { color: var(--t1); }
+
+  /* Right pane: destinations */
+  .pane { position: sticky; top: 28px; height: calc(100vh - 100px); display: flex; flex-direction: column; border: 0.5px solid var(--l1); border-radius: 10px; background: var(--block); overflow: hidden; }
+  .ptabs { display: flex; gap: 2px; padding: 6px 8px; border-bottom: 0.5px solid var(--l1); }
+  .ptab { font-size: 12px; color: var(--t3); border-radius: 6px; padding: 2px 10px; }
+  .ptab.on { color: var(--t1); background: var(--hoversolid); }
+  .phead { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 0.5px solid var(--l1); }
+  .phead .pt { font-family: var(--code); font-size: 12px; color: var(--t1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .phead .pm { margin-left: auto; color: var(--cap); font-size: 11px; flex: none; }
+  .pbody { flex: 1; overflow: auto; }
+  .pempty { color: var(--cap); font-size: 12px; padding: 24px 16px; text-align: center; }
+  .pin { display: none; }
+  .pane[data-view="a"] [data-show="a"] { display: block; }
+  .pane[data-view="a"] .pempty { display: none; }
+  .jb { margin: 0; padding: 10px 12px; font: 11px/17px var(--code); color: var(--t3); white-space: pre-wrap; word-break: break-all; }
+  .notfound { color: var(--err); font-size: 12px; padding: 18px 16px; }
+  .hit { background: rgba(134, 239, 172, 0.12); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="col">
+    <h1>Files-batch web cards — on the shipped row chrome</h1>
+    <p class="cap">Flat 24px disclosure rows; expanded bodies stack ReadBlock/DiffBlock cards on bash-row geometry with the current dark palette. Dotted path links mirror the shipped fileLink and are real anchors to the right pane — Sidebar text preview at each frame line. The ⌖ Inspect chip at each row's right end is the shipped pill moved onto the line — always present on the collapsed and expanded row alike, and it opens the trajectory record of the whole call without toggling the row.</p>
+
+    <div class="tool">
+      <div class="row"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h10M2 11h7" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">read</span><span class="sep"></span><span class="sum">4 reads: <a class="fileLink" href="#preview:src/handler.ts:41">src/handler.ts</a> …</span><span class="suf">1.2s</span><a class="insel" title="Inspect" href="#inspect:read">⌖ Inspect</a></div>
+      <div class="body">
+        <div class="cardstack">
+          <div class="rbanner"><span class="lab"><a class="fileLink" style="color:var(--t1)" href="#preview:src/handler.ts:41">src/handler.ts</a></span><span class="act"><span class="rcount">Showing 4 of 180 lines</span><span class="rlang">ts</span><button class="copy">Copy</button></span></div>
+          <pre class="bodycode"><div class="ln"><span class="g">41</span><span class="c"><span class="kw">export async function</span> handle(req: Request) {</span></div><div class="ln"><span class="g">42</span><span class="c">  <span class="kw">const</span> token = req.headers.get(<span class="st">'authorization'</span>)</span></div><div class="ln"><span class="g">43</span><span class="c">  <span class="kw">if</span> (!token) <span class="kw">return</span> respond(401)</span></div><div class="ln"><span class="g">44</span><span class="c">  …</span></div></pre>
+          <div class="fold">… 176 more lines</div>
+        </div>
+        <div class="cardstack">
+          <div class="rbanner"><span class="lab"><a class="fileLink" style="color:var(--t1)" href="#preview:src/handler.spec.ts:1">src/handler.spec.ts</a></span><span class="act"><span class="rlang">ts</span><button class="copy">Copy</button></span></div>
+          <pre class="bodycode"><div class="ln"><span class="g">1</span><span class="c"><span class="kw">import</span> { handle } <span class="kw">from</span> <span class="st">'./handler.ts'</span></span></div><div class="ln"><span class="g">2</span><span class="c">it(<span class="st">'rejects missing tokens'</span>, …)</span></div></pre>
+        </div>
+        <div class="det err"><span class="dot"></span><div class="col2"><span class="cmd"><a class="fileLink" href="#preview:src/missing.ts:1">src/missing.ts</a></span><span class="line2">cannot read "src/missing.ts": not found</span></div></div>
+        <div class="det warn"><span class="dot"></span><div class="col2"><span class="cmd"><a class="fileLink" href="#preview:src/routes.ts:1">src/routes.ts</a></span><span class="line2">not run: call aborted</span></div></div>
+      </div>
+    </div>
+
+    <div class="tool">
+      <div class="row"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">write</span><span class="sep"></span><span class="sum">5 writes: <a class="fileLink" href="#preview:fixtures/a.txt:1">fixtures/a.txt</a> …</span><span class="stat"><span class="p">+4</span> <span class="m">−1</span></span><span class="suf">0.8s</span><a class="insel" title="Inspect" href="#inspect:write">⌖ Inspect</a></div>
+      <div class="body">
+        <div class="cardstack"><div class="dbody"><button class="copy">Copy</button>
+          <div class="dl path"><a class="fileLink" style="color:var(--t1);font-weight:600" href="#preview:fixtures/a.txt:1">fixtures/a.txt</a>  <span style="font-weight:400;color:var(--ok)">Created file</span></div>
+          <div class="dl add">alpha</div><div class="dl add">beta</div>
+          </div><div class="dfoot"><span class="p">+2</span><span class="m">−0</span><span>1 file</span></div></div>
+        <div class="cardstack"><div class="dbody"><button class="copy">Copy</button>
+          <div class="dl path"><a class="fileLink" style="color:var(--t1);font-weight:600" href="#preview:src/handler.ts:43">src/handler.ts</a>  <span style="font-weight:400;color:var(--t3)">1 edits applied (1 matches)</span></div>
+          <div class="dl del">  if (!token) return respond(401)</div><div class="dl add">  if (!token) return respond(401, 'missing token')</div>
+          </div><div class="dfoot"><span class="p">+1</span><span class="m">−1</span><span>1 file</span></div></div>
+        <div class="cardstack" style="border-style:dashed"><div class="dbody"><button class="copy">Copy</button>
+          <div class="dl path"><a class="fileLink" style="color:var(--t1);font-weight:600" href="#preview:fixtures/c.txt:1">fixtures/c.txt</a>  <span style="font-weight:400;color:var(--warn)">Dry run — no commit</span></div>
+          <div class="dl add">preview line one</div>
+          </div><div class="dfoot"><span class="p">+1</span><span class="m">−0</span><span>1 file</span></div></div>
+        <div class="det err"><span class="dot"></span><div class="col2"><span class="cmd"><a class="fileLink" href="#preview:config.json:1">config.json</a></span><span class="line2">cannot overwrite "config.json": not read this session — read it first, or pass overwrite: true</span></div></div>
+        <div class="det warn"><span class="dot"></span><div class="col2"><span class="cmd"><a class="fileLink" href="#preview:notes/d.md:1">notes/d.md</a></span><span class="line2">not run: call aborted</span></div></div>
+      </div>
+    </div>
+
+    <div class="tool"><div class="row running"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h10M2 11h7" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">read</span><span class="sep"></span><span class="sum">2 reads: <a class="fileLink" href="#preview:src/handler.ts:41">src/handler.ts</a> …</span><span class="suf">0.4s</span><a class="insel" title="Inspect" href="#inspect:read">⌖ Inspect</a></div></div>
+
+    <div class="tool"><div class="row"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">write</span><span class="sep"></span><span class="sum">2 writes: <a class="fileLink" href="#preview:fixtures/a.txt:1">fixtures/a.txt</a> …</span><span class="stat"><span class="p">+3</span> <span class="m">−1</span></span><span class="suf">0.3s</span><a class="insel" title="Inspect" href="#inspect:write">⌖ Inspect</a></div></div>
+
+    <div class="tool"><div class="row"><span class="lead"><span class="ic"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3h10M2 7h10M2 11h7" stroke="currentColor"/></svg></span><span class="chev"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 5l4 4 4-4" stroke="currentColor"/></svg></span></span><span class="title">read</span><span class="sep"></span><a class="fileLink" href="#preview:src/handler.ts:41">src/handler.ts</a><span class="suf"></span><a class="insel" title="Inspect" href="#inspect:read">⌖ Inspect</a></div></div>
+    <p class="cap">Collapsed rows keep today's one-line shape with the dashed path link; expansion stacks the per-frame cards. Anything whose frames text does not line up keeps the generic IN/OUT body.</p>
+  </div>
+
+  <aside class="pane" data-view="" id="pane">
+    <div class="ptabs"><span class="ptab on" id="tab-prev">Text preview</span><span class="ptab" id="tab-traj">Trajectory</span></div>
+    <div class="pempty">Click any dotted path —<br>it opens here, the Sidebar text preview at the frame line.<br><br>⌖ Inspect switches this pane to the trajectory record.</div>
+    <div class="pin" data-show="preview"><div class="phead"><span class="pt" id="pv-path"></span><span class="pm" id="pv-meta"></span></div><div class="pbody" id="pv-body"></div></div>
+    <div class="pin" data-show="traj"><div class="phead"><span class="pt" id="tj-title"></span><span class="pm">tool/call · tool/result</span></div><pre class="jb" id="tj-body"></pre></div>
+  </aside>
+</div>
+
+<script>
+const FILES = {
+  'src/handler.ts': { total: 180, offset: 41, lines: [[41, 'export async function handle(req: Request) {'], [42, "  const token = req.headers.get('authorization')"], [43, '  if (!token) return respond(401)'], [44, '  const user = await verify(token)'], [45, '  return route(user, req)'], [46, '}']] },
+  'src/handler.spec.ts': { total: 24, offset: 1, lines: [[1, "import { handle } from './handler.ts'"], [2, "it('rejects missing tokens', async () => {"], [3, '  expect((await handle(req())).status).toBe(401)'], [4, '})']] },
+  'src/routes.ts': { total: 60, offset: 1, lines: [[1, "export const routes = ['/'"], [2, '  // registered by each feature']] },
+  'src/missing.ts': null,
+  'fixtures/a.txt': { total: 2, offset: 1, lines: [[1, 'alpha'], [2, 'beta']] },
+  'fixtures/c.txt': { total: 1, offset: 1, lines: [[1, 'preview line one']] },
+  'config.json': { total: 5, offset: 1, lines: [[1, '{'], [2, '  "locked": true'], [3, '}']] },
+  'notes/d.md': { total: 3, offset: 1, lines: [[1, '# d']] },
+}
+const TRAJ = {
+  read: '{\n  "name": "read",\n  "arguments": { "files": [ { "file_path": "src/handler.ts" }, { "file_path": "src/handler.spec.ts" }, { "file_path": "src/missing.ts" }, { "file_path": "src/routes.ts" } ] },\n  "result": "[1/4] src/handler.ts\\n<path>…</path>…\\n[3/4] src/missing.ts\\n[error: cannot read \\"src/missing.ts\\": not found]…",\n  "meta": { "frames": [ { "index": 0, "path": "src/handler.ts", "offset": 41, "totalLines": 180 }, { "index": 1, "path": "src/handler.spec.ts", "offset": 1, "totalLines": 24 } ] }\n}',
+  write: '{\n  "name": "write",\n  "arguments": { "files": [ { "file_path": "fixtures/a.txt", "content": "alpha\\nbeta\\n" }, { "file_path": "src/handler.ts", "edits": [ { "old_string": "respond(401)", "new_string": "respond(401, \\'missing token\\')" } ] }, { "file_path": "fixtures/c.txt", "content": "preview line one\\n", "dry_run": true }, { "file_path": "config.json", "content": "…" }, { "file_path": "notes/d.md", "content": "…" } ] },\n  "meta": { "frames": [ { "diffs": [ { "path": "fixtures/a.txt", "oldText": null, "newText": "alpha\\nbeta\\n" } ] }, { "diffs": [ { "path": "src/handler.ts", "oldText": "  if (!token) return respond(401)", "newText": "  if (!token) return respond(401, \\'missing token\\')" } ] } ] }\n}',
+}
+const pane = document.getElementById('pane')
+function show(view) {
+  pane.dataset.view = view
+  document.querySelectorAll('.ptab').forEach(el => el.classList.remove('on'))
+  document.getElementById(view === 'traj' ? 'tab-traj' : 'tab-prev').classList.add('on')
+}
+function render() {
+  const hash = decodeURIComponent(location.hash.slice(1))
+  if (hash.startsWith('inspect:')) {
+    show('traj')
+    const key = hash.slice(8)
+    document.getElementById('tj-title').textContent = key + ' — raw call / result'
+    document.getElementById('tj-body').textContent = TRAJ[key] ?? '{}'
+    return
+  }
+  if (hash.startsWith('preview:')) {
+    const [path, line] = hash.slice(8).split(':')
+    show('preview')
+    const file = FILES[path]
+    document.getElementById('pv-path').textContent = path
+    const body = document.getElementById('pv-body')
+    if (file == null) {
+      document.getElementById('pv-meta').textContent = 'not found'
+      body.innerHTML = '<div class="notfound">cannot read "' + path + '": not found</div>'
+      return
+    }
+    document.getElementById('pv-meta').textContent = 'line ' + (line ?? 1) + ' of ' + file.total
+    body.innerHTML = '<pre class="bodycode">' + file.lines.map(l =>
+      '<div class="ln"><span class="g">' + l[0] + '</span><span class="c' + (String(l[0]) === String(line ?? file.offset) ? ' hit' : '') + '">' + l[1].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></div>').join('') + '</pre>'
+  }
+}
+addEventListener('hashchange', render)
+render()
+</script>
+</body>
+</html>

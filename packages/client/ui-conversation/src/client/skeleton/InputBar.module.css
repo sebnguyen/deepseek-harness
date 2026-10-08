@@ -144,20 +144,6 @@
   position: relative;
 }
 
-/* Machine pending dot (adjudicating / submitting). */
-.pending {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
-  background: var(--dsw-alias-state-business-primary);
-  animation: input-pending 1s ease-in-out infinite alternate;
-}
-
-@keyframes input-pending {
-  from { opacity: 0.35; }
-  to { opacity: 1; }
-}
 
 /* The contenteditable draft surface (grows with its content; .scroll caps
    and scrolls it). figma .InputText 34:10434 drew pl 16 / pr 12 / pt 4; the
@@ -203,7 +189,7 @@
   visibility: hidden;
 }
 
-/* figma 34:10434: #ADB2B8 light / #81858C dark — the caption pair exactly.
+/* figma 34:10434: #919f9e light / #738484 dark — the caption pair exactly.
    Insets mirror .input's pads (the other right 4px sits on .scroll). One
    ellipsized line: a wrapped second line would clip against the docked
    36px floor. */
@@ -349,8 +335,8 @@
   cursor: default;
 }
 
-/* Primary send (figma IconButton 34:10465): 34px circle, #3964FE light /
-   #679EFE dark — the info-fill pair (500→400), NOT button-primary (ink);
+/* Primary send (figma IconButton 34:10465): 34px circle, #2691ea light /
+   #94c6cc dark — the info-fill pair (500→400), NOT button-primary (ink);
    white glyph; empty text = 0.4 opacity. */
 .primary {
   display: grid;

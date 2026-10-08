@@ -16,6 +16,17 @@ import { zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.t
 
 afterEach(cleanup)
 
+/** One settled session at cwd /w/app, the store every row render binds. */
+const list = () => createSnapshotStore<SessionListState>({
+  ids: [SID],
+  byId: { [SID]: { id: SID, displayTitle: 'r', running: false, blank: false, updatedAt: 0, cwd: '/w/app' } },
+  current: SID,
+  phase: 'ready',
+  subagentsByParent: {}, jobsBySession: {}, jobOutputBySession: {},
+  currentAddress: undefined,
+})
+
+
 type FileMutationRowProps = Parameters<typeof FileMutationRow>[0]
 
 const SID = 's1' as SessionId
@@ -198,15 +209,6 @@ describe('chat row diff body', () => {
 })
 
 describe('FileMutationRow diff card', () => {
-  const list = () => createSnapshotStore<SessionListState>({
-    ids: [SID],
-    byId: { [SID]: { id: SID, displayTitle: 'r', running: false, blank: false, updatedAt: 0, cwd: '/w/app' } },
-    current: SID,
-    phase: 'ready',
-    subagentsByParent: {}, jobsBySession: {}, jobOutputBySession: {},
-    currentAddress: undefined,
-  })
-
   const rowProps = (block: RunningToolCall | ToolResultNode, toolName = 'edit'): FileMutationRowProps => ({
     callId: 'c1', toolName, block, openFile: vi.fn(), cwd: '/w/app',
     sessionId: SID, useSessions: bindSnapshotSelector(list()),
@@ -344,6 +346,143 @@ describe('fileMutationToolview registration', () => {
     expect(fileMutationToolview.inject).toEqual(['slots'])
     // Disposal removes each contribution (packages/AGENTS.md registry contract).
     disposeInjection()
+    expect(disposers.length).toBeGreaterThanOrEqual(1)
     expect(registered.every(r => r.disposed)).toBe(true)
+  })
+})
+
+describe('diffCardModel batched write', () => {
+  const BATCH_ARGS = '{"files":[{"file_path":"notes/a.txt","content":"A\\n"},{"file_path":"notes/b.txt","edits":[{"old_string":"o","new_string":"n"}]}]}'
+  const runningBatch = (over?: Partial<RunningToolCall>): RunningToolCall => ({
+    callId: 'c2', name: 'write', argsRaw: BATCH_ARGS,
+    turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
+  })
+  const settledBatch = (over?: Partial<ToolResultNode>): ToolResultNode => ({
+    kind: 'tool-result', seq: 12, time: 2_000, callId: 'c2',
+    call: { name: 'write', argsRaw: BATCH_ARGS },
+    callTime: 1_000,
+    content: [{ type: 'text', text: '[1/2] notes/a.txt\nCreated file' }], isError: false,
+    meta: { frames: [
+      { diffs: [{ path: 'notes/a.txt', oldText: null, newText: 'A\n' }] },
+      { diffs: [{ path: 'notes/b.txt', oldText: 'o', newText: 'n' }] },
+    ] }, subCalls: [], ...over,
+  })
+
+  it('shows every element intent while running and the applied frame hunks settled', () => {
+    expect(diffCardModel(runningBatch())).toEqual({
+      card: { diffs: [
+        { path: 'notes/a.txt', oldText: null, newText: 'A\n' },
+        { path: 'notes/b.txt', oldText: 'o', newText: 'n' },
+      ] },
+    })
+    expect(diffCardModel(settledBatch())).toEqual({
+      card: { diffs: [
+        { path: 'notes/a.txt', oldText: null, newText: 'A\n' },
+        { path: 'notes/b.txt', oldText: 'o', newText: 'n' },
+      ] },
+    })
+    expect(diffCardModel(settledBatch({ meta: { frames: [{ diffs: [] }] } }))).toEqual({
+      card: { diffs: [
+        { path: 'notes/a.txt', oldText: null, newText: 'A\n' },
+        { path: 'notes/b.txt', oldText: 'o', newText: 'n' },
+      ] },
+    })
+  })
+
+  it.each([
+    ['an empty batch', '{"files":[]}'],
+    ['a blank element path', '{"files":[{"file_path":" ","content":"x"}]}'],
+    ['an element with neither arm', '{"files":[{"file_path":"a"}]}'],
+    ['an unknown edit entry', '{"files":[{"file_path":"a","edits":[{"z":1}]}]}'],
+    ['an invalid escalation pair', '{"files":[{"file_path":"a","content":"x"}],"sandbox_permissions":"read-only"}'],
+  ])('keeps unusable batches generic: %s', (_label, argsRaw) => {
+    expect(diffCardModel(runningBatch({ argsRaw }))).toBeNull()
+  })
+})
+
+describe('FileMutationRow batched write', () => {
+  const rowProps = (block: RunningToolCall | ToolResultNode): FileMutationRowProps => ({
+    callId: 'c9', toolName: 'write', block, openFile: vi.fn(), cwd: '/w/app',
+    sessionId: SID, useSessions: bindSnapshotSelector(list()),
+    t,
+  } as unknown as FileMutationRowProps)
+
+  const BATCH_ARGS = '{"files":[{"file_path":"fixtures/a.txt","content":"alpha\\nbeta\\n"},{"file_path":"src/handler.ts","edits":[{"old_string":"respond(401)","new_string":"respond(401, \'missing\')"}]},{"file_path":"locked.txt","content":"x"}]}'
+  const WRITTEN_A = { index: 0, file_path: 'fixtures/a.txt', kind: 'written', path: 'fixtures/a.txt', before: null, after: 'alpha\nbeta\n', committed: true }
+  const WRITTEN_B = { index: 1, file_path: 'src/handler.ts', kind: 'written', path: 'src/handler.ts', before: '  respond(401)', after: "  respond(401, 'missing')", committed: true, outcomes: [{ index: 0, kind: 'replace', matches: 1 }] }
+  const ERROR_C = { index: 2, file_path: 'locked.txt', kind: 'error', message: 'not read this session' }
+
+  const batchSettled = (over?: Partial<ToolResultNode>): ToolResultNode => ({
+    kind: 'tool-result', seq: 30, time: 4_000, callId: 'c9',
+    call: { name: 'write', argsRaw: BATCH_ARGS },
+    callTime: 3_000,
+    content: [{ type: 'text', text: '[1/3] fixtures/a.txt\nwritten\n[2/3] src/handler.ts\nwritten\n[3/3] locked.txt\n[error: not read this session]' }],
+    isError: false,
+    meta: { frames: [WRITTEN_A, WRITTEN_B, ERROR_C] },
+    subCalls: [],
+    ...over,
+  })
+
+  it('stacks one diff card per written element and a detach line per failure', () => {
+    const view = render(<FileMutationRow {...rowProps(batchSettled())} />)
+    // Collapsed: batch summary with the total stat suffix.
+    expect(view.container.textContent).toContain('3 次写入：fixtures/a.txt')
+    expect(view.container.textContent).toContain('+3 -1')
+    expect(view.container.querySelectorAll('[data-diff]').length).toBe(0)
+    fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    expect(view.container.querySelectorAll('[data-diff]').length).toBe(2)
+    // Settled hunks win over argument intent; outcomes feed the accessory.
+    expect(view.container.textContent).toContain('已创建文件')
+    expect(view.container.textContent).toContain('1 处编辑已应用（1 处匹配）')
+    // The refused element renders the frames error verbatim on a detach line.
+    expect(view.container.textContent).toContain('[错误：not read this session]')
+    expect(view.container.querySelectorAll('[data-detached]').length).toBe(1)
+  })
+
+  it('diff card path headers open the element at the row line', () => {
+    const openFile = vi.fn()
+    const view = render(<FileMutationRow {...{ ...rowProps(batchSettled()), openFile }} />)
+    fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    const headers = Array.from(view.container.querySelectorAll('[data-diff] button')).filter(button => button.textContent === 'src/handler.ts')
+    expect(headers.length).toBe(1)
+    fireEvent.click(headers[0]!)
+    expect(openFile).toHaveBeenCalledWith('src/handler.ts')
+  })
+})
+
+describe('FileMutationRow batched write outcomes', () => {
+  const rowProps = (block: ToolResultNode, openFile?: ReturnType<typeof vi.fn>): FileMutationRowProps => ({
+    callId: 'c10', toolName: 'write', block,
+    ...openFile === undefined ? {} : { openFile },
+    sessionId: SID, useSessions: bindSnapshotSelector(list()),
+    t,
+  } as unknown as FileMutationRowProps)
+
+  const ARGS = '{"files":[{"file_path":"pre.txt","content":"p","dry_run":true},{"file_path":"skip.txt","content":"s"}]}'
+  const PREVIEW = { index: 0, file_path: 'pre.txt', kind: 'written', path: 'pre.txt', before: null, after: 'p', committed: false }
+  const SKIP = { index: 1, file_path: 'skip.txt', kind: 'not-run', reason: 'call aborted' }
+
+  const settled = (): ToolResultNode => ({
+    kind: 'tool-result', seq: 1, time: 2, callId: 'c10',
+    call: { name: 'write', argsRaw: ARGS }, callTime: 1,
+    content: [{ type: 'text', text: '[1/2] pre.txt\nwritten\n[2/2] skip.txt\n[not run: call aborted]' }],
+    isError: false, meta: { frames: [PREVIEW, SKIP] }, subCalls: [],
+  })
+
+  it('previews carry the dry-run accessory and skips the warn detach line', () => {
+    const view = render(<FileMutationRow {...rowProps(settled())} />)
+    fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    expect(view.container.textContent).toContain('试运行 — 未提交')
+    expect(view.container.textContent).toContain('[未运行：call aborted]')
+    expect(view.container.querySelectorAll('[data-diff]').length).toBe(1)
+  })
+
+  it('written preview hunks draw without an open callback', () => {
+    const view = render(<FileMutationRow {...rowProps(settled(), undefined)} />)
+    fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    expect(view.container.querySelectorAll('[data-diff]').length).toBe(1)
+    // Only the card's copy control remains: the path header is a plain row.
+    const pathHeaders = Array.from(view.container.querySelectorAll('[data-diff] button')).filter(button => button.textContent === 'pre.txt')
+    expect(pathHeaders.length).toBe(0)
   })
 })

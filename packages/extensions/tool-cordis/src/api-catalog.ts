@@ -595,9 +595,14 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'checkpoint',
-    summary: 'Checkpoint capture service: brackets every dispatch with a pruned rescan, retains post-state blobs per session, and serves the remote surface the Web timeline renders and restores through.',
-    description: 'Checkpoint capture service: brackets every dispatch with a pruned rescan, retains post-state blobs per session, and serves the remote surface the Web timeline renders and restores through.',
+    summary: 'Checkpoint capture service: retains the before/after text of each committed write and serves the remote surface the Web timeline renders and restores through.',
+    description: 'Checkpoint capture service: retains the before/after text of each committed write and serves the remote surface the Web timeline renders and restores through.',
     methods: [
+      {
+        signature: 'async captureWrite( call: { readonly agent?: { readonly session: Session }; readonly callId: string; readonly name: string; readonly purpose?: string }, file: { readonly path: string; readonly before: string | null; readonly after: string }, ): Promise<void>',
+        description: 'Retain one committed write\'s before and after text and append one `checkpoint/scan` row attributed to the call. A missing agent or a disabled service records nothing. A store failure records nothing and does not reject: the file write has already committed.',
+        parameters: [{ name: 'call', description: 'the write call this file belongs to.' }, { name: 'file', description: 'the path and the before/after text the write already holds.' }],
+      },
       {
         signature: '@Remote(\'restore\') async restore(session: Session, path: string, digest: string): Promise<string>',
         description: 'Restore one file to the exact bytes captured for a digest.',

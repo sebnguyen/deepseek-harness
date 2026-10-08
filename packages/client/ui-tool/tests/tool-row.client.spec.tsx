@@ -388,16 +388,20 @@ describe('ToolRow', () => {
     expect(view.container.querySelector('[class*="fileLink"]')).toBeNull()
   })
 
-  it('the expanded body carries a hover Inspect pill that fires the callback', () => {
+  it('the summary line carries the Inspect chip in both expansion states', () => {
     const inspect = vi.fn()
     const view = render(<ToolRow {...rowProps} inspect={inspect} />)
-    // Collapsed: no pill.
-    expect(view.queryByText('查看')).toBeNull()
-    fireEvent.click(view.getByRole('button', { name: /Bash/ }))
-    const pill = view.getByText('查看')
-    fireEvent.click(pill)
+    // Collapsed: the chip rides the line.
+    const chip = view.getByText('查看')
+    fireEvent.click(chip)
     expect(inspect).toHaveBeenCalledTimes(1)
-    // The pill click must not collapse the row (body is a .row sibling).
+    // The chip click never toggles the row.
+    expect(view.getByRole('button', { name: /Bash/ }).getAttribute('aria-expanded')).toBe('false')
+    // Expanded: the chip stays on the line.
+    fireEvent.click(view.getByRole('button', { name: /Bash/ }))
+    expect(view.getByRole('button', { name: /Bash/ }).getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(view.getByText('查看'))
+    expect(inspect).toHaveBeenCalledTimes(2)
     expect(view.getByRole('button', { name: /Bash/ }).getAttribute('aria-expanded')).toBe('true')
   })
 

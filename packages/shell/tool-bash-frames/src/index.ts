@@ -34,7 +34,7 @@ import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { ShellRunResult } from '@deepseek-ai/dsh-shell'
 import { renderFrames } from '@deepseek-ai/dsh-shell'
-import type { ShellFrameOutcome, ShellFrameRecord } from '@deepseek-ai/dsh-shell'
+import type { ShellFrameRecord, ShellRenderOutcome } from '@deepseek-ai/dsh-shell'
 import { processOutcome } from './background.ts'
 import { renderProcessRead } from '@deepseek-ai/dsh-shell'
 
@@ -54,6 +54,12 @@ export const Config: z<Config> = z.object({
   enableRunInBackground: z.boolean().default(true),
   maxCommandsPerCall: z.number().step(1).min(1).default(8),
 })
+
+/** Re-read the abort flag; a plain property read would be narrowed away after
+ *  the loop-top check even though the approval await lets cancellation land. */
+function isAborted(signal: AbortSignal): boolean {
+  return signal.aborted
+}
 
 /** One element of a `commands` invocation before validation defaults it. */
 interface FramesCommandArgs {
@@ -119,9 +125,10 @@ function bashDescription(backgroundEnabled: boolean, escalationModes: readonly S
     : 'Background execution is not available; elements must finish within the timeout.'
   const base = 'Execute bash commands (`bash -c`) and return their stdout/stderr. '
     + 'Pass a `commands` array: elements run in a fresh shell each, in written order, '
-    + 'each settles on its own under a `[i/N] $ command` header (its own exit code, '
-    + 'timeout, or sandbox marker), and every element runs even if an earlier one fails; keep steps '
-    + 'that read an earlier output in separate calls. '
+    + 'and every element runs even if an earlier one fails; keep steps that read an '
+    + 'earlier output in separate calls, so the step that needs a result sees it. '
+    + 'Each element settles on its own under a `[i/N] $ command` header (its own exit '
+    + 'code, timeout, or sandbox marker). '
     + `Current harness environment facts are exposed through managed \`$${DSH_ENV_PREFIX}*\` variables; inspect them when needed. `
     + 'Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. '
     + 'Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. '
@@ -184,10 +191,22 @@ export async function requestBashEscalation(
   )
 }
 
-/** The frames-only arms of the canonical output union. */
+/** The frames-only arms of the canonical output union, with this tool's
+ *  foreground duration stamp the shared shell outcome does not carry. */
+type FramesOutcome =
+  | ({ kind: 'foreground'; durationMs: number } & ShellRenderOutcome)
+  | { kind: 'job'; jobId: string }
+  | { kind: 'not-run'; reason: string }
+
 type FramesValue = {
   kind: 'frames'
-  frames: { index: number; command: string; outcome: ShellFrameOutcome }[]
+  frames: { index: number; command: string; outcome: FramesOutcome }[]
+}
+
+/** The schema-validated slice of bash args the presenters read; the core
+ *  registry soft-validates every call before invoking a presenter. */
+interface PresentBashArgs {
+  commands: FramesCommandArgs[]
 }
 
 /**
@@ -195,8 +214,8 @@ type FramesValue = {
  * pending; one exit pill cannot represent several elements, so the terminal
  * card stays reserved for single-exit tools.
  */
-function presentBashCall(args: BashToolArgs): GenericCallView {
-  const elements = Array.isArray(args.commands) ? args.commands : []
+function presentBashCall(args: PresentBashArgs): GenericCallView {
+  const elements = args.commands
   const first = elements.at(0)
   return {
     card: 'generic',
@@ -241,13 +260,14 @@ function resolveWorkdir(
 }
 
 /** Detach the executor DTO from readonly Service Definition types into plain JSON data. */
-function canonicalBashResult(result: ShellRunResult) {
+function canonicalBashResult(result: ShellRunResult, durationMs: number) {
   const output = (stream: ShellRunResult['stdout']) => ({
     text: stream.text,
     truncated: stream.truncated,
     ...stream.spillPath !== undefined ? { spillPath: stream.spillPath } : {},
   })
   return {
+    durationMs,
     exitCode: result.exitCode,
     signal: result.signal,
     timedOut: result.timedOut,
@@ -321,8 +341,8 @@ export function apply(ctx: Context, config: Config = {}): void {
     name: 'tool:bash',
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
     text: adviceLine('Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests.')
-      + ' Use `commands` when independent shell work arrives together — one call running the narrowed test, grepping the symbol, and listing the directory. '
-      + 'Check the [exit code: N] marker on every bash result; investigate failures before moving on.',
+      + ' Batch the independent steps of one thought into one `commands` call — one call running the narrowed test, grepping the symbol, and listing the directory instead of three calls; a step that reads an earlier output belongs in a later call. '
+      + 'Check the [exit code: N] marker on every frame; investigate failures before moving on.',
   })
 
   ctx.tools.register(defineTool({
@@ -339,12 +359,12 @@ export function apply(ctx: Context, config: Config = {}): void {
           // pairing) are enforced at dispatch time.
           additionalProperties: true,
           properties: {
-            command: { type: 'string', required: true, description: 'The bash command for this element.' },
-            description: { type: 'string', description: 'One-line UI label for this element; defaults to the command text.' },
-            workdir: { type: 'string', description: 'Working directory override for this element.' },
-            timeoutMs: { type: 'number', description: 'Timeout override in milliseconds for this element.' },
+            command: { type: 'string', required: true, description: 'The bash command this element runs in its own fresh shell.' },
+            description: { type: 'string', description: 'One-line active-voice UI label for this element; defaults to the command text.' },
+            workdir: { type: 'string', description: 'Working directory for this element; overrides the call-level workdir.' },
+            timeoutMs: { type: 'number', description: 'Timeout in milliseconds for this element; overrides the call-level timeoutMs.' },
             ...backgroundEnabled ? {
-              run_in_background: { type: 'boolean' as const, description: 'Run this element in the background; its frame carries the job id.' },
+              run_in_background: { type: 'boolean' as const, description: 'Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output.' },
             } : {},
             ...escalationModes.length > 0 ? {
               sandbox_permissions: {
@@ -359,17 +379,17 @@ export function apply(ctx: Context, config: Config = {}): void {
             } : {},
           },
         },
-        description: 'The bash commands to execute, in written order; each element settles into its own labeled frame with its own exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.',
+        description: 'The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other\'s output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.',
       },
       description: {
         type: 'string',
         required: true,
-        description: 'Clear, concise description of what this command does in active voice, '
+        description: 'Clear, concise description of what this call does in active voice, '
           + '5-10 words (shown in the UI). Examples: "ls" → "List files in current directory"; '
           + '"git status" → "Show working tree status"; "npm install" → "Install package dependencies".',
       },
-      timeoutMs: { type: 'number', description: 'Timeout in milliseconds for elements without their own. The executor applies its configured default and cap, and kills the element on expiry.' },
-      workdir: { type: 'string', description: 'Working directory for elements without their own. Defaults to the session workspace; a relative path is resolved against it.' },
+      timeoutMs: { type: 'number', description: 'Timeout in milliseconds for elements without their own; the executor applies its configured default and cap, and kills the element on expiry.' },
+      workdir: { type: 'string', description: 'Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it.' },
     },
     output: {
       schema: {
@@ -394,6 +414,7 @@ export function apply(ctx: Context, config: Config = {}): void {
                       additionalProperties: false,
                       properties: {
                         kind: { type: 'string', required: true, const: 'foreground' },
+                        durationMs: { type: 'integer', required: true },
                         exitCode: { required: true, oneOf: [{ type: 'integer' }, { type: 'null' }] },
                         signal: { required: true, oneOf: [{ type: 'string' }, { type: 'null' }] },
                         timedOut: { type: 'boolean', required: true },
@@ -440,6 +461,12 @@ export function apply(ctx: Context, config: Config = {}): void {
         type: 'text',
         text: renderFrames((value as FramesValue).frames as ShellFrameRecord[], escalationModes),
       }],
+      presentationMeta: (_args, value) => ({
+        frames: (value as FramesValue).frames.map(frame => ({
+          index: frame.index,
+          ...frame.outcome.kind === 'foreground' ? { durationMs: frame.outcome.durationMs } : {},
+        })),
+      }),
     },
     async execute(args: BashToolArgs, exec) {
       validateBashArgs(args, maxCommandsPerCall)
@@ -486,7 +513,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   ): Promise<FramesValue> {
     const baseWorkdir = resolveWorkdir(args.workdir, exec, standingPolicy?.workspaceRoot)
     const elements = args.commands as FramesCommandArgs[]
-    const frames: ShellFrameRecord[] = []
+    const frames: FramesValue['frames'] = []
     for (const [index, element] of elements.entries()) {
       if (exec.signal.aborted) {
         frames.push({ index, command: element.command, outcome: { kind: 'not-run', reason: 'call aborted' } })
@@ -498,8 +525,9 @@ export function apply(ctx: Context, config: Config = {}): void {
         ? await approveBashEscalation(element.sandbox_permissions, element.justification, exec, standingPolicy)
         : undefined
       // A cancellation landing during the approval must not detach work the
-      // caller stopped asking for.
-      if (exec.signal.aborted) {
+      // caller stopped asking for; read the flag through a call so the
+      // compiler's property narrowing cannot elide a cancel that lands mid-await.
+      if (isAborted(exec.signal)) {
         if (element.run_in_background === true) {
           const error = new HarnessError('tool call aborted', TOOL_ABORTED)
           error.name = 'AbortError'
@@ -530,6 +558,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         frames.push({ index, command: element.command, outcome: { kind: 'job', jobId: id } })
         continue
       }
+      const startedAt = Date.now()
       const result = await ctx.shell.run(ctx.shell.resolve({
         ...request,
         signal: exec.signal,
@@ -539,7 +568,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         error.name = 'AbortError'
         throw error
       }
-      frames.push({ index, command: element.command, outcome: { kind: 'foreground', ...canonicalBashResult(result) } })
+      frames.push({ index, command: element.command, outcome: { kind: 'foreground', ...canonicalBashResult(result, Date.now() - startedAt) } })
     }
     return { kind: 'frames', frames }
   }

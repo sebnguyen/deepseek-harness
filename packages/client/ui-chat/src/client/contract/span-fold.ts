@@ -16,6 +16,9 @@ export interface StepSpanFold {
   readonly thoughts: number
   /** Step-bound injected-context rows folded with the span. */
   readonly contexts: number
+  /** Node row the disclosure rides: the span opener, or the prompt row it
+   * covers when the span answers a prompt logged inside it. */
+  readonly disclosureKey: string
   /** Whether the Step's durable end has not arrived yet. */
   readonly running: boolean
 }
@@ -58,6 +61,7 @@ export function sameStepSpanFold(
     && left.subagents === right.subagents
     && left.thoughts === right.thoughts
     && left.contexts === right.contexts
+    && left.disclosureKey === right.disclosureKey
     && left.running === right.running)
 }
 

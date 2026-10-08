@@ -17,5 +17,3 @@ DeepSeek Harness is still at an early stage and under active development. We are
 DeepSeek Harness is designed to be deeply customizable. We do not believe that packages in the official repository are inherently more important than packages created by the community. You may consider this repository an idea, an official showcase, and a source of inspiration, but not a mandate from us.
 
 We have already seen exciting projects emerge from the community, and we hope to see the ecosystem continue to grow in its own directions.
-
-Into the unknown.

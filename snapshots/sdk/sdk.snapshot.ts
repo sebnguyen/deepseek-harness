@@ -125,7 +125,7 @@ const SDK_ASSERTIONS: Readonly<Record<string, SdkAssertions>> = {
   'ptc-turn': {
     patches: [fileURLToPath(new URL('./ptc-turn/runtime.cordis.yml', import.meta.url))],
     expectedFinalResponse: 'CODE_ONE+CODE_TWO',
-    expectedTools: { run_code: ['code', 'description'] },
+    expectedTools: { run_code: ['code', 'description', '_dsh_harness_purpose'] },
   },
   'subagent-continuable': {
     environment: { DSH_SNAPSHOT_HUMAN_STEER: '1' },
@@ -665,7 +665,8 @@ async function runScenario(scenario: CorpusScenario): Promise<{
     return { results, notifications, observedMethods, logs, initialWorkspace, finalWorkspace, cwd }
   } finally {
     await harness.close()
-    await rm(cwd, { recursive: true, force: true })
+    if (process.env.DSH_SNAPSHOT_KEEP_CWD === '1') console.error(`KEEP_CWD ${cwd}`)
+    else await rm(cwd, { recursive: true, force: true })
   }
 }
 

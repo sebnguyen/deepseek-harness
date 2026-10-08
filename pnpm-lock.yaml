@@ -547,6 +547,9 @@ importers:
       pnpm:
         specifier: 11.7.0
         version: 11.7.0
+      sharp:
+        specifier: ^0.35.3
+        version: 0.35.3(@types/node@22.20.0)
       tar:
         specifier: ^7.5.0
         version: 7.5.22
@@ -6608,6 +6611,9 @@ importers:
       '@deepseek-ai/dsh-attachment':
         specifier: workspace:^
         version: link:../../attachment/attachment
+      '@deepseek-ai/dsh-checkpoint':
+        specifier: workspace:^
+        version: link:../checkpoint
       '@deepseek-ai/dsh-code-runtime':
         specifier: workspace:^
         version: link:../../code-runtime/code-runtime

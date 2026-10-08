@@ -1,6 +1,6 @@
 /* Shared message IconActions row (user + assistant). Parent modules own
-   layout offsets via the composed className. Row containers gate visibility
-   by recency through data-actions-reveal. */
+   layout offsets via the composed className. Earlier user-authored flow
+   rows gate visibility by recency; turn tails stay visible. */
 
 .actions {
   display: flex;
@@ -30,11 +30,11 @@
   white-space: nowrap;
 }
 
-/* Earlier user-authored flow rows and opted-in turn tails reveal the complete
-   actions row on hover or focus-within. Opacity keeps layout stable, and
-   devices without hover keep every row visible. */
+/* Earlier user-authored flow rows reveal the complete actions row on hover
+   or focus-within; turn tails stay visible as their message's caption.
+   Opacity keeps layout stable, and devices without hover keep every row
+   visible. */
 @media (hover: hover) {
-  [data-actions-reveal='hover'] .actions,
   :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
     ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
   ) .actions {
@@ -42,8 +42,6 @@
     transition: opacity 80ms ease;
   }
 
-  [data-actions-reveal='hover']:hover .actions,
-  [data-actions-reveal='hover']:focus-within .actions,
   :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
     ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
   ):hover .actions,

@@ -6,7 +6,7 @@
  * fails loud.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -121,6 +121,31 @@ describe('staged-escalation gate', () => {
     expect(outcomes[0]?.text ?? '').toContain('This tool is blocked due to your "explore" stage')
     expect(outcomes[2]?.text ?? '').toContain('You are in the "act" stage.')
   })
+
+  for (const mode of ['replay', 'refresh'] as const) {
+    it(`floors the gate at the top rung while a snapshot ${mode} runs`, async () => {
+      vi.stubEnv('DSH_SNAPSHOT', mode)
+      try {
+        const { ctx, parent, adapter } = await harness({ stages: LADDER })
+        ; (adapter as unknown as { script: unknown[] }).script = [
+          toolCallResponse('c1', 'write', {}),
+          textResponse('done'),
+        ] as never
+        parent.followup({ role: 'user', content: [{ type: 'text', text: 'replay the recorded edit' }], source: { kind: 'user' } } as never)
+        await settle(ctx, parent)
+        const outcomes = toolOutcomes(parent)
+        expect(outcomes.map(outcome => outcome.isError)).toEqual([false])
+        expect(outcomes[0]?.text ?? '').toBe('written')
+        // The reminder rides the raw fold, so the replayed turn still carries it.
+        const reminders = parent.session.snapshotEvents().filter(event =>
+          event.type === 'user/message'
+        && (event.data.source as { kind?: string } | undefined)?.kind === 'staged-escalation')
+        expect(reminders).toHaveLength(1)
+      } finally {
+        vi.unstubAllEnvs()
+      }
+    })
+  }
 
   it('grants request_escalation with no explore evidence', async () => {
     const { ctx, parent, adapter } = await harness({ stages: LADDER })

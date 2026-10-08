@@ -27,6 +27,12 @@
       "path": "../ui-renderer"
     },
     {
+      "path": "../../fs/checkpoint"
+    },
+    {
+      "path": "../ui-file-history"
+    },
+    {
       "path": "../ui-primitives"
     },
     {

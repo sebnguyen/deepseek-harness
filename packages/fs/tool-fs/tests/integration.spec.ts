@@ -60,7 +60,7 @@ describe('default deployment (tool-owned gate)', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalFileSystem, { cwd: dir })
-    fiber = await ctx.plugin(ToolFs)
+    fiber = await ctx.plugin(ToolFs, { legacyFaces: true })
   })
 
   describe('content arm → disk', () => {
@@ -335,7 +335,7 @@ describe('strict deployment (fs-observation-policy loaded)', () => {
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalFileSystem, { cwd: dir })
     await ctx.plugin(FsPolicy)
-    fiber = await ctx.plugin(ToolFs)
+    fiber = await ctx.plugin(ToolFs, { legacyFaces: true })
   })
 
   it('a content write without a prior read still rejects with FS_NOT_OBSERVED', async () => {
@@ -405,7 +405,7 @@ describe('per-session cwd', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalFileSystem, { cwd: dir }) // config.cwd = dir, NOT sessionDir
-    fiber = await ctx.plugin(ToolFs)
+    fiber = await ctx.plugin(ToolFs, { legacyFaces: true })
   })
   afterEach(async () => { await rm(sessionDir, { recursive: true, force: true }) })
 
@@ -455,7 +455,7 @@ describe('signal and concurrency', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(LocalFileSystem, { cwd: dir })
-    fiber = await ctx.plugin(ToolFs)
+    fiber = await ctx.plugin(ToolFs, { legacyFaces: true })
   })
 
   const callSig = (signal: AbortSignal, name: string, args: unknown) =>

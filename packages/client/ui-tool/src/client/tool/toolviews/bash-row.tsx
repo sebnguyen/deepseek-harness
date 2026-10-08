@@ -4,7 +4,7 @@
  * and persisted elapsed time) plus detach rows for backgrounded or skipped
  * elements, while non-batch shell calls keep the single-exit terminal card.
  */
-import { useEffect, useMemo, useState, type KeyboardEvent } from 'react'
+import { useMemo, useState, type KeyboardEvent } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import clsx from 'clsx'
 import {
@@ -102,11 +102,10 @@ function PendingFrames(props: {
   frames: Extract<BashFramesModel, { kind: 'pending' }>
   cwd: string | undefined
   labels: ReturnType<typeof terminalBlockLabels>
-  elapsed: string
 }) {
-  const { frames, cwd, labels, elapsed } = props
+  const { frames, cwd, labels } = props
   return frames.commands.map((element, index) => (
-    <PendingTerminal key={`${index}:${element.command}`} element={element} cwd={cwd} labels={labels} elapsed={elapsed} />
+    <PendingTerminal key={`${index}:${element.command}`} element={element} cwd={cwd} labels={labels} />
   ))
 }
 
@@ -146,9 +145,8 @@ function PendingTerminal(props: {
   element: FramesCommand
   cwd: string | undefined
   labels: ReturnType<typeof terminalBlockLabels>
-  elapsed: string
 }) {
-  const { element, cwd, labels, elapsed } = props
+  const { element, cwd, labels } = props
   return (
     <TerminalBlock
       command={element.command}
@@ -157,7 +155,6 @@ function PendingTerminal(props: {
       maxLines={Infinity}
       labels={labels}
       className={css.terminal}
-      accessory={elapsed}
     />
   )
 }
@@ -170,18 +167,6 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
   const cwd = useSessions(list => list.byId[sessionId]?.cwd)
   const frames = useMemo(() => bashFramesModel(block), [block])
   const running = !('kind' in block)
-  // Local component state: the running tick never leaves this row.
-  const [elapsedMs, setElapsedMs] = useState(0)
-  useEffect(() => {
-    if (!running) return undefined
-    const started = Date.now()
-    const interval = setInterval(() => {
-      setElapsedMs(Date.now() - started)
-    }, 100)
-    return () => {
-      clearInterval(interval)
-    }
-  }, [running])
   const labels = useMemo(() => terminalBlockLabels(t), [t])
   const terminalModel = frames === null ? terminalCardModel(block, cwd) : null
   const terminal = terminalModel === null ? null : localizeTerminalCardModel(terminalModel, t)
@@ -206,9 +191,9 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
   )
   const failureLine = model.state === 'error' ? model.errorSummary : null
   const settledFor = 'kind' in block ? block.time - (block.callTime ?? block.time) : null
-  const suffix = frames !== null
-    ? running ? durationText(elapsedMs, t) : durationText(settledFor ?? 0, t)
-    : null
+  // No live tick: a mount-anchored clock restarts on every remount, so the
+  // row shows a duration only once the call's recorded total settles.
+  const suffix = frames !== null && !running ? durationText(settledFor ?? 0, t) : null
   const toggleExpand = () => {
     setExpanded(v => !v)
   }
@@ -248,12 +233,28 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
         <span className={clsx(css.summary, failureLine !== null && css.errorSummary)}>
           {failureLine ?? terminal?.description ?? model.summary}
         </span>
-        {suffix !== null && <span className={css.suffix} data-live={running || undefined}>{suffix}</span>}
+        {suffix !== null && <span className={css.suffix}>{suffix}</span>}
+        {inspect !== undefined && (
+          <button
+            type="button"
+            className={css.inspectChip}
+            onClick={(event) => {
+              event.stopPropagation()
+              inspect()
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
+            }}
+          >
+            <IconInspectOutline12 />
+            {t('row.inspect')}
+          </button>
+        )}
       </div>
       {open && (
         <div className={css.bodyWrap}>
           {frames !== null && (frames.kind === 'pending'
-            ? <PendingFrames frames={frames} cwd={cwd} labels={labels} elapsed={durationText(elapsedMs, t)} />
+            ? <PendingFrames frames={frames} cwd={cwd} labels={labels} />
             : <SettledFrames frames={frames} cwd={cwd} labels={labels} t={t} />)}
           {frames === null && terminal !== null && (
             <TerminalBlock
@@ -283,12 +284,6 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
                 </div>
               )}
             </div>
-          )}
-          {inspect !== undefined && (
-            <button type="button" className={css.inspectButton} onClick={inspect}>
-              <IconInspectOutline12 />
-              {t('row.inspect')}
-            </button>
           )}
         </div>
       )}

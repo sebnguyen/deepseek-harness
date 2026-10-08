@@ -8,9 +8,10 @@
  * entry of its own, so there is always exactly one body and the shipped one
  * cannot be outvoted by accident.
  *
- * The shipped guide is a muted compass over the entry capsules every
- * registered type contributed, centred in the body, and nothing else — no
- * heading, as a browser start page shows its doors without a caption. While
+ * The shipped guide is the static DigitalOcean mark over any entry
+ * capsules registered types contribute, centred in the body, and nothing
+ * else — no heading, as a browser start page shows its doors without a
+ * caption. While
  * at most four entries are listed, a capsule with a description shows it
  * under the title; a longer list drops every description to stay light.
  * Picking one opens that type as a page
@@ -20,8 +21,9 @@
 import type { ReactNode } from 'react'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { ChainRenderOpts, HookContextOf, InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { DigitalOceanLogo } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarRightGuideBox } from '../../tab-registry.ts'
-import { CompassGlyph, CubeGlyph } from './GuideTitle.tsx'
+import { CubeGlyph } from './GuideTitle.tsx'
 import css from './GuideBody.module.css'
 
 /** What the guide body needs from its host beyond the framework shares. */
@@ -66,14 +68,14 @@ function EntryBox({ entry, described, onPick }: {
   )
 }
 
-/** The shipped guide: the tab's own compass over the doors out of the column. */
+/** The shipped guide: the static DO mark over the doors out of the column. */
 function ShippedGuide({ entries, onPick }: {
   entries: readonly SidebarRightGuideBox[]
   onPick: (entry: SidebarRightGuideBox) => void
 }): ReactNode {
   return (
     <div className={css.guide} data-sidebar-right-guide>
-      <span className={css.hero} aria-hidden="true"><CompassGlyph size={56} /></span>
+      <span className={css.hero} aria-hidden="true"><DigitalOceanLogo size={96} /></span>
       {/* Keyed by position in the ordered list: one type may contribute several capsules, and `order` is not unique. */}
       {entries.map((entry, index) => (
         <EntryBox key={`${entry.kind}:${index}`} entry={entry} described={entries.length <= MAX_DESCRIBED_ENTRIES} onPick={onPick} />

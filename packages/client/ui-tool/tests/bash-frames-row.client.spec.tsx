@@ -148,16 +148,14 @@ describe('BashRow frames card', () => {
     t: enT,
   } as unknown as BashRowProps)
 
-  it('renders one running terminal card per pending element with a live suffix', async () => {
+  it('renders one running terminal card per pending element without a live suffix', async () => {
     const view = render(<BashRow {...props(running())} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     await waitFor(() => expect(view.container.querySelectorAll('[data-terminal][data-running]')).toHaveLength(2))
     expect(view.container.textContent).toContain('ls -la')
-    const suffix = view.container.querySelector('[data-live]')
-    expect(suffix).not.toBeNull()
-    await waitFor(() => {
-      expect(suffix!.textContent).not.toBe('0.0s')
-    }, { timeout: 2_000 })
+    // A running batch shows no duration: the mount-anchored tick restarted
+    // on every remount, so only the recorded settled total is displayed.
+    expect(view.container.textContent).not.toMatch(/\d+(?:\.\d+)?s\b/)
     view.unmount()
   })
 
@@ -232,7 +230,7 @@ describe('BashRow frames card', () => {
     fireEvent.click(singular.container.querySelector('[data-expandable]')!)
     await waitFor(() => expect(singular.container.querySelector('[data-terminal]')).not.toBeNull())
     // A clean single-exit call carries no batch suffix.
-    expect(singular.container.querySelector('[data-live]')).toBeNull()
+    expect(singular.container.textContent).not.toMatch(/\d+(?:\.\d+)?s\b/)
   })
 
   it('labels a stopped batch row from the interrupt error', () => {

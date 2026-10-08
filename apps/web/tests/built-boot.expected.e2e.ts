@@ -61,18 +61,18 @@ it('boots the built plugin graph and renders a fixture session end to end', asyn
 
   // The sidebar renders from the boot graph: every inject layer activated.
   const tree = await screen.findByRole('tree', { name: 'Sessions' }, { timeout: 10_000 })
-  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') === 'official') {
-    expect(document.querySelector('svg[viewBox="26 0 156 24"]')).not.toBeNull()
-    expect(screen.queryByText('DSH Local Build')).toBeNull()
-  } else {
-    expect(document.querySelector('svg[viewBox="0 0 23.16 17.04"]')).not.toBeNull()
+  expect(document.querySelector('svg[viewBox="0 0 24 24"] path[d^="M12.04 0"]')).not.toBeNull()
+  // The sidebar's local-build title, the sidebar label, and the hero headline
+  // all read the product name, so the brand block is pinned by its own class.
+  const brandTitles = screen.getAllByText('DigitalOcean Harness')
+  expect(brandTitles.some(el => typeof el.className === 'string' && el.className.includes('localBuildTitle'))).toBe(true)
+  if (clientBuildValue('DSH_CLIENT_BUILD_PROFILE') !== 'official') {
     const version = clientBuildValue('DSH_CLIENT_VERSION')
     if (version === undefined) throw new Error('default client build record must carry DSH_CLIENT_VERSION')
     const commit = clientBuildValue('DSH_CLIENT_COMMIT_HASH')
     const buildVersion = version
       + (commit === undefined ? '' : `-${commit}`)
       + (clientBuildValue('DSH_CLIENT_GIT_DIRTY') === 'true' ? '-dirty' : '')
-    screen.getByText('DSH Local Build')
     screen.getByText(buildVersion)
   }
   // The compact layout dropped group session counts; the fixture workspace

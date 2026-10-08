@@ -27,6 +27,14 @@ export interface DiffBlockProps {
   labels: DiffBlockLabels
   /** Height cap in body lines before the middle collapses (default {@link DEFAULT_DIFF_MAX_LINES}). */
   maxLines?: number | undefined
+  /**
+   * Activates each path header row as a dotted file link (the row chrome's
+   * openable path style) firing with the row's path; propagation is stopped so
+   * a wrapping row toggle never fires. Absent keeps the rows plain.
+   */
+  onPathClick?: ((path: string) => void) | undefined
+  /** Localized outcome note drawn before the floating copy control. */
+  accessory?: string | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */
   className?: string | undefined
 }
@@ -151,7 +159,28 @@ function copyText(rows: DiffRow[]): string {
  * @param props - see {@link DiffBlockProps}.
  * @returns the diff block element.
  */
-export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, className }: DiffBlockProps) {
+/** One body row: path headers become openable links when the site supplies the
+ *  callback; every other row stays a plain line. */
+function diffRow(row: DiffRow, key: number, onPathClick: ((path: string) => void) | undefined) {
+  if (row.kind === 'path' && onPathClick !== undefined) {
+    return (
+      <button
+        key={key}
+        type="button"
+        className={clsx(css.line, css.path, css.pathLink)}
+        onClick={(event) => {
+          event.stopPropagation()
+          onPathClick(row.text)
+        }}
+      >
+        {row.text}
+      </button>
+    )
+  }
+  return <div key={key} className={clsx(css.line, ROW_CLASS[row.kind])}>{row.text}</div>
+}
+
+export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, onPathClick, accessory, className }: DiffBlockProps) {
   const { rows, added, removed, files } = useMemo(() => buildRows(diffs), [diffs])
   const [expanded, setExpanded] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -180,13 +209,12 @@ export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, cl
 
   return (
     <div className={clsx(css.block, className)} data-diff="">
+      {accessory !== undefined && <span className={css.accessory}>{accessory}</span>}
       <button type="button" className={css.copyButton} onClick={onCopy}>
         {copied ? labels.copied : labels.copy}
       </button>
       <div className={css.body}>
-        {head.map((row, index) => (
-          <div key={index} className={clsx(css.line, ROW_CLASS[row.kind])}>{row.text}</div>
-        ))}
+        {head.map((row, index) => diffRow(row, index, onPathClick))}
         {hidden > 0 && (
           <FoldToggle
             className={css.expand}
@@ -196,9 +224,7 @@ export function DiffBlock({ diffs, labels, maxLines = DEFAULT_DIFF_MAX_LINES, cl
             onToggle={onToggle}
           />
         )}
-        {tail.map((row, index) => (
-          <div key={index} className={clsx(css.line, ROW_CLASS[row.kind])}>{row.text}</div>
-        ))}
+        {tail.map((row, index) => diffRow(row, index, onPathClick))}
       </div>
       <div className={css.footer}>└ +{added} -{removed} · {labels.files(files)}</div>
     </div>

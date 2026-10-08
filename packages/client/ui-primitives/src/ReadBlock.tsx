@@ -39,6 +39,12 @@ export interface ReadBlockProps {
   lang?: string | undefined
   /** Height cap in content lines before the middle collapses (default {@link DEFAULT_READ_MAX_LINES}). */
   maxLines?: number | undefined
+  /**
+   * Activates the banner label as a dotted file link (the row chrome's openable
+   * path style); the callback fires with propagation stopped so a wrapping row
+   * toggle never fires. Absent keeps the label a plain span.
+   */
+  onLabelClick?: (() => void) | undefined
   /** Extra class merged onto the wrapper (callers position; this component draws). */
   className?: string | undefined
 }
@@ -71,6 +77,7 @@ export function ReadBlock({
   totalLines,
   lang,
   maxLines = DEFAULT_READ_MAX_LINES,
+  onLabelClick,
   className,
 }: ReadBlockProps) {
   const rootRef = useRef<HTMLDivElement>(null)
@@ -122,7 +129,13 @@ export function ReadBlock({
   return (
     <div ref={rootRef} className={clsx(css.block, className)} data-read="">
       <div className={css.banner}>
-        <div className={css.label}>{label ?? ''}</div>
+        {onLabelClick === undefined
+          ? <div className={css.label}>{label ?? ''}</div>
+          : (
+            <button type="button" className={clsx(css.label, css.labelLink)} onClick={onLabelClick}>
+              {label ?? ''}
+            </button>
+          )}
         <div className={css.action}>
           {windowed && (
             <span className={css.count}>{labels.window(lines.length, totalLines)}</span>

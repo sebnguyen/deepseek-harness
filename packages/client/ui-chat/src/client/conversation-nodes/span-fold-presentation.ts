@@ -7,7 +7,12 @@
  * Consecutive Steps whose message section carries no reply content share one
  * fold whose disclosure rides the first Step's opener and whose counts cover
  * the whole run; a visible message closes the run, so a transcript reads one
- * summary per process run with the replies between.
+ * summary per process run with the replies between. A user or steering prompt
+ * closes the run before the first Step whose events postdate the prompt: a
+ * prompt admitted with Step coordinates splits at that Step, and a prompt
+ * carrying only turn coordinates (the ordinary spliced submission) splits by
+ * log seq — the Step's work after the prompt answers that prompt, so it must
+ * not fold above the reader's latest message.
  */
 
 import type { ChatNode } from '../contract/chat-nodes.ts'
@@ -36,6 +41,14 @@ interface SpanInfo {
   openerRunning: boolean
   closed: boolean
   hasMessage: boolean
+  /** A user/steering prompt landed inside the Step; the run ends before it. */
+  splitBefore: boolean
+  /** First log seq seen in the span; orders the span against turn-scoped prompts. */
+  minSeq: number | undefined
+  /** Last log seq seen in the span; bounds a covered prompt inside the head. */
+  maxSeq: number | undefined
+  /** Key of the span's opener row; default disclosure seat. */
+  startKey: string | undefined
   members: number
   toolCalls: number
   subagents: number
@@ -117,27 +130,47 @@ export class ChatSpanFoldProjector {
     nodes: ChatNodeStore,
   ): Map<string, StepSpanFold> {
     const spans = new Map<number, SpanInfo>()
+    const splits: number[] = []
+    const prompts: { seq: number; key: string }[] = []
     for (const key of locations.getTurn(turn)) {
       const node = nodes.get(key) as ChatNode | undefined
-      const span = node === undefined ? undefined : nodeSpan(node)
-      if (span === undefined || node === undefined) continue
+      if (node === undefined) continue
+      if (node.kind === 'user' || node.kind === 'steering') prompts.push({ seq: node.anchorSeq, key })
+      const span = nodeSpan(node)
+      if (span === undefined) {
+        // A spliced prompt without Step coordinates still orders between
+        // Steps by log seq; record it as a run split.
+        if (node.kind === 'user' || node.kind === 'steering') splits.push(node.anchorSeq)
+        continue
+      }
       const info = spans.get(span.step) ?? {
         step: span.step,
         startSeq: undefined,
         openerRunning: false,
         closed: false,
         hasMessage: false,
+        splitBefore: false,
+        minSeq: undefined,
+        maxSeq: undefined,
+        startKey: undefined,
         members: 0,
         toolCalls: 0,
         subagents: 0,
         thoughts: 0,
         contexts: 0,
       }
+      info.minSeq = info.minSeq === undefined
+        ? node.anchorSeq
+        : Math.min(info.minSeq, node.anchorSeq)
+      info.maxSeq = info.maxSeq === undefined
+        ? node.anchorSeq
+        : Math.max(info.maxSeq, node.anchorSeq)
       switch (node.kind) {
         case 'assistant-step-start':
           info.startSeq = info.startSeq === undefined
             ? node.anchorSeq
             : Math.min(info.startSeq, node.anchorSeq)
+          info.startKey ??= node.key
           info.openerRunning = node.data.status === 'running'
           break
         case 'assistant-step-end':
@@ -145,6 +178,10 @@ export class ChatSpanFoldProjector {
           break
         case 'assistant-step-message':
           if (hasAssistantReplyContent(node.data.blocks)) info.hasMessage = true
+          break
+        case 'user':
+        case 'steering':
+          info.splitBefore = true
           break
         default:
           if (FOLDABLE_MEMBER_KINDS.has(node.kind)) {
@@ -170,6 +207,16 @@ export class ChatSpanFoldProjector {
       run = []
       const head = folding[0]
       if (head === undefined || head.startSeq === undefined) return
+      // The disclosure rides the run head's opener, except when a prompt
+      // landed inside that span: then it rides the prompt row, so the pill
+      // never paints above the reader's message.
+      let disclosureKey = head.startKey ?? ''
+      for (const prompt of prompts) {
+        if (prompt.seq > head.startSeq && prompt.seq <= (head.maxSeq ?? head.startSeq)) {
+          disclosureKey = prompt.key
+          break
+        }
+      }
       const fold: StepSpanFold = {
         turn,
         step: head.step,
@@ -180,11 +227,21 @@ export class ChatSpanFoldProjector {
         subagents: folding.reduce((sum, info) => sum + info.subagents, 0),
         thoughts: folding.reduce((sum, info) => sum + info.thoughts, 0),
         contexts: folding.reduce((sum, info) => sum + info.contexts, 0),
+        disclosureKey,
         running: folding.some(info => info.openerRunning || !info.closed),
       }
       for (const info of folding) folds.set(spanKey(turn, info.step), fold)
     }
+    const orderedSplits = splits.sort((left, right) => left - right)
+    let splitAt = 0
     for (const step of [...spans.values()].sort((left, right) => left.step - right.step)) {
+      if (step.splitBefore) closeRun()
+      while (splitAt < orderedSplits.length) {
+        const splitSeq = orderedSplits[splitAt]
+        if (splitSeq === undefined || splitSeq >= (step.minSeq ?? Number.POSITIVE_INFINITY)) break
+        splitAt += 1
+        closeRun()
+      }
       if (step.hasMessage) {
         closeRun()
         run.push(step)

@@ -257,7 +257,7 @@ describe('run_code sub-calls through the real chat machinery', () => {
     const b = await bench(snapshotWith([], [runningSub], [runningCode(parent)]))
     const view = mountApp(b.runtime)
     // The nested row derives 'running' from the RunningToolCall shape — the
-    // same data-state chrome (row sweep) a native in-flight row wears.
+    // same data-state chrome (DigitalOcean pixel loader) a native in-flight row wears.
     const nested = view.container.querySelector('[data-subcalls] [data-variant][data-state="running"]')
     expect(nested).not.toBeNull()
   })

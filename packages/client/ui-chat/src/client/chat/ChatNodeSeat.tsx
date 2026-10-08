@@ -49,14 +49,10 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const member = routedNode !== undefined
     && fold !== undefined
     && FOLDABLE_MEMBER_KINDS.has(routedNode.kind)
-  const ownStep = routedNode?.location.kind === 'step'
-    ? routedNode.location.step.step
-    : undefined
-  // A run folds under its first Step: only the head opener renders the
-  // disclosure, later openers decline it.
-  const showDisclosure = routedNode?.kind === 'assistant-step-start'
-    && fold !== undefined
-    && fold.step === ownStep
+  // The fold's disclosureKey names its seat: the run head's opener, or the
+  // prompt row the run covers — later openers decline it by key mismatch.
+  const showDisclosure = fold !== undefined
+    && routedNode?.key === fold.disclosureKey
     && (fold.members > 0 || fold.running)
   const processMember = member && fold.members > 0
   const memberOpen = processMember && open

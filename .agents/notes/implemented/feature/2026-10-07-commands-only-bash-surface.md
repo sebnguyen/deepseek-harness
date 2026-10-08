@@ -30,7 +30,7 @@ Recorded sessions never replay through the frames schema (snapshot harnesses mou
 
 - The frames schema is `commands` + `description` plus element defaults; the model sees only the batch habit, matching the `write` `edits[]` precedent with the singular escape removed.
 - Escalation grants are element-scoped: an approved retry never widens siblings or later calls, and the composition guard, no-channel fail-closed paths, and approval outcome mapping are unchanged at the element level.
-- The Web terminal card does not render frames calls as terminal cards; `commandOf` resolves the approval detail's command from the batch's first element, and the batch summary rides the call's `description`.
+- The Web Client renders frames calls through a dedicated keyed `bash` toolview — one terminal block per element with its own exit pill, copy control, and persisted duration, detach rows for backgrounded and skipped elements, a live row-suffix timer while running — derived client-side from the section grammar ([frames bash web card](2026-10-08-frames-bash-web-card.md)); the Host presenters stay generic, `commandOf` still resolves the approval detail's command from the batch's first element, and the batch summary rides the call's `description`.
 - Generated surfaces (tool catalog, config catalog) and the shell subsystem page, frames README, and this note's predecessor regenerate around the single face.
 - `dsh-tool-bash`, being the byte-stable singular owner for pinned profiles and snapshot harnesses, keeps the old validation and presenters; parity between the two bash consumers is now a historical relationship, not a maintenance contract.
 

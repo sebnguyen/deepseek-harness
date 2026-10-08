@@ -288,9 +288,19 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.checkpoint` — `CheckpointService`
 
-Checkpoint capture service: brackets every dispatch with a pruned rescan, retains post-state blobs per session, and serves the remote surface the Web timeline renders and restores through.
+Checkpoint capture service: retains the before/after text of each committed write and serves the remote surface the Web timeline renders and restores through.
 
 ```ts cordis-catalog
+/**
+ * Retain one committed write's before and after text and append one
+ * `checkpoint/scan` row attributed to the call. A missing agent or a
+ * disabled service records nothing. A store failure records nothing and
+ * does not reject: the file write has already committed.
+ * @param call - the write call this file belongs to.
+ * @param file - the path and the before/after text the write already holds.
+ */
+async captureWrite( call: { readonly agent?: { readonly session: Session }; readonly callId: string; readonly name: string; readonly purpose?: string }, file: { readonly path: string; readonly before: string | null; readonly after: string }, ): Promise<void>
+
 /**
  * Restore one file to the exact bytes captured for a digest.
  * @param session - the owning session whose store retains the blob.

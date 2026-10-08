@@ -10,7 +10,33 @@
 import { createHash } from 'node:crypto'
 import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { ScannedStat } from './scan.ts'
 import type { SnapshotDigest } from './types.ts'
+
+/** One persisted frontier row: the content digest plus the stat the next scan diffs. */
+export interface FrontierRecord {
+  /** Content digest retained for this path. */
+  readonly digest: SnapshotDigest
+  /** Modification time from the scan that stored this row, when the row carries a stat. */
+  readonly mtimeMs?: number
+  /** Byte size from the scan that stored this row, when the row carries a stat. */
+  readonly size?: number
+}
+
+/** Digests and stats restored from one frontier file. */
+export interface FrontierSnapshot {
+  /** Paths whose mtime and size were stored; a path absent here is read on the next scan. */
+  readonly stat: Map<string, ScannedStat>
+  /** Path → digest, including rows that predate stored stats. */
+  readonly after: Map<string, SnapshotDigest>
+}
+
+/** Whether one JSON value is a finite mtime/size pair the next diff can trust. */
+function readStoredStat(mtimeMs: unknown, size: unknown): ScannedStat | undefined {
+  if (typeof mtimeMs !== 'number' || !Number.isFinite(mtimeMs)) return undefined
+  if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) return undefined
+  return { mtimeMs, size }
+}
 
 /** Digest one buffer the way the store addresses it: `sha256:<hex>`. */
 export function digestOf(content: string): SnapshotDigest {
@@ -23,7 +49,7 @@ export function digestOf(content: string): SnapshotDigest {
  * validated as an ancestor of every object path it composes.
  */
 export class CheckpointStore {
-  constructor(private readonly sessionRoot: string) {}
+  constructor(private readonly sessionRoot: string) { }
 
   /** Compose the hardened objects root below the per-session directory. */
   private objectsRoot(): string {
@@ -64,35 +90,59 @@ export class CheckpointStore {
   }
 
   /**
-   * Read the persisted path→digest frontier for this session. A missing or
-   * malformed frontier file is an empty frontier: capture continuity is a
-   * cache, and losing it must not fail a scan.
-   * @returns the frontier map keyed by session-relative path.
+   * Read the persisted frontier for this session. Each row is a digest plus,
+   * when the file was written by a scan that stored stats, the mtime and size
+   * that let the next scan skip an unchanged file. A legacy row that is only a
+   * digest string keeps the digest and omits the stat, so that path is read
+   * once more. A missing or malformed file is an empty frontier: capture
+   * continuity is a cache, and losing it must not fail a scan.
+   * @returns the restored digests and the stats that were stored with them.
    */
-  async loadFrontier(): Promise<Map<string, SnapshotDigest>> {
+  async loadFrontier(): Promise<FrontierSnapshot> {
+    const empty = (): FrontierSnapshot => ({ stat: new Map(), after: new Map() })
     try {
       const parsed: unknown = JSON.parse(await readFile(join(this.sessionRoot, 'frontier.json'), 'utf8'))
-      if (typeof parsed !== 'object' || parsed === null) return new Map()
-      const frontier = new Map<string, SnapshotDigest>()
-      for (const [path, digest] of Object.entries(parsed)) {
-        if (typeof digest === 'string') frontier.set(path, digest as SnapshotDigest)
+      if (typeof parsed !== 'object' || parsed === null) return empty()
+      const stat = new Map<string, ScannedStat>()
+      const after = new Map<string, SnapshotDigest>()
+      for (const [path, value] of Object.entries(parsed)) {
+        // A frontier written before stats were stored is path → digest string.
+        if (typeof value === 'string') {
+          after.set(path, value as SnapshotDigest)
+          continue
+        }
+        if (typeof value !== 'object' || value === null) continue
+        const record = value as { digest?: unknown; mtimeMs?: unknown; size?: unknown }
+        if (typeof record.digest !== 'string') continue
+        after.set(path, record.digest as SnapshotDigest)
+        const stored = readStoredStat(record.mtimeMs, record.size)
+        if (stored !== undefined) stat.set(path, stored)
       }
-      return frontier
+      return { stat, after }
     } catch {
-      return new Map()
+      return empty()
     }
   }
 
   /**
-   * Persist the frontier so a resumed process keeps `before` digests truthful
-   * without rereading the session log.
-   * @param frontier - the post-scan path→digest map.
+   * Persist digests and the stat snapshot so a resumed process skips files
+   * whose mtime and size are unchanged. A path that has a digest and no stat
+   * is written as a digest-only row.
+   * @param stat - mtime and size of each path the last walk still contains.
+   * @param after - path → digest after that walk.
    */
-  async saveFrontier(frontier: ReadonlyMap<string, SnapshotDigest>): Promise<void> {
+  async saveFrontier(stat: ReadonlyMap<string, ScannedStat>, after: ReadonlyMap<string, SnapshotDigest>): Promise<void> {
+    const body: Record<string, FrontierRecord> = {}
+    for (const [path, digest] of [...after].sort(([left], [right]) => left.localeCompare(right))) {
+      const scanned = stat.get(path)
+      body[path] = scanned === undefined
+        ? { digest }
+        : { digest, mtimeMs: scanned.mtimeMs, size: scanned.size }
+    }
     await this.ensureDir(this.sessionRoot)
     await writeFile(
       join(this.sessionRoot, 'frontier.json'),
-      `${JSON.stringify(Object.fromEntries([...frontier].sort(([left], [right]) => left.localeCompare(right))), null, 0)}\n`,
+      `${JSON.stringify(body)}\n`,
       { encoding: 'utf8', mode: 0o600 },
     )
   }

@@ -92,7 +92,7 @@ The tool resolves each workdir before `ctx.shell.resolve()` runs: an explicit re
 
 ### Rendering story
 
-Element sections reuse the shared `renderFrames` from `dsh-shell`, which in turn reuses `renderResult`'s marker grammar verbatim: stdout, `[stderr]` section, truncation notice, sandbox denial, timeout, signal, and exit code lines. The UI presents a pending call as a generic execute card listing every command, and settled result text as fenced console output; one exit pill cannot represent several elements, so the terminal card stays reserved for single-exit tools.
+Element sections reuse the shared `renderFrames` from `dsh-shell`, which in turn reuses `renderResult`'s marker grammar verbatim: stdout, `[stderr]` section, truncation notice, sandbox denial, timeout, signal, and exit code lines. The Host presenters stay generic — a pending call is an execute card listing every command and a settled result is fenced console text, because one terminal exit pill cannot represent several elements — while the Web Client owns a richer keyed `bash` toolview (`bash-row` in `@deepseek-ai/dsh-client-ui-tool`): it splits the same section grammar into one terminal block per element, each with its own exit pill, copy control, and elapsed-time accessory read from the call's persisted presentation meta, draws backgrounded and skipped elements as detach lines, and ticks a live elapsed timer in the row suffix while the batch runs. Non-batch shell calls and malformed or older recordings degrade to the single-exit terminal card or the generic row.
 
 </details>
 
@@ -126,7 +126,7 @@ Every request in this plugin's registration scope contains the bash guidance bel
 ##### Bash guidance
 
 ```markdown
-Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests. Use `commands` when independent shell work arrives together — one call running the narrowed test, grepping the symbol, and listing the directory. Check the [exit code: N] marker on every bash result; investigate failures before moving on.
+Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests. Batch the independent steps of one thought into one `commands` call — one call running the narrowed test, grepping the symbol, and listing the directory instead of three calls; a step that reads an earlier output belongs in a later call. Check the [exit code: N] marker on every frame; investigate failures before moving on.
 ```
 
 #### Token effect
@@ -155,7 +155,7 @@ Prefix-stable while visibility, background support, and executor sandbox capabil
 
 #### What the model sees
 
-A call renders one `[i/N] $ <command>` section per element in submission order, each with its element's output and the conditional marker lines; a background element's section reads `started background job <jobId>`, and an element skipped after an abort reads `[not run: <reason>]`.
+A call renders one `[i/N] $ <command>` section per element in submission order, each with its element's output and the conditional marker lines; a background element's section reads `started background job <jobId>`, and an element skipped after an abort reads `[not run: <reason>]`. Each foreground element's canonical frame also carries `durationMs` — the element's wall time measured at dispatch — and `output.presentationMeta` persists the per-index durations with the session log so the Web frames card shows per-element elapsed time on replay.
 
 #### Token effect
 

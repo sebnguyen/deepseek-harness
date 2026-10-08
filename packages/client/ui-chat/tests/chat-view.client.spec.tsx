@@ -2195,7 +2195,7 @@ describe('ChatView', () => {
     expect(view.queryByText(/首 token|tok\/s/)).toBeNull()
   })
 
-  it('keeps only the latest turn tail actions permanently visible', () => {
+  it('renders every completed turn tail permanently visible', () => {
     const h = makeHarness({
       nodes: [
         user(1, 'hi'),
@@ -2213,7 +2213,7 @@ describe('ChatView', () => {
     const tails = view.container.querySelectorAll('[data-turn-tail]')
     expect(new Map([...tails].map(tail => [
       tail.getAttribute('data-turn-tail'), tail.getAttribute('data-actions-reveal'),
-    ]))).toEqual(new Map([['1', 'hover'], ['2', 'always']]))
+    ]))).toEqual(new Map([['1', null], ['2', null]]))
     expect(view.container.querySelectorAll('[data-chat-flow-kind="user"]')).toHaveLength(2)
   })
 
@@ -2414,42 +2414,6 @@ describe('ChatView', () => {
     expect(tool.dataset.state).toBe('settled')
     expect(mounted).toHaveBeenCalledTimes(1)
     expect(unmounted).not.toHaveBeenCalled()
-  })
-
-  it('the running clock uses turn/start, ignores steering, and stays out of the live region', () => {
-    const startTime = Date.now() - 125_000
-    const trigger: UserMessageNode = { ...user(1, 'go'), time: startTime + 1 }
-    const h = makeHarness(
-      { nodes: [trigger], turnTimings: new Map([[1, { startTime }]]) },
-      { running: true },
-    )
-    const view = render(<h.ChatView {...h.props} />)
-    // Freshly mounted (as after a reload) yet already past the 15s gate.
-    const status = view.getByRole('status')
-    expect(status.textContent).toMatch(/^深度求索中\.\.\.2分0\d秒$/)
-    expect(status.querySelector('[aria-hidden="true"]')).not.toBeNull()
-    act(() => {
-      h.setSession({ queue: [{
-        id: 'steering-occurrence' as never,
-        messageId: 'steering-message' as never,
-        placement: 'steering',
-        content: [{ type: 'text', text: 'also' }],
-        preview: 'also',
-        text: 'also',
-      }] })
-    })
-    expect(status.textContent).toMatch(/^深度求索中\.\.\.2分0\d秒$/)
-  })
-
-  it('the running clock reads hours once the turn passes an hour', () => {
-    const startTime = Date.now() - 3_903_000
-    const trigger: UserMessageNode = { ...user(1, 'go'), time: startTime + 1 }
-    const h = makeHarness(
-      { nodes: [trigger], turnTimings: new Map([[1, { startTime }]]) },
-      { running: true },
-    )
-    const view = render(<h.ChatView {...h.props} />)
-    expect(view.getByRole('status').textContent).toMatch(/^深度求索中\.\.\.1小时05分0\d秒$/)
   })
 
   it('hands each ordered root call to the keyed business-node slot', () => {

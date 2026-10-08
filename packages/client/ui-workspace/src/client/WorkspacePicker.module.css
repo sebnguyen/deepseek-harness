@@ -7,6 +7,9 @@
 .modalError,
 .menuStatus {
   margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   line-height: 18px;
 }
@@ -17,4 +20,11 @@
 
 .menuStatus {
   color: var(--dsw-alias-label-secondary);
+}
+
+.menuStatusSpinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: inherit;
 }

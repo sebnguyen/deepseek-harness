@@ -26,6 +26,7 @@
     "package:win:x64:dir": "tsx scripts/package-target.ts win-x64 --dir",
     "upload:mac:arm64": "tsx scripts/upload-target.ts mac-arm64",
     "upload:mac:x64": "tsx scripts/upload-target.ts mac-x64",
+    "render:tray-icon": "tsx scripts/render-tray-icon.ts",
     "upload:win:x64": "tsx scripts/upload-target.ts win-x64"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "extract-zip": "^2.0.1",
     "js-yaml": "^4.2.0",
     "pnpm": "11.7.0",
+    "sharp": "^0.35.3",
     "tar": "^7.5.0",
     "typescript": "^6.0.3"
   }

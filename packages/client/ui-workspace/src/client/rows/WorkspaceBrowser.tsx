@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
   Button, IconCloseFill14, IconPersonalizationOutline16,
-  IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, Tooltip,
+  IconProjectAddOutline16, IconSearchOutline16, Menu, Modal, PixelLoader, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   SessionListState, SessionSearchResultItem,
@@ -39,22 +39,38 @@ const EXPAND_SLIDE_MS = 300
 const SEARCH_DEBOUNCE_MS = 250
 /** `session.search` wire bound, measured in JavaScript UTF-16 code units. */
 const SEARCH_QUERY_MAX_CODE_UNITS = 500
-/** Session rows visible per Workspace before the local overflow control. */
+/** Session rows visible per account before the local overflow control. */
 const COLLAPSED_SESSION_LIMIT = 5
 
-/** Fold one Workspace without charging its provisional New Session against the ordinary-row limit. */
-function collapsedSessionRows(sessions: readonly SessionNode[]): {
-  rows: readonly SessionNode[]
-  hiddenCount: number
-} {
+/**
+ * Fold one session account: pinned rows always render, ordinary rows stop at
+ * the limit.
+ * @param sessions - account rows in render order.
+ * @param pinned - rows the fold never hides.
+ * @returns the visible rows plus the count the overflow control hides.
+ */
+function foldedSessionRows(
+  sessions: readonly SessionNode[],
+  pinned: (session: SessionNode) => boolean,
+): { rows: readonly SessionNode[]; hiddenCount: number } {
   let ordinaryCount = 0
   const rows = sessions.filter((session) => {
-    if (session.blank) return true
+    if (pinned(session)) return true
     if (ordinaryCount >= COLLAPSED_SESSION_LIMIT) return false
     ordinaryCount += 1
     return true
   })
   return { rows, hiddenCount: sessions.length - rows.length }
+}
+
+/** Group fold keeps only the selected provisional blank past the limit. */
+function groupPinned(session: SessionNode): boolean {
+  return session.blank
+}
+
+/** Flat fold also keeps live work visible, so running sessions never hide. */
+function flatPinned(session: SessionNode): boolean {
+  return session.blank || session.running || session.runningSubagentCount > 0
 }
 
 /** Keep controlled input and RPC payload inside the session.search wire contract. */
@@ -120,6 +136,62 @@ function compareSessionRecency(a: SessionId, b: SessionId, byId: SessionListStat
   const bUpdatedAt = byId[b]?.updatedAt ?? Number.NEGATIVE_INFINITY
   if (aUpdatedAt !== bUpdatedAt) return bUpdatedAt - aUpdatedAt
   return a < b ? -1 : 1
+}
+
+/**
+ * Translate a drop on the rendered (possibly folded) rows into the full account
+ * order; the anchor names the full-order neighbor for Host reorder calls.
+ * @returns the next account order, or undefined for a no-op drop or one that
+ * would fold the dragged row out of the visible list.
+ */
+function droppedOrderOnVisibleRows(args: {
+  rendered: readonly SessionNode[]
+  fullIds: readonly SessionId[]
+  fullRows: readonly SessionNode[]
+  expanded: boolean
+  pinned: (session: SessionNode) => boolean
+  sessionId: SessionId
+  over: { id: SessionId; half: 'before' | 'after' }
+}): { order: SessionId[]; anchor: SessionId | undefined } | undefined {
+  const {
+    rendered, fullIds, fullRows, expanded, pinned, sessionId, over,
+  } = args
+  const targetIndex = rendered.findIndex(row => row.id === over.id)
+  if (targetIndex === -1) return undefined
+  if (over.id === sessionId) return undefined
+  const sourceIndex = rendered.findIndex(row => row.id === sessionId)
+  const withoutSource = rendered.filter(row => row.id !== sessionId)
+  const targetWithoutSourceIndex = withoutSource.findIndex(row => row.id === over.id)
+  if (targetWithoutSourceIndex === -1) return undefined
+  const visibleInsertAt = over.half === 'before' ? targetWithoutSourceIndex : targetWithoutSourceIndex + 1
+  if (sourceIndex !== -1 && visibleInsertAt === sourceIndex) return undefined
+  const nextOrder = fullIds.filter(id => id !== sessionId)
+  let anchor: SessionId | undefined
+  if (expanded) {
+    anchor = over.half === 'before' ? over.id : rendered[targetIndex + 1]?.id
+  } else {
+    // A folded list may render pinned rows after hidden ordinary rows.
+    // Place the source at the visible boundary before those hidden members.
+    const previousVisible = withoutSource[visibleInsertAt - 1]?.id
+    if (previousVisible === undefined) {
+      anchor = nextOrder[0]
+    } else {
+      const previousIndex = nextOrder.indexOf(previousVisible)
+      if (previousIndex === -1) return undefined
+      anchor = nextOrder[previousIndex + 1]
+    }
+  }
+  const insertAt = anchor === undefined ? nextOrder.length : nextOrder.indexOf(anchor)
+  nextOrder.splice(insertAt === -1 ? nextOrder.length : insertAt, 0, sessionId)
+  if (!expanded && sourceIndex !== -1) {
+    const nodes = new Map(fullRows.map(node => [node.id, node]))
+    const nextRows = nextOrder.flatMap((id) => {
+      const node = nodes.get(id)
+      return node === undefined ? [] : [node]
+    })
+    if (!foldedSessionRows(nextRows, pinned).rows.some(node => node.id === sessionId)) return undefined
+  }
+  return { order: nextOrder, anchor }
 }
 
 /** Reconcile one editable order account and apply its activity-promotion policy. */
@@ -368,7 +440,7 @@ function SessionTree({
     if (revealSessionId === undefined || revealGroup === undefined) return
     const group = groups.find(candidate => candidate.key === revealGroup)
     if (group === undefined || !group.expanded || !group.sessions.some(row => row.id === revealSessionId)) return
-    if (collapsedSessionRows(group.sessions).rows.some(row => row.id === revealSessionId)) return
+    if (foldedSessionRows(group.sessions, groupPinned).rows.some(row => row.id === revealSessionId)) return
     setExpandedSessionGroups(keys => keys.includes(revealGroup) ? keys : [...keys, revealGroup])
   }, [groups, revealGroup, revealSessionId])
   const now = Date.now()
@@ -378,50 +450,26 @@ function SessionTree({
     setDrag(null)
     const group = groups.find(candidate => candidate.key === activeDrag.accountKey)
     if (group === undefined) return
-    const sessionsExpanded = expandedSessionGroups.includes(group.key)
-    const renderedSessions = sessionsExpanded ? group.sessions : collapsedSessionRows(group.sessions).rows
-    const targetIndex = renderedSessions.findIndex(session => session.id === over.id)
-    if (targetIndex === -1) return
-    const sourceIndex = renderedSessions.findIndex(session => session.id === activeDrag.sessionId)
-    if (over.id === activeDrag.sessionId) return
-    const withoutSource = renderedSessions.filter(session => session.id !== activeDrag.sessionId)
-    const targetWithoutSourceIndex = withoutSource.findIndex(session => session.id === over.id)
-    if (targetWithoutSourceIndex === -1) return
-    const visibleInsertAt = over.half === 'before' ? targetWithoutSourceIndex : targetWithoutSourceIndex + 1
-    if (sourceIndex !== -1 && visibleInsertAt === sourceIndex) return
     const accountSessionIds = activeDrag.accountKey === UNGROUPED_KEY
       ? orderedUngroupedSessionIds
       : orderedWorkspaces.find(workspace => workspace.workspaceId === activeDrag.accountKey)?.sessionIds
     if (accountSessionIds === undefined) return
-    const nextOrder = accountSessionIds.filter(id => id !== activeDrag.sessionId)
-    let anchor: SessionId | undefined
-    if (sessionsExpanded) {
-      anchor = over.half === 'before' ? over.id : renderedSessions[targetIndex + 1]?.id
-    } else {
-      // A collapsed group may render the blank row after hidden ordinary rows.
-      // Place the source at the visible boundary before those hidden account members.
-      const previousVisible = withoutSource[visibleInsertAt - 1]?.id
-      if (previousVisible === undefined) {
-        anchor = nextOrder[0]
-      } else {
-        const previousIndex = nextOrder.indexOf(previousVisible)
-        if (previousIndex === -1) return
-        anchor = nextOrder[previousIndex + 1]
-      }
-    }
-    const insertAt = anchor === undefined ? nextOrder.length : nextOrder.indexOf(anchor)
-    nextOrder.splice(insertAt === -1 ? nextOrder.length : insertAt, 0, activeDrag.sessionId)
-    if (!sessionsExpanded && sourceIndex !== -1) {
-      const nodes = new Map(group.sessions.map(node => [node.id, node]))
-      const nextGroup = nextOrder.flatMap((id) => {
-        const node = nodes.get(id)
-        return node === undefined ? [] : [node]
-      })
-      if (!collapsedSessionRows(nextGroup).rows.some(node => node.id === activeDrag.sessionId)) return
-    }
-    setSessionOrder(activeDrag.accountKey, nextOrder.map(id => id as string))
+    const sessionsExpanded = expandedSessionGroups.includes(group.key)
+    const dropped = droppedOrderOnVisibleRows({
+      rendered: sessionsExpanded
+        ? group.sessions
+        : foldedSessionRows(group.sessions, groupPinned).rows,
+      fullIds: accountSessionIds,
+      fullRows: group.sessions,
+      expanded: sessionsExpanded,
+      pinned: groupPinned,
+      sessionId: activeDrag.sessionId,
+      over,
+    })
+    if (dropped === undefined) return
+    setSessionOrder(activeDrag.accountKey, dropped.order.map(id => id as string))
     if (orderBy === 'updated' || activeDrag.accountKey === UNGROUPED_KEY) return
-    insertSessionBefore(activeDrag.accountKey as WorkspaceId, activeDrag.sessionId, anchor).catch((reason: unknown) => {
+    insertSessionBefore(activeDrag.accountKey as WorkspaceId, activeDrag.sessionId, dropped.anchor).catch((reason: unknown) => {
       console.warn('session reorder rejected:', reason)
     })
   }
@@ -457,12 +505,18 @@ function SessionTree({
         role="tree"
         aria-label={t('section.sessions')}
       >
-        {groups.length === 0 && (
+        {groups.length === 0 && list.phase !== 'ready' && (
+          <div className={css.listStatus} role="status">
+            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            {t('list.loading')}
+          </div>
+        )}
+        {groups.length === 0 && list.phase === 'ready' && (
           <div className={css.empty}>{t('empty.none')}</div>
         )}
         {groups.map((group) => {
           const workspaceId = group.workspaceId
-          const collapsed = collapsedSessionRows(group.sessions)
+          const collapsed = foldedSessionRows(group.sessions, groupPinned)
           const sessionsExpanded = expandedSessionGroups.includes(group.key)
           const workspaceMarker = workspaceId !== undefined && workspaceDrag?.over?.id === workspaceId
             ? workspaceDrag.over.half
@@ -677,6 +731,18 @@ function FlatList({
         return row === undefined ? [] : [row]
       })
   }, [baseRows, sessionOrderByAccount, sessionIds])
+  // The flat list folds like the groups: the five newest ordinary sessions
+  // plus pinned live and blank rows render, the rest wait behind the
+  // overflow control.
+  const [flatExpanded, setFlatExpanded] = useState(false)
+  const fold = useMemo(() => foldedSessionRows(rows, flatPinned), [rows])
+  const renderedRows = flatExpanded ? rows : fold.rows
+  useEffect(() => {
+    if (revealSessionId === undefined || flatExpanded) return
+    if (!rows.some(row => row.id === revealSessionId)) return
+    if (fold.rows.some(row => row.id === revealSessionId)) return
+    setFlatExpanded(true)
+  }, [flatExpanded, fold, revealSessionId, rows])
   const [drag, setDrag] = useState<DragState | null>(null)
   const dropCommitted = useRef(false)
   useNativeDragAcceptance(drag !== null)
@@ -684,26 +750,32 @@ function FlatList({
     if (dropCommitted.current) return
     dropCommitted.current = true
     setDrag(null)
-    const targetIndex = rows.findIndex(row => row.id === over.id)
-    if (targetIndex === -1) return
-    const anchor = over.half === 'before' ? over.id : rows[targetIndex + 1]?.id
-    if (anchor === activeDrag.sessionId) return
-    const sourceIndex = rows.findIndex(row => row.id === activeDrag.sessionId)
-    const anchorIndex = anchor === undefined ? rows.length : rows.findIndex(row => row.id === anchor)
-    if (sourceIndex !== -1 && (anchorIndex === sourceIndex || anchorIndex === sourceIndex + 1)) return
-    const nextOrder = rows.map(row => row.id).filter(id => id !== activeDrag.sessionId)
-    const insertAt = anchor === undefined ? nextOrder.length : nextOrder.indexOf(anchor)
-    nextOrder.splice(insertAt === -1 ? nextOrder.length : insertAt, 0, activeDrag.sessionId)
-    setSessionOrder(FLAT_SESSION_ORDER_KEY, nextOrder.map(id => id as string))
+    const dropped = droppedOrderOnVisibleRows({
+      rendered: renderedRows,
+      fullIds: rows.map(row => row.id),
+      fullRows: rows,
+      expanded: flatExpanded,
+      pinned: flatPinned,
+      sessionId: activeDrag.sessionId,
+      over,
+    })
+    if (dropped === undefined) return
+    setSessionOrder(FLAT_SESSION_ORDER_KEY, dropped.order.map(id => id as string))
   }
   const now = Date.now()
   return (
     <div className={clsx(css.treeBody, css.wide)}>
       <div className={clsx(css.list, css.flatList)} role="tree" aria-label={t('section.sessions')}>
-        {rows.length === 0 && (
+        {rows.length === 0 && list.phase !== 'ready' && (
+          <div className={css.listStatus} role="status">
+            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            {t('list.loading')}
+          </div>
+        )}
+        {rows.length === 0 && list.phase === 'ready' && (
           <div className={css.empty}>{t('empty.none')}</div>
         )}
-        {rows.map((node) => {
+        {renderedRows.map((node) => {
           const active = drag !== null
           return (
             <SessionNodeItem
@@ -742,6 +814,18 @@ function FlatList({
             />
           )
         })}
+        {fold.hiddenCount > 0 && (
+          <button
+            type="button"
+            className={css.sessionOverflowButton}
+            aria-expanded={flatExpanded}
+            onClick={() => { setFlatExpanded(expanded => !expanded) }}
+          >
+            {flatExpanded
+              ? t('sessions.collapse')
+              : t('sessions.expand', { n: fold.hiddenCount })}
+          </button>
+        )}
       </div>
       <span className={css.fade} />
     </div>
@@ -810,7 +894,10 @@ function SearchResults({
           ))}
         </div>
         {pending && (
-          <div className={css.searchStatus} role="status">{t('search.pending')}</div>
+          <div className={css.searchStatus} role="status">
+            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            {t('search.pending')}
+          </div>
         )}
         {failed && (
           <div className={css.searchWarning} role="status">

@@ -9,6 +9,7 @@ import type { OpenFileOptions } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
 import { CHAT_READ_MAX_LINES, type ReadCardModel } from '../models/read-card-model.ts'
+import type { FramesRowDiffAccessory, FramesRowModel } from '../models/frames-row-model.ts'
 import type { ImageCardModel } from '../models/image-card-model.ts'
 import { CHAT_SEARCH_MAX_LINES, type SearchCardModel } from '../models/search-card-model.ts'
 import {
@@ -81,10 +82,103 @@ export interface ToolRowProps {
   /** Open the path (already cwd-resolved), landing on `filePathLine` when given. */
   onOpenFile?: ((path: string, options?: OpenFileOptions) => void) | undefined
   /**
-   * Jump to this call in the trajectory view: a hover-revealed Inspect pill
-   * over the expanded body. Absent = no affordance.
+   * Jump to this call in the trajectory view: a labeled chip riding the
+   * collapsed summary line beside the suffix, present in both expansion
+   * states. Absent = no affordance.
    */
   inspect?: (() => void) | undefined
+  /**
+   * Stacked per-frame body of a batched `read`/`write` call; mutually
+   * exclusive with the single-card props, which win when both are set.
+   */
+  frames?: FramesRowModel | undefined
+}
+
+/** The settled outcome note one stacked diff card prints beside its copy. */
+function accessoryText(accessory: FramesRowDiffAccessory | undefined, t: TranslateNS<'conversation'>): string | undefined {
+  if (accessory === undefined) return undefined
+  switch (accessory.kind) {
+    case 'created': return t('write.createdFile')
+    case 'dry-run': return t('write.dryRun')
+    case 'edits': return t('write.editsApplied', { edits: accessory.edits, matches: accessory.matches })
+  }
+}
+
+/** Stacked per-frame body of a batched read/write row: one openable card per
+ *  successful element, one detach line per failed or skipped element. */
+function FramesStack(props: {
+  frames: FramesRowModel
+  readLabels: ReturnType<typeof readBlockLabels>
+  diffLabels: ReturnType<typeof diffBlockLabels>
+  onOpenFile?: ((path: string, options?: OpenFileOptions) => void) | undefined
+  t: TranslateNS<'conversation'>
+}) {
+  const { frames, readLabels, diffLabels, onOpenFile, t } = props
+  return (
+    <>
+      {frames.items.map((item, index) => {
+        if (item.kind === 'read') {
+          const { read } = item
+          return (
+            <ReadBlock
+              key={index}
+              {...read.card}
+              labels={readLabels}
+              maxLines={CHAT_READ_MAX_LINES}
+              className={css.readBody}
+              onLabelClick={onOpenFile === undefined
+                ? undefined
+                : () => onOpenFile(read.filePath, read.line === undefined ? undefined : { line: read.line })}
+            />
+          )
+        }
+        if (item.kind === 'diff') {
+          const { diff } = item
+          return (
+            <DiffBlock
+              key={index}
+              diffs={diff.diffs}
+              labels={diffLabels}
+              maxLines={CHAT_DIFF_MAX_LINES}
+              className={css.diffBody}
+              accessory={accessoryText(diff.accessory, t)}
+              onPathClick={onOpenFile === undefined ? undefined : () => onOpenFile(diff.filePath)}
+            />
+          )
+        }
+        const { failure } = item
+        return (
+          <div key={index} className={css.detached} data-detached={failure.kind}>
+            <StateDot state={failure.kind === 'error' ? 'error' : 'warning'} className={css.detachedDot} />
+            <div className={css.detachedBody}>
+              {onOpenFile === undefined
+                ? <span className={css.detachedCommand}>{failure.filePath}</span>
+                : (
+                  <button
+                    type="button"
+                    className={clsx(css.detachedCommand, css.detachedPath)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      // A detached line has no window, so the open carries no
+                      // line option when none was authored.
+                      if (failure.line === undefined) onOpenFile(failure.filePath)
+                      else onOpenFile(failure.filePath, { line: failure.line })
+                    }}
+                  >
+                    {failure.filePath}
+                  </button>
+                )}
+              <span className={clsx(css.detachedLine, failure.kind === 'error' && css.detachedError)}>
+                {failure.kind === 'error'
+                  ? t('row.frameError', { message: failure.message })
+                  : t('row.frameNotRun', { reason: failure.message })}
+              </span>
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
 }
 
 function leadingFor(state: ToolRowState, icon: ReactNode): ReactNode {
@@ -133,6 +227,7 @@ export function ToolRow({
   filePathLine,
   onOpenFile,
   inspect,
+  frames,
 }: ToolRowProps) {
   const [expanded, setExpanded] = useState(false)
   const terminalLabels = useMemo(() => terminalBlockLabels(t), [t])
@@ -153,7 +248,8 @@ export function ToolRow({
   const askQuestionBody = askQuestion ?? null
   const outputText = output ?? null
   const card = askQuestionBody ?? terminalBody ?? diffBody ?? readBody ?? imageBody ?? searchBody ?? webBody
-  const expandable = bodyRaw != null || outputText !== null || card !== null
+  const framesBody = card === null && frames !== undefined && frames.items.length > 0 ? frames : null
+  const expandable = bodyRaw != null || outputText !== null || card !== null || framesBody !== null
   const open = expanded && expandable
   const bodyText = useMemo(
     () => open && card === null && bodyRaw != null ? formatToolBody(variant, bodyRaw) : null,
@@ -189,6 +285,15 @@ export function ToolRow({
   const fileLinkKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
   }
+  // The chip rides the row line, whose own click toggles the accordion: stop
+  // the mouse click here, and the same two keys on the keyboard path.
+  const inspectFromChip = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    inspect?.()
+  }
+  const chipKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
+  }
   // The code variant's program renders through CodeBlock (shiki), so only its
   // output joins the IN/OUT card; every other variant's input does too.
   const cardBody = variant === 'code' ? null : bodyText
@@ -204,6 +309,7 @@ export function ToolRow({
         title={title}
         open={open}
         expandable={expandable}
+
         expandOnRowClick
         keepContentWhenOpen
         onToggle={toggleExpand}
@@ -231,27 +337,48 @@ export function ToolRow({
             {suffix !== null && (
               <span className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)}>{suffix}</span>
             )}
+            {inspect !== undefined && (
+              <button
+                type="button"
+                className={css.inspectChip}
+                onClick={inspectFromChip}
+                onKeyDown={chipKeyDown}
+              >
+                <IconInspectOutline12 />
+                {t('row.inspect')}
+              </button>
+            )}
           </>
         )}
       >
         <div className={css.bodyWrap}>
-          {askQuestionBody !== null
-            ? <AskQuestionCard card={askQuestionBody} />
-            : terminalBody !== null
-              ? (
-                <TerminalBlock
-                  {...terminalBody.card}
-                  maxLines={Infinity}
-                  labels={terminalLabels}
-                  className={css.terminalBody}
-                />
-              )
-              : diffBody !== null
-                ? <DiffBlock {...diffBody.card} labels={diffLabels} maxLines={CHAT_DIFF_MAX_LINES} className={css.diffBody} />
-                : readBody !== null
-                  ? <ReadBlock {...readBody} labels={readLabels} maxLines={CHAT_READ_MAX_LINES} className={css.readBody} />
-                  : imageBody !== null
-                    ? (
+          {framesBody !== null
+            ? (
+              <FramesStack
+                frames={framesBody}
+                readLabels={readLabels}
+                diffLabels={diffLabels}
+                onOpenFile={onOpenFile}
+                t={t}
+              />
+            )
+            : askQuestionBody !== null
+              ? <AskQuestionCard card={askQuestionBody} />
+              : terminalBody !== null
+                ? (
+                  <TerminalBlock
+                    {...terminalBody.card}
+                    maxLines={Infinity}
+                    labels={terminalLabels}
+                    className={css.terminalBody}
+                  />
+                )
+                : diffBody !== null
+                  ? <DiffBlock {...diffBody.card} labels={diffLabels} maxLines={CHAT_DIFF_MAX_LINES} className={css.diffBody} />
+                  : readBody !== null
+                    ? <ReadBlock {...readBody} labels={readLabels} maxLines={CHAT_READ_MAX_LINES} className={css.readBody} />
+                    : imageBody !== null
+                      ? (
                       /* Label, gallery, then the result's OWN envelope text. The text
                          comes from the image card model (which reads the result's text
                          block), never from the row's flattened output: an image read's
@@ -260,74 +387,64 @@ export function ToolRow({
                          object under the picture. It is not redundant either — the
                          attachment slot can render nothing, and then this line is the
                          only evidence an image was returned. */
-                      <div className={css.imageBody}>
-                        <div className={css.imageLabel}>{imageBody.label}</div>
-                        {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
-                          images: imageBody.images,
-                          loadImage,
-                          align: 'start',
-                        })}
-                        <div className={css.imageMeta}>{imageBody.text}</div>
-                      </div>
-                    )
-                    : searchBody !== null
-                      ? (
-                        <>
-                          <SearchBlock
-                            {...searchBody.card}
-                            labels={searchLabels}
-                            maxLines={CHAT_SEARCH_MAX_LINES}
-                            className={css.searchBody}
-                          />
-                          {/* A capped search's recovery locator lives only in the result
-                          text; show it below the card so the dropped rows survive. */}
-                          {searchBody.recovery !== undefined && (
-                            <div className={css.searchRecovery}>{searchBody.recovery}</div>
-                          )}
-                        </>
+                        <div className={css.imageBody}>
+                          <div className={css.imageLabel}>{imageBody.label}</div>
+                          {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
+                            images: imageBody.images,
+                            loadImage,
+                            align: 'start',
+                          })}
+                          <div className={css.imageMeta}>{imageBody.text}</div>
+                        </div>
                       )
-                      : webBody !== null
-                        ? <WebBlock {...webBody} labels={webLabels} className={css.webBody} />
-                        : (
+                      : searchBody !== null
+                        ? (
                           <>
-                            {variant === 'code' && bodyText !== null && (
-                              <div className={css.bodyScroll}>
-                                <CodeBlock code={bodyText} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} className={css.codeBody} />
-                              </div>
-                            )}
-                            {(cardBody !== null || outputText !== null) && (
-                              <div className={css.ioCard}>
-                                {cardBody !== null && (
-                                  <div className={css.ioSection}>
-                                    <span className={css.ioLabel}>{t('row.input')}</span>
-                                    <span className={css.ioText}>{cardBody}</span>
-                                  </div>
-                                )}
-                                {cardBody !== null && outputText !== null && (
-                                  <span className={css.ioDivider} aria-hidden />
-                                )}
-                                {outputText !== null && (
-                                  <div className={css.ioSection}>
-                                    <span className={css.ioLabel}>{t('row.output')}</span>
-                                    <span className={css.ioText} data-error={state === 'error' || undefined}>
-                                      {outputText}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
+                            <SearchBlock
+                              {...searchBody.card}
+                              labels={searchLabels}
+                              maxLines={CHAT_SEARCH_MAX_LINES}
+                              className={css.searchBody}
+                            />
+                            {/* A capped search's recovery locator lives only in the result
+                          text; show it below the card so the dropped rows survive. */}
+                            {searchBody.recovery !== undefined && (
+                              <div className={css.searchRecovery}>{searchBody.recovery}</div>
                             )}
                           </>
-                        )}
-          {inspect !== undefined && (
-            <button
-              type="button"
-              className={css.inspectButton}
-              onClick={inspect}
-            >
-              <IconInspectOutline12 />
-              {t('row.inspect')}
-            </button>
-          )}
+                        )
+                        : webBody !== null
+                          ? <WebBlock {...webBody} labels={webLabels} className={css.webBody} />
+                          : (
+                            <>
+                              {variant === 'code' && bodyText !== null && (
+                                <div className={css.bodyScroll}>
+                                  <CodeBlock code={bodyText} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} className={css.codeBody} />
+                                </div>
+                              )}
+                              {(cardBody !== null || outputText !== null) && (
+                                <div className={css.ioCard}>
+                                  {cardBody !== null && (
+                                    <div className={css.ioSection}>
+                                      <span className={css.ioLabel}>{t('row.input')}</span>
+                                      <span className={css.ioText}>{cardBody}</span>
+                                    </div>
+                                  )}
+                                  {cardBody !== null && outputText !== null && (
+                                    <span className={css.ioDivider} aria-hidden />
+                                  )}
+                                  {outputText !== null && (
+                                    <div className={css.ioSection}>
+                                      <span className={css.ioLabel}>{t('row.output')}</span>
+                                      <span className={css.ioText} data-error={state === 'error' || undefined}>
+                                        {outputText}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                          )}
         </div>
       </DisclosureRow>
     </div>

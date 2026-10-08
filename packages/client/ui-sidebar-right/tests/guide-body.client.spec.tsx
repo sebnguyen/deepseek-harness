@@ -66,6 +66,9 @@ describe('GuideBody', () => {
     // The guide draws no words of its own; every word is a capsule's.
     const guide = view.container.querySelector('[data-sidebar-right-guide]')
     expect(guide?.textContent).toBe('files titleterminal title')
+    // The hero over the capsules is the static DigitalOcean mark, never the animated loader.
+    expect(guide?.querySelector(`span.${css.hero} svg path`)).not.toBeNull()
+    expect(guide?.querySelector('.dsh-pl')).toBeNull()
     // One capsule per entry, in the registry's order, each with its own title; only the first brought a glyph.
     expect(boxes()).toEqual(['files', 'terminal'])
     const [files, terminal] = [...view.container.querySelectorAll('[data-sidebar-right-guide-entry]')]

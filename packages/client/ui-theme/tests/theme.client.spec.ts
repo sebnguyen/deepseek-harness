@@ -22,14 +22,13 @@ const make = (host = stubSettingsScope<ThemeSettings>()): {
 }
 
 describe('ThemeRuntime', () => {
-  it('defaults to the system preference resolved against prefers-color-scheme', () => {
+  it('defaults to the dark preference when the Host section carries no choice', () => {
     const { theme } = make()
     const snapshot = theme.getTheme()
-    expect(snapshot.preference).toBe('system')
+    expect(snapshot.preference).toBe('dark')
     expect(snapshot.fontSize).toBe(14)
-    // jsdom matchMedia is absent; system resolves to light.
-    expect(snapshot.active.id).toBe('light')
-    expect(snapshot.active.colorScheme).toBe('light')
+    expect(snapshot.active.id).toBe('dark')
+    expect(snapshot.active.colorScheme).toBe('dark')
     expect(snapshot.themes.map(t => t.id)).toEqual(['light', 'dark'])
   })
 
@@ -76,27 +75,30 @@ describe('ThemeRuntime', () => {
 
   it('setTheme switches, writes through the scope, republishes, and keeps DOM untouched', () => {
     const { theme, events, host } = make()
-    theme.setTheme('dark')
-    expect(theme.getTheme().preference).toBe('dark')
-    expect(theme.getTheme().active.colorScheme).toBe('dark')
-    expect(host.set).toHaveBeenCalledWith('preference', 'dark')
+    // The dark default is a preference, not presentation: the service writes no
+    // DOM field for it either.
+    expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
+    theme.setTheme('light')
+    expect(theme.getTheme().preference).toBe('light')
+    expect(theme.getTheme().active.colorScheme).toBe('light')
+    expect(host.set).toHaveBeenCalledWith('preference', 'light')
     expect(events).toHaveLength(1)
     expect(events[0]).toBe(theme.getTheme())
     // The service never touches presentation state.
     expect(document.body.hasAttribute('data-ds-dark-theme')).toBe(false)
     // Same-value set is a no-op (no extra event).
-    theme.setTheme('dark')
+    theme.setTheme('light')
     expect(events).toHaveLength(1)
     expect(host.set).toHaveBeenCalledOnce()
   })
 
   it('adopts a published Host section without writing it back', () => {
     const { theme, events, host } = make()
-    host.publish({ status: 'ready', value: { preference: 'dark', fontSize: 14 }, revision: 1, writable: true })
-    expect(theme.getTheme().preference).toBe('dark')
+    host.publish({ status: 'ready', value: { preference: 'light', fontSize: 14 }, revision: 1, writable: true })
+    expect(theme.getTheme().preference).toBe('light')
     expect(events).toHaveLength(1)
     expect(host.set).not.toHaveBeenCalled()
-    host.publish({ value: { preference: 'dark', fontSize: 14 }, revision: 2 })
+    host.publish({ value: { preference: 'light', fontSize: 14 }, revision: 2 })
     expect(events).toHaveLength(1)
   })
 
@@ -121,7 +123,7 @@ describe('ThemeRuntime', () => {
     theme.setTheme('sepia')
     expect(theme.getTheme().active.tokens['--dsw-alias-bg-base']).toBe('red')
     dispose()
-    expect(theme.getTheme().preference).toBe('system')
+    expect(theme.getTheme().preference).toBe('dark')
     expect(theme.getTheme().themes.map(t => t.id)).toEqual(['light', 'dark'])
     // Custom ids are in-process extension themes; only the built-in product
     // preferences cross the Host settings schema.
@@ -142,8 +144,8 @@ describe('ThemeRuntime', () => {
 
   it('revision increases monotonically across every publish', () => {
     const { theme, events } = make()
-    theme.setTheme('dark')
     theme.setTheme('light')
+    theme.setTheme('dark')
     const dispose = theme.register({ id: 'sepia', colorScheme: 'dark', tokens: {} })
     dispose()
     expect(events.map(e => e.revision)).toEqual([1, 2, 3, 4])
@@ -162,17 +164,17 @@ describe('ThemeRuntime', () => {
     })
 
     expect(theme.getTheme().active.tokens).toMatchObject({
-      '--first': 'first-only-light',
-      '--shared': 'second-light',
-    })
-    theme.setTheme('dark')
-    expect(theme.getTheme().active.tokens).toMatchObject({
       '--first': 'first-only-dark',
       '--shared': 'second-dark',
     })
+    theme.setTheme('light')
+    expect(theme.getTheme().active.tokens).toMatchObject({
+      '--first': 'first-only-light',
+      '--shared': 'second-light',
+    })
 
     disposeSecond()
-    expect(theme.getTheme().active.tokens['--shared']).toBe('first-dark')
+    expect(theme.getTheme().active.tokens['--shared']).toBe('first-light')
     disposeFirst()
     expect(theme.getTheme().active.tokens['--shared']).toBeUndefined()
   })
@@ -186,7 +188,7 @@ describe('ThemeRuntime', () => {
       '--new': { light: 'new-light', dark: 'new-dark' },
     })
     stale()
-    expect(theme.getTheme().active.tokens).toEqual({ '--new': 'new-light' })
+    expect(theme.getTheme().active.tokens).toEqual({ '--new': 'new-dark' })
     current()
     current()
     expect(theme.getTheme().active.tokens).toEqual({})
@@ -263,12 +265,18 @@ describe('ThemeRuntime', () => {
 
     it('system resolves against the media query and follows OS flips', () => {
       const media = stubMedia(true)
-      const { theme, events } = make()
+      // `system` is no longer the default, so this case pins the preference
+      // through the Host section it adopts at construction.
+      const host = stubSettingsScope<ThemeSettings>()
+      host.publish({ status: 'ready', value: { preference: 'system', fontSize: 14 }, revision: 1, writable: true })
+      const { theme, events } = make(host)
       expect(theme.getTheme().preference).toBe('system')
       expect(theme.getTheme().active.id).toBe('dark')
       media.flip()
       expect(theme.getTheme().active.id).toBe('light')
-      expect(events).toHaveLength(1)
+      // Two publishes: adopting the standing section at construction, then the
+      // resolution change the OS flip causes.
+      expect(events).toHaveLength(2)
     })
 
     it('OS flips do not republish while a concrete preference is set', () => {

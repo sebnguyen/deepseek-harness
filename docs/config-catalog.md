@@ -360,12 +360,10 @@ export interface Config {
   enabled: boolean
   /** Optional `DSH_HOME` override for the per-session object store root. */
   dshHome?: string
-  /** Extra directory names pruned from every walk, beside `.git` and `node_modules`. */
-  pruneExtra?: string[]
 }
 ```
 
-Source: [`packages/fs/checkpoint/src/index.ts:38`](../packages/fs/checkpoint/src/index.ts)
+Source: [`packages/fs/checkpoint/src/index.ts:36`](../packages/fs/checkpoint/src/index.ts)
 
 <a id="deepseek-aidsh-claim-settlement"></a>
 
@@ -3056,18 +3054,27 @@ Requires: `tools` · `fs` · `systemPrompt`
 ```ts config-catalog
 /** Plugin config (all optional — `Config` supplies the defaults). */
 export interface Config {
-  /** Default and maximum number of lines returned by one `read` call. */
+  /** Default and maximum number of lines returned by one `read` element. */
   readLimit?: number
   /** Maximum characters returned for a single line before truncation. */
   readMaxLineLength?: number
-  /** Maximum bytes returned for the selected lines of one `read` call. */
+  /** Maximum bytes returned for the selected lines of one `read` element. */
   readMaxBytes?: number
   /** Files at or above this size stream instead of loading whole into memory. */
   readStreamMinSize?: number
+  /** Maximum elements one batched `read` or `write` call accepts. */
+  maxFilesPerCall?: number
+  /**
+   * Register the pre-batch singular `read`/`write` calls instead of the `files`
+   * batch faces. Reserved for recorded-session replay compositions whose
+   * committed fixtures drive singular calls; shipped deployments keep the
+   * default false.
+   */
+  legacyFaces?: boolean
 }
 ```
 
-Source: [`packages/fs/tool-fs/src/index.ts:27`](../packages/fs/tool-fs/src/index.ts)
+Source: [`packages/fs/tool-fs/src/index.ts:30`](../packages/fs/tool-fs/src/index.ts)
 
 <a id="deepseek-aidsh-tool-fs-search"></a>
 

@@ -248,7 +248,7 @@
 
 /* Two-level root cells (figma 496:26454 .Menu_cell): 40px row, 10px side
    padding, 8px gap, 10px radius; 14/22 label in primary, value in the
-   #81858C tertiary tone, right chevron drilling into the sub-list. */
+   #5d6c6c tertiary tone, right chevron drilling into the sub-list. */
 .cell {
   box-sizing: border-box;
   display: flex;

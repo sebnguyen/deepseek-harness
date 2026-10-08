@@ -268,7 +268,7 @@ function sessionStatuses(
   return [{ state: 'done', label: t('status.idle') }]
 }
 
-/** Primary status dot plus every status's screen-reader label, shared by the search and session rows. */
+/** Primary status mark plus every status's screen-reader label, shared by the search and session rows. */
 function SessionStatusDots({ statuses }: { statuses: readonly [SessionStatus, ...SessionStatus[]] }) {
   return (
     <>

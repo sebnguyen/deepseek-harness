@@ -10,6 +10,7 @@ import {
   IconUserOutline16,
   JsonTree,
   MarkdownText,
+  PixelLoader,
   Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { JsonTreeLabels, MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -2675,7 +2676,7 @@ export function TrajectoryTable({
         {showInitialLoading && (
           <div className={css.historyLoading} role="status" aria-live="polite">
             <span className={css.historyLoadingBar}>
-              <span className={css.historyLoadingSpinner} aria-hidden="true" />
+              <PixelLoader grid={16} size={12} className={css.historyLoadingSpinner} />
               {t('history.loadingTrajectory')}
             </span>
           </div>
@@ -2710,7 +2711,7 @@ export function TrajectoryTable({
                     }}
                   >
                     {olderBusy && (
-                      <span className={css.historyLoadingSpinner} aria-hidden="true" />
+                      <PixelLoader grid={16} size={12} className={css.historyLoadingSpinner} />
                     )}
                     <span aria-hidden="true">
                       {olderBusy ? t('history.loadingEarlier') : t('history.loadEarlier')}

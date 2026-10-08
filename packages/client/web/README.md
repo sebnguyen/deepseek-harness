@@ -29,11 +29,11 @@ The shell base styles apply automatic CJK/Latin spacing to ordinary content in s
 
 ### What boot looks like
 
-Boot runs in two stages: the module stage adopts the parser-loaded bootstrap batch, builds the module system from the Host-provided boot graph, and prefetches the `immediately` tier through the shared application-batch URL, which executes once. The plugin stage then activates every graph entry and waits for all of them before handing the marked boot DOM to the UI renderer, which hydrates it and switches to the complete UI.
+Boot runs in two stages: the module stage adopts the parser-loaded bootstrap batch, builds the module system from the Host-provided boot graph, and prefetches the `immediately` tier through the shared application-batch URL, which executes once. The plugin stage then activates every graph entry and waits for all of them, and a data-ready gate holds the handoff until the Host connection is established and the Workspace and Session list baselines have arrived, before handing the marked boot DOM to the UI renderer, which hydrates it and switches to the complete UI. A Host that never delivers the baselines releases the gate after a fixed timeout, and the shell's own empty and error states take over.
 
 ### The boot page
 
-The boot page uses plain DOM and local CSS, so bundle and plugin-activation failures remain visible: it shows one spinner node whose CSS arc grows as entries activate, and reports per-entry status. The spinner and its animation phase persist until the full UI replaces the boot page. A plugin that fails import or activation is reported by name with the reason (missing service, import error, or state) instead of a blank page.
+The boot page uses plain DOM and local CSS, so bundle and plugin-activation failures remain visible: it shows the pixelized DigitalOcean sweep from `ui-primitives`, whose sweep window shifts as entries activate through the same `--dsh-boot-arc` custom property the kernel has always computed, and reports per-entry status. The sweep node and its phase persist until the full UI replaces the boot page. A plugin that fails import or activation is reported by name with the reason (missing service, import error, or state) instead of a blank page.
 
 ### The shared module table
 
@@ -63,14 +63,15 @@ The kernel owns exactly three things: the module system, the Cordis Loader, and 
 
 ### Boot page mechanics
 
-The boot page is plain DOM with local CSS whose fallback fonts and colors match the theme tokens that arrive during loading. `internal/status` events drive one spinner node and per-entry labels; hydration preserves the node and animation phase through the application commit, and `fail()` renders the thrown reason. React mounting, slot rendering, and assembly live in `ui-renderer`; `ui-layout` owns the assembled browser-title projection.
+The boot page is plain DOM with local CSS whose fallback fonts and colors match the theme tokens that arrive during loading. `internal/status` events drive the sweep node and per-entry labels; hydration preserves the node and sweep phase through the application commit, and `fail()` renders the thrown reason. React mounting, slot rendering, and assembly live in `ui-renderer`; `ui-layout` owns the assembled browser-title projection.
 
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Library entry: `AppWebEntry`, `getStaticModules`, platform tables |
-| [`src/boot.ts`](src/boot.ts) | `AppWebEntry`: module stage, boot page, immediate-tier prefetch, then `bootClient` + `mountClient` |
+| [`src/boot.ts`](src/boot.ts) | `AppWebEntry`: module stage, boot page, immediate-tier prefetch, then `bootClient`, data-ready gate, `mountClient` |
+| [`src/data-ready.ts`](src/data-ready.ts) | `awaitDataReady`: connection + Workspace/Session baseline gate ahead of the renderer handoff |
 | [`src/boot-client.ts`](src/boot-client.ts) | `bootClient` / `assertEntriesActive`: Loader mount, one entry per manifest row, activation audit |
 | [`src/mount.ts`](src/mount.ts) | `mountClient`: renderer handoff through a `uiRenderer` dependency fiber |
 | [`src/boot-page.ts`](src/boot-page.ts) | Framework-free boot page: spinner, per-entry status, failure rendering |
@@ -111,6 +112,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define what the boot kernel does not support. They are current package constraints, not a task backlog.
 
 - **The application waits for the full roster** — one failed entry keeps the framework-free boot page visible with a per-entry report; partial UI availability is not supported.
+- **The data-ready gate degrades to a timeout** — a Host that activates every entry but never delivers its Workspace and Session baselines mounts the application after the fixed horizon instead of holding the boot page forever.
 
 <a id="dev-note"></a>
 ### Dev Note

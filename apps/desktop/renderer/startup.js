@@ -1,5 +1,13 @@
 const api = window.dshDesktop
 
+// The pixel sweep is SMIL (the splash CSP forbids inline styles), so reduced
+// motion pauses it from script instead of a stylesheet.
+const startupSpinner = document.querySelector('#spinner svg')
+if (startupSpinner instanceof SVGSVGElement
+  && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+  startupSpinner.pauseAnimations()
+}
+
 async function main() {
   const { id, messages } = await api.locale()
   document.documentElement.lang = id

@@ -7,7 +7,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { fsHarness, waitForIdle } from './harness.ts'
 
-/** Key-gated smoke for a real model driving the local read/write/edit tools. */
+/** Key-gated smoke for a real model driving the local read/write tools. */
 
 let ctx: Context | undefined
 let workdir: string | undefined
@@ -19,11 +19,12 @@ afterEach(async () => {
   workdir = undefined
 })
 
-const SYSTEM = 'You are a coding assistant. Use the write tool to create files, the read tool to inspect '
-  + 'them, and the edit tool for literal replacements. Read a file before editing it. Keep replies terse.'
+const SYSTEM = 'You are a coding assistant. Use the write tool to create files and to patch them '
+  + 'sed-style with edits entries, and the read tool to inspect them. Read a file before patching '
+  + 'it. Keep replies terse.'
 
 describe.skipIf(!process.env.DEEPSEEK_API_KEY)('fs tools with-key smoke', () => {
-  it('creates, reads, then edits a file — verified on disk', async () => {
+  it('creates, reads, then patches a file — verified on disk', async () => {
     workdir = await mkdtemp(join(tmpdir(), 'dsh-fs-e2e-'))
     ctx = await fsHarness(workdir, SYSTEM)
     // agentLoop.create prepares a session with no cwd, so the provider default
@@ -33,7 +34,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('fs tools with-key smoke', () => 
     agent.followup(createUserMessage({
       content: [{ type: 'text', text:
       'Create a file named note.txt containing exactly the line: status: draft. '
-      + 'Then read it back, then edit it to replace the literal word draft with final. '
+      + 'Then read it back, then patch it with a write edits entry replacing the literal word draft with final. '
       + 'Tell me when done.' }], source: { kind: 'user' } }))
     await waitForIdle(ctx, agent)
 
@@ -42,11 +43,12 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('fs tools with-key smoke', () => 
     expect(content).toContain('status: final')
     expect(content).not.toContain('draft')
 
-    // The log records real read/write/edit tool calls (not bash).
+    // The log records real read and write tool calls (not bash), and the second
+    // write is a patch program, not a whole-file rewrite.
     const calls = agent.session.snapshotEvents().filter(e => e.type === 'tool/call').map(e => e.data.name)
     expect(calls).toContain('write')
     expect(calls).toContain('read')
-    expect(calls).toContain('edit')
+    expect(calls.filter(name => name === 'write').length).toBeGreaterThanOrEqual(2)
   }, 180_000)
 
   it('resolves a relative path against the per-session cwd (factory meta.cwd)', async () => {

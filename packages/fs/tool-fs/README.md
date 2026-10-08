@@ -41,11 +41,11 @@ The tool-owned gate ships inside this package: content writes over unread existi
 
 | Tool | Arguments | Behavior |
 |---|---|---|
-| `read` | `file_path`, `offset?`, `limit?` | Line-numbered UTF-8 content with a pagination footer; `offset` is 1-based and `limit` defaults to and caps at the configured `readLimit` |
+| `read` | `files[]` of `{ file_path, offset?, limit? }` | Every element settles into its own labeled frame `[i/N] <path>`: line-numbered UTF-8 content with a pagination footer (`offset` 1-based, `limit` defaulting to and capped by the configured `readLimit`), missing and refused files reported in-frame instead of failing the call |
 | `read_image` | `file_path` | Reads and persists a PNG/JPEG/WebP/GIF source; an extension-less path (normalized attachment object paths included) is identified from its file signature; normalization can downscale it before the next model request, so the model need not create a thumbnail first |
-| `write` | `file_path`, `content?`, `edits?`, `overwrite?`, `dry_run?` | Creates, replaces, or patches in one atomic commit; `edits` entries (literal, regex, line-range, insert) apply sequentially over `content` or the disk text; unread whole-file overwrites need `overwrite: true`; `dry_run` previews without committing |
+| `write` | `files[]` of `{ file_path, content?, edits?, overwrite?, dry_run? }`, plus call-level `sandbox_permissions`/`justification` under a confining backend | Elements commit atomically and dispatch in written order; `edits` entries (literal, regex, line-range, insert) apply sequentially over `content` or the disk text; unread whole-file overwrites need `overwrite: true` on that element; `dry_run` previews one element; a failing element settles into its frame while later elements still run |
 
-Field names are snake_case to match Claude Code and existing harness tool schemas. Successes return compact envelopes — a read window, an image reference, or a `Created file`/`Updated file` confirmation — and `write` derives replayable diff-card metadata for UI presentation.
+Field names are snake_case to match Claude Code and existing harness tool schemas. Successes return compact envelopes per frame — a read window, an image reference, or a `Created file`/`Updated file` confirmation — and `write` derives replayable diff-card metadata per committed frame for UI presentation. The singular `config.legacyFaces: true` registration restores the pre-batch single-file parameter face (one `file_path` per call) for deployments whose recorded session corpus replays committed singular calls; every shipped composition keeps it on for test-lane boots until that corpus is re-recorded, and live runtime sessions always run the batch face.
 
 ### Configuration
 
@@ -57,6 +57,8 @@ All keys are optional; the defaults are the shipped read caps.
 | `readMaxLineLength` | `2000` | Characters kept per line before truncation |
 | `readMaxBytes` | `51200` | Byte cap on one `read` call's selected lines; overflow ends the window with a capped footer |
 | `readStreamMinSize` | `10485760` | Files at or above this size (or of unknown size) stream instead of loading whole into memory |
+| `maxFilesPerCall` | `8` | Maximum `files` elements one batched `read`/`write` call accepts |
+| `legacyFaces` | `false` | Registers the pre-batch singular `read`/`write` parameter face instead of the batch face |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-fs) is the exhaustive source for every accepted field and its JSDoc.
 
@@ -91,7 +93,7 @@ The tools are the executor; policy is an event gate. The tools inject no policy 
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config`, tool composition, `read_image` attachments gate |
 | [`src/read.ts`](src/read.ts) | `read` executor: one stat, streaming decision, window build, observation |
 | [`src/read-image.ts`](src/read-image.ts) | `read_image` executor: route and media-type gates, bounded bytes, attachment save |
-| [`src/write.ts`](src/write.ts) | `write` executor: intent waterfall, atomic write, observation |
+| [`src/write.ts`](src/write.ts) | `write` executor: intent waterfall, atomic write, observation, checkpoint handoff |
 | [`src/program.ts`](src/program.ts) | The sed-style engine: entry validation, sequential fold, per-entry match accounting |
 | [`src/gate.ts`](src/gate.ts) | Tool-owned default decider over `fs/observed` state; supplies the `fs/write-intent` default |
 | [`src/read-render.ts`](src/read-render.ts) | Cordis-free windowing and envelope formatting |
@@ -104,7 +106,7 @@ All four tools share one flow shape: resolve the path with the calling session's
 
 ### Observation and concurrency
 
-`fs/observed` fires after the operation succeeded via a plain `ctx.emit`; a listener is contractually a synchronous, side-effect-only recorder, so async or fallible observation does not belong on this event. `read` opts into concurrent scheduling because its only mutation is the synchronous version recorder; recorder races fail closed when a later `write` re-checks the version under its target lock, and the mutation tool remains exclusive.
+`fs/observed` fires after the operation succeeded via a plain `ctx.emit`; a listener is contractually a synchronous, side-effect-only recorder, so async or fallible observation does not belong on this event. A committed `write` then passes that outcome's `before` and `after` text to `ctx.checkpoint.captureWrite` when the checkpoint service is mounted; a dry run and a failed element do not. `read` opts into concurrent scheduling because its only mutation is the synchronous version recorder; recorder races fail closed when a later `write` re-checks the version under its target lock, and the mutation tool remains exclusive.
 
 </details>
 
@@ -136,13 +138,13 @@ At assembly time, each guidance section checks `ctx.tools.get(name, scope)` and 
 ##### Read guidance
 
 ```markdown
-Use the read tool — not shell commands like cat — to inspect text files. Results include line numbers. Use offset and limit to continue reading large files.
+Read gives UTF-8 contents with line numbers that bash cat and sed cannot; pass every file the next step needs as one `files` element — each with its own offset and limit — and every element settles into its own labeled frame, a missing file reported in-frame instead of failing the call. Example: read the handler and its test as two elements before editing the error branch.
 ```
 
 ##### Write guidance
 
 ```markdown
-Use the write tool to create files, replace them whole, or patch them sed-style: pass content for the stream, edits entries (literal, regex, line-range, insert) for hunks applied in one atomic commit, overwrite: true to explicitly clobber a file this session never read, and dry_run to preview without committing.
+Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` element — each element carries its own content or sed-style edits entries (literal old_string, regex pattern, line range, insert after_line) and commits atomically, elements dispatch in written order, and a failing element settles into its frame while later elements still run. Overwriting a file this session never read needs overwrite: true on that element, and dry_run previews one element without committing. Example: write two new fixture files as two elements once their shapes are agreed.
 ```
 
 #### Token effect
@@ -171,7 +173,7 @@ Prefix-stable while the visible tool definitions and order are unchanged. Regist
 
 #### What the model sees
 
-A successful read is exactly `<path><displayPath></path>`, newline, `<type>file</type>`, newline, `<content>`, numbered lines as `<lineNumber>: <text>`, a blank line, one footer, and `</content>`. The footer is exactly `(Output capped. Showing lines <start>-<end>. Use offset=<next> to continue.)`, `(Showing lines <start>-<end> of <total>. Use offset=<next> to continue.)`, or `(End of file - total <total> lines)`. A long line ends exactly `... (line truncated to <max> chars)`. A missing read still returns `FS_NOT_FOUND`, but it records confirmed absence for the calling session; after an externally deleted file is re-read, a retried `write` can safely recreate it through the provider's no-replace guard.
+A successful batch is `files.length` labeled sections joined by single newlines; section `i` is `[<i+1>/<N>] <filePath>` followed by either the frame's envelope or the in-frame failure. A successful read frame is exactly `<path><displayPath></path>`, newline, `<type>file</type>`, newline, `<content>`, numbered lines as `<lineNumber>: <text>`, a blank line, one footer, and `</content>`. The footer is exactly `(Output capped. Showing lines <start>-<end>. Use offset=<next> to continue.)`, `(Showing lines <start>-<end> of <total>. Use offset=<next> to continue.)`, or `(End of file - total <total> lines)`. A long line ends exactly `... (line truncated to <max> chars)`. An in-frame refusal reads `[error: <message>]` (for example `cannot read "<path>": not found`) and an abort-skipped element reads `[not run: call aborted]`; both keep the call itself successful. The same refusal of a missing read still records confirmed absence for the calling session; after an externally deleted file is re-read, a retried `write` can safely recreate it through the provider's no-replace guard.
 
 #### Token effect
 
@@ -199,7 +201,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Write returns the exact five-line envelope `<path><displayPath></path>`, `<type>file</type>`, `<content>`, then a one-line outcome (`Created file`, `Updated file`, `Updated file. N edits applied (M matches).`, or the `Dry run — no commit.` wording), then `</content>`. Its structured result also carries per-entry match counts so the model sees what its program did without re-reading. The full write or replacement text remains in the assistant tool-call arguments.
+Each committed `write` frame is the exact five-line envelope `<path><displayPath></path>`, `<type>file</type>`, `<content>`, then a one-line outcome (`Created file`, `Updated file`, `Updated file. N edits applied (M matches).`, or the `Dry run — no commit.` wording), then `</content>`, with `[error: …]` frames for refused elements; dry-run frames carry no commit. Its structured result also carries per-entry match counts so the model sees what each element's program did without re-reading. The full write or replacement texts remain in the assistant tool-call arguments.
 
 #### Token effect
 
@@ -213,7 +215,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Failures are normalized as `Error: <message>`. This package's stable validation and read messages are `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `old_string must be a non-empty string`, `old_string and new_string must differ`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, `offset <offset> is out of range for "<path>" (<total> lines)`, `cannot read "<path>": the <ext> extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats`, `cannot read "<path>": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`, `cannot read "<path>": the bytes do not decode as a supported PNG/JPEG/WebP/GIF image; the file may be truncated or corrupt`, `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`, and the mismatch repair `cannot read "<path>": the <ext> extension declares <type>, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats` (an extension-less mismatch reports `cannot read "<path>": the file signature claims <type>, but the bytes decode as a different image format; the file may be corrupt`). A failed 16-bit conversion reports `cannot read "<path>": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`. Provider and policy templates are quoted in their package READMEs. The model-facing error wrapper normalizes every `FS_NOT_OBSERVED` source to `cannot modify "<path>": file has not been read — read the file, then retry` (strict policy loaded); `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` keeps the provider's reason and adds `— re-read the file, then retry`. All retain the structured error code and original cause. After a reread confirms absence, programs report `FS_NOT_FOUND` instead of a stale remedy, while content writes use guarded creation.
+Failures are normalized as `Error: <message>`. This package's stable validation and read messages are `files must contain at least one element`, `files must contain at most <max> elements`, `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `provide content, edits, or both — a write with neither is a no-op`, `old_string must be a non-empty string`, `old_string and new_string must differ`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, `offset <offset> is out of range for "<path>" (<total> lines)`, `cannot read "<path>": the <ext> extension does not declare a supported image format; read_image accepts PNG/JPEG/WebP/GIF files, including extension-less files in those formats`, `cannot read "<path>": the file content is not a supported image format; read_image accepts PNG/JPEG/WebP/GIF`, `cannot read "<path>": the bytes do not decode as a supported PNG/JPEG/WebP/GIF image; the file may be truncated or corrupt`, `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`, and the mismatch repair `cannot read "<path>": the <ext> extension declares <type>, but the bytes use a different image format; rename the file to match its actual format if it is PNG/JPEG/WebP/GIF, or convert it to one of those formats` (an extension-less mismatch reports `cannot read "<path>": the file signature claims <type>, but the bytes decode as a different image format; the file may be corrupt`). A failed 16-bit conversion reports `cannot read "<path>": the 16-bit PNG could not be converted to the normalized 8-bit sRGB form; convert it to an 8-bit PNG/JPEG/WebP and retry`. Provider and policy templates are quoted in their package READMEs. The model-facing error wrapper normalizes every `FS_NOT_OBSERVED` source to `cannot modify "<path>": file has not been read — read the file, then retry` (strict policy loaded); `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` keeps the provider's reason and adds `— re-read the file, then retry`. All retain the structured error code and original cause. After a reread confirms absence, programs report `FS_NOT_FOUND` instead of a stale remedy, while content writes use guarded creation.
 
 #### Token effect
 

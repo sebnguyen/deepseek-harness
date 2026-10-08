@@ -376,6 +376,17 @@ export function normalizeSessionLog(
       const data = record.data as Record<string, unknown>
       if ('durationMs' in data) data.durationMs = 0
     }
+    if (record.type === 'tool/result' && record.data !== null && typeof record.data === 'object') {
+      const meta = (record.data as { meta?: unknown }).meta
+      if (meta !== null && typeof meta === 'object') {
+        const frames = (meta as { frames?: unknown }).frames
+        if (Array.isArray(frames)) {
+          for (const frame of frames) {
+            if (frame !== null && typeof frame === 'object' && 'durationMs' in frame) (frame as { durationMs: unknown }).durationMs = 0
+          }
+        }
+      }
+    }
     normalizeFeedbackClocks(record)
     if (record.type === 'goal/change' && record.data !== null && typeof record.data === 'object') {
       const data = record.data as Record<string, unknown>

@@ -308,7 +308,7 @@ describe('docsPages single-locale manifest', () => {
     expect(projected).toContain('layout: false')
     expect(projected).toContain('http-equiv: refresh')
     expect(projected).toContain('content: 0; url=./guide/quickstart')
-    expect(projected).not.toContain('# DeepSeek Harness')
+    expect(projected).not.toContain('# DigitalOcean Harness')
   })
 
   it('projects the audited tutorial entry links onto published routes', () => {
@@ -606,7 +606,7 @@ describe('raw Markdown projection of the published manifest', () => {
   it('emits the home page with its body instead of the frontmatter stub', () => {
     const home = readFileSync(join(mirror, 'index.md'), 'utf8')
     expect(home.startsWith('---')).toBe(false)
-    expect(home).toContain('# DeepSeek Harness')
+    expect(home).toContain('# DigitalOcean Harness')
   })
 
   it('resolves every relative link inside the emitted tree', { timeout: 60_000 }, () => {

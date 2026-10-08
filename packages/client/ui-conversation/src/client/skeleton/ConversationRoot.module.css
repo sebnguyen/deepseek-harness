@@ -20,14 +20,25 @@
      column without resizing the window): the component publishes the column's
      live width as --dsh-conversation-column-width (px, via ResizeObserver —
      container-type would re-anchor the subtree's portal-free position:fixed
-     descendants) and the clamp keeps a 680px floor (a step under the figma
-     748px — the full-width reading felt wide on every screen), takes 64% of
-     wider columns, and caps at 920px for line-length
-     readability. A dragged user preference (--dsh-chat-user-width, published
-     by the width handles) replaces the adaptive term wholesale. */
+     descendants). No magic pixel constant shapes the default: the cap is
+     the readable paragraph measure — 55 characters, a comfortable value
+     inside the 45–75 characters-per-line band typography guidance keeps
+     body text within — at the content face's 0.56em average advance
+     (--dsh-content-font-size × 30.8), and the adaptive term takes
+     64% of the column under that cap. Font size and width are both CSS
+     px, so the default holds its character count at any browser zoom and
+     rides the Settings font-size axis. A dragged user preference
+     (--dsh-chat-user-width, published by the width handles) replaces the
+     adaptive term wholesale, bounded only by the column's handle budget
+     and the layout column minimum — an explicit choice outranks the
+     measure. */
+  --dsh-chat-readable-cap: calc(var(--dsh-content-font-size, 14px) * 30.8);
   --dsh-chat-content-width: var(
     --dsh-chat-user-width,
-    clamp(680px, calc(var(--dsh-conversation-column-width, 0px) * 0.64), 920px)
+    min(
+      calc(var(--dsh-conversation-column-width, 0px) * 0.64),
+      var(--dsh-chat-readable-cap)
+    )
   );
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;

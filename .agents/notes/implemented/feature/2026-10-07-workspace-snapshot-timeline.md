@@ -21,11 +21,11 @@ Two consequences followed. A reader had no per-effect file history to review, an
 
 Raw fidelity is the constraint that chose this shape: `tool/call.arguments` is the append-only record and may not be rewritten, and re-appending a cleaned object would corrupt replay and prompt-cache prefixes.
 
-### Capture as a dispatch bracket over a content-addressed store
+### Capture from a committed write's before and after
 
-`packages/fs/checkpoint` mounts a `tools/execute` waterfall listener that awaits `next()` and then rescans the session's resolved workspace root: a pruned stat walk (`.git`, `node_modules`, `.dsh`, a partial `.gitignore` reader, configurable extra prunes), a stat diff against the previous walk, and a read-and-digest of only the added or changed paths. Each observed change becomes one `CheckpointRow` carrying `path`, `callId`, `toolName`, the stated `purpose`, and the `before`/`after` content digests; rows accumulate into one `checkpoint/scan` session event per call, appended only when something changed.
+`packages/fs/checkpoint` stores the before and after text a committed `write` already holds and appends one `checkpoint/scan` row per file. It does not walk the workspace. The dispatch-bracket walk this note first shipped was removed because a full-tree stat on every tool result does not scale; the replacement is [write-tool snapshots](../architecture/2026-10-08-checkpoint-snapshots-write-tool-files.md).
 
-Content lives beside the log, not in it: a per-session content-addressed store under `<dshHome>/checkpoints/v1/<sessionId>/objects/<xx>/<hex>` (0700 directories, 0600 files, stat-only idempotent puts) plus a `frontier.json` mapping path to digest. The frontier is what keeps `before` truthful when a process resumes a session without rereading the log. Capture is observation, never policy: a failed walk or write degrades to no event and never fails the call it observed.
+Content lives beside the log, not in it: a per-session content-addressed store under `<dshHome>/checkpoints/v1/<sessionId>/objects/<xx>/<hex>` (0700 directories, 0600 files, stat-only idempotent puts). Capture is observation, never policy: a failed store write degrades to no event and never fails the write it observed.
 
 ### Read and restore surfaces
 
@@ -41,7 +41,7 @@ The service exposes `blob(session, digest)` and `restore(session, path, digest)`
 - **A plain (unnamespaced) injected key** — collides with any plugin whose domain legitimately includes that name; the reserved prefix is the proof that the key is free.
 - **Appending `checkpoint/scan` rows that repeat turn and step** — the registry's execution view has no turn/step, and duplicating them would let the row and the call drift; the client joins instead.
 - **Serving rows from the service over Remote** — rows already ride the session log, so a Remote read would be a second source of truth for the same data; only the bytes need a Remote.
-- **Keeping pre-images in `tool/result`** — the existing `FsWriteOutcome.before` path only covers file tools and holds no terminal writes.
+- **Keeping pre-images in `tool/result`** — the existing `FsWriteOutcome.before` path only covers file tools and holds no terminal writes. Capture now stores those write-tool texts outside the result ([write-tool snapshots](../architecture/2026-10-08-checkpoint-snapshots-write-tool-files.md)); terminal writes stay unrecorded.
 
 ## Verification
 
@@ -55,8 +55,8 @@ The service exposes `blob(session, digest)` and `restore(session, path, digest)`
 ## Consequences
 
 - The session format does not change: `checkpoint/scan` is a new `SessionEventMap` member under the ordinary-addition path (declaration merging, JSON-serializable payload, no `SESSION_FORMAT_VERSION` bump), and the `tool/call` payload gains one optional sibling field.
-- A workspace timeline is reviewable and restorable per stop, for every mutator including terminal writes that never went through a file tool.
-- Attribution is deliberately post-hoc: a change made outside a tool call lands on the next call. Capture sees effects, not authors, and no row claims a cause the harness never observed.
+- A workspace timeline is reviewable and restorable per stop for files the write tool committed. Shell edits, deletes, and other tools leave no row.
+- `row.before` is the digest of the prior text the write held, omitted when that text was null. The row does not reconstruct a before the write did not supply.
 - Content is text-only; a file that cannot be read as text is recorded by digest with no retained bytes, and nothing prunes objects yet.
 - The restore tool ships from the service package rather than a `packages/*/tool-*` package, so it is outside the generated tool catalog's declared scope and documented by its package README instead.
 - Still open, with the design notes left in `proposed/`: the critique/rebuttal wire that makes the purpose line rebuttable, prompt-composition rendering per request, and the dynamic-path provider.

@@ -8,7 +8,6 @@
  * example the warn approval panels) stay real borders and are out of scope.
  */
 import { readFileSync } from 'node:fs'
-import { basename } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { packageStylesheets, parseRules } from './stylesheet-scan.ts'
@@ -138,15 +137,6 @@ function wideFilledDividers(css: string): string[] {
 }
 
 describe('neutral solid borders are hairlines', () => {
-  /**
-   * Spinner ring tracks, keyed `<basename> <selector>`: the border is the
-   * drawn graphic (a rotating ring), not an outline, so it keeps its width.
-   */
-  const RING_TRACKS = new Set([
-    'boot-page.module.css .spinner',
-    'TrajectoryTable.module.css .historyLoadingSpinner',
-  ])
-
   it('rejects a wide neutral border and a wide filled divider', () => {
     expect(wideNeutralBorders('.a { border: 1px solid var(--dsw-alias-border-l2); }'))
       .toEqual(['.a border: 1px solid var(--dsw-alias-border-l2)'])
@@ -159,14 +149,9 @@ describe('neutral solid borders are hairlines', () => {
   it('draws every solid neutral-token border at 0.5px under packages/', () => {
     // Buttons, inputs, cards, and separators share the hairline weight;
     // dashed affordances and state-colored borders are out of scope.
-    const wide = packageStylesheets().flatMap((file) => {
-      const base = basename(file)
-      const exempt = new Set([...RING_TRACKS]
-        .filter(track => track.startsWith(`${base} `))
-        .map(track => track.slice(base.length + 1)))
-      return wideNeutralBorders(readFileSync(file, 'utf8'), exempt)
-        .map(line => `${file} ${line}`)
-    })
+    const wide = packageStylesheets().flatMap(file =>
+      wideNeutralBorders(readFileSync(file, 'utf8'), new Set<string>())
+        .map(line => `${file} ${line}`))
     expect(wide).toEqual([])
   })
 

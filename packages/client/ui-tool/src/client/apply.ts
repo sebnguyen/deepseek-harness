@@ -9,7 +9,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { ToolCallTree } from './tool/ToolCallTree.tsx'
 import { CONVERSATION_NS as NS } from './locale.ts'
 import { askQuestionToolview } from './tool/toolviews/ask-question-row.tsx'
-import { bashToolviewSample } from './tool/toolviews/bash-sample.tsx'
+import { bashToolview } from './tool/toolviews/bash-row.tsx'
 import { fileMutationToolview } from './tool/toolviews/file-mutation-row.tsx'
 import { readToolview } from './tool/toolviews/read-row.tsx'
 import { readImageToolview } from './tool/toolviews/read-image-row.tsx'
@@ -40,7 +40,7 @@ export function apply(ctx: ClientContext): void {
     inject: toolInject,
   }, ToolCallTree))
 
-  ctx.plugin(bashToolviewSample)
+  ctx.plugin(bashToolview)
   ctx.plugin(readToolview)
   ctx.plugin(readImageToolview)
   ctx.plugin(fileMutationToolview)

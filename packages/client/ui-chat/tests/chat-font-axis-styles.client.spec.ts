@@ -131,18 +131,17 @@ describe('chat flow font-size axis', () => {
     expect(narrow).toMatch(/\.root \+ \.root \{[^}]*margin-left: 0/)
   })
 
-  it('non-latest turn tails hide the whole actions row until hover or focus', () => {
-    // TurnTailNodeView tags its root data-actions-reveal='hover' for every
-    // turn but the latest; the gate lives under @media (hover: hover) so
-    // no-hover devices keep the row visible. 'always' has no rule at all —
-    // absence, not an override, keeps the latest turn's row shown.
+  it('turn tails stay visible; only earlier user rows hide until hover or focus', () => {
+    // The tail captions its message and carries no reveal gate; the only
+    // opacity gate left is the user flow's sibling selector, under
+    // @media (hover: hover) so no-hover devices keep every row visible.
     const css = read('MessageIconActions.module.css')
-    expect(css).toContain("[data-actions-reveal='hover'] .actions,")
+    expect(css).not.toContain('data-actions-reveal')
     expect(css).toMatch(/\) \.actions \{\s*opacity: 0/)
-    expect(css).toContain("[data-actions-reveal='hover']:hover .actions,")
-    expect(css).toContain("[data-actions-reveal='hover']:focus-within .actions,")
     expect(css).toMatch(/\):focus-within \.actions \{\s*opacity: 1/)
-    expect(css).not.toContain("[data-actions-reveal='always']")
+    // The caption offset rides the chat flow gap variable on the tail seat.
+    const flow = read('ChatView.module.css')
+    expect(flow).toMatch(/\.flowItem\[data-chat-flow-kind='turn-tail'\] \{\s*--dsh-chat-flow-gap: 4px/)
   })
 
   it('uses flow sibling selectors to reveal only the latest user-authored row', () => {

@@ -277,6 +277,14 @@ describe('normalizeSessionLog', () => {
     }
   })
 
+  it('zeroes hook durations and per-frame shell durations in tool results', () => {
+    const hook = JSON.stringify({ type: 'hook/result', data: { durationMs: 431 } })
+    const result = JSON.stringify({ type: 'tool/result', data: { meta: { frames: [{ index: 0, durationMs: 431 }] } } })
+    const out = normalizeSessionLog(`${header({})}\n${hook}\n${result}\n`, ctx)
+    expect(out).toContain('"durationMs":0')
+    expect(out).not.toContain('431')
+  })
+
   it('zeroes the header createdAt', () => {
     const out = normalizeSessionLog(`${header({})}\n`, ctx)
     expect(out).toContain('"createdAt":0')

@@ -54,7 +54,7 @@ export function createElectronBuilderConfig(
   const buildPaths = desktopTargetBuildPaths(resolveDesktopBuildTarget(env, hostPlatform, hostArch))
   return {
     appId,
-    productName: 'DeepSeek Harness',
+    productName: 'DigitalOcean Harness',
     artifactName: 'deepseek-harness-${version}-${os}-${arch}.${ext}',
     directories: { output: unsigned ? join(buildPaths.root, 'unsigned-artifacts') : buildPaths.artifacts },
     asar: true,
@@ -62,6 +62,7 @@ export function createElectronBuilderConfig(
       'lib/*.js',
       'lib/*.cjs',
       'renderer/**/*',
+      'resources/*',
       'package.json',
     ],
     extraResources: [
@@ -105,6 +106,7 @@ export function createElectronBuilderConfig(
       )
     },
     win: {
+      icon: fileURLToPath(new URL('./resources/icon-windows.png', import.meta.url)),
       forceCodeSigning: !unsigned,
       signtoolOptions: {
         sign: windowsSigner,

@@ -98,8 +98,6 @@ flowchart LR
   cfg --> plugin_dsh_base_tool_lsp_map
   plugin_dsh_base_tool_jobs["tool-jobs<br/>@deepseek-ai/dsh-tool-jobs"]
   cfg --> plugin_dsh_base_tool_jobs
-  plugin_dsh_base_knowledge_notes["knowledge-notes<br/>@deepseek-ai/dsh-knowledge-notes"]
-  cfg --> plugin_dsh_base_knowledge_notes
   plugin_dsh_base_tool_fs["tool-fs<br/>@deepseek-ai/dsh-tool-fs"]
   cfg --> plugin_dsh_base_tool_fs
   plugin_dsh_base_agent_instructions["agent-instructions<br/>@deepseek-ai/dsh-agent-instructions"]
@@ -243,7 +241,6 @@ flowchart LR
 | `tool-lsp` | `@deepseek-ai/dsh-tool-lsp` |
 | `tool-lsp-map` | `@deepseek-ai/dsh-tool-lsp-map` |
 | `tool-jobs` | `@deepseek-ai/dsh-tool-jobs` |
-| `knowledge-notes` | `@deepseek-ai/dsh-knowledge-notes` |
 | `tool-fs` | `@deepseek-ai/dsh-tool-fs` |
 | `agent-instructions` | `@deepseek-ai/dsh-agent-instructions` |
 | `skill` | `@deepseek-ai/dsh-skill` |

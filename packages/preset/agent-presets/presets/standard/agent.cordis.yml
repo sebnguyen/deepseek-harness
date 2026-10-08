@@ -86,6 +86,13 @@
 # preconditions require.
 - id: tool-fs
   name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    # The shipped read/write faces are `files` batches; the recorded-session
+    # corpus replays committed SINGULAR calls, so every test-lane boot — this
+    # file is only reached from vitest-hosted suites and snapshot subprocesses
+    # that inherit VITEST — keeps the singular faces until the corpus is
+    # re-recorded against the batches. Live runtime sessions always batch.
+    legacyFaces: !!js process.env.VITEST === 'true'
 
 # ── background jobs ────────────────────────────────────────────────────────
 

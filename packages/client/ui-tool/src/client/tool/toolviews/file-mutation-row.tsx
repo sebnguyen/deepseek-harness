@@ -3,6 +3,7 @@ import { IconEditOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { diffCardModel } from '../models/diff-card-model.ts'
+import { writeFramesRowModel } from '../models/frames-row-model.ts'
 import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
@@ -15,6 +16,9 @@ type FileMutationRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect, t }: FileMutationRowProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const diff = diffCardModel(block)
+  // A batched `write` stacks one diff card per element (plus detach lines)
+  // instead of the merged single card; the suffix carries the batch totals.
+  const frames = writeFramesRowModel(block, cwd, home)
   return (
     <ToolRow
       t={t}
@@ -22,12 +26,16 @@ export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect,
       toolName={toolName}
       icon={<IconEditOutline16 size={14} />}
       title={t(model.titleKey)}
-      summary={model.summary}
+      summary={frames === null
+        ? model.summary
+        : t('write.batchSummary', { count: frames.count, first: frames.firstLabel })}
       output={model.output}
       errorSummary={model.errorSummary}
-      diff={diff}
+      diff={frames === null ? diff : undefined}
+      frames={frames ?? undefined}
       state={model.state}
-      filePath={model.filePath}
+      filePath={frames === null ? model.filePath : frames.firstPath}
+      summarySuffix={frames !== null && frames.stat !== null ? `+${frames.stat.added} -${frames.stat.removed}` : undefined}
       onOpenFile={openFile}
       inspect={inspect}
     />

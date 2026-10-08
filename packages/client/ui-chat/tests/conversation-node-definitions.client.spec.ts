@@ -504,6 +504,136 @@ describe('built-in conversation node Definitions', () => {
     expect(contextLocations).toEqual(['turn', 'step'])
   })
 
+  it('closes a fold run at a user prompt admitted inside a Step', () => {
+    const steering = textMessage('steer-1', 'change direction')
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', textMessage('user-1', 'question'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/live-chunk', {
+        turn: 1,
+        step: 1,
+        chunk: { type: 'tool-call-delta', index: 0, id: 'call-1', name: 'read', argumentsDelta: '{}' },
+      }),
+      at(5, 'tool/call', {
+        turn: 1, step: 1, callId: 'call-1', name: 'read', arguments: '{}',
+      }),
+      at(6, 'step/end', { turn: 1, step: 1 }),
+      at(7, 'step/start', { turn: 1, step: 2 }),
+      at(8, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, inserted: [steering],
+      }),
+      at(9, 'agent/inbox/spliced', {
+        target: 'next-step', start: 0, removedCount: 1, inserted: [],
+      }),
+      at(10, 'user/message', steering, { surfaceOp: 'append' }),
+      at(11, 'assistant/live-chunk', {
+        turn: 1, step: 2, chunk: { type: 'reasoning-delta', index: 0, text: 'rethinking' },
+      }),
+      at(12, 'step/end', { turn: 1, step: 2 }),
+      at(13, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ])
+    const snap = snapshot(value)
+    // The prompt stands between two message-less Steps; without the split
+    // they would share one fold whose disclosure hid step 2's work above the
+    // reader's latest message.
+    expect(foldFor(snap, 1, 1)).toMatchObject({
+      step: 1, endStep: 1, startSeq: 3, members: 1, toolCalls: 1, thoughts: 0, running: false,
+    })
+    expect(foldFor(snap, 1, 2)).toMatchObject({
+      step: 2, endStep: 2, startSeq: 7, members: 1, toolCalls: 0, thoughts: 1, running: false,
+    })
+  })
+
+  it('closes a fold run at a turn-scoped prompt by log seq', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', textMessage('user-1', 'question'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/live-chunk', {
+        turn: 1,
+        step: 1,
+        chunk: { type: 'tool-call-delta', index: 0, id: 'call-1', name: 'read', argumentsDelta: '{}' },
+      }),
+      at(5, 'tool/call', {
+        turn: 1, step: 1, callId: 'call-1', name: 'read', arguments: '{}',
+      }),
+      at(6, 'step/end', { turn: 1, step: 1 }),
+      // A spliced submission carries turn coordinates only; its log seq
+      // sits between the two Steps' events.
+      at(7, 'user/message', textMessage('user-2', 'follow-up'), { surfaceOp: 'append' }),
+      at(8, 'step/start', { turn: 1, step: 2 }),
+      at(9, 'assistant/live-chunk', {
+        turn: 1, step: 2, chunk: { type: 'reasoning-delta', index: 0, text: 'rethinking' },
+      }),
+      at(10, 'step/end', { turn: 1, step: 2 }),
+      at(11, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ])
+    const snap = snapshot(value)
+    expect(foldFor(snap, 1, 1)).toMatchObject({
+      step: 1, endStep: 1, startSeq: 3, members: 1, toolCalls: 1, thoughts: 0, running: false,
+    })
+    expect(foldFor(snap, 1, 2)).toMatchObject({
+      step: 2, endStep: 2, startSeq: 8, members: 1, toolCalls: 0, thoughts: 1, running: false,
+    })
+  })
+
+  it('rides the fold disclosure on a prompt logged inside the run head', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', {
+        ...textMessage('context-1', 'runtime context'),
+        source: { kind: 'plugin', plugin: 'context' },
+      }, { surfaceOp: 'append' }),
+      // The answering Step opens before the spliced submission is logged —
+      // the live envelope order for every initiated turn.
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'user/message', textMessage('user-1', 'question'), { surfaceOp: 'append' }),
+      at(5, 'assistant/live-chunk', {
+        turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'thinking' },
+      }),
+      at(6, 'step/end', { turn: 1, step: 1 }),
+      at(7, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ])
+    const snap = snapshot(value)
+    // Rows keep log order: opener, then the prompt inside the span.
+    expect(kindsOf(snap).slice(0, 3)).toEqual(['context', 'assistant-step-start', 'user'])
+    // The fold's disclosure rides the prompt row, not the opener above it.
+    const promptKey = [...snap.nodes.values()].find(candidate => candidate.kind === 'user')?.key
+    expect(foldFor(snap, 1, 1)).toMatchObject({
+      step: 1, members: 1, disclosureKey: promptKey, running: false,
+    })
+  })
+
+  it('keeps the disclosure on the opener when no prompt landed inside the run', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'user/message', textMessage('user-1', 'question'), { surfaceOp: 'append' }),
+      at(3, 'step/start', { turn: 1, step: 1 }),
+      at(4, 'assistant/live-chunk', {
+        turn: 1, step: 1, chunk: { type: 'reasoning-delta', index: 0, text: 'a' },
+      }),
+      at(5, 'step/end', { turn: 1, step: 1 }),
+      at(6, 'user/message', textMessage('user-2', 'follow-up'), { surfaceOp: 'append' }),
+      at(7, 'step/start', { turn: 1, step: 2 }),
+      at(8, 'assistant/live-chunk', {
+        turn: 1, step: 2, chunk: { type: 'reasoning-delta', index: 0, text: 'b' },
+      }),
+      at(9, 'step/end', { turn: 1, step: 2 }),
+      at(10, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+    ])
+    const snap = snapshot(value)
+    const kinds = kindsOf(snap)
+    expect(kinds.slice(0, 5)).toEqual([
+      'user', 'assistant-step-start', 'assistant-step-reason', 'assistant-step-end', 'user',
+    ])
+    // The gap prompt splits the run; the first fold's disclosure stays on
+    // its opener (the prompt is outside the head span's event window).
+    const openers = [...snap.nodes.values()].filter(candidate => candidate.kind === 'assistant-step-start')
+    expect(foldFor(snap, 1, 1)?.disclosureKey).toBe(openers[0]?.key)
+    expect(foldFor(snap, 1, 2)?.disclosureKey).toBe(openers[1]?.key)
+  })
+
   it('orders the opening rows by anchor with span boundaries at their events', () => {
     const steering = textMessage('steer-1', 'change direction')
     const value = assembler([

@@ -14,7 +14,7 @@ import {
   localizeTerminalCardModel, terminalCardModel, terminalFailed,
 } from '../src/client/tool/models/terminal-card-model.ts'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
-import { BashRow } from '../src/client/tool/toolviews/bash-sample.tsx'
+import { BashRow } from '../src/client/tool/toolviews/bash-row.tsx'
 import { en, zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 
 type BashRowProps = Parameters<typeof BashRow>[0]

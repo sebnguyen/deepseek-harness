@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "DeepSeek Harness",
-  "short_name": "DSH",
+  "name": "DigitalOcean Harness",
+  "short_name": "DO Harness",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",

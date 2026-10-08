@@ -196,8 +196,7 @@ function blockText(block: ContentBlock): string {
     case 'reasoning': return block.text
     case 'tool-call': return `${block.name}(${block.arguments})`
     case 'tool-result': return block.content.map(blockText).join('\n')
-    case 'image': return '[image]'
-    case 'file': return '[file]'
+    // image/file keep no dedicated arm: the bracketed-type default renders them byte-identically.
     default: return `[${(block as { type: string }).type}]`
   }
 }

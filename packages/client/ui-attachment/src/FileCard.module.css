@@ -14,7 +14,7 @@
 }
 
 .failed {
-  border-color: var(--dsw-alias-state-error-primary, #d54941);
+  border-color: var(--dsw-alias-state-error-primary, #b91c1c);
 }
 
 .icon {
@@ -29,15 +29,7 @@
 .spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid currentColor;
-  border-top-color: transparent;
-  border-radius: 50%;
-  corner-shape: round;
-  animation: file-card-spin 0.8s linear infinite;
-}
-
-@keyframes file-card-spin {
-  to { transform: rotate(360deg); }
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .body {
@@ -78,7 +70,7 @@
 }
 
 .metaFailed {
-  color: var(--dsw-alias-state-error-primary, #d54941);
+  color: var(--dsw-alias-state-error-primary, #b91c1c);
 }
 
 .remove {
@@ -124,7 +116,7 @@
 }
 
 .removeFailed {
-  background: var(--dsw-alias-state-error-primary, #d54941);
+  background: var(--dsw-alias-state-error-primary, #b91c1c);
   color: #fff;
   opacity: 1;
 }

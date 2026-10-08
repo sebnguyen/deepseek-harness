@@ -1,8 +1,8 @@
 /**
  * Checkpoint vocabulary for the workspace snapshot timeline. Rows are records:
- * one `checkpoint/scan` row per observed per-file change, attributed to the
- * tool call whose bracket scan captured it. File state at any stop is a query
- * over rows; content lives in the local blob store keyed by sha256 digest.
+ * one `checkpoint/scan` row per file a committed write handed over, attributed
+ * to that call. File state at any stop is a query over rows; content lives in
+ * the local blob store keyed by sha256 digest.
  * @module dsh-checkpoint/types
  */
 
@@ -12,22 +12,21 @@ import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 export type SnapshotDigest = string & { readonly __snapshotDigest: never }
 
 /**
- * One observed workspace file change attributed to a checkpoint interval.
- * `after` is the post-state digest the blob store must retain; `before` is the
- * prior row's after-digest for the same path where the chain holds, omitted on
- * a first-appearance or gap-marked row.
+ * One file a committed write handed to capture. `after` is the digest of the
+ * text the write committed; `before` is the digest of the prior text the write
+ * held, omitted when that text was null.
  */
 export interface CheckpointRow {
   /** Session-relative path, slash-separated. */
   readonly path: string
-  /** The tool call whose bracket scan captured this change; join `tool/call` for turn/step. */
+  /** The write call that committed this file; join `tool/call` for turn/step. */
   readonly callId: ToolCallId
   readonly toolName: string
   /** The captured `tool/call.purpose` line, when the call carried one. */
   readonly purpose?: string
-  /** Prior after-digest for this path; omitted when the file first appears. */
+  /** Digest of the prior text; omitted when the write supplied no before text. */
   readonly before?: SnapshotDigest
-  /** Post-state digest retained in the blob store; omitted when the file left the workspace. */
+  /** Digest of the committed text, retained in the blob store. */
   readonly after?: SnapshotDigest
   /** True when this scan cannot vouch for continuity from the prior row. */
   readonly gap?: true
@@ -36,10 +35,10 @@ export interface CheckpointRow {
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
-     * One pruned workspace rescan after a mutating tool call: the rows are the
-     * per-file changes the scan attributed to that call. Rows are records only;
-     * state at a stop and the per-file timeline are projections over rows.
-     * @param rows - changed files since the previous scan, in path order.
+     * One committed write's files: each row is a file whose before and after
+     * text the write handed to capture. Rows are records only; state at a stop
+     * and the per-file timeline are projections over rows.
+     * @param rows - files that write committed, in the order capture recorded them.
      */
     'checkpoint/scan': { rows: CheckpointRow[] }
   }

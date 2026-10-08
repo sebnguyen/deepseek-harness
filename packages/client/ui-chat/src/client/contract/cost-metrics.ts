@@ -1,8 +1,12 @@
-// Cost metrics shared by the composer spend pill and the token
+// Cost metrics shared compositor for the spend pill and the token
 // efficiency window: both surfaces must print the same figures from one
 // fold, so the blended rate, the per-model sort, and the cross-session
 // reading/ordering folds ride this package's shared API instead of two
-// copies.
+// copies. The efficiency window's comparison columns divide every row's
+// blended rate by three whole-table anchors — the median family rate,
+// the pooled micros-over-tokens rate, and the maximum family rate — and
+// its mix bar splits one fold's billed tokens over the four buckets the
+// providers bill.
 
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { CostModelSpend, SessionCostProjection } from '@deepseek-ai/dsh-session-stats/client'
@@ -41,11 +45,55 @@ export function sortedSpendEntries(merged: Record<string, CostModelSpend>): Arra
       || leftModel.localeCompare(rightModel))
 }
 
-/** The fold's own prompt-side buckets, kept for family pooling. */
-export interface PromptBuckets {
+/** The four billed token buckets of one fold, in mix-bar order. */
+export interface MixBuckets {
   uncached: number
   cacheRead: number
   cacheWrite: number
+  output: number
+}
+
+/**
+ * Integer percents of one fold's billed total per bucket, rounded
+ * independently for display; null when nothing billed so the row renders
+ * an empty track instead of dividing by zero.
+ * @param mix - the fold's four buckets.
+ * @param totalTokens - their sum.
+ * @returns [uncached, cacheRead, cacheWrite, output] percents, or null.
+ */
+export function mixPercents(mix: MixBuckets, totalTokens: number): [number, number, number, number] | null {
+  if (totalTokens === 0) return null
+  return [
+    Math.round((mix.uncached / totalTokens) * 100),
+    Math.round((mix.cacheRead / totalTokens) * 100),
+    Math.round((mix.cacheWrite / totalTokens) * 100),
+    Math.round((mix.output / totalTokens) * 100),
+  ]
+}
+
+/**
+ * Display precision for one rate-over-anchor multiple: whole above 10,
+ * one decimal below, so the chips read ×0.3 / ×1.4 / ×11.
+ * @param multiple - the raw rate quotient.
+ * @returns the display digits without the × sign.
+ */
+export function formatMultiple(multiple: number): string {
+  return multiple >= 10
+    ? String(Math.round(multiple))
+    : String(Math.round(multiple * 10) / 10)
+}
+
+/** The chip hue band for one multiple of an anchor. */
+export type MultipleBand = 'good' | 'near' | 'high'
+
+/**
+ * Band one rate-over-anchor multiple: under 1 cheaper than the anchor,
+ * under 2 near it, beyond pricier.
+ * @param multiple - the raw rate quotient.
+ * @returns the band the chip is colored by.
+ */
+export function multipleBand(multiple: number): MultipleBand {
+  return multiple < 1 ? 'good' : multiple < 2 ? 'near' : 'high'
 }
 
 /** One priced session pre-shaped for the efficiency table. */
@@ -66,7 +114,8 @@ export interface EfficiencyReading {
   models: number
   /** Per-model spend rows, most expensive first. */
   spendEntries: ReadonlyArray<[string, CostModelSpend]>
-  promptBuckets: PromptBuckets
+  /** The fold's own billed buckets, in mix-bar order. */
+  mix: MixBuckets
 }
 
 /**
@@ -91,10 +140,11 @@ export function efficiencyReading(id: string, row: SessionSummary, cost: Session
     cacheHit: formatCacheHitPercent(cost.cacheReadTokens, promptTokens),
     models: spendEntries.filter(([, spend]) => spendTokens(spend) > 0).length,
     spendEntries,
-    promptBuckets: {
+    mix: {
       uncached: cost.uncachedInputTokens,
       cacheRead: cost.cacheReadTokens,
       cacheWrite: cost.cacheWriteTokens,
+      output: cost.outputTokens,
     },
   }
 }
@@ -109,6 +159,8 @@ export interface FamilyRollup {
   cacheHit: string | null
   /** Pooled per-model spend, most expensive first. */
   entries: ReadonlyArray<[string, CostModelSpend]>
+  /** The family's billed buckets, in mix-bar order. */
+  mix: MixBuckets
 }
 
 /** An efficiency reading annotated with its indent and family rollup. */
@@ -129,6 +181,7 @@ interface RawRollup {
   uncached: number
   cacheRead: number
   cacheWrite: number
+  output: number
   perModel: Record<string, CostModelSpend>
 }
 
@@ -141,15 +194,16 @@ interface RawRollup {
  */
 function addModelSpend(acc: RawRollup, model: string, spend: CostModelSpend): void {
   const prior = acc.perModel[model]
-  acc.perModel[model] = prior === undefined
-    ? { ...spend }
-    : {
+  if (prior === undefined) acc.perModel[model] = { ...spend }
+  else {
+    acc.perModel[model] = {
       uncachedInputTokens: prior.uncachedInputTokens + spend.uncachedInputTokens,
       outputTokens: prior.outputTokens + spend.outputTokens,
       cacheReadTokens: prior.cacheReadTokens + spend.cacheReadTokens,
       cacheWriteTokens: prior.cacheWriteTokens + spend.cacheWriteTokens,
       costMicros: prior.costMicros + spend.costMicros,
     }
+  }
 }
 
 /**
@@ -160,9 +214,10 @@ function addModelSpend(acc: RawRollup, model: string, spend: CostModelSpend): vo
 function addToRollup(acc: RawRollup, reading: EfficiencyReading): void {
   acc.micros += reading.costMicros
   acc.tokens += reading.tokens
-  acc.uncached += reading.promptBuckets.uncached
-  acc.cacheRead += reading.promptBuckets.cacheRead
-  acc.cacheWrite += reading.promptBuckets.cacheWrite
+  acc.uncached += reading.mix.uncached
+  acc.cacheRead += reading.mix.cacheRead
+  acc.cacheWrite += reading.mix.cacheWrite
+  acc.output += reading.mix.output
   for (const [model, spend] of reading.spendEntries) addModelSpend(acc, model, spend)
 }
 
@@ -177,6 +232,7 @@ function mergeRollup(acc: RawRollup, child: RawRollup): void {
   acc.uncached += child.uncached
   acc.cacheRead += child.cacheRead
   acc.cacheWrite += child.cacheWrite
+  acc.output += child.output
   for (const [model, spend] of Object.entries(child.perModel)) addModelSpend(acc, model, spend)
 }
 
@@ -185,7 +241,7 @@ function mergeRollup(acc: RawRollup, child: RawRollup): void {
  * latest-updated first (the session pools its subagents), each root
  * followed depth-first by its descendant subtree, likewise latest-first,
  * whose rows detail their own folds; depths annotating the indent. Every root carries its family
- * rollup — models, spend, rate, and cache hit over root plus subagents.
+ * rollup — models, spend, rate, mix, and cache hit over root plus subagents.
  * A parent chain that cycles or names an absent parent places its
  * orphaned rows as roots at the end instead of looping.
  * @param readings - one reading per priced sessions-list row.
@@ -210,7 +266,7 @@ export function orderEfficiencyReadings(readings: readonly EfficiencyReading[]):
     if (cached !== undefined) return cached
     // Prime the memo before folding children so a parent cycle re-enters
     // this function and cuts at the empty accumulator instead of looping.
-    const acc: RawRollup = { micros: 0, tokens: 0, uncached: 0, cacheRead: 0, cacheWrite: 0, perModel: {} }
+    const acc: RawRollup = { micros: 0, tokens: 0, uncached: 0, cacheRead: 0, cacheWrite: 0, output: 0, perModel: {} }
     rawRollups.set(reading.id, acc)
     addToRollup(acc, reading)
     for (const kid of children.get(reading.id) ?? []) mergeRollup(acc, rollupOf(kid))
@@ -227,6 +283,7 @@ export function orderEfficiencyReadings(readings: readonly EfficiencyReading[]):
       models: entries.filter(([, spend]) => spendTokens(spend) > 0).length,
       cacheHit: formatCacheHitPercent(raw.cacheRead, promptTokens),
       entries,
+      mix: { uncached: raw.uncached, cacheRead: raw.cacheRead, cacheWrite: raw.cacheWrite, output: raw.output },
     }
   }
   const ordered: IndentedReading[] = []
@@ -249,12 +306,7 @@ export function orderEfficiencyReadings(readings: readonly EfficiencyReading[]):
   return ordered
 }
 
-/** The rate a row displays: its family rollup on roots, its own fold below. */
-export function displayedRate(row: IndentedReading): number | null {
-  return row.family !== null ? row.family.rate : row.rateMicros
-}
-
-/** One model-count group's pooled micros and tokens plus the pooled rate. */
+/** The pooled micros and tokens plus the pooled rate. */
 export interface PooledRate {
   micros: number
   tokens: number
@@ -262,31 +314,51 @@ export interface PooledRate {
   sessions: number
 }
 
-/**
- * Pool the ladder roots by session-family model count (1 vs 2+): family
- * micros and tokens summed per group and divided once — pooling is the
- * honest aggregate, never an average of per-session rates. A session sits
- * in the mixed group when its family — the root plus its subagent tree —
- * logged two or more models.
- * @param ordered - the ordered readings; roots carry their family rollup.
- * @returns each non-empty group's pool plus the priced root count.
- */
-export function pooledRates(ordered: readonly IndentedReading[]): {
-  single: PooledRate | null
-  multi: PooledRate | null
+/** The whole-table anchors the comparison chips divide against. */
+export interface EfficiencyAnchors {
+  /** Every priced session's family pooled as one, divided once. */
+  average: PooledRate | null
+  /** The middle root-family rate; the mean of the middle two on an even count. */
+  median: number | null
+  /** The highest root-family rate; that row's max chip reads ×1. */
+  max: number | null
+  /** Priced root count. */
   priced: number
-} {
+}
+
+/**
+ * Read one index of the sorted family rate list; callers index inside
+ * the non-empty guard above, so the fallback never runs.
+ * @param rates - sorted non-empty root family rates.
+ * @param index - position to read.
+ * @returns the rate at that position.
+ */
+function ratedAt(rates: number[], index: number): number {
+  /* v8 ignore next -- ?? arm: every call indexes inside the non-empty rates guard. */
+  return rates[index] ?? 0
+}
+
+/**
+ * Anchor the table on three whole-table figures over the root families:
+ * the pooled micros over tokens (the money average), the median family
+ * rate (one expensive session cannot drag it), and the maximum family
+ * rate (the worst chat, against which every other row reads as headroom).
+ * @param ordered - the ordered readings; roots carry their family rollup.
+ * @returns the anchors and the priced root count.
+ */
+export function efficiencyAnchors(ordered: readonly IndentedReading[]): EfficiencyAnchors {
   const families = ordered.flatMap(row => row.family === null ? [] : [row.family])
-  const pool = (members: readonly FamilyRollup[]): PooledRate => {
-    const micros = members.reduce((sum, f) => sum + f.micros, 0)
-    const tokens = members.reduce((sum, f) => sum + f.tokens, 0)
-    return { micros, tokens, rate: perMillionMicros(micros, tokens), sessions: members.length }
-  }
-  const single = families.filter(f => f.models <= 1)
-  const multi = families.filter(f => f.models >= 2)
+  const micros = families.reduce((sum, f) => sum + f.micros, 0)
+  const tokens = families.reduce((sum, f) => sum + f.tokens, 0)
+  if (families.length === 0) return { average: null, median: null, max: null, priced: 0 }
+  const rates = families.flatMap(f => f.rate === null ? [] : [f.rate]).sort((a, b) => a - b)
+  const mid = Math.floor(rates.length / 2)
+  const upper = ratedAt(rates, mid)
+  const lower = rates.length % 2 === 1 ? upper : ratedAt(rates, mid - 1)
   return {
-    single: single.length > 0 ? pool(single) : null,
-    multi: multi.length > 0 ? pool(multi) : null,
+    average: { micros, tokens, rate: perMillionMicros(micros, tokens), sessions: families.length },
+    median: rates.length % 2 === 1 ? upper : (lower + upper) / 2,
+    max: ratedAt(rates, rates.length - 1),
     priced: families.length,
   }
 }

@@ -315,14 +315,14 @@
 .hoverPath {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: #c5cdcd;
   word-break: break-all;
 }
 
 .hoverTime {
   font-size: 12px;
   line-height: 16px;
-  color: #CFD3D6;
+  color: #c5cdcd;
 }
 
 .hoverStatus {
@@ -331,7 +331,7 @@
   gap: 8px;
   font-size: 12px;
   line-height: 20px;
-  color: #ADB2B8;
+  color: #919f9e;
 }
 
 .iconButton {
@@ -353,8 +353,8 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Chevrons ride the caption grey (#ADB2B8); the folder glyph stays one step
-   darker (tertiary, #81858C) per the cell spec. */
+/* Chevrons ride the caption grey (#919f9e); the folder glyph stays one step
+   darker (tertiary, #5d6c6c) per the cell spec. */
 .chevron {
   color: var(--dsw-alias-label-caption);
 }

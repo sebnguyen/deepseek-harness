@@ -1,6 +1,6 @@
 .icon {
-  /* The design platform has no violet token matching the supplied image/video artwork. */
-  --dsh-file-type-violet: rgb(139, 118, 246);
+  /* No --dsw-* token carries the DigitalOcean violet the supplied image/video artwork uses. */
+  --dsh-file-type-violet: rgb(177, 126, 164);
 
   color: var(--dsh-file-type-icon-color, var(--dsh-file-type-default-color));
 }

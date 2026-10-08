@@ -192,7 +192,7 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
 
     await page.getByRole('button', { name: /^(?:New session|新.*会话)$/ }).last().click()
-    await page.getByText('Into the Unknown', { exact: false }).waitFor({ timeout: 15_000 })
+    await page.locator('div[data-phase="hero"]').getByText('DigitalOcean Harness', { exact: false }).waitFor({ timeout: 15_000 })
     await expect.poll(() => detailsTrack(page), { timeout: 5_000 }).toBe(normalWidth)
     expect(await page.getByText('Details', { exact: true }).isVisible()).toBe(false)
 

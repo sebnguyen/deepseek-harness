@@ -10,7 +10,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
 import { ToolRow } from '../src/client/tool/components/ToolRow.tsx'
-import { BashRow } from '../src/client/tool/toolviews/bash-sample.tsx'
+import { BashRow } from '../src/client/tool/toolviews/bash-row.tsx'
 import { zh } from '@deepseek-ai/dsh-client-ui-conversation/src/client/locales.ts'
 
 type BashRowProps = Parameters<typeof BashRow>[0]

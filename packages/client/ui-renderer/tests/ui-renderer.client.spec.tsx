@@ -68,7 +68,7 @@ describe('UI renderer plugin', () => {
     const { ctx, slots } = await bench()
     slots.register({ name: 'root' }, () => <div data-testid="root-probe" />)
     const el = container()
-    el.innerHTML = '<div class="boot" data-dsh-boot=""><div><div class="spinner" data-dsh-boot-spinner="" style="--dsh-boot-arc: 180deg"></div><div>Loading plugins…</div></div></div>'
+    el.innerHTML = '<div class="boot" data-dsh-boot=""><div><div class="spinner" data-dsh-boot-spinner="" style="--dsh-boot-arc: 180deg"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><g opacity="0.22" class="dsh-pl"><rect x="10.15" y="0.15" width="0.7" height="0.7"/></g></svg></div><div>Loading plugins…</div></div></div>'
     const boot = el.firstElementChild
     const observer = new MutationObserver(() => {})
     observer.observe(el, { childList: true, subtree: true })

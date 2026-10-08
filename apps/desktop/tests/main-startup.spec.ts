@@ -22,6 +22,7 @@ const harness = await vi.hoisted(async () => {
   let quitCompleted = deferred()
   class FakeWindow extends EventEmitter {
     destroyed = false
+    readonly options: { show: boolean; icon?: unknown }
     readonly urls: string[] = []
     readonly webContents = Object.assign(new EventEmitter(), {
       setWindowOpenHandler: vi.fn(),
@@ -34,7 +35,11 @@ const harness = await vi.hoisted(async () => {
     readonly show = vi.fn()
     readonly focus = vi.fn()
     readonly restore = vi.fn()
-    constructor(readonly options: { show: boolean }) { super(); windows.push(this) }
+    constructor(options: { show: boolean; icon?: unknown }) {
+      super()
+      this.options = options
+      windows.push(this)
+    }
     isDestroyed() { return this.destroyed }
     isMinimized() { return false }
     async loadURL(url: string) {
@@ -102,6 +107,7 @@ vi.mock('electron', () => ({
     handle: (channel: string, handler: (event: { senderFrame: { url: string } }) => unknown) => { harness.handlers.set(channel, handler) },
   },
   Menu: { setApplicationMenu: vi.fn(), buildFromTemplate: vi.fn() },
+  nativeImage: { createFromPath: vi.fn(() => ({ isEmpty: () => false })) },
   protocol: { registerSchemesAsPrivileged: vi.fn(), handle: vi.fn() },
 }))
 vi.mock('../src/paths.ts', () => ({ resolveDesktopPaths: () => ({ profile: 'desktop-test-profile' }) }))
@@ -175,6 +181,8 @@ describe('desktop main startup', () => {
     await harness.errorPublished.promise
     expect(invoke(DESKTOP_IPC.backendStatus)).toMatchObject({ phase: 'error', profileRecovery: false })
     const window = harness.windows[0]!
+    // The shell wires the DigitalOcean application icon into every window.
+    expect(window.options.icon).toBeDefined()
     window.webContents.emit('preload-error', {}, 'preload-app.cjs', new Error('preload unavailable'))
     const html = decodeURIComponent(window.urls.at(-1)!)
     expect(html).toContain('dsh-recovery://restart')

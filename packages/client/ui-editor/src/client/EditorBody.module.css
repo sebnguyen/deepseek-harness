@@ -66,6 +66,29 @@
   white-space: normal;
 }
 
+/* The sandboxed rendered HTML display; the framed page owns its own colors. */
+.previewFrame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.frame {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+/* The Changes display: a frozen CodeMirror merge view owns its scrollport. */
+.changesHost {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+}
+
 /* The status row: the display-mode control, the status line, and the save
    actions, all on the panel tone so the code view above reads as the page. */
 .footer {

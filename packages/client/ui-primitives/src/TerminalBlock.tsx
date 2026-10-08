@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { parseAnsiLines, type AnsiLine } from './ansi.ts'
 import { headTailCap } from './head-tail-cap.ts'
@@ -54,6 +54,12 @@ export interface TerminalBlockProps {
   exitCode?: number | undefined
   /** Settled terminating signal name; any value renders the status pill, taking precedence over the exit code. */
   signal?: string | undefined
+  /**
+   * Trailing banner chrome the owner slots between the status pill and the copy
+   * control — per-card facts the call already knows, such as one batch frame's
+   * elapsed time. Rendered verbatim; the owner localizes its own copy.
+   */
+  accessory?: ReactNode | undefined
   /** The command is still running: the block shows the prompt line alone. */
   running?: boolean | undefined
   /** Height cap in output lines before the middle collapses (default {@link DEFAULT_TERMINAL_MAX_LINES}); Infinity disables the cap. */
@@ -150,6 +156,7 @@ export function TerminalBlock({
   output,
   exitCode,
   signal,
+  accessory,
   running = false,
   maxLines = DEFAULT_TERMINAL_MAX_LINES,
   className,
@@ -221,6 +228,7 @@ export function TerminalBlock({
           ))}
         </div>
         {status !== undefined && <Pill className={css.status}>{status}</Pill>}
+        {accessory !== undefined && <span className={css.accessory}>{accessory}</span>}
         {!running && !empty && (
           <button type="button" className={css.copyButton} onClick={onCopy}>
             {copied ? copy.copied : copy.copy}

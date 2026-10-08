@@ -12,6 +12,7 @@
     "**/.doc-typecheck-*/**",
     "**/.node-next-types-*/**",
     "website/.generated/**",
+    "packages/client/ui-primitives/src/pixel-loader/generated.ts", // Regenerated minified sweep tables; design/pixel-do-loader-gen.mjs owns their formatting.
     "vendor/**",
     "native/**",
     "**/*.js",

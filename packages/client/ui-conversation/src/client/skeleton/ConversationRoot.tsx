@@ -34,14 +34,42 @@ function readWidthPreference(): number | null {
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
+/** Readable paragraph measure: 55 characters, a comfortable value inside
+ * the 45–75 characters-per-line band typography guidance keeps body text
+ * within, at the content face's 0.56em average advance (55 × 0.56 ≈ 30.8,
+ * mirroring the CSS axis `--dsh-chat-readable-cap`).
+ * Font-derived on purpose: font size and width are both CSS px, so the
+ * measure holds its character count at any browser zoom and rides the
+ * Settings font-size axis.
+ * @param fontSizePx - the content font-size setting in px.
+ * @returns the readable content width in px. */
+function readableContentCap(fontSizePx: number): number {
+  return Math.round(fontSizePx * 30.8)
+}
+
+/** The content font-size setting ui-theme publishes as a body inline
+ * variable; the theme default when no preference has been written.
+ * @returns the content font size in px. */
+function contentFontSizePx(): number {
+  const raw = document.body.style.getPropertyValue('--dsh-content-font-size').trim()
+  const parsed = Number.parseFloat(raw)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 14
+}
+
 /** Resolves the content width the CSS axis would show for a column width.
+ * A dragged preference is bounded only by the geometry — the layout
+ * column minimum and the width-handle budget — never by the measure: an
+ * explicit choice outranks the rule. Without one the default is the
+ * smaller of the adaptive 64% column share and the readable measure.
  * @param columnWidth - the conversation column's rendered width in px.
- * @param preference - the dragged preference, or null for the adaptive clamp.
- * @returns the resolved content width in px (mirrors the CSS clamp). */
-function resolveContentWidth(columnWidth: number, preference: number | null): number {
-  const max = Math.max(CONTENT_MIN, columnWidth - CONTENT_EDGE_BUDGET)
-  if (preference !== null) return Math.min(Math.max(preference, CONTENT_MIN), max)
-  return Math.max(680, Math.min(columnWidth * 0.64, 920))
+ * @param preference - the dragged preference, or null for the adaptive default.
+ * @param cap - the readable measure from {@link readableContentCap}.
+ * @returns the resolved content width in px (mirrors the CSS axis). */
+function resolveContentWidth(columnWidth: number, preference: number | null, cap: number): number {
+  const floor = Math.min(CONTENT_MIN, cap)
+  const max = Math.max(floor, columnWidth - CONTENT_EDGE_BUDGET)
+  if (preference !== null) return Math.min(Math.max(preference, floor), max)
+  return Math.min(columnWidth * 0.64, cap)
 }
 
 /** One transcript width handle: pointer capture + rAF-throttled symmetric
@@ -186,7 +214,8 @@ export function ConversationRoot({
     if (preference === null) {
       root.style.removeProperty('--dsh-chat-user-width')
     } else {
-      root.style.setProperty('--dsh-chat-user-width', `${resolveContentWidth(column, preference)}px`)
+      const width = resolveContentWidth(column, preference, readableContentCap(contentFontSizePx()))
+      root.style.setProperty('--dsh-chat-user-width', `${width}px`)
     }
   }, [])
   const rootResizeRef = useCallback((root: HTMLDivElement | null): void => {
@@ -208,21 +237,22 @@ export function ConversationRoot({
   const onHandleStart = useCallback((): number => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
-    if (root === null) return 680
-    return resolveContentWidth(root.offsetWidth, readWidthPreference())
+    if (root === null) return readableContentCap(contentFontSizePx())
+    return resolveContentWidth(root.offsetWidth, readWidthPreference(), readableContentCap(contentFontSizePx()))
   }, [])
   const onHandleDrag = useCallback((width: number): void => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
     if (root === null) return
-    const clamped = resolveContentWidth(root.offsetWidth, width)
+    const clamped = resolveContentWidth(root.offsetWidth, width, readableContentCap(contentFontSizePx()))
     root.style.setProperty('--dsh-chat-user-width', `${clamped}px`)
   }, [])
   const onHandleCommit = useCallback((width: number): void => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
     if (root === null) return
-    localStorage.setItem(WIDTH_PREF_KEY, `${resolveContentWidth(root.offsetWidth, width)}`)
+    const resolved = resolveContentWidth(root.offsetWidth, width, readableContentCap(contentFontSizePx()))
+    localStorage.setItem(WIDTH_PREF_KEY, `${resolved}`)
   }, [])
   const onHandleEnd = useCallback((): void => {
     const root = rootEl.current
@@ -340,7 +370,7 @@ export function ConversationRoot({
 
   const composerBar = (
     <div className={clsx(css.composerStack, hero && css.composerHero)}>
-      {hero && <HeroShell t={t} renderSlot={renderSlot} />}
+      {hero && <HeroShell t={t} />}
       {hero && heroWorkspaceRow}
       {zone !== undefined && renderSlot('conversation.input.dock', zone)}
       {inputBar}

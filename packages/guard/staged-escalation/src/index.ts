@@ -224,6 +224,14 @@ export function apply(ctx: Context, config: Config): void {
   validate(stages)
   /** The fold's tier is clamped to the ladder by construction, so every index below is in range. */
   const stageAt = (tier: number): Stage => stages[tier] as Stage
+  // Keyless snapshot replay re-executes a recorded run whose crossings are
+  // already spent: the replayed model emits the recorded act calls but never a
+  // fresh request_escalation, so the fold would park every replayed turn in the
+  // locked stage and deny the run's own effects. A replay process therefore
+  // floors the gate and the sandbox clamp at the top rung. The step-1 reminder
+  // stays on the raw fold: recorded runs carried it, so replays re-emit it.
+  const floor = process.env.DSH_SNAPSHOT === 'replay' || process.env.DSH_SNAPSHOT === 'refresh' ? stages.length - 1 : 0
+  const at = (session: Session): number => Math.max(currentStage(stages, session), floor)
 
   ctx.on('tools/pre-execute', async (exec, next) => {
     if (exec.agent === undefined) return next()
@@ -233,7 +241,7 @@ export function apply(ctx: Context, config: Config): void {
     // escalation tool itself is the crossing the ladder demands; gating it
     // would make the border uncrossable by design.
     if (exec.name === STRUCTURED_OUTPUT_TOOL || exec.name === 'request_escalation') return next()
-    const current = currentStage(stages, exec.agent.session)
+    const current = at(exec.agent.session)
     if (stageOfTool(stages, exec.name) <= current) return next()
     return { kind: 'deny', reason: denyReason(stageAt(current).name) }
   })
@@ -256,7 +264,7 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('sandbox-policy/resolve', async (_standing, session, next) => {
     const resolved = await next()
     if (session === undefined) return resolved
-    const stageMode = stageAt(currentStage(stages, session)).sandbox
+    const stageMode = stageAt(at(session)).sandbox
     return MODE_RANK[stageMode] < MODE_RANK[resolved.mode] ? { ...resolved, mode: stageMode } : resolved
   })
 
@@ -267,7 +275,7 @@ export function apply(ctx: Context, config: Config): void {
     // crossing stays a visible request_escalation call.
     const mode = BASH_ESCALATION_MODE.exec(req.reason ?? '')?.[1] as SandboxMode | undefined
     if (mode === undefined) return next()
-    const stageMode = stageAt(currentStage(stages, req.agent.session)).sandbox
+    const stageMode = stageAt(at(req.agent.session)).sandbox
     return MODE_RANK[stageMode] >= MODE_RANK[mode] ? 'allowed-once' : next()
   })
 

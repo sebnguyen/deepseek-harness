@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import * as modulesClient from '@deepseek-ai/dsh-client-modules/client'
 import type {
   ClientBundleRegistration, ClientModuleCreateOptions, ClientModuleLoaderTarget, DshWindow,
@@ -7,6 +7,7 @@ import type {
 } from '@deepseek-ai/dsh-client-modules/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppWebEntry } from '../src/boot.ts'
+import { awaitDataReady } from '../src/data-ready.ts'
 
 const MODULES_ID = '@deepseek-ai/dsh-client-modules'
 const PROVIDER_CLIENT_ID = 'provider/client'
@@ -216,5 +217,128 @@ describe('plugin activation', () => {
     expect(events).toEqual(['consumer', 'mount'])
     expect(container.textContent).toBe('mounted')
     await entry.dispose()
+  })
+
+  it('defers the renderer handoff until the session list baseline lands', async () => {
+    const events: string[] = []
+    const container = document.createElement('div')
+    document.body.append(container)
+    const target = installFacade()
+    const listeners = new Set<() => void>()
+    let listSnapshot: { phase: string } = { phase: 'pending' }
+    const entries: WebBootEntry[] = [
+      { id: 'sessions', url: '/sessions.js', rev: '1' },
+      { id: 'renderer', url: '/renderer.js', rev: '1' },
+    ]
+    win.__DSH_BOOT__ = {
+      rev: 'graph',
+      entries,
+      batches: [{ phase: 'application', url: '/application.js', rev: 'batch', entries: entries.map(row => row.id) }],
+    }
+    const registrations = new Map<string, ClientBundleRegistration>([
+      ['/sessions.js', {
+        id: 'sessions',
+        factory: () => ({
+          apply: (ctx: Context) => {
+            ctx.reflect.provide('sessions', {
+              list: {
+                getSnapshot: () => listSnapshot,
+                subscribe: (listener: () => void) => {
+                  listeners.add(listener)
+                  return () => { listeners.delete(listener) }
+                },
+              },
+            })
+          },
+        }),
+      }],
+      ['/renderer.js', {
+        id: 'renderer',
+        factory: () => ({
+          apply: (ctx: Context) => {
+            ctx.reflect.provide('uiRenderer', {
+              mount: (element: HTMLElement) => {
+                events.push('mount')
+                element.textContent = 'mounted'
+                return () => {}
+              },
+            })
+          },
+        }),
+      }],
+    ])
+    const entry = new AppWebEntry(container, {
+      loadBundle: async (url) => {
+        if (url !== '/application.js') throw new Error(`missing fixture batch ${url}`)
+        for (const registration of registrations.values()) target.load(registration)
+      },
+    })
+    setTimeout(() => {
+      events.push('flip')
+      listSnapshot = { phase: 'ready' }
+      for (const listener of [...listeners]) listener()
+    }, 25)
+
+    await entry.run()
+
+    expect(events).toEqual(['flip', 'mount'])
+    expect(container.textContent).toBe('mounted')
+    await entry.dispose()
+  })
+})
+
+describe('host data-ready gate', () => {
+  function controllableSource(initial: unknown) {
+    const listeners = new Set<() => void>()
+    let snapshot = initial
+    return {
+      getSnapshot: () => snapshot,
+      subscribe: (listener: () => void) => {
+        listeners.add(listener)
+        return () => { listeners.delete(listener) }
+      },
+      set: (next: unknown) => {
+        snapshot = next
+        for (const listener of [...listeners]) listener()
+      },
+    }
+  }
+
+  it('resolves immediately when the boot graph provides none of the gated services', async () => {
+    const ctx = new Context()
+    await awaitDataReady(ctx)
+  })
+
+  it('waits for the connection outcome and both list baselines', async () => {
+    const ctx = new Context()
+    const connection = controllableSource('connecting')
+    const workspaces = controllableSource({ phase: 'pending' })
+    const sessions = controllableSource(undefined)
+    ctx.reflect.provide('connection', { state: connection })
+    ctx.reflect.provide('workspaces', { list: workspaces })
+    ctx.reflect.provide('sessions', { list: sessions })
+
+    let settled = false
+    const waiting = awaitDataReady(ctx).then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    sessions.set({ phase: 'ready' })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    workspaces.set({ phase: 'ready' })
+    await Promise.resolve()
+    expect(settled).toBe(false)
+    connection.set('connected')
+    await waiting
+    expect(settled).toBe(true)
+  })
+
+  it('releases a stuck Host after the timeout', async () => {
+    const ctx = new Context()
+    ctx.reflect.provide('sessions', { list: controllableSource({ phase: 'pending' }) })
+    await awaitDataReady(ctx, 20)
   })
 })

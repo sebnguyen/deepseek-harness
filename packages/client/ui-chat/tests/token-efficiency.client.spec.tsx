@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * The Efficiency rail entry and its token-efficiency window: pooled group
- * rates, fixed-column readings with bar-scale and per-model hovers, the
- * parent ladder, the unpriced empty state, and the rail/wide forms.
+ * The Efficiency rail entry and its redesigned token-efficiency window:
+ * anchor tiles (spend, median, pooled average, max), the token-mix bar,
+ * the rate column and the three anchored multiple columns, the parent
+ * ladder, the unpriced empty state, and the rail/wide forms.
  */
 import type { SessionSummary } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionCostProjection } from '@deepseek-ai/dsh-session-stats/client'
@@ -13,7 +14,8 @@ import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import { TokenEfficiencyEntry, type TokenEfficiencyEntryProps } from '../src/client/settings/TokenEfficiencyEntry.tsx'
 import {
-  efficiencyReading, orderEfficiencyReadings, perMillionMicros, pooledRates, type EfficiencyReading,
+  efficiencyAnchors, efficiencyReading, formatMultiple, mixPercents, multipleBand,
+  orderEfficiencyReadings, perMillionMicros, type EfficiencyReading,
 } from '../src/client/contract/cost-metrics.ts'
 import { en, zh } from '../src/client/locale.ts'
 
@@ -121,6 +123,11 @@ function open(view: ReturnType<typeof mount>, name = 'Efficiency') {
   return view.getByRole('dialog')
 }
 
+/** Column N's cell texts over the visible body rows. */
+function column(dialog: HTMLElement, index: number): string[] {
+  return [...dialog.querySelectorAll(`tbody td:nth-child(${index})`)].map(td => td.textContent)
+}
+
 describe('cost metrics', () => {
   const reading = (id: string, rate: number | null, parentId: string | null = null, updatedAt = 0): EfficiencyReading => ({
     id,
@@ -133,13 +140,28 @@ describe('cost metrics', () => {
     cacheHit: null,
     models: 1,
     spendEntries: [],
-    promptBuckets: { uncached: 0, cacheRead: 0, cacheWrite: 0 },
+    mix: { uncached: 0, cacheRead: 0, cacheWrite: 0, output: 1 },
   })
 
   it('blends micros over tokens and refuses an unbilled fold', () => {
     expect(perMillionMicros(1_000_000, 1_000_000)).toBe(1_000_000)
     expect(perMillionMicros(500_000, 1_000_000)).toBe(500_000)
     expect(perMillionMicros(500_000, 0)).toBeNull()
+  })
+
+  it('splits a fold into mix percents and nulls the unbilled mix', () => {
+    expect(mixPercents({ uncached: 1, cacheRead: 1, cacheWrite: 1, output: 1 }, 4)).toEqual([25, 25, 25, 25])
+    expect(mixPercents({ uncached: 0, cacheRead: 0, cacheWrite: 0, output: 0 }, 0)).toBeNull()
+  })
+
+  it('prints multiples whole above ten and one decimal below, banded by distance', () => {
+    expect(formatMultiple(0.25)).toBe('0.3')
+    expect(formatMultiple(1.4)).toBe('1.4')
+    expect(formatMultiple(10.4)).toBe('10')
+    expect(formatMultiple(11)).toBe('11')
+    expect(multipleBand(0.9)).toBe('good')
+    expect(multipleBand(1.999)).toBe('near')
+    expect(multipleBand(2)).toBe('high')
   })
 
   it('ladders decoder rows under their roots by recency, roots latest first', () => {
@@ -163,7 +185,7 @@ describe('cost metrics', () => {
     expect(ordered.map(r => [r.id, r.depth])).toEqual([['a', 0], ['b', 1]])
   })
 
-  it('pools micros over tokens per model-count group, never averaging rates', () => {
+  it('anchors on the pooled money average, the median family rate, and the max', () => {
     const spend = (model: string): [string, import('@deepseek-ai/dsh-session-stats/client').CostModelSpend] => [
       model,
       { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 1, costMicros: 1 },
@@ -180,20 +202,30 @@ describe('cost metrics', () => {
       root('s2', 1, 3_000_000, 1_000_000),
       root('m1', 2, 200_000, 1_000_000),
     ])
-    const pooled = pooledRates(ordered)
-    // Family micros over family tokens per group, divided once.
-    expect(pooled.single).toMatchObject({ micros: 4_000_000, tokens: 2_000_000, rate: 2_000_000, sessions: 2 })
-    expect(pooled.multi).toMatchObject({ micros: 200_000, tokens: 1_000_000, rate: 200_000, sessions: 1 })
-    expect(pooled.priced).toBe(3)
+    const anchors = efficiencyAnchors(ordered)
+    // Pooled micros over family tokens, divided once; never rate averages.
+    expect(anchors.average).toMatchObject({ micros: 4_200_000, tokens: 3_000_000, rate: 1_400_000, sessions: 3 })
+    // The middle of the sorted family rates; the top is the max anchor.
+    expect(anchors.median).toBe(1_000_000)
+    expect(anchors.max).toBe(3_000_000)
+    expect(anchors.priced).toBe(3)
+  })
+
+  it('means the middle two family rates on an even family count', () => {
+    const ordered = orderEfficiencyReadings([
+      reading('a', 1), reading('b', 3), reading('c', 5), reading('d', 7),
+    ])
+    expect(efficiencyAnchors(ordered).median).toBe(4_000_000)
   })
 
   it('rolls a session family over root plus subagent tree', () => {
     const asSummary = (summaryRow: ReturnType<typeof row>): SessionSummary =>
       summaryRow as unknown as SessionSummary
+    const rows = pricedRows()
     const ordered = orderEfficiencyReadings([
-      efficiencyReading('refactor', asSummary(pricedRows().refactor), pricedRows().refactor.projectionValues!.sessionCost),
-      efficiencyReading('act', asSummary(pricedRows().act), pricedRows().act.projectionValues!.sessionCost),
-      efficiencyReading('explore', asSummary(pricedRows().explore), pricedRows().explore.projectionValues!.sessionCost),
+      efficiencyReading('refactor', asSummary(rows.refactor), rows.refactor.projectionValues!.sessionCost),
+      efficiencyReading('act', asSummary(rows.act), rows.act.projectionValues!.sessionCost),
+      efficiencyReading('explore', asSummary(rows.explore), rows.explore.projectionValues!.sessionCost),
     ])
     const family = ordered.find(r => r.id === 'refactor')!.family!
     // Four distinct models across the tree, pooled spend per model.
@@ -201,6 +233,8 @@ describe('cost metrics', () => {
     expect(family.micros).toBe(4_800_000)
     expect(family.tokens).toBe(6_500_000)
     expect(family.entries.map(([model]) => model)).toEqual(['qwen3.8-max', 'qwen', 'deepseek-v4', 'v4'])
+    // The family mix pools every billed bucket, output included.
+    expect(family.mix).toEqual({ uncached: 760_000, cacheRead: 5_740_000, cacheWrite: 0, output: 0 })
     // Children carry no family; the root rows alone do.
     expect(ordered.find(r => r.id === 'act')!.family).toBeNull()
   })
@@ -222,7 +256,7 @@ describe('TokenEfficiencyEntry', () => {
     expect(railButton.textContent).toBe('')
   })
 
-  it('shows the empty state when no deployment rates priced anything', () => {
+  it('shows the empty state with zeroed tiles when nothing is priced', () => {
     const view = mount({ audit: row('audit', 'Nightly audit sweep', undefined, undefined) })
     const dialog = open(view)
     expect(dialog.getAttribute('aria-label')).toBe('Token efficiency')
@@ -231,6 +265,9 @@ describe('TokenEfficiencyEntry', () => {
     expect(view.container.contains(dialog)).toBe(false)
     expect(dialog.textContent).toContain('No priced sessions yet')
     expect(dialog.querySelector('table')).toBeNull()
+    // The tiles stay, named at zero, so the anchors remain findable.
+    expect(dialog.textContent).toContain('Median · typical')
+    expect(dialog.textContent).toContain('$0.00/M tok')
   })
 
   it('nests subagent rows recursively under expanded ancestors only', () => {
@@ -241,40 +278,35 @@ describe('TokenEfficiencyEntry', () => {
     // The grandchild stays hidden while its own parent is folded, even
     // after the root unfolds one level.
     fireEvent.click(refactorCaret)
-    expect([...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent))
-      .not.toContain('explore: deep dive')
+    expect(column(dialog, 1).map(text => text)).not.toContain('explore: deep dive')
     fireEvent.click(exploreCaret())
-    const titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
+    const titles = column(dialog, 1)
     expect(titles.indexOf('↳ ↳ explore: deep dive')).toBe(titles.indexOf('↳ explore: repo orientation') + 1)
     // Folding the root folds the whole subtree, expanded child included.
     fireEvent.click(refactorCaret)
-    expect([...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent))
-      .not.toContain('↳ ↳ explore: deep dive')
+    expect(column(dialog, 1)).not.toContain('↳ ↳ explore: deep dive')
   })
 
-  it('lists session families latest first, collapsed to roots until expanded', () => {
+  it('lists session families latest first with mix, rate, multiples, and details per row', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    // Pooled family micros over tokens per model-count group; never rate
-    // averages; sessions count roots.
-    expect(dialog.textContent).toContain('2+ model sessions pooled $0.600/M tok')
-    expect(dialog.textContent).toContain('1-model sessions pooled $0.544/M tok')
-    expect(dialog.textContent).toContain('4 priced session(s)')
+    // Anchor tiles: pooled spend and tokens, median, pooled rate, max.
+    expect(dialog.textContent).toContain('$9.17 · 15.8M')
+    expect(dialog.textContent).toContain('Median · typical$0.549/M tok')
+    expect(dialog.textContent).toContain('Avg · pooled$0.580/M tok')
+    expect(dialog.textContent).toContain('Max · worst chat$2.36/M tok')
     // Collapsed by default: the four roots only.
-    let titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
-    expect(titles).toEqual([
+    expect(column(dialog, 1)).toEqual([
       'Docs Q&A',
       'Nightly audit sweep',
       'Refactor auth to session-stats',
       'Refactor auth (v4 only)',
     ])
-    // Expanding the refactor family ladders its subagent rows beneath it,
-    // deepest rates first; collapsing folds them away again.
+    // Expanding the refactor family ladders its subagent rows beneath it.
     const caret = view.getByRole('button', { name: 'Expand Refactor auth to session-stats' })
     fireEvent.click(caret)
     expect(caret.getAttribute('aria-expanded')).toBe('true')
-    titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
-    expect(titles).toEqual([
+    expect(column(dialog, 1)).toEqual([
       'Docs Q&A',
       'Nightly audit sweep',
       'Refactor auth to session-stats',
@@ -282,30 +314,66 @@ describe('TokenEfficiencyEntry', () => {
       '↳ act: apply migration',
       'Refactor auth (v4 only)',
     ])
-    const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
-    expect(rates).toEqual(['$0.368', '$2.36', '$0.730', '$0.150', '$1.90', '$0.140'])
-    const spends = [...dialog.querySelectorAll('tbody td:nth-child(5)')].map(td => td.textContent)
-    expect(spends).toEqual(['$1.36', '$2.36', '$4.82', '$0.150', '$0.950', '$0.630'])
-    // The models column: session-family model counts on roots (subagents
-    // pooled into their root), own-fold counts on detail rows.
-    const models = [...dialog.querySelectorAll('tbody td:nth-child(2)')].map(td => td.textContent)
-    expect(models).toEqual(['3', '1', '4', '1', '1', '1'])
-    // The Tokens column: family billed totals on roots, own folds below.
-    const tokens = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
-    expect(tokens).toEqual(['3.7M', '1M', '6.6M', '1M', '500K', '4.5M'])
-    // Cache hit rides the displayed buckets: pooled on roots, own below.
-    const hits = [...dialog.querySelectorAll('tbody td:nth-child(7)')].map(td => td.textContent)
-    expect(hits).toEqual(['90%', '6%', '88%', '92%', '74%', '85%'])
+    // The rate column states each row's blended $/M-tok figure.
+    expect(column(dialog, 3)).toEqual(['$0.368', '$2.36', '$0.730', '$0.150', '$1.90', '$0.140'])
+    // The three multiple columns divide that rate by the three anchors.
+    expect(column(dialog, 4)).toEqual(['×0.7', '×4.3', '×1.3', '×0.3', '×3.5', '×0.3'])
+    expect(column(dialog, 5)).toEqual(['×0.6', '×4.1', '×1.3', '×0.3', '×3.3', '×0.2'])
+    expect(column(dialog, 6)).toEqual(['×0.2', '×1', '×0.3', '×0.1', '×0.8', '×0.1'])
+    // Detail columns: cache hit, spend, tokens, models.
+    expect(column(dialog, 7)).toEqual(['90%', '6%', '88%', '92%', '74%', '85%'])
+    expect(column(dialog, 8)).toEqual(['$1.36', '$2.36', '$4.82', '$0.150', '$0.950', '$0.630'])
+    expect(column(dialog, 9)).toEqual(['3.7M', '1M', '6.6M', '1M', '500K', '4.5M'])
+    expect(column(dialog, 10)).toEqual(['3', '1', '4', '1', '1', '1'])
     fireEvent.click(caret)
     expect(caret.getAttribute('aria-expanded')).toBe('false')
-    titles = [...dialog.querySelectorAll('tbody td:first-child')].map(td => td.textContent)
-    expect(titles).toHaveLength(4)
+    expect(column(dialog, 1)).toHaveLength(4)
+  })
+
+  it('names the anchor dollars when a multiple chip is hovered', () => {
+    const view = mount(pricedRows())
+    const dialog = open(view)
+    // Collapsed roots latest first: docs 0, audit 1, refactor 2, v4only 3.
+    const refactorMedianChip = dialog.querySelectorAll('tbody tr')[2]!.querySelector('td:nth-child(4) span')!
+    fireEvent.mouseOver(refactorMedianChip)
+    const tip = view.getByRole('tooltip')
+    expect(tip.textContent).toBe('vs median — $0.730/M tok ÷ $0.549/M tok')
+    fireEvent.mouseOut(refactorMedianChip)
+    expect(view.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('splits each row into its billed token mix on hover', () => {
+    const view = mount(pricedRows())
+    const dialog = open(view)
+    const docsMix = dialog.querySelector('tbody td:nth-child(2) span[tabindex]')!
+    fireEvent.mouseOver(docsMix)
+    expect(view.getByRole('tooltip').textContent)
+      .toBe('uncached 10% · cache read 90% · cache write 0% · output 0%')
+    fireEvent.mouseOut(docsMix)
+    expect(view.queryByRole('tooltip')).toBeNull()
+  })
+
+  it('prints whole multiples above ten', () => {
+    const rows = {
+      ...pricedRows(),
+      spike: row('spike', 'spike: reroll everything', 'audit', cost(1_200_000, {
+        qwen: { buckets: [200_000, 0, 0, 0], micros: 1_200_000 },
+      }), 31),
+    }
+    const view = mount(rows)
+    const dialog = open(view)
+    fireEvent.click(view.getByRole('button', { name: 'Expand Nightly audit sweep' }))
+    const spike = column(dialog, 1).indexOf('↳ spike: reroll everything')
+    const chips = dialog.querySelectorAll('tbody tr')[spike]!
+    expect(chips.querySelector('td:nth-child(4)')!.textContent).toBe('×11')
+    expect(chips.querySelector('td:nth-child(5)')!.textContent).toBe('×9.3')
+    expect(chips.querySelector('td:nth-child(6)')!.textContent).toBe('×2')
   })
 
   it('opens the per-model listing when the Models cell is hovered', () => {
     const view = mount(pricedRows())
     const dialog = open(view)
-    const mixedCell = [...dialog.querySelectorAll('tbody td:nth-child(2) span')][2]!
+    const mixedCell = [...dialog.querySelectorAll('tbody td:nth-child(10) span')][2]!
     fireEvent.mouseOver(mixedCell)
     const tip = view.getByRole('tooltip')
     expect(tip.textContent).toContain('Refactor auth to session-stats · 4 model(s) logged')
@@ -316,24 +384,13 @@ describe('TokenEfficiencyEntry', () => {
     expect(view.queryByRole('tooltip')).toBeNull()
   })
 
-  it('names the bar rate, its share, and the max when the track is hovered', () => {
-    const view = mount(pricedRows())
-    const dialog = open(view)
-    // Collapsed roots latest first: docs 0, audit 1, refactor 2, v4only 3.
-    const docsTrack = [...dialog.querySelectorAll('tbody td:nth-child(3) span')][0]!
-    fireEvent.mouseOver(docsTrack)
-    const tip = view.getByRole('tooltip')
-    // The docs row's $0.368 rate names outright, a 16% share of the $2.36 max.
-    expect(tip.textContent).toContain('value — $0.368/M tok · 16% of max')
-    expect(tip.textContent).toContain('max — $2.36/M tok')
-    fireEvent.mouseOut(docsTrack)
-    expect(view.queryByRole('tooltip')).toBeNull()
-  })
-
   it('closes on Escape and on mask click, restoring trigger focus', () => {
     const view = mount(pricedRows())
     const trigger = view.getByRole('button', { name: 'Efficiency' })
     fireEvent.click(trigger)
+    expect(view.getByRole('dialog')).toBeTruthy()
+    // Other keys pass through the handler without closing.
+    fireEvent.keyDown(document, { key: 'a' })
     expect(view.getByRole('dialog')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(view.queryByRole('dialog')).toBeNull()
@@ -349,11 +406,12 @@ describe('TokenEfficiencyEntry', () => {
     const view = mount(pricedRows(), true, tZh)
     const dialog = open(view, '效能')
     expect(dialog.getAttribute('aria-label')).toBe('Token 效能')
-    expect(dialog.textContent).toContain('2+ 模型会话综合 $0.600/M tok')
+    expect(dialog.textContent).toContain('相对中位')
+    expect(dialog.textContent).toContain('中位 · 典型')
     expect(dialog.textContent).toContain('会话')
   })
 
-  it('zero-bars a priced row that billed spend but no tokens', () => {
+  it('dashes the multiples and empties the mix of an unbilled fold', () => {
     const view = mount({
       zero: row('zero', 'Zero-token charge', undefined, cost(500_000, {
         m: { buckets: [0, 0, 0, 0], micros: 500_000 },
@@ -363,20 +421,15 @@ describe('TokenEfficiencyEntry', () => {
       })),
     })
     const dialog = open(view)
-    const rates = [...dialog.querySelectorAll('tbody td:nth-child(4)')].map(td => td.textContent)
-    expect(rates).toEqual(['$0.00', '$0.00'])
-    const hits = [...dialog.querySelectorAll('tbody td:nth-child(7)')].map(td => td.textContent)
-    expect(hits).toEqual(['', ''])
-    // Both folds billed spend against zero billed tokens.
-    const tokens = [...dialog.querySelectorAll('tbody td:nth-child(6)')].map(td => td.textContent)
-    expect(tokens).toEqual(['0', '0'])
-    // The bar reports the scale honestly: zero of an absent max.
-    const track = dialog.querySelector('tbody td:nth-child(3) span')!
-    fireEvent.mouseOver(track)
-    const tip = view.getByRole('tooltip')
-    expect(tip.textContent).toContain('value — $0.00/M tok · 0% of max')
-    expect(tip.textContent).toContain('max — $0.00/M tok')
-    fireEvent.mouseOut(track)
+    // No rate and no anchors: every multiple column prints the dash.
+    expect(column(dialog, 4)).toEqual(['—', '—'])
+    expect(column(dialog, 5)).toEqual(['—', '—'])
+    expect(column(dialog, 6)).toEqual(['—', '—'])
+    expect(column(dialog, 7)).toEqual(['', ''])
+    expect(column(dialog, 9)).toEqual(['0', '0'])
+    // The mix track renders empty, and carries no hover.
+    expect(dialog.querySelectorAll('tbody td:nth-child(2) span[aria-hidden="true"]')).toHaveLength(2)
+    expect(dialog.querySelectorAll('tbody td:nth-child(2) span[tabindex]')).toHaveLength(0)
   })
 
   it('names the unlogged model in the per-model listing', () => {
@@ -384,7 +437,7 @@ describe('TokenEfficiencyEntry', () => {
       '': { buckets: [10_000, 0, 0, 0], micros: 100_000 },
     })) })
     const dialog = open(view)
-    const cell = dialog.querySelector('tbody td:nth-child(2) span')!
+    const cell = dialog.querySelector('tbody td:nth-child(10) span')!
     fireEvent.mouseOver(cell)
     expect(view.getByRole('tooltip').textContent).toContain('unlogged model — $0.100 · 10K')
     fireEvent.mouseOut(cell)

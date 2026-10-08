@@ -1,4 +1,4 @@
-# DeepSeek Harness Desktop
+# DigitalOcean Harness Desktop
 
 The desktop application is an Electron shell around the dsh Web UI. It opens no listening port: a bundled upstream Node.js child boots the installed dsh project, versioned framed byte pipes carry Fetch requests and streaming responses without an outer Base64 envelope, Node IPC carries lifecycle control, and `dsh-app://` serves the matching client assets.
 
@@ -87,6 +87,12 @@ pnpm run package:desktop:win:x64
 ```
 
 The macOS arm64 command requires Apple Silicon. The macOS x64 command runs on Intel macOS or Apple Silicon with Rosetta. The Windows x64 command requires Windows x64. Linux is not a supported Desktop release target.
+
+### Windows application icon
+
+The Windows exe, installer, taskbar, and window icons rasterize from `resources/icon-windows.svg`, the white DigitalOcean mark on a rounded `#0069FF` tile; the committed `resources/icon-windows.png` and `resources/tray-windows.ico` are its outputs, regenerated with `pnpm run render:tray-icon` in this directory after changing the vector source.
+The ICO bundles one PNG bitmap per display scale from 16 through 64 px, rasterized separately at four times the target edge so small tray and taskbar sizes keep crisp glyph edges; the PNG rides inside the packaged asar, and development runs load it from the source tree for every window.
+Electron-builder consumes the PNG as the Windows executable and NSIS installer icon, and `src/main.ts` applies the same image to each `BrowserWindow`; an unreadable icon file leaves the platform default in place.
 
 Each target owns its packed package inputs, prepared runtime, package set, dsh tree, pnpm preparation state, unpacked application, update metadata, and final artifacts under `apps/desktop/.desktop-build/targets/<target>/`. The Node.js archive cache remains shared under `.desktop-build/downloads` because every archive name includes its version, platform, and architecture and is verified before extraction. A target build never consumes another target's mutable preparation state.
 

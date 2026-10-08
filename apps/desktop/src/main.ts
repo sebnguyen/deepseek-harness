@@ -9,6 +9,7 @@ import {
   dialog,
   ipcMain,
   Menu,
+  nativeImage,
   protocol,
   type IpcMainInvokeEvent,
 } from 'electron'
@@ -87,13 +88,26 @@ function developmentHostInspectPort(enabled: boolean): number | undefined {
   return port
 }
 
+/**
+ * Window chrome icon shipped beside the application sources: the source tree
+ * in development, the asar in packaged builds. An absent icon file yields no
+ * option so Electron keeps its platform default.
+ * @returns the DigitalOcean application icon, or undefined when unreadable.
+ */
+function applicationWindowIcon(): ReturnType<typeof nativeImage.createFromPath> | undefined {
+  const image = nativeImage.createFromPath(join(app.getAppPath(), 'resources', 'icon-windows.png'))
+  return image.isEmpty() ? undefined : image
+}
+
 function createWindow(preload: string, show = false): BrowserWindow {
+  const windowIcon = applicationWindowIcon()
   const window = new BrowserWindow({
     width: 1280,
     height: 840,
     minWidth: 880,
     minHeight: 600,
     show,
+    ...(windowIcon === undefined ? {} : { icon: windowIcon }),
     webPreferences: {
       preload,
       nodeIntegration: false,

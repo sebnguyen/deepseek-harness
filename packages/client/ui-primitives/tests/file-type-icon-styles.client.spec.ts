@@ -33,6 +33,6 @@ describe('FileTypeIcon.module.css', () => {
 
   it('keeps one caller override and the supplied violet in named variables', () => {
     expect(css).toContain('color: var(--dsh-file-type-icon-color, var(--dsh-file-type-default-color))')
-    expect(css).toContain('--dsh-file-type-violet: rgb(139, 118, 246)')
+    expect(css).toContain('--dsh-file-type-violet: rgb(177, 126, 164)')
   })
 })

@@ -250,15 +250,15 @@ Source: [`packages/core/session/src/types.ts:350`](../packages/core/session/src/
 
 ```ts persistence-catalog
 /**
- * One pruned workspace rescan after a mutating tool call: the rows are the
- * per-file changes the scan attributed to that call. Rows are records only;
- * state at a stop and the per-file timeline are projections over rows.
- * @param rows - changed files since the previous scan, in path order.
+ * One committed write's files: each row is a file whose before and after
+ * text the write handed to capture. Rows are records only; state at a stop
+ * and the per-file timeline are projections over rows.
+ * @param rows - files that write committed, in the order capture recorded them.
  */
 'checkpoint/scan': { rows: CheckpointRow[] }
 ```
 
-Source: [`packages/fs/checkpoint/src/types.ts:44`](../packages/fs/checkpoint/src/types.ts)
+Source: [`packages/fs/checkpoint/src/types.ts:43`](../packages/fs/checkpoint/src/types.ts)
 
 ### `claim/*`
 

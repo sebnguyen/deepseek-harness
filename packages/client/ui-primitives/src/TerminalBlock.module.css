@@ -203,3 +203,13 @@
   font: var(--dsl-terminal-font);
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* Owner-slotted banner fact (a batch frame's elapsed time) sits between the
+   status pill and the copy control; tabular so tickers do not shift. */
+.accessory {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsl-terminal-font);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

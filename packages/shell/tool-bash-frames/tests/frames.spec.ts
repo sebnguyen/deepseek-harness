@@ -434,6 +434,16 @@ describe('presentation and config edges', () => {
     expect(tool.presentCall!({ description: 'Start later' })).toBeUndefined()
   })
 
+  it('presentCall yields no view for a schema-invalid batch', async () => {
+    const ctx = await setup()
+    // The core wrapper soft-validates replay args before the presenter runs,
+    // so a non-array batch settles to the generic undefined-view fallback.
+    expect(ctx.tools.get('bash')!.presentCall!({
+      description: 'Guard',
+      commands: null,
+    } as never)).toBeUndefined()
+  })
+
   it('presents non-object args and multi-block results without a view', async () => {
     const ctx = await setup()
     const tool = ctx.tools.get('bash')!

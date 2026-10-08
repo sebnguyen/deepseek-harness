@@ -25,7 +25,6 @@ import { ConversationRoot } from '../src/client/skeleton/ConversationRoot.tsx'
 import { ConversationSession, ConversationSessionHeader } from '../src/client/skeleton/ConversationSession.tsx'
 import { conversationPhase } from '../src/client/contract/snapshot.ts'
 import { HeroShell } from '../src/client/skeleton/EmptyHero.tsx'
-import type { HeroShellProps } from '../src/client/skeleton/EmptyHero.tsx'
 import { InputBar } from '../src/client/skeleton/InputBar.tsx'
 import type { InputBarProps } from '../src/client/skeleton/InputBar.tsx'
 import type {
@@ -68,6 +67,26 @@ class ResizeObserverStub {
 function fireResize(el: Element): void {
   for (const entry of resizeObservers) {
     if (entry.targets.includes(el)) entry.callback([], undefined as never)
+  }
+}
+
+/** jsdom lacks pointer capture: emulate per-element so the handle's
+ * hasPointerCapture gates pass; the originals are restored afterwards. */
+function withPointerCapture(run: () => void): void {
+  const names = ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const
+  const originals = names.map(name =>
+    [name, Object.getOwnPropertyDescriptor(Element.prototype, name)] as const)
+  const captured = new Set<Element>()
+  Element.prototype.setPointerCapture = function (this: Element) { captured.add(this) }
+  Element.prototype.releasePointerCapture = function (this: Element) { captured.delete(this) }
+  Element.prototype.hasPointerCapture = function (this: Element) { return captured.has(this) }
+  try {
+    run()
+  } finally {
+    for (const [name, descriptor] of originals) {
+      if (descriptor === undefined) Reflect.deleteProperty(Element.prototype, name)
+      else Object.defineProperty(Element.prototype, name, descriptor)
+    }
   }
 }
 
@@ -331,20 +350,11 @@ function mount(
 }
 
 describe('Hero chrome', () => {
-  it('renders the English preview badge through the hero locale seat', () => {
-    const renderSlot = vi.fn<HeroShellProps['renderSlot']>(() => null)
-    const view = render(<HeroShell t={makeTranslate(en, commonEn)} renderSlot={renderSlot} />)
-    expect(view.getByText('Into the Unknown')).toBeTruthy()
+  it('renders the plain product headline and preview badge through the hero locale seat', () => {
+    const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
+    expect(view.getByText('DigitalOcean Harness')).toBeTruthy()
     expect(view.getByText('Preview')).toBeTruthy()
-    expect(renderSlot).toHaveBeenCalledOnce()
-    expect(renderSlot.mock.calls[0]?.[0]).toBe('conversation.hero.brand.mark')
-    const brandMarkOwner = renderSlot.mock.calls[0]?.[1]
-    if (brandMarkOwner === undefined || !('size' in brandMarkOwner) || !('className' in brandMarkOwner)) {
-      throw new Error('hero brand-mark owner must provide size and className')
-    }
-    expect(brandMarkOwner.size).toBe(34)
-    expect(brandMarkOwner.className).toBeTypeOf('string')
-    expect(renderSlot.mock.calls[0]?.[2]?.fallback).toBeTruthy()
+    expect(view.container.querySelector('svg')).toBeNull()
   })
 })
 
@@ -481,7 +491,7 @@ describe('ConversationRoot resident composer', () => {
     const header = b.view.container.querySelector('header')
     expect(host).not.toBeNull()
     expect(header?.getAttribute('aria-hidden')).toBe('true')
-    expect(b.view.getByText('探索未至之境')).toBeTruthy()
+    expect(b.view.getByText('DigitalOcean Harness')).toBeTruthy()
     expect(b.view.getByText('预览版')).toBeTruthy()
     expect(b.view.queryByTestId('view-chat')).toBeNull()
     // The same machine-backed textarea is live in the hero, and the
@@ -515,7 +525,7 @@ describe('ConversationRoot resident composer', () => {
     expect(conversationPhase(failed, EMPTY_CONVERSATION_SNAPSHOT)).toBe('engaging')
     const b = mount(failed, undefined, undefined, { summaryBlank: true })
     expect(b.view.container.querySelector('[data-phase]')?.getAttribute('data-phase')).toBe('active')
-    expect(b.view.queryByText('探索未至之境')).toBeNull()
+    expect(b.view.queryByText('DigitalOcean Harness')).toBeNull()
   })
 
   it('settling phase: a summary that does not prove the session blank hides the composer while it opens', () => {
@@ -547,7 +557,7 @@ describe('ConversationRoot resident composer', () => {
     // blank the column for the history round-trip.
     const root = b.view.container.querySelector('[data-phase]')
     expect(root?.getAttribute('data-phase')).toBe('hero')
-    expect(b.view.getByText('探索未至之境')).toBeTruthy()
+    expect(b.view.getByText('DigitalOcean Harness')).toBeTruthy()
     expect(b.view.getByRole('textbox')).toBeTruthy()
   })
 
@@ -629,12 +639,13 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf())
     const root = b.view.container.querySelector('[data-phase]') as HTMLElement
     // jsdom offsetWidth is 0 until faked: the observer publishes whatever the
-    // layout reports, and the CSS clamp() floors the axis at 680px either way.
+    // layout reports, and the CSS min() caps the axis at the readable
+    // measure (431px at the default face) either way.
     Object.defineProperty(root, 'offsetWidth', { value: 1200, configurable: true })
     act(() => { fireResize(root) })
     expect(root.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
     // No dragged preference: the user-width override stays absent so the
-    // adaptive clamp term applies.
+    // adaptive default (64% of the column under the readable measure) applies.
     expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('')
   })
 
@@ -645,45 +656,53 @@ describe('ConversationRoot resident composer', () => {
     act(() => { fireResize(root) })
     const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
     expect(handle).not.toBeNull()
-    // jsdom lacks pointer capture: emulate per-element so hasPointerCapture
-    // gates pass; the finally block restores the original descriptors so the
-    // stubs cannot leak into later tests.
-    const names = ['setPointerCapture', 'releasePointerCapture', 'hasPointerCapture'] as const
-    const originals = names.map(name =>
-      [name, Object.getOwnPropertyDescriptor(Element.prototype, name)] as const)
-    const captured = new Set<Element>()
-    Element.prototype.setPointerCapture = function () { captured.add(this) }
-    Element.prototype.releasePointerCapture = function () { captured.delete(this) }
-    Element.prototype.hasPointerCapture = function () { return captured.has(this) }
-    try {
-      // Base resolves from the adaptive clamp: min(1600*0.64, 920) = 920.
-      // Dragging the right handle outward by 25px widens by 2×25 = 50 → 970,
+    withPointerCapture(() => {
+      // Base resolves from the readable measure cap at the default 14px
+      // content size: 55 × 0.56 × 14 ≈ 431.
+      // Dragging the right handle outward by 25px widens by 2×25 = 50 → 481,
       // inside both bounds (max = 1600 − 176 = 1424 keeps the handles on-column).
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 825, clientY: 300 })
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('970px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-      // Window shrinks: the displayed width re-clamps (900 − 176 = 724) but the
-      // preference stays.
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
+      // Window shrinks: 481 still fits the re-clamped max (900 − 176 = 724), so
+      // the displayed width and the preference agree.
       Object.defineProperty(root, 'offsetWidth', { value: 900, configurable: true })
       act(() => { fireResize(root) })
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
       // A press without travel (a real double-click delivers two such
       // press/release rounds) must not commit the clamped display value over
       // the stored preference.
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
       // No reset affordance on the handle: double-click leaves the preference alone.
       fireEvent.doubleClick(handle)
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('970')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
+    })
+  })
+
+  it('re-derives the drag base from the content font-size setting', () => {
+    document.body.style.setProperty('--dsh-content-font-size', '17px')
+    try {
+      const b = mount(sessionSnapshotOf())
+      const root = b.view.container.querySelector('[data-phase]') as HTMLElement
+      Object.defineProperty(root, 'offsetWidth', { value: 1600, configurable: true })
+      act(() => { fireResize(root) })
+      const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
+      expect(handle).not.toBeNull()
+      withPointerCapture(() => {
+        // Cap at 17px content size is 55 × 0.56 × 17 ≈ 524; dragging the right
+        // handle outward by 30px widens by 2×30 = 60 → 584.
+        fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
+        fireEvent.pointerUp(handle, { pointerId: 1, clientX: 830, clientY: 300 })
+        expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('584px')
+        expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('584')
+      })
     } finally {
-      for (const [name, descriptor] of originals) {
-        if (descriptor === undefined) Reflect.deleteProperty(Element.prototype, name)
-        else Object.defineProperty(Element.prototype, name, descriptor)
-      }
+      document.body.style.removeProperty('--dsh-content-font-size')
     }
   })
 

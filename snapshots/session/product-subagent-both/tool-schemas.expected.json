@@ -123,10 +123,15 @@
           "justification": {
             "type": "string",
             "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact file operation needs the wider access."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "file_path"
+          "file_path",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -147,55 +152,114 @@
           "limit": {
             "type": "number",
             "description": "Maximum number of lines to return. Defaults to 2000."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "file_path"
+          "file_path",
+          "_dsh_harness_purpose"
         ]
       }
     },
     {
       "name": "bash",
-      "description": "Execute a bash command (`bash -c`) and return its stdout/stderr. Each call runs in a fresh shell: no state (cwd, variables, functions) persists between calls — pass `workdir` instead of using `cd`. Non-zero exits are reported as `[exit code: N]`. Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` for long-running commands: the call returns a job id immediately; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` (the narrowest wider mode that suffices) plus a one-sentence `justification`. Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.",
+      "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`. Attempting a command the sandbox may deny is safe and expected: run it and read the marker rather than assuming the denial. When a command is denied and a wider mode would let it succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry the exact same command once with `sandbox_permissions` and a one-sentence `justification` on that element (the wider mode applies to that element alone). Do not detour through chat to ask permission first — the approval prompt raised by that retry is how the user consents. If the session states approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. Never escalate speculatively: ground the request in a real denial — normally the one this command just hit; escalating up front is fine only when this session already denied the same access. A rejected escalation is final for that command — stop and explain, never work around it — but it does not forbid attempting or escalating other commands later.",
       "parameters": {
         "type": "object",
         "properties": {
-          "command": {
-            "type": "string",
-            "description": "The bash command to execute."
+          "commands": {
+            "type": "array",
+            "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
+            "items": {
+              "type": "object",
+              "additionalProperties": true,
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "The bash command this element runs in its own fresh shell."
+                },
+                "description": {
+                  "type": "string",
+                  "description": "One-line active-voice UI label for this element; defaults to the command text."
+                },
+                "workdir": {
+                  "type": "string",
+                  "description": "Working directory for this element; overrides the call-level workdir."
+                },
+                "timeoutMs": {
+                  "type": "number",
+                  "description": "Timeout in milliseconds for this element; overrides the call-level timeoutMs."
+                },
+                "run_in_background": {
+                  "type": "boolean",
+                  "description": "Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output."
+                },
+                "sandbox_permissions": {
+                  "type": "string",
+                  "description": "The wider sandbox mode this element needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and widens this element alone.",
+                  "enum": [
+                    "workspace-write",
+                    "danger-full-access"
+                  ]
+                },
+                "justification": {
+                  "type": "string",
+                  "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact element needs the wider access."
+                }
+              },
+              "required": [
+                "command"
+              ]
+            }
           },
           "description": {
             "type": "string",
-            "description": "Clear, concise description of what this command does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
+            "description": "Clear, concise description of what this call does in active voice, 5-10 words (shown in the UI). Examples: \"ls\" → \"List files in current directory\"; \"git status\" → \"Show working tree status\"; \"npm install\" → \"Install package dependencies\"."
           },
           "timeoutMs": {
             "type": "number",
-            "description": "Timeout in milliseconds. The executor applies its configured default and cap, and kills the command on expiry."
+            "description": "Timeout in milliseconds for elements without their own; the executor applies its configured default and cap, and kills the element on expiry."
           },
           "workdir": {
             "type": "string",
-            "description": "Working directory for this command. Defaults to the session workspace; a relative path is resolved against it."
+            "description": "Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it."
           },
-          "run_in_background": {
-            "type": "boolean",
-            "description": "Run in the background and return a job id immediately (collect with job_output, stop with job_kill). No timeout applies."
-          },
-          "sandbox_permissions": {
+          "_dsh_harness_purpose": {
             "type": "string",
-            "description": "The wider sandbox mode this command needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and user approval.",
-            "enum": [
-              "workspace-write",
-              "danger-full-access"
-            ]
-          },
-          "justification": {
-            "type": "string",
-            "description": "Required with sandbox_permissions: one sentence for the user explaining why this exact command needs the wider access."
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "command",
-          "description"
+          "commands",
+          "description",
+          "_dsh_harness_purpose"
+        ]
+      }
+    },
+    {
+      "name": "checkpoint_restore",
+      "description": "Restore one workspace file to a recorded snapshot stop: the exact bytes captured for the given digest are written back through the fs capability.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "path",
+          "digest",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -212,10 +276,15 @@
           "max_goal_rounds": {
             "type": "number",
             "description": "Optional positive safe-integer limit on automatic continuation rounds."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "objective"
+          "objective",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -228,10 +297,15 @@
           "plan": {
             "type": "string",
             "description": "The complete plan, as markdown, starting with a # heading that names it."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "plan"
+          "plan",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -240,7 +314,15 @@
       "description": "Read the current same-session goal, including its exact id/revision, objective, phase, completed continuation rounds, round limit, blocker reason when present, and whether another continuation is armed. Call this before updating a goal.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "_dsh_harness_purpose"
+        ]
       }
     },
     {
@@ -252,10 +334,15 @@
           "agent_id": {
             "type": "string",
             "description": "The agent id of the running agent to interrupt."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "agent_id"
+          "agent_id",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -272,10 +359,15 @@
           "reason": {
             "type": "string",
             "description": "Optional short reason, recorded in the log and forwarded to the job."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "job_id"
+          "job_id",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -284,7 +376,15 @@
       "description": "List your background jobs (running and finished) with their ids, kinds, and statuses.",
       "parameters": {
         "type": "object",
-        "properties": {}
+        "properties": {
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "_dsh_harness_purpose"
+        ]
       }
     },
     {
@@ -300,10 +400,15 @@
           "timeout_ms": {
             "type": "number",
             "description": "Max time to wait for settlement in milliseconds before returning the current state. Defaults to the configured wait timeout; capped by the configured maximum."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "job_id"
+          "job_id",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -320,8 +425,59 @@
               "children",
               "descendants"
             ]
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
-        }
+        },
+        "required": [
+          "_dsh_harness_purpose"
+        ]
+      }
+    },
+    {
+      "name": "lsp",
+      "description": "Query a language server for precise code navigation. operation is one of goToDefinition, findReferences, goToImplementation, hover, callers, callees. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration; callers/callees return one hop of precise call sites.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "type": "string",
+            "description": "goToDefinition, findReferences, goToImplementation, hover, callers, or callees.",
+            "enum": [
+              "goToDefinition",
+              "findReferences",
+              "goToImplementation",
+              "hover",
+              "callers",
+              "callees"
+            ]
+          },
+          "file_path": {
+            "type": "string",
+            "description": "The source file to query, relative to the workspace or absolute."
+          },
+          "line": {
+            "type": "number",
+            "description": "One-based line of the cursor."
+          },
+          "character": {
+            "type": "number",
+            "description": "One-based UTF-16 column of the cursor."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "operation",
+          "file_path",
+          "line",
+          "character",
+          "_dsh_harness_purpose"
+        ]
       }
     },
     {
@@ -337,10 +493,15 @@
           "maxRounds": {
             "type": "number",
             "description": "Optional positive safe-integer round cap, bounded by the deployment ceiling."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "objective"
+          "objective",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -353,26 +514,15 @@
           "file_path": {
             "type": "string",
             "description": "Path to the image file, resolved by the filesystem backend."
-          }
-        },
-        "required": [
-          "file_path"
-        ]
-      }
-    },
-    {
-      "name": "read_note",
-      "description": "Read the durable note attached to a source file. Notes record one non-obvious fact worth knowing before changing the file, and report live, stale, or orphaned against the file's current content.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "target": {
+          },
+          "_dsh_harness_purpose": {
             "type": "string",
-            "description": "Path of the source file whose note to read — the same path you would pass to `read`."
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "target"
+          "file_path",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -393,11 +543,16 @@
           "justification": {
             "type": "string",
             "description": "Why you are crossing to this stage."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "stage",
-          "justification"
+          "justification",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -414,11 +569,16 @@
           "message": {
             "type": "string",
             "description": "The message to deliver to the agent."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "agent_id",
-          "message"
+          "message",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -431,10 +591,15 @@
           "name": {
             "type": "string",
             "description": "The exact skill name from the available skills list."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "name"
+          "name",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -455,11 +620,16 @@
           "run_in_background": {
             "type": "boolean",
             "description": "Whether to run in the background and return a durable subagent id immediately. Defaults to true. Set false to wait for the result when your next action depends on it."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -480,11 +650,16 @@
           "run_in_background": {
             "type": "boolean",
             "description": "Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -505,11 +680,16 @@
           "run_in_background": {
             "type": "boolean",
             "description": "Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -530,11 +710,16 @@
           "run_in_background": {
             "type": "boolean",
             "description": "Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -555,11 +740,16 @@
           "run_in_background": {
             "type": "boolean",
             "description": "Whether to run as a background job and return its id. Defaults to false; collect with job_output or stop with job_kill."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -576,11 +766,44 @@
           "prompt": {
             "type": "string",
             "description": "The task for the subagent. It already sees this conversation's completed turns, so build on them freely and state only what is new."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "description",
-          "prompt"
+          "prompt",
+          "_dsh_harness_purpose"
+        ]
+      }
+    },
+    {
+      "name": "symbols",
+      "description": "Map a batch of source files to a condensed symbol layout. Pipe a `glob` result into `files` to see each file as `path: [ :line (abbrev) name in:n out:m ; … ]`; `in:` = incoming callers, `out:` = outgoing callees (present only with hotspots). Use `lsp` callers/callees on a chosen symbol for the precise call sites.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "files": {
+            "type": "array",
+            "description": "Source file paths to outline — the paths a `glob` returned.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "hotspots": {
+            "type": "boolean",
+            "description": "Also run call hierarchy per symbol to append in:/out: caller/callee counts (2 extra map queries per symbol)."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+          }
+        },
+        "required": [
+          "files",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -616,10 +839,15 @@
                 "status"
               ]
             }
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "todos"
+          "todos",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -659,33 +887,17 @@
           "blocked_reason": {
             "type": "string",
             "description": "Concrete blocking condition; required only with action blocked."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "goal_id",
           "revision",
-          "action"
-        ]
-      }
-    },
-    {
-      "name": "upsert_note",
-      "description": "Write, update, or remove the durable note for one source file. One note per file. State one fact worth knowing before changing the file; the harness stamps the note with the file's current content hash, so never compute or pass a hash. An empty `claim` removes the note.",
-      "parameters": {
-        "type": "object",
-        "properties": {
-          "target": {
-            "type": "string",
-            "description": "Path of the source file the note describes — the same path you would pass to `read`."
-          },
-          "claim": {
-            "type": "string",
-            "description": "The one fact worth knowing, as prose that stands alone. The empty string removes the note."
-          }
-        },
-        "required": [
-          "target",
-          "claim"
+          "action",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -698,10 +910,15 @@
           "url": {
             "type": "string",
             "description": "The HTTP(S) URL to fetch."
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "url"
+          "url",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -717,10 +934,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
-          "queries"
+          "queries",
+          "_dsh_harness_purpose"
         ]
       }
     },
@@ -790,11 +1012,16 @@
             "type": "object",
             "description": "Optional JSON input exposed to the script as the `args` global (wrap a bare list as a field, e.g. {\"files\": [...]}).",
             "additionalProperties": true
+          },
+          "_dsh_harness_purpose": {
+            "type": "string",
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "script",
-          "meta"
+          "meta",
+          "_dsh_harness_purpose"
         ]
       }
     }

@@ -176,3 +176,16 @@ describe('DiffBlock copy', () => {
     expect(writeText).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('DiffBlock path links and accessory', () => {
+  it('path headers become buttons firing onPathClick, and the accessory rides the card', () => {
+    const onPathClick = vi.fn()
+    const diffs: DiffHunk[] = [{ path: 'src/a.ts', oldText: 'x', newText: 'y' }]
+    const { container } = render(<DiffBlock diffs={diffs} onPathClick={onPathClick} accessory="Created file" />)
+    expect(container.textContent).toContain('Created file')
+    const header = screen.getByText('src/a.ts')
+    expect(header.tagName).toBe('BUTTON')
+    fireEvent.click(header)
+    expect(onPathClick).toHaveBeenCalledWith('src/a.ts')
+  })
+})

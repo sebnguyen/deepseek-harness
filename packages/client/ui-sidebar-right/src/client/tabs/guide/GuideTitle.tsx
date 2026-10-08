@@ -1,8 +1,9 @@
 /**
  * The guide type's chip title: the compass before the type's label. Registered
  * under `sidebar.right.pane.tab.title`; without it the chip would show the
- * bare label. Both guide glyphs live here: the compass the chip and the body's
- * hero draw, and the cube the body's icon-less capsules fall back to.
+ * bare label. Both guide glyphs live here: the compass the chip draws, and
+ * the cube the body's icon-less capsules fall back to; the body's hero draws
+ * the static DigitalOcean mark from ui-primitives instead.
  */
 import type { ReactNode } from 'react'
 import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'

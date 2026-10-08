@@ -1,6 +1,6 @@
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import {
-  IconChevronDownOutline14, IconInspectOutline12, IconSkillOutline16, StateDot,
+  IconChevronDownOutline14, IconInspectOutline12, IconSkillOutline16, PixelLoader, StateDot,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallViewProps } from '@deepseek-ai/dsh-client-ui-tool/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
@@ -77,6 +77,7 @@ function leadingFor(state: SkillRowState): ReactNode {
   switch (state) {
     case 'error': return <StateDot state="error" />
     case 'stopped': return <StateDot state="warning" />
+    case 'running': return <PixelLoader grid={16} size={14} />
     default: return <IconSkillOutline16 size={14} />
   }
 }

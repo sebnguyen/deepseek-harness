@@ -48,7 +48,10 @@ describe('dsh-base bundle', () => {
     expect(rows.find(row => row.id === 'claim')).toMatchObject({ name: '@deepseek-ai/dsh-claim', disabled: true })
     expect(rows.find(row => row.id === 'claim-settlement')).toMatchObject({ name: '@deepseek-ai/dsh-claim-settlement', disabled: true })
     expect(rows.find(row => row.id === 'tool-claim')).toMatchObject({ name: '@deepseek-ai/dsh-tool-claim', disabled: true })
-    expect(rows.find(row => row.id === 'knowledge-notes')?.name).toBe('@deepseek-ai/dsh-knowledge-notes')
+    // knowledge-notes is shelved: neither plane composes it for now, and the
+    // resolver manifest no longer carries it.
+    expect(rows.find(row => row.id === 'knowledge-notes')).toBeUndefined()
+    expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-knowledge-notes')
     expect(rows.find(row => row.id === 'shell-search')?.name).toBe('@deepseek-ai/dsh-shell-search')
     // The LSP rows: the seam and its provider are services, the two tools are
     // the agent plane a preset re-mounts. The provider resolves its commands at
