@@ -6,7 +6,7 @@ import type { RunningToolCall, ToolResultNode } from '@deepseek-ai/dsh-client-ui
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
 import {
-  classifyTool, formatToolBody, resultText, toolRowModel,
+  classifyTool, fileRowChip, formatToolBody, resultText, toolRowModel,
 } from '../src/client/tool/models/tool-call-model.ts'
 import { ToolRow } from '../src/client/tool/components/ToolRow.tsx'
 import { GenericToolCard, type GenericToolCardProps } from '../src/client/tool/toolviews/GenericToolCard.tsx'
@@ -411,6 +411,27 @@ describe('ToolRow', () => {
     expect(view.queryByText('查看')).toBeNull()
   })
 
+  it('a file row with an explorer reveal shows the Open chip instead of Inspect', () => {
+    const open = vi.fn()
+    const inspect = vi.fn()
+    const view = render(
+      <ToolRow
+        {...rowProps}
+        variant="read" title="Read" summary="src/a.ts" filePath="src/a.ts"
+        inspect={open} inspectKind="open"
+      />,
+    )
+    // The row reads as an open gesture, not a trajectory jump.
+    expect(view.queryByText('查看')).toBeNull()
+    const chip = view.getByText('打开')
+    expect(chip.closest('button')?.getAttribute('data-inspect-kind')).toBe('open')
+    fireEvent.click(chip)
+    expect(open).toHaveBeenCalledTimes(1)
+    expect(inspect).not.toHaveBeenCalled()
+    // And like the Inspect chip, it never toggles the row.
+    expect(view.getByRole('button', { name: /Read/ }).getAttribute('aria-expanded')).toBe('false')
+  })
+
   it('the expanded card gutter-labels each section it carries (IN / OUT)', () => {
     const both = render(<ToolRow {...rowProps} output="result text" />)
     fireEvent.click(both.getByRole('button'))
@@ -497,5 +518,51 @@ describe('GenericToolCard', () => {
     const bashView = render(<GenericToolCard {...bash} />)
     fireEvent.click(bashView.getByText('List files'))
     expect(bash.openFile).not.toHaveBeenCalled()
+  })
+
+  it('a file row swaps its Inspect chip for the explorer Open chip when a reveal exists', () => {
+    const inspect = vi.fn()
+    const reveal = vi.fn<(path: string) => void>()
+    const view = render(
+      <GenericToolCard
+        {...props('read', running({ name: 'read', argsRaw: '{"path":"src/x.ts"}' }))}
+        inspect={inspect}
+        revealFile={reveal}
+      />,
+    )
+    fireEvent.click(view.getByText('打开'))
+    expect(reveal).toHaveBeenCalledWith('src/x.ts')
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('without a reveal, file rows keep the trajectory Inspect chip', () => {
+    const inspect = vi.fn()
+    const view = render(
+      <GenericToolCard
+        {...props('read', running({ name: 'read', argsRaw: '{"path":"src/x.ts"}' }))}
+        inspect={inspect}
+      />,
+    )
+    expect(view.queryByText('打开')).toBeNull()
+    fireEvent.click(view.getByText('查看'))
+    expect(inspect).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('fileRowChip', () => {
+  it('prefers the explorer reveal on rows that name a file', () => {
+    const inspect = vi.fn()
+    const reveal = vi.fn<(path: string) => void>()
+    const chip = fileRowChip('src/a.ts', reveal, inspect)
+    expect(chip.inspectKind).toBe('open')
+    chip.inspect?.()
+    expect(reveal).toHaveBeenCalledWith('src/a.ts')
+    expect(inspect).not.toHaveBeenCalled()
+  })
+
+  it('keeps the inspect jump when the row names no file or no reveal exists', () => {
+    const inspect = vi.fn()
+    expect(fileRowChip(undefined, vi.fn(), inspect)).toEqual({ inspect })
+    expect(fileRowChip('src/a.ts', undefined, inspect)).toEqual({ inspect })
   })
 })

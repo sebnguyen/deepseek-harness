@@ -46,8 +46,9 @@ function sessionFakeFor() {
   } satisfies SessionBehaviorOverrides
 }
 
-async function bench() {
+async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
   const runtime = await SlotTestRuntime.create()
+  if (revealIn !== undefined) runtime.ctx.provide('sidebarFilesExtensions', { revealIn } as never)
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const layout = { closeRightbar: vi.fn(), openRightbar: vi.fn() }
   runtime.ctx.provide('layout', layout as never)
@@ -139,6 +140,19 @@ describe('Chat inject API', () => {
     await injected.openFile('src/a.ts', { line: 7 })
     expect(b.sidebarRight.openResource).toHaveBeenLastCalledWith('dsh-resource://file/session/root-1/src/a.ts', { params: { line: 7 } })
     await b.runtime.dispose()
+  })
+
+  it('wires revealFile to the explorer reveal face only while it is provided', async () => {
+    const revealIn = vi.fn<(sessionId: SessionId, path: string) => void>()
+    const withReveal = await bench(revealIn)
+    expect(withReveal.chatViewApi(ROOT).injected.revealFile).toBeTypeOf('function')
+    withReveal.chatViewApi(ROOT).injected.revealFile?.('src/a.ts')
+    expect(revealIn).toHaveBeenCalledWith(ROOT, 'src/a.ts')
+    await withReveal.runtime.dispose()
+
+    const bare = await bench()
+    expect(bare.chatViewApi(ROOT).injected.revealFile).toBeUndefined()
+    await bare.runtime.dispose()
   })
 
   it('routes sent skill previews through the viewed Session source and tolerates an absent provider', async () => {

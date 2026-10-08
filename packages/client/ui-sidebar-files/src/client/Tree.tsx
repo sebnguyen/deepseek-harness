@@ -59,6 +59,8 @@ export interface TreeContext {
   readonly onToggle: (path: string) => void
   readonly onOpen: (path: string) => void
   readonly t: TranslateNS<'sidebarFiles'>
+  /** Absolute path the reveal gesture currently highlights; absent elsewhere. */
+  readonly highlighted?: string | undefined
 }
 
 /** One entry's row, and its children when it is an expanded directory. */
@@ -77,9 +79,20 @@ export function Entry({ parent, entry, tree }: { parent: string; entry: Workspac
     )
   }
   if (entry.type === 'file') {
+    const highlighted = tree.highlighted === path
     return (
       <li className={css.item} data-files-entry="file" data-files-path={path}>
-        <button type="button" className={css.row} onClick={() => { tree.onOpen(path) }}>
+        <button
+          type="button"
+          className={clsx(css.row, highlighted && css.highlighted)}
+          data-files-highlighted={highlighted || undefined}
+          ref={highlighted
+            ? (node) => {
+              if (typeof node?.scrollIntoView === 'function') node.scrollIntoView({ block: 'nearest' })
+            }
+            : undefined}
+          onClick={() => { tree.onOpen(path) }}
+        >
           <FileTypeIcon kind={classifyFileType(entry.name)} size={16} className={css.fileIcon} />
           <span className={css.name}>{entry.name}</span>
         </button>

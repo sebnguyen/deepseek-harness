@@ -9,22 +9,24 @@
  * shares the tree store the tab type uses, keyed by session instead of tab.
  *
  * The file split is this package's layering: what the type IS
- * (`definition.tsx`), what it keeps (`store.ts`), how it lists (`face.ts`), the
- * shared rows (`Tree.tsx`), what the tab draws (`FilesBody.tsx`,
- * `FilesTitle.tsx`), what the column draws (`ExplorerBody.tsx`), what it says
+ * (`definition.tsx`), what it keeps (`store.ts`), how it lists (`face.ts`), how
+ * a reveal is asked (`reveal.ts`), the shared rows (`Tree.tsx`), what the tab
+ * draws (`FilesBody.tsx`, `FilesTitle.tsx`), what the column draws
+ * (`ExplorerBody.tsx`), what it says
  * (`locales.ts`), and this module, which only wires them together.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-api-remotes/client'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type { } from '@deepseek-ai/dsh-api-remotes/client'
+import type { } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { } from '@deepseek-ai/dsh-client-ui-session/client'
+import type { } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { FILES_ID, filesDefinition } from './definition.tsx'
 import { createList, explorerFace, filesFace } from './face.ts'
 import { FilesBody } from './FilesBody.tsx'
 import { FilesTitle } from './FilesTitle.tsx'
 import { ExplorerBody } from './ExplorerBody.tsx'
 import { en, zh } from './locales.ts'
+import { createRevealChannel, type ISidebarFilesExtensions } from './reveal.ts'
 import { createFilesStore } from './store.ts'
 
 export type { SidebarFilesKey } from './locales.ts'
@@ -32,6 +34,7 @@ export type { DirLevel, FilesState, FilesTabState, LevelState, TreeKey } from '.
 export type { ExplorerInjected, FilesInjected, ListWorkspaceDirectory, WorkspaceFilesListRemote } from './face.ts'
 export type { FilesBodyProps } from './FilesBody.tsx'
 export type { ExplorerBodyProps } from './ExplorerBody.tsx'
+export type { FilesRevealChannel, FilesRevealRequest, ISidebarFilesExtensions } from './reveal.ts'
 
 /** This package's copy namespace. */
 const NS = 'sidebarFiles'
@@ -69,12 +72,19 @@ export function apply(ctx: ClientContext): void {
     { name: 'sidebar.right.pane.tab.title', key: FILES_ID },
     FilesTitle,
   )), 'ui-sidebar-files: files tab title')
+  const reveals = createRevealChannel()
   const explorerInject = explorerFace(
     createList(ctx.remote),
-    (address) =>{  ctx.sidebarRight.openResource(address) },
+    (address) => { ctx.sidebarRight.openResource(address) },
+    reveals,
   )
   ctx.effect(() => ctx.slots.inject('sidebar.right.explorer', () => ctx.slots.register(
     { name: 'sidebar.right.explorer', locale: NS, store, inject: explorerInject },
     ExplorerBody,
   )), 'ui-sidebar-files: explorer column')
+  const extensions: ISidebarFilesExtensions = {
+    revealIn: (sessionId, path) => { reveals.request({ sessionId, path }) },
+  }
+  ctx.effect(() => ctx.reflect.provide('sidebarFilesExtensions', extensions),
+    'ui-sidebar-files: explorer reveal face')
 }

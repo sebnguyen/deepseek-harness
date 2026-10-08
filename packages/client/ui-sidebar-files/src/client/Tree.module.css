@@ -78,6 +78,12 @@
   background: transparent;
 }
 
+/* The reveal gesture's transient fill: the row a tool call opened the tree
+   onto, held for a moment so the eye lands. */
+.highlighted {
+  background: var(--dsw-alias-bg-multi-select);
+}
+
 .note {
   margin: 0;
   padding: 3px 10px;

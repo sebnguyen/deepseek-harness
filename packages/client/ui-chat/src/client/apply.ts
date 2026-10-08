@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-files/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
@@ -101,6 +102,9 @@ export function apply(ctx: Context): void {
         if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
         const session = binding.session
         const chat = chatSource(binding)
+        // Tool rows reveal their file in the explorer only while ui-sidebar-files
+        // mounts its column; without it the chip stays the trajectory inspect.
+        const revealIn = ctx.get('sidebarFilesExtensions')?.revealIn
         return {
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),
@@ -126,6 +130,9 @@ export function apply(ctx: Context): void {
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
             await Promise.resolve()
           },
+          ...(revealIn === undefined ? {} : {
+            revealFile: (path: string) => { revealIn(sessionId, path) },
+          }),
           openSkill: (name) => {
             const scope = ctx.sessions.scope(sessionId)
             if (scope === undefined) return

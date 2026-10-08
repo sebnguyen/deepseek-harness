@@ -7,11 +7,12 @@
  * tree stays traversable beside every preview. Its lifetime is the mount: the
  * column's owner aborts when it unmounts, which forgets the session's bucket.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale, PropsRuntime, PropsStore } from '@deepseek-ai/dsh-client-ui-slots'
 import { IconRefreshOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { fileAddressFor, pathPartsOf } from '@deepseek-ai/dsh-util-workspace-path'
+import { ancestorsWithin } from './reveal.ts'
 import type {} from './locales.ts'
 import type { ExplorerInjected } from './face.ts'
 import { TreeList, type TreeContext } from './Tree.tsx'
@@ -25,12 +26,16 @@ export type ExplorerBodyProps =
   & ExplorerInjected
   & PropsLocale<'sidebarFiles'>
 
+/** How long one reveal keeps its row highlighted. */
+const REVEAL_HIGHLIGHT_MS = 2500
+
 /**
  * The explorer column's body: the workspace root's name and reload above the
- * shared tree, and a file click opens into the panes beside it.
+ * shared tree, a file click opens into the panes beside it, and a reveal
+ * request expands the file's ancestors and highlights its row.
  */
 export function ExplorerBody({
-  sessionId, useSessions, useStore, actions, start, load, toggle, open, t,
+  sessionId, useSessions, useStore, actions, start, load, toggle, open, subscribeReveals, t,
 }: ExplorerBodyProps): ReactNode {
   const cwd = useSessions(sessions => sessions.byId[sessionId]?.cwd)
   const state = useStore(store => store.byTree[sessionId])
@@ -46,6 +51,36 @@ export function ExplorerBody({
     return () =>{  controller.abort() }
   }, [sessionId, cwd, start])
 
+  // Reveal requests arrive outside React, so they read the latest tree through
+  // a ref the render keeps fresh; the subscription registers once per face.
+  const stateRef = useRef(state)
+  stateRef.current = state
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const revealFile = (path: string): void => {
+    const current = stateRef.current
+    if (current === undefined || signal === undefined) return
+    const ancestors = ancestorsWithin(current.root, path)
+    if (ancestors.length === 0) return
+    actions.expandedPaths(sessionId, ancestors)
+    for (const dir of ancestors) {
+      if (stateRef.current?.levels[dir] === undefined) load(sessionId, dir, signal)
+    }
+    actions.highlightedSet(sessionId, path)
+    if (highlightTimer.current !== undefined) clearTimeout(highlightTimer.current)
+    highlightTimer.current = setTimeout(() => {
+      actions.highlightedClear(sessionId, path)
+    }, REVEAL_HIGHLIGHT_MS)
+  }
+  const revealRef = useRef(revealFile)
+  revealRef.current = revealFile
+  useEffect(() => {
+    const unsubscribe = subscribeReveals((path) => { revealRef.current(path) })
+    return () => {
+      unsubscribe()
+      if (highlightTimer.current !== undefined) clearTimeout(highlightTimer.current)
+    }
+  }, [subscribeReveals])
+
   if (cwd === undefined) {
     return (
       <div className={css.status} data-files-explorer-state="no-workspace">
@@ -58,6 +93,7 @@ export function ExplorerBody({
     state,
     onToggle: (path) => { toggle(sessionId, path, state.levels[path] !== undefined, signal) },
     onOpen: (path) => { open(fileAddressFor(sessionId, state.root, path)) },
+    highlighted: state.highlighted ?? undefined,
     t,
   }
   // Reload drops every level and asks again for the expanded ones; a collapsed

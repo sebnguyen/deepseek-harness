@@ -78,6 +78,12 @@ export interface ToolCallOwnerProps {
   loadImage: MessageImageLoader
   /** Inspect this call in the trajectory view when available. */
   inspect?: (() => void) | undefined
+  /**
+   * Reveal the call's acted-on file in the session's explorer column. Absent
+   * when the composition omits ui-sidebar-files; file rows then keep the
+   * trajectory inspect chip.
+   */
+  revealFile?: ((path: string) => void) | undefined
 }
 
 /** Full props of a registered atomic Tool view. */

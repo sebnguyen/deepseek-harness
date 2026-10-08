@@ -209,6 +209,35 @@ export function formatToolBody(variant: ToolRowVariant, argsRaw: string): string
   return JSON.stringify(parsed, null, 2)
 }
 
+/** The trailing chip a tool row shows: its callback and which gesture it is. */
+export interface FileRowChip {
+  /** Chip callback; absent leaves the row without a chip. */
+  readonly inspect?: (() => void) | undefined
+  /** `open` renders the explorer-reveal chip; absent renders the trajectory inspect chip. */
+  readonly inspectKind?: 'open' | undefined
+}
+
+/**
+ * Pick a file row's trailing chip: where the composition offers the explorer
+ * reveal, a row that names a file opens that file in the explorer tree instead
+ * of inspecting the call in the trajectory view.
+ * @param filePath - the path the call acted on; absent keeps the inspect chip.
+ * @param revealFile - the explorer reveal, absent when ui-sidebar-files is unmounted.
+ * @param inspect - the trajectory jump the row would otherwise show.
+ * @returns the chip to render.
+ */
+export function fileRowChip(
+  filePath: string | undefined,
+  revealFile: ((path: string) => void) | undefined,
+  inspect: (() => void) | undefined,
+): FileRowChip {
+  if (filePath !== undefined && revealFile !== undefined) {
+    const reveal = revealFile
+    return { inspect: () => { reveal(filePath) }, inspectKind: 'open' }
+  }
+  return { inspect }
+}
+
 /**
  * Derive the full row model from a frozen call slice.
  * @param toolName - wire tool name (dispatch-supplied; survives windowless results).

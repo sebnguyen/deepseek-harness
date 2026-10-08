@@ -1,7 +1,8 @@
 import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  CodeBlock, DiffBlock, DisclosureRow, IconInspectOutline12, ReadBlock, SearchBlock, StateDot, TerminalBlock, WebBlock,
+  CodeBlock, DiffBlock, DisclosureRow, IconBrowseOutline16, IconInspectOutline12, ReadBlock, SearchBlock, StateDot,
+  TerminalBlock, WebBlock,
   diffTotals,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -87,6 +88,11 @@ export interface ToolRowProps {
    * states. Absent = no affordance.
    */
   inspect?: (() => void) | undefined
+  /**
+   * `open`: the chip is the explorer reveal of the row's file (labeled Open),
+   * not the trajectory inspect. Ignored without `inspect`.
+   */
+  inspectKind?: 'open' | undefined
   /**
    * Stacked per-frame body of a batched `read`/`write` call; mutually
    * exclusive with the single-card props, which win when both are set.
@@ -227,6 +233,7 @@ export function ToolRow({
   filePathLine,
   onOpenFile,
   inspect,
+  inspectKind,
   frames,
 }: ToolRowProps) {
   const [expanded, setExpanded] = useState(false)
@@ -341,11 +348,12 @@ export function ToolRow({
               <button
                 type="button"
                 className={css.inspectChip}
+                data-inspect-kind={inspectKind ?? 'inspect'}
                 onClick={inspectFromChip}
                 onKeyDown={chipKeyDown}
               >
-                <IconInspectOutline12 />
-                {t('row.inspect')}
+                {inspectKind === 'open' ? <IconBrowseOutline16 size={12} /> : <IconInspectOutline12 />}
+                {t(inspectKind === 'open' ? 'row.open' : 'row.inspect')}
               </button>
             )}
           </>

@@ -4,7 +4,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { diffCardModel } from '../models/diff-card-model.ts'
 import { writeFramesRowModel } from '../models/frames-row-model.ts'
-import { toolRowModel } from '../models/tool-call-model.ts'
+import { fileRowChip, toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
 
@@ -13,12 +13,14 @@ type FileMutationRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 /**
  * Lets users expand an applied file diff and open the reported path.
  */
-export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect, t }: FileMutationRowProps) {
+export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect, revealFile, t }: FileMutationRowProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const diff = diffCardModel(block)
   // A batched `write` stacks one diff card per element (plus detach lines)
   // instead of the merged single card; the suffix carries the batch totals.
   const frames = writeFramesRowModel(block, cwd, home)
+  const filePath = frames === null ? model.filePath : frames.firstPath
+  const chip = fileRowChip(filePath, revealFile, inspect)
   return (
     <ToolRow
       t={t}
@@ -34,10 +36,11 @@ export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect,
       diff={frames === null ? diff : undefined}
       frames={frames ?? undefined}
       state={model.state}
-      filePath={frames === null ? model.filePath : frames.firstPath}
+      filePath={filePath}
       summarySuffix={frames !== null && frames.stat !== null ? `+${frames.stat.added} -${frames.stat.removed}` : undefined}
       onOpenFile={openFile}
-      inspect={inspect}
+      inspect={chip.inspect}
+      inspectKind={chip.inspectKind}
     />
   )
 }

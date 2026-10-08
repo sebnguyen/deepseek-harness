@@ -83,6 +83,8 @@ export interface ChatNodeOwnerProps {
   openSkill: (name: string) => void
   openFile: (path: string, options?: OpenFileOptions) => void
   inspectCall: (callId: ToolCallId) => void
+  /** Reveal a tool row's acted-on file in the session's explorer, when the composition offers it. */
+  revealFile?: ((path: string) => void) | undefined
   forkAt: (seq: number) => void
   /**
    * Session-authorized image loader, down-threaded from the Chat view so a
@@ -129,6 +131,8 @@ export interface ChatViewInjected {
   /** Open the current source file of a skill referenced by a sent message. */
   openSkill: (name: string) => void
   openFile: (path: string, options?: OpenFileOptions) => Promise<void>
+  /** Reveal one file in the session's explorer column; absent when ui-sidebar-files is unmounted. */
+  revealFile?: ((path: string) => void) | undefined
   loadOlder: () => void
   /** Jump loader: page history back through seq; resolves when the window covers it. */
   loadThrough: (seq: SessionSeq) => Promise<void>

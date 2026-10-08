@@ -26,8 +26,9 @@ The right Sidebar's navigator: the session's workspace root as a tree, listed on
 - **The body** — the keyed `sidebar.right.pane.tab` seat under that id: a header row under the strip, then the tree. The header row is the document preview's (`ui-sidebar-documentpreview`): the root path, its directories greyed and its last segment in full ink, never ellipsized (a path wider than the row keeps its end and fades its start), with the one control, reload, at its right. The row is copied rather than shared because a plugin bundle shares runtime code only through the platform modules; once the artifact and slot surfaces settle, one copy in `ui-primitives` could serve every pane header.
 - **The chip title** — the keyed `sidebar.right.pane.tab.title` seat under that id: a shared `FileTypeIcon` folder glyph at 16px before the type's label. The tree's own rows never draw this sheet.
 - **The explorer column** — the sidebar's `sidebar.right.explorer` seat: the same rows, compacted, under a header with the root's last segment and the reload control. It is the panel's persistent navigator, so a file can be opened without first opening the files page; its rows open through `ctx.sidebarRight.openResource`, and its tree shares the tab type's store, bucketed by the session id instead of a tab id.
+- **The reveal face** — `ctx.reflect.provide('sidebarFilesExtensions', ...)`: `revealIn(sessionId, path)` asks the session's explorer column to expand the path's ancestor directories, list any level it has not loaded, and highlight the file's row for a moment, scrolling it into view. Rows reveal through the chat view's `revealFile`, which the composition omits without this package, leaving their Inspect chip in place. A path outside the session's workspace root, a request for a session whose column is not mounted, and every request while the column is absent are no-ops.
 
-Nine source files under `src/client/`: `definition.tsx` (the type), `store.ts` (what it keeps), `face.ts` (how it lists, Remote binding included), `Tree.tsx` (the shared rows, with the ordering and failure-line helpers), `FilesBody.tsx` (the tab's chrome), `FilesTitle.tsx` (the chip title), `ExplorerBody.tsx` (the column's chrome), `locales.ts` (what it says), and `index.ts` (the wiring).
+Ten source files under `src/client/`: `definition.tsx` (the type), `store.ts` (what it keeps), `face.ts` (how it lists, Remote binding included), `reveal.ts` (the reveal channel and the `sidebarFilesExtensions` contract), `Tree.tsx` (the shared rows, with the ordering and failure-line helpers), `FilesBody.tsx` (the tab's chrome), `FilesTitle.tsx` (the chip title), `ExplorerBody.tsx` (the column's chrome), `locales.ts` (what it says), and `index.ts` (the wiring).
 
 <a id="the-tree"></a>
 ## The tree
@@ -42,7 +43,7 @@ The root is the session's working directory, read from `useSessions().byId[sessi
 
 A level cut by the endpoint's entry cap ends with a marker; an empty level says so; a level that failed shows one line per code — `workspace-file/not-found`, `outside-workspace`, `not-directory` — and the transport's own message otherwise. Reload drops every listed level and asks again for the expanded ones; collapsed levels are fetched again when they next open. A session without a working directory shows a single line instead of a tree.
 
-State lives in the type's own store, one bucket per owner id — a tab id for tabs of this kind, the session id for the explorer column: `root`, `levels` (loading / ready / failed per absolute path), and `expanded`. The owner's `signal` ends a bucket: on abort the tree is forgotten and a listing that settles afterwards writes nothing; the column owns its signal through its mount, so it keeps its tree across collapses and loses it when the session view unmounts.
+State lives in the type's own store, one bucket per owner id — a tab id for tabs of this kind, the session id for the explorer column: `root`, `levels` (loading / ready / failed per absolute path), `expanded`, and `highlighted`, the single row one reveal currently marks. The owner's `signal` ends a bucket: on abort the tree is forgotten and a listing that settles afterwards writes nothing; the column owns its signal through its mount, so it keeps its tree across collapses and loses it when the session view unmounts.
 
 <a id="model-experience"></a>
 ## Model Experience
@@ -56,7 +57,7 @@ None; directory listings travel over the Remote and assemble no model request.
 ## Known Limitations and Deferred Work
 
 <a id="known-limitations-and-deferred-work"></a>
-- **Listing only.** No search, artifact filter, drag-and-drop, rename, context menu, current-file highlight, or filesystem watching; a level changes only through reload.
+- **Listing only.** No search, artifact filter, drag-and-drop, rename, context menu, or filesystem watching; a level changes only through reload, and the reveal highlight is a transient marker, not a persistent current-file pointer.
 - **One root.** The tree is rooted at the session's working directory; there is no way to browse above it, and the Host refuses paths outside the workspace root anyway.
 
 <a id="dev-note"></a>

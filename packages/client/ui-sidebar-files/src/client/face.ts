@@ -1,10 +1,10 @@
 /**
  * The tree's asynchronous half: listing directories into the store.
  *
- * The component never awaits anything. It calls `start` / `load` / `toggle`, and
- * this face performs the listing and writes the outcome through the store's own
- * actions — the Slot-standard `inject` shape, so the session id is resolved by
- * the framework and the write set stays the store's.
+ * The component never awaits anything. It calls `start` / `load` / `toggle`,
+ * answers reveals, and this face performs the listing and writes the outcome
+ * through the store's own actions — the Slot-standard `inject` shape, so the
+ * session id is resolved by the framework and the write set stays the store's.
  *
  * The listing itself is bound here to the Client Remote face: the tree keys
  * every level by absolute path and hands the endpoint that same absolute path;
@@ -21,6 +21,7 @@
 import type { ClientRemote, RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { BoundActions } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { FilesRevealChannel } from './reveal.ts'
 import type { DirLevel, TreeKey, createFilesStore } from './store.ts'
 
 /**
@@ -103,6 +104,12 @@ export interface ExplorerInjected extends FilesInjected {
    * @param address - a `dsh-resource://file` address.
    */
   readonly open: (address: string) => void
+  /**
+   * Subscribe to reveal requests addressed to this session's tree.
+   * @param listener - called with the absolute path of each requested file.
+   * @returns disposer ending the subscription.
+   */
+  readonly subscribeReveals: (listener: (path: string) => void) => () => void
 }
 
 /**
@@ -158,14 +165,23 @@ export function filesFace(
 
 /**
  * Bind the explorer column's face: the tree's face for the session-keyed tree,
- * plus the opener that lands a clicked file in the sidebar's pane area.
+ * the opener that lands a clicked file in the sidebar's pane area, and the
+ * reveal subscription that answers the tool rows' open gesture.
  * @param list - the bound `workspaceFiles.list` call.
  * @param open - the sidebar resource opener, aimed at the mounted session.
+ * @param channel - the reveal channel the tool rows' service writes into.
  * @returns the Slot `inject` factory: session and bound actions in, face out.
  */
 export function explorerFace(
   list: ListWorkspaceDirectory,
   open: (address: string) => void,
+  channel: FilesRevealChannel,
 ): (sessionId: SessionId, actions: BoundActions<ReturnType<typeof createFilesStore>>) => ExplorerInjected {
-  return (sessionId, actions) => ({ ...filesFace(list)(sessionId, actions), open })
+  return (sessionId, actions) => ({
+    ...filesFace(list)(sessionId, actions),
+    open,
+    subscribeReveals: listener => channel.subscribe((request) => {
+      if (request.sessionId === sessionId) listener(request.path)
+    }),
+  })
 }

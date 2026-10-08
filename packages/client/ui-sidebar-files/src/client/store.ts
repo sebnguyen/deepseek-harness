@@ -52,6 +52,8 @@ export interface FilesTabState {
   levels: Record<string, LevelState>
   /** Expanded absolute directory paths, root included. */
   expanded: string[]
+  /** Row the reveal gesture currently highlights; null outside one. */
+  highlighted: string | null
 }
 
 /** Every tree, keyed by its owner id. */
@@ -79,6 +81,9 @@ type FilesActions = {
   loaded: (draft: FilesState, key: TreeKey, path: string, level: DirLevel) => void
   failed: (draft: FilesState, key: TreeKey, path: string, failure: RemoteFailure) => void
   toggled: (draft: FilesState, key: TreeKey, path: string) => void
+  expandedPaths: (draft: FilesState, key: TreeKey, paths: readonly string[]) => void
+  highlightedSet: (draft: FilesState, key: TreeKey, path: string) => void
+  highlightedClear: (draft: FilesState, key: TreeKey, path: string) => void
   reset: (draft: FilesState, key: TreeKey) => void
   forget: (draft: FilesState, key: TreeKey) => void
 }
@@ -102,7 +107,7 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
        * @param root - absolute path of the workspace root.
        */
       start: (d, key: TreeKey, root: string) => {
-        d.byTree[key] = { root, levels: {}, expanded: [root] }
+        d.byTree[key] = { root, levels: {}, expanded: [root], highlighted: null }
       },
       /**
        * Mark one directory as being listed.
@@ -146,6 +151,39 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
         const at = state.expanded.indexOf(path)
         if (at >= 0) state.expanded.splice(at, 1)
         else state.expanded.push(path)
+      },
+      /**
+       * Expand directories without collapsing any of them, for the reveal
+       * gesture; a tree `start` has not seeded is left alone, so a reveal that
+       * reaches an unmounted column is a no-op, not a thrown write.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       * @param paths - absolute directory paths to leave expanded.
+       */
+      expandedPaths: (d, key, paths) => {
+        const state = d.byTree[key]
+        if (state === undefined) return
+        for (const path of paths) if (!state.expanded.includes(path)) state.expanded.push(path)
+      },
+      /**
+       * Highlight one row as the reveal target.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       * @param path - absolute path of the revealed file.
+       */
+      highlightedSet: (d, key, path) => {
+        const state = d.byTree[key]
+        if (state !== undefined) state.highlighted = path
+      },
+      /**
+       * Drop one highlight once its moment passes; a newer reveal keeps its own.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       * @param path - the highlighted path the timer expired for.
+       */
+      highlightedClear: (d, key, path) => {
+        const state = d.byTree[key]
+        if (state !== undefined && state.highlighted === path) state.highlighted = null
       },
       /**
        * Drop every loaded level, keeping what is expanded.
