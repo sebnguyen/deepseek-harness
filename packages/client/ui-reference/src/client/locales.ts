@@ -15,6 +15,8 @@ export const NS = 'reference'
 export const zh = {
   'section.files': '文件与文件夹',
   'section.sessions': '对话',
+  'section.stops': '快照停靠点',
+  'stops.meta': '第 {turn} 轮 · {tool}',
   'candidate.noCwd': '（无工作目录）',
   'crumb.root': '工作区',
   'time.now': '刚刚',
@@ -39,6 +41,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const en = {
   'section.files': 'Files & folders',
   'section.sessions': 'Sessions',
+  'section.stops': 'Snapshot stops',
+  'stops.meta': 'turn {turn} · {tool}',
   'candidate.noCwd': '(no cwd)',
   'crumb.root': 'Workspace',
   'time.now': 'now',

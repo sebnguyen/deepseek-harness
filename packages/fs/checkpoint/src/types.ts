@@ -32,6 +32,35 @@ export interface CheckpointRow {
   readonly gap?: true
 }
 
+/** One stop of one file over the remote surface, folded like the client fold. */
+export interface CheckpointStop {
+  /** Sequence number of the `checkpoint/scan` event that carried this stop. */
+  readonly seq: number
+  /** Wall-clock time of that event. */
+  readonly time: number
+  /** The write call that committed this file. */
+  readonly callId: string
+  /** Name of the tool that ran. */
+  readonly toolName: string
+  /** The call's stated purpose, when one rode the row or its call. */
+  readonly purpose?: string
+  /** Turn the call belonged to, absent when its `tool/call` event was never logged. */
+  readonly turn?: number
+  /** Step within that turn, absent with the turn. */
+  readonly step?: number
+  /** Digest of the prior text; omitted when the write supplied none. */
+  readonly before?: SnapshotDigest
+  /** Digest of the committed text; always present under the write gate. */
+  readonly after?: SnapshotDigest
+}
+
+/** One file's stops over the remote surface, oldest first. */
+export interface CheckpointTimeline {
+  /** Session-relative path, slash-separated. */
+  readonly path: string
+  readonly stops: readonly CheckpointStop[]
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**

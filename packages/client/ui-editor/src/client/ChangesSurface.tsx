@@ -54,6 +54,8 @@ export interface ChangesSurfaceProps {
   readonly blob: (digest: string, signal: AbortSignal) => Promise<string | null>
   /** Quote the stop's address and purpose into the next draft. */
   readonly onQuote: (stop: FileStop) => void
+  /** Select this stop on arrival (a tab opened straight onto one stop). */
+  readonly selectCallId?: string
 }
 
 /**
@@ -61,8 +63,9 @@ export interface ChangesSurfaceProps {
  * @param props - stops, copy, the blob reader, and the quote and select callbacks.
  * @returns the scrubber, the frozen unified page, and the purpose box.
  */
-export function ChangesSurface({ stops, t, blob, onQuote }: ChangesSurfaceProps): ReactNode {
-  const [index, setIndex] = useState(stops.length - 1)
+export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: ChangesSurfaceProps): ReactNode {
+  const [index, setIndex] = useState(() =>
+    selectCallId === undefined ? stops.length - 1 : Math.max(0, stops.findIndex(stop => stop.callId === selectCallId)))
   const [frame, setFrame] = useState<{ before?: string; after?: string } | undefined>(undefined)
   const [missing, setMissing] = useState(false)
   const [ghost, setGhost] = useState<number | undefined>(undefined)
@@ -89,6 +92,13 @@ export function ChangesSurface({ stops, t, blob, onQuote }: ChangesSurfaceProps)
     })
     return () => controller.abort()
   }, [stop, blob])
+
+  // A late navigation onto one stop re-selects it once the rolls carry it.
+  useEffect(() => {
+    if (selectCallId === undefined) return
+    const next = stops.findIndex(stop => stop.callId === selectCallId)
+    if (next >= 0) setIndex(next)
+  }, [selectCallId, stops])
 
   const xs = useMemo(() => placeStops(stops), [stops])
   const lines = useMemo(() => (frame === undefined ? [] : unifiedLines(frame.before, frame.after)), [frame])

@@ -391,4 +391,12 @@ describe('decorations: scanTextRefs', () => {
     const out = scanTextRefs('a\n/goal', lexicon)
     expect(out).toEqual([{ start: 2, end: 7, trigger: '/' }])
   })
+
+  it('an `@` name carries its `#turn#call-id` snapshot tail as one decoration token', () => {
+    const stops: ReadonlyMap<'/' | '@', readonly string[]> = new Map([
+      ['@', ['notes.md#2#call-9'] as readonly string[]],
+    ])
+    expect(scanTextRefs('see @notes.md#2#call-9 please', stops)).toEqual([{ start: 4, end: 22, trigger: '@' }])
+    expect(scanTextRefs('see @notes.md#2#call-x please', stops)).toEqual([])
+  })
 })

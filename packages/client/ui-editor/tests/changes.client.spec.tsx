@@ -35,13 +35,13 @@ function t(key: keyof typeof en, params?: Record<string, string | number>): stri
     name in params ? String(params[name]) : match)
 }
 
-function tabInfo(): unknown {
+function tabInfo(params?: { display: 'changes'; stop?: string }): unknown {
   return {
     sidebar: { expanded: true, fullscreen: false },
     panel: { id: 'main' },
     tab: {
       id: 'tab-1', contentId: ADDRESS, visible: true,
-      navigation: { address: ADDRESS, params: undefined, revision: 0 },
+      navigation: { address: ADDRESS, params, revision: 0 },
       signal: new AbortController().signal,
       actions: { openResource: () => {}, openTab: () => {}, close: () => {} },
     },
@@ -53,12 +53,13 @@ interface HarnessOptions {
   readonly draft?: string
   readonly pruned?: boolean
   readonly setDrafts: string[]
+  readonly params?: { display: 'changes'; stop?: string }
 }
 
 /** The body over a fixed two-stop timeline with a controllable input machine. */
-function Harness({ stops, draft = '', pruned = false, setDrafts }: HarnessOptions): ReactNode {
+function Harness({ stops, draft = '', pruned = false, setDrafts, params }: HarnessOptions): ReactNode {
   return createElement(EditorBody, {
-    useTabInfo: tabInfo,
+    useTabInfo: () => tabInfo(params),
     useResource: () => ({ status: 'none' }),
     useFileHistory: (selector: (snapshot: unknown) => unknown) =>
       selector({ files: [{ path: 'notes.txt', stops }] }),
@@ -143,6 +144,18 @@ describe('Changes display', () => {
       fireEvent.click(screen.getByRole('button', { name: en.addNext }))
     })
     expect(setDrafts).toEqual(['@notes.txt#4#c9'])
+  })
+
+  it('opens straight onto the Changes display when the tab params ask for it', async () => {
+    const setDrafts: string[] = []
+    render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes' } }))
+    expect(await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))).toBeDefined()
+  })
+
+  it('selects the stop a tab navigation names', async () => {
+    const setDrafts: string[] = []
+    render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes', stop: 'c1' } }))
+    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
   })
 
   it('marks a stop whose call never logged a turn as a gap diamond', async () => {

@@ -22,6 +22,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-files/client'
+// Type-only: the `file` tab params declaration the body reads off `navigation.params`.
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import type {} from '@deepseek-ai/dsh-client-resources/client'
 // Type-only: the session-standard props the body reads (timeline, input machine).
 import type {} from '@deepseek-ai/dsh-client-ui-file-history/client'
@@ -95,13 +97,17 @@ export function EditorBody({
   const html = useMemo(() => isHtmlPath(file.path), [file.path])
   const history = useFileHistory(snapshot => snapshot)
   const draft = useInput(state => state.draft)
+  // A tab opened with `{ display: 'changes', stop }` starts on the frozen page.
+  const navParams = tab.navigation.params
+  const openChanges = navParams !== undefined && 'display' in navParams && navParams.display === 'changes'
+  const openStop = navParams !== undefined && 'stop' in navParams ? navParams.stop : undefined
   const stops = useMemo(
     () => history.files.find(timeline => timeline.path === file.path)?.stops ?? [],
     [history, file.path],
   )
   /** Which rendered display this path opens on, when either claims it. */
   const previewKind: 'markdown' | 'html' | undefined = markdown ? 'markdown' : html ? 'html' : undefined
-  const [mode, setMode] = useState<EditorDisplayMode>('preview')
+  const [mode, setMode] = useState<EditorDisplayMode>(openChanges ? 'changes' : 'preview')
   const [doc, setDoc] = useState<LoadedDocument | undefined>(undefined)
   const [failed, setFailed] = useState<string | undefined>(undefined)
   const [banner, setBanner] = useState<Banner | undefined>(undefined)
@@ -217,6 +223,11 @@ export function EditorBody({
     setDoc(previous => (previous === undefined ? previous : { ...previous, text }))
   }, [])
 
+  // A later openResource onto the same tab re-arms the Changes display.
+  useEffect(() => {
+    if (openChanges) setMode('changes')
+  }, [openChanges, tab.navigation.revision])
+
   // A Host-reported version change means something else wrote the file; a clean
   // buffer silently reloads on next open, a dirty one gets the banner.
   useEffect(() => {
@@ -261,7 +272,15 @@ export function EditorBody({
               </div>
             )
           : showChanges
-            ? <ChangesSurface stops={stops} t={t} blob={blobText} onQuote={quoteStop} />
+            ? (
+              <ChangesSurface
+                stops={stops}
+                t={t}
+                blob={blobText}
+                onQuote={quoteStop}
+                {...openStop === undefined ? {} : { selectCallId: openStop }}
+              />
+            )
             : <div className={css.host} ref={hostRef} />}
       {failed === undefined && (
         <div className={css.footer}>

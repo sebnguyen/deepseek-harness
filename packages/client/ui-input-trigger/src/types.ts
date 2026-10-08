@@ -143,7 +143,7 @@ export interface ReferenceCodec {
   /** Clipboard / persistence projection of one reference (e.g. `/name`). */
   clipboardText(ref: string): string
   /** Model serialization of one reference (e.g. `<skill>name</skill>`). */
-  serialize(ref: string, signal: AbortSignal): Promise<string>
+  serialize(session: ClientSessionContext, ref: string, signal: AbortSignal): Promise<string>
 }
 
 /**

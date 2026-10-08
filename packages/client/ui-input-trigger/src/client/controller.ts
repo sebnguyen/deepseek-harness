@@ -302,7 +302,7 @@ export class InputTriggerController {
     if (owner?.codec === undefined) {
       return Promise.reject(new Error(`slash: no serializer for reference source "${source}"`))
     }
-    return owner.codec.serialize(ref, signal)
+    return owner.codec.serialize(this.project(), ref, signal)
   }
 
   /**

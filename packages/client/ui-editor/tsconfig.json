@@ -42,6 +42,9 @@
       "path": "../ui-sidebar-right"
     },
     {
+      "path": "../ui-sidebar-documentpreview"
+    },
+    {
       "path": "../ui-slots"
     },
     {

@@ -1,13 +1,15 @@
 /**
  * Unified Web `@` reference source. File and session discovery run through
  * the cancellable generated Remote namespaces in parallel with deterministic
- * ordering and labels.
+ * ordering and labels; snapshot stops join from the checkpoint timeline so a
+ * written file can be referenced at one frozen stop.
  *
  * Rows carry only what distinguishes them: a file names its parent directory
  * (nothing at the workspace root), a directory listing names none because its
- * breadcrumb already does, and a session names its workspace only when that
- * workspace is not the current one. A session is dated from the Host session
- * list, so the `@` menu and the session list never disagree about its age.
+ * breadcrumb already does, a session names its workspace only when that
+ * workspace is not the current one, and a stop names its turn and tool. A
+ * session is dated from the Host session list, so the `@` menu and the session
+ * list never disagree about its age.
  *
  * @module @deepseek-ai/dsh-client-ui-reference/client
  */
@@ -16,11 +18,16 @@ import type {} from '@deepseek-ai/dsh-api-remotes/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+// Type-only: the `file` params declaration (`display` / `stop`) the source passes to openResource.
+import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
+// Type-only: the checkpoint stop vocabulary the remote returns.
+import type {} from '@deepseek-ai/dsh-checkpoint/types'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
-import { relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { findStop, parseSnapshotRef, rankByName, relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  ClientSessionContext, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
+  ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import { formatFileMention } from '@deepseek-ai/dsh-file-reference/grammar'
 import type { FileReferenceCandidate } from '@deepseek-ai/dsh-file-reference/types'
@@ -31,30 +38,54 @@ import { en, NS, zh, type ReferenceKey } from './locales.ts'
 /** Required services: the trigger registry, the Remote namespaces, and the copy. */
 export const inject = [
   'inputTriggers', 'locale', 'sessions', 'remote', 'remote.fileReferences',
-  'remote.sessionReferenceResolver', 'sidebarRight',
+  'remote.sessionReferenceResolver', 'remote.checkpoint', 'sidebarRight',
 ]
 
 /**
- * Register the combined `@file` / `@session` source.
+ * Register the combined `@file` / `@session` / `@stop` source.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-reference: dictionaries')
   const t = ctx.locale.bind(NS)
   const sessions = ctx.get('sessions') as ISessions
+  // The settled stop roll backs the synchronous lexicon scan; menu picks and
+  // warms refresh it, connection resets drop it.
+  const rolls = new Map<string, readonly StopRollEntry[]>()
+  const lexiconListeners = new Map<string, Set<() => void>>()
+  const notifyLexicon = (sessionId: string): void => {
+    for (const listener of [...(lexiconListeners.get(sessionId) ?? [])]) listener()
+  }
+  const setRoll = (sessionId: string, roll: readonly StopRollEntry[]): void => {
+    rolls.set(sessionId, roll)
+    notifyLexicon(sessionId)
+  }
+  const fetchRoll = (sessionId: SessionId): Promise<readonly StopRollEntry[]> =>
+    ctx.remote.checkpoint.stops(sessionId)
+      .then(result => (result.ok ? result.value.flatMap(stopEntries) : []))
+  const clearRolls = (): void => {
+    const ids = [...rolls.keys()]
+    rolls.clear()
+    for (const id of ids) notifyLexicon(id)
+  }
+  ctx.on('connection/reset', clearRolls)
   const source: InputTriggerSource = {
     trigger: '@',
     name: 'reference',
     showGroupTitle: false,
-    async candidates(session: ClientSessionContext, { query, quoted, drilled, signal }) {
+    async candidates(session, { query, quoted, drilled, signal }) {
       const fileLookup = ctx.remote.fileReferences.list(session.sessionId, query, signal)
         .then(result => result.ok ? result.value : [])
       const sessionLookup = quoted === true
         ? Promise.resolve([] as SessionReferenceMentionCandidate[])
         : ctx.remote.sessionReferenceResolver.candidates(session.sessionId, query, signal)
           .then(result => result.ok ? result.value : [])
-      const [fileItems, sessionItems] = await Promise.all([fileLookup, sessionLookup])
+      const stopsLookup = quoted === true
+        ? Promise.resolve([] as StopRollEntry[])
+        : fetchRoll(session.sessionId)
+      const [fileItems, sessionItems, stopItems] = await Promise.all([fileLookup, sessionLookup, stopsLookup])
       if (signal.aborted) return []
+      if (quoted !== true) setRoll(session.sessionId, stopItems)
       // The header already names the directory being listed; rows repeat it only
       // when there is no header to carry it.
       const withLocation = crumbsFor(query, quoted === true, drilled, t) === undefined
@@ -63,6 +94,8 @@ export function apply(ctx: ClientContext): void {
       const listed = sessions.list.getSnapshot().byId
       return [
         ...fileItems.flatMap(candidate => fileCandidate(candidate, quoted === true, withLocation, t)),
+        ...rankByName(stopItems.map(entry => ({ ...entry, name: entry.mention })), query)
+          .map(entry => stopCandidate(entry, withLocation, t)),
         ...sessionItems.map(candidate => sessionCandidate(
           candidate,
           listed[candidate.sessionId]?.updatedAt ?? candidate.createdAt,
@@ -74,6 +107,24 @@ export function apply(ctx: ClientContext): void {
     },
     header(_session: ClientSessionContext, req) {
       return crumbsFor(req.query, req.quoted === true, req.drilled, t)
+    },
+    warm(session) {
+      void fetchRoll(session.sessionId)
+        .then(roll => setRoll(session.sessionId, roll))
+        .catch(() => {})
+    },
+    lexicon(session) {
+      return rolls.get(session.sessionId)?.map(entry => entry.mention)
+    },
+    subscribeLexicon(session, listener) {
+      const key = session.sessionId
+      const listeners = lexiconListeners.get(key) ?? new Set()
+      listeners.add(listener)
+      lexiconListeners.set(key, listeners)
+      return () => {
+        listeners.delete(listener)
+        if (listeners.size === 0) lexiconListeners.delete(key)
+      }
     },
     onPick({ candidate, action }) {
       const value = parseCandidate(candidate.value)
@@ -106,22 +157,65 @@ export function apply(ctx: ClientContext): void {
           },
         }
       }
+      if (value?.kind === 'stop') {
+        return {
+          insert: {
+            source: 'reference',
+            ref: value.mention,
+            label: value.label,
+            appearance: 'snapshot',
+            clipboardText: value.mention,
+          },
+        }
+      }
       return undefined
     },
     openReference(session, { ref, appearance }) {
-      if (appearance !== 'file') return false
-      const path = ref.startsWith('@"') ? ref.slice(2, -1) : ref.slice(1)
+      if (appearance !== 'file' && appearance !== 'snapshot') return false
+      const raw = ref.startsWith('@"') ? ref.slice(2, -1) : ref.slice(1)
+      const parsed = appearance === 'snapshot' ? parseSnapshotRef(raw) : undefined
+      const path = parsed?.path ?? raw
       const cwd = sessions.list.getSnapshot().byId[session.sessionId]?.cwd
-      ctx.sidebarRight.openResource(fileAddressFor(session.sessionId, cwd, path))
+      ctx.sidebarRight.openResource(
+        fileAddressFor(session.sessionId, cwd, path),
+        parsed === undefined
+          ? undefined
+          : { params: { display: 'changes', stop: parsed.callId } as const },
+      )
       return true
     },
     codec: {
       clipboardText: ref => ref,
-      serialize: ref => Promise.resolve(ref),
+      serialize: async (session, ref, signal) => {
+        const body = ref.startsWith('@') ? ref.slice(1) : ref
+        const parsed = parseSnapshotRef(body)
+        if (parsed === undefined) return ref
+        const timelines = await ctx.remote.checkpoint.stops(session.sessionId, parsed.path)
+        if (!timelines.ok) {
+          throw new Error(`checkpoint.stops failed: ${timelines.error.code}: ${timelines.error.message}`)
+        }
+        const stop = findStop(parsed, timelines.value.find(timeline => timeline.path === parsed.path)?.stops ?? [])
+        if (stop === undefined || stop.after === undefined) {
+          throw new Error(`snapshot ${ref} has no retained after text`)
+        }
+        signal.throwIfAborted()
+        const blob = await ctx.remote.checkpoint.blob(session.sessionId, stop.after)
+        if (!blob.ok || blob.value === null) {
+          throw new Error(`snapshot ${ref} was pruned from the checkpoint store`)
+        }
+        return `${ref}\n\`\`\`\n${blob.value}\n\`\`\``
+      },
     },
   }
   const inputTriggers = ctx.get('inputTriggers') as InputTriggerServiceContract
-  ctx.effect(() => inputTriggers.registerSource(source), 'ui-reference: @ source')
+  ctx.effect(() => {
+    const unregister = inputTriggers.registerSource(source)
+    return () => {
+      unregister()
+      rolls.clear()
+      lexiconListeners.clear()
+    }
+  }, 'ui-reference: @ source')
 }
 
 type Translate = (key: ReferenceKey, params?: Record<string, unknown>) => string
@@ -129,6 +223,55 @@ type Translate = (key: ReferenceKey, params?: Record<string, unknown>) => string
 type ReferenceCandidateValue =
   | { kind: 'file'; fileKind: FileReferenceCandidate['kind']; label: string; mention: string }
   | { kind: 'session'; label: string; mention: string }
+  | { kind: 'stop'; label: string; mention: string }
+
+/** One serializable stop of one file, flattened for menu ranking and lexicon rolls. */
+interface StopRollEntry {
+  readonly path: string
+  readonly mention: string
+  readonly turn: number
+  readonly tool: string
+  readonly parent: string
+}
+
+/** Whether one stop can serialize: a turn key and a retained after text. */
+function isSerializableStop(stop: { turn?: number | string; after?: string }): boolean {
+  return typeof stop.turn === 'number' && stop.after !== undefined
+}
+
+/** One menu row per serializable stop, ranked with the same name ranking as skills. */
+function stopCandidate(entry: StopRollEntry, withLocation: boolean, t: Translate): InputTriggerCandidate {
+  const base = entry.path.slice(entry.path.lastIndexOf('/') + 1)
+  return {
+    name: entry.mention,
+    label: t('stops.meta', { turn: entry.turn, tool: entry.tool }),
+    ...(withLocation && entry.parent !== '' ? { description: entry.parent } : {}),
+    icon: 'file' as const,
+    section: t('section.stops'),
+    value: JSON.stringify({ kind: 'stop', label: base, mention: entry.mention } satisfies ReferenceCandidateValue),
+  }
+}
+
+/** One timeline's rows, narrowed to what the roll flattens. */
+interface TimelineLike {
+  readonly path: string
+  readonly stops: readonly { callId: string; toolName: string; turn?: number | string; after?: string }[]
+}
+
+/** Flatten one timeline's serializable stops into roll entries. */
+function stopEntries(timeline: TimelineLike): StopRollEntry[] {
+  const slash = timeline.path.lastIndexOf('/')
+  const parent = slash < 0 ? '' : timeline.path.slice(0, slash)
+  return timeline.stops
+    .filter(isSerializableStop)
+    .map(stop => ({
+      path: timeline.path,
+      mention: `${timeline.path}#${stop.turn as number}#${stop.callId}`,
+      turn: stop.turn as number,
+      tool: stop.toolName,
+      parent,
+    }))
+}
 
 /**
  * The breadcrumb of a drilled directory listing, from the workspace root down

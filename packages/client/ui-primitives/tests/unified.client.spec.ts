@@ -36,6 +36,6 @@ describe('unifiedLines', () => {
     expect(unifiedLines('same\n', 'same\n')).toEqual([])
     const lines = unifiedLines('a\n', 'b')
     expect(lines.map(line => line.kind)).toEqual(['removed', 'added'])
-    expect(lines[1].text).toBe('b')
+    expect(lines[1]?.text).toBe('b')
   })
 })
