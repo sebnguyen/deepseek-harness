@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-claim",
   "description": "Model-facing verification-claim tools over the persisted claim domain",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

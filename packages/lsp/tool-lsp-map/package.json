@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-lsp-map",
   "description": "Model-facing symbols tool over the DeepSeek Harness LSP capability seam (ctx.lsp) — batches documentSymbol outlines per file into a condensed path-anchored symbol layout with kind abbreviations, optional in/out hotspot counts, and per-file/per-batch caps",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

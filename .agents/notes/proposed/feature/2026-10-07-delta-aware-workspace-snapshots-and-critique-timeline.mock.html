@@ -1,0 +1,369 @@
+<!doctype html>
+<!-- Static visual mock, v5: the file's snapshot timeline rides the TOP of the
+     editor's Changes display as a trajectory-style header strip, and the
+     _dsh_harness_purpose critique surface rides the BOTTOM in the chat
+     input's own seat. Same shipped chrome (facts from ui-layout /
+     ui-conversation / ui-sidebar-right / ui-dockkit / ui-trajectory source;
+     literals are the dark appearance of design-platform.css).
+
+     Top strip: the family-1 continuous scrubber on a turn axis — a thin
+     24px turn-proportional band on bg-layer-2 (0.5px l2 bottom rule, end
+     labels turn 1 and the current turn), a 2px track carrying 2x10px
+     event ticks (the gap is a warn-stroked hollow diamond) and a
+     draggable playhead: a 1.5px business hairline with an 11px round
+     handle, snapped to the selected stop. Mid-drag a dashed ghost
+     playhead live-previews the scrub while the frozen diff below
+     answers, and release snaps to the nearest stop. The center header
+     lists Chat and Trajectory only: the Files view retires, its duties
+     folded into the scrubber and dockkit chips. The conversation draws
+     every agent turn dead with a mention row: one chip per file whose
+     state at the turn's last snapshot differs from its state at the
+     previous turn's last snapshot — the chip is the file's end-of-turn
+     address and its badges are the snapshot-to-snapshot aggregate for
+     the whole turn, so multi-call turns collapse to one chip per file;
+     a gap diamond rides a chip whose chain from the prior snapshot
+     broke; a chip click opens that stop in Changes. Hover or focus over a tick opens a tight card: tool name on
+     the first row, the stored +/− badges side by side on the second (the
+     gap diamond labels itself "unattributed"); a click selects.
+     The controls row under the dockkit strip is icons whose labels appear
+     only on hover: code chevrons Source, ± Changes, eye Preview, tray
+     arrow Save, rotation arrow Revert.
+
+     Middle keeps the frozen single-page unified diff (context rows, red −,
+     green +, both numbers in the gutter); the display bottom holds the
+     selected stop's purpose box — a Purpose heading with turn/tool/call
+     meta and the stored text full beneath it, stacked vertically — and a
+     round left-aligned ＋ button beside the box. Snapshots are
+     addressable exactly like files: an @ reference of the form
+     @scan.ts#4#call-7f2 (path + turn + tool-call id, the log's own
+     identity stack; a stop whose call never logged a turn uses #gap in
+     the turn slot) rides the composer's existing file picker, which
+     nests each open file's stops under it with tool, time, and stored
+     badges; the ＋ inserts that address as a
+     chip plus the cited purpose quote into the next draft; sending
+     posts an ordinary user message carrying the chip and the quote
+     line. No chat element lives in the right panel; one window, one
+     element.
+
+     Alternate states sheet below unchanged: Source's VS Code-style change
+     markers, and the sandboxed HTML Preview. Data is hand-rolled but
+     internally consistent (cell badges equal the drawn hunks). The shipped
+     surface consumes the --dsw-* variables, not these literals. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Snapshot timeline — header strip, unified diff, bottom purpose dock</title>
+<style>
+  :root {
+    --bg: rgb(21,21,23); --l1f: rgb(35,35,36); --l2f: rgb(44,44,46); --l3f: rgb(53,54,56);
+    --side: rgb(27,27,28); --elev: rgb(67,69,74); --tag: rgb(44,44,46); --input: rgb(44,44,46);
+    --b1: rgba(255,255,255,.06); --b2: rgba(255,255,255,.12); --b3: rgba(255,255,255,.16); --b4: rgba(255,255,255,.20);
+    --t1: rgb(249,250,251); --t2: rgb(207,211,214); --t3: rgb(173,178,184); --cap: rgb(129,133,140);
+    --hover: rgba(255,255,255,.08); --act: rgba(255,255,255,.14);
+    --biz: rgb(103,158,254); --acc: rgb(86,134,254); --link: rgb(103,158,254);
+    --ok: rgb(34,197,94); --warn: rgb(221,134,41); --err: rgb(242,90,90);
+    --ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--t2); font: 14px/20px var(--ui); -webkit-font-smoothing: antialiased; }
+  .frame { display: grid; grid-template-columns: 280px minmax(0,1fr) 640px; grid-template-rows: 100vh; height: 100vh; }
+
+  .side { background: var(--side); border-right: .5px solid var(--b3); padding: 6px 12px; display: flex; flex-direction: column; }
+  .logo { height: 60px; display: flex; align-items: center; gap: 8px; padding: 8px 0 8px 4px; }
+  .logo .mark { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(from 210deg, var(--acc), #7ee0c3, var(--acc)); }
+  .logo b { color: var(--t1); font-size: 18px; font-weight: 600; letter-spacing: .04em; }
+  .new { height: 38px; margin: 0 2px 8px; padding: 8px 16px; border: .5px solid var(--b3); border-radius: 12px;
+         background: var(--elev); color: var(--t1); font: 500 14px/20px var(--ui); cursor: pointer; text-align: left; }
+  .sess { min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border-radius: 8px; color: var(--t2); cursor: pointer; }
+  .sess:hover { background: var(--hover); }
+  .sess.on { background: var(--act); color: var(--t1); font-weight: 500; }
+  .sess time { margin-left: auto; color: var(--cap); font-size: 12px; }
+
+  .center { display: flex; flex-direction: column; min-width: 0; background: var(--bg); }
+  .chead { min-height: 76px; padding: 10px 28px 0 20px; border-bottom: .5px solid var(--b3); }
+  .crumb { min-height: 30px; display: flex; align-items: center; gap: 8px; color: var(--t1); }
+  .crumb .ws { color: var(--t3); font-size: 12px; }
+  .vtabs { position: relative; display: flex; gap: 36px; margin-top: 10px; padding-left: 8px; }
+  .vtab { position: relative; padding: 0 0 9px; border: 0; background: none; cursor: pointer; font: 500 13px/16px var(--ui); color: var(--t3); }
+  .vtab::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; }
+  .vtab.on { color: var(--biz); } .vtab.on::after { background: var(--biz); }
+  .chat { flex: 1; min-height: 0; overflow: auto; padding: 16px 28px; display: flex; flex-direction: column; gap: 12px; }
+  .msg .who { color: var(--t3); font-size: 12px; margin-bottom: 2px; }
+  .msg p { margin: 0; color: var(--t1); }
+  .card { border: .5px solid var(--b1); background: var(--l1f); border-radius: 12px; padding: 8px 12px;
+          display: flex; align-items: baseline; gap: 10px; font-size: 13px; }
+  .card .tool { font: 12px/18px var(--code); color: var(--t1); background: var(--l2f); border-radius: 6px; padding: 1px 8px; }
+  .card .pur { color: var(--t2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .card .plus { color: var(--ok); } .card .minus { color: var(--err); }
+
+  /* the chat's own composer card, so the right panel's dock reads as a sibling */
+  .composerSeat { padding: 0 16px 8px; }
+  .composerCard { box-sizing: border-box; border-radius: 22px; background: var(--input);
+                  border: .5px solid var(--b2); box-shadow: 0 2px 10px rgba(0,0,0,.35);
+                  padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 10px; }
+  .composerCard .ph { color: var(--cap); font-size: 13px; }
+  .composerCard .row { display: flex; gap: 8px; align-items: center; }
+  .composerCard .row .ic { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--hover); color: var(--t2); cursor: pointer; }
+  .composerCard .row .sp { flex: 1; }
+  .composerCard .row .send { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--t1); color: rgb(21,21,23); cursor: pointer; }
+
+  .right { position: relative; background: var(--bg); border-left: .5px solid var(--b4); display: flex; flex-direction: column; min-height: 0; }
+  .strip { display: flex; align-items: center; gap: 4px; height: 28px; flex: none; padding: 10px 6px 0 10px; }
+  .chip { display: flex; align-items: center; height: 28px; min-width: 80px; max-width: 170px; padding: 0 10px;
+          border-radius: 12px; color: var(--t2); font-size: 13px; line-height: 1; white-space: nowrap; cursor: pointer; }
+  .chip.on { background: var(--tag); color: var(--t1); }
+  .chip .x { margin-left: 6px; width: 16px; height: 16px; border-radius: 50%; border: 0; background: var(--hover); color: var(--t2); font-size: 10px; cursor: pointer; }
+  .slot { width: 10px; height: 28px; position: relative; flex: none; }
+  .slot::after { content: ''; position: absolute; left: 50%; top: 7px; width: .5px; height: 14px; background: var(--b4); }
+  .slot.blank::after { background: transparent; }
+  .stripfill { flex: 1; }
+  .circ { width: 28px; height: 28px; border: 0; border-radius: 28px; background: none; color: var(--t2); cursor: pointer; }
+  .circ:hover { background: var(--hover); }
+  .plus { width: 28px; height: 28px; border: 0; border-radius: 12px; background: none; color: var(--t2); cursor: pointer; }
+
+  .ebody { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--l1f); position: relative; }
+
+  /* top: trajectory-style stop strip */
+  .tstrip { position: relative; height: 24px; flex: none; background: var(--l2f); border-bottom: .5px solid var(--b2); }
+  .tt { position: absolute; top: 50%; transform: translateY(-50%); color: var(--cap); font-size: 10px; }
+  .tt.l { left: 8px; } .tt.r { right: 8px; }
+  .tplot { position: absolute; left: 40px; right: 40px; top: 0; bottom: 0; }
+  .tline { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: var(--b2); border-radius: 1px; }
+  .mk { position: absolute; top: 50%; transform: translate(-50%,-50%); width: 16px; height: 20px;
+        border: 0; padding: 0; background: none; cursor: pointer; }
+  .mk .g { position: absolute; left: 50%; top: 50%; width: 2px; height: 10px; transform: translate(-50%,-50%); border-radius: 1px; background: var(--acc); }
+  .mk:hover .g { box-shadow: 0 0 0 2px rgba(86,134,254,.18); }
+  .mk.on .g { height: 14px; }
+  .mk.gap .g { width: 7px; height: 7px; transform: translate(-50%,-50%) rotate(45deg); background: transparent; border: 1px solid var(--warn); border-radius: 0; }
+  .play { position: absolute; top: 2px; bottom: 2px; width: 1.5px; background: var(--biz); }
+  .play .playh { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 11px; height: 11px;
+             border-radius: 50%; background: var(--biz); border: 2px solid var(--l2f); box-shadow: 0 0 6px rgba(103,158,254,.5); }
+  .gh { position: absolute; top: 3px; bottom: 3px; border-left: 1px dashed rgba(103,158,254,.6); }
+  .gh::after { content: attr(data-tip); position: absolute; top: 22px; left: 50%; transform: translateX(-50%);
+               background: var(--l3f); border: .5px solid var(--b2); border-radius: 6px; padding: 2px 8px;
+               font: 10px/14px var(--ui); color: var(--biz); white-space: nowrap; z-index: 40; }
+  .mk .tip { display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+             width: max-content; background: var(--l3f); border: .5px solid var(--b2);
+             border-radius: 8px; padding: 3px 8px; box-shadow: 0 8px 24px rgba(0,0,0,.5); z-index: 40; text-align: left; }
+  .mk:hover .tip, .mk.open .tip { display: block; }
+  .mk .tip .nm { display: block; font: 11px/14px var(--code); color: var(--t1); }
+  .mk .tip .nm.warn { color: var(--warn); font: 11px/14px var(--ui); }
+  .mk .tip .pm { display: flex; gap: 6px; }
+  .mk .tip .pm b { font-weight: 500; font-size: 11px; line-height: 14px; }
+  .mk .tip .plus { color: var(--ok); } .mk .tip .minus { color: var(--err); }
+
+  pre.cm0 { margin: 0; padding: 6px 0; font: 13px/1.7 var(--code); overflow: auto; flex: 1; min-height: 0; }
+  .ln { display: flex; }
+  .ln i { width: 30px; flex: none; text-align: right; padding-right: 8px; color: var(--cap); font-style: normal; user-select: none; }
+  .ln i.gn { width: 36px; border-right: .5px solid var(--b1); padding-right: 10px; }
+  .ln s { display: inline-block; width: 14px; flex: none; text-align: center; text-decoration: none; color: var(--cap); }
+  .ln s.add { color: var(--ok); } .ln s.del { color: var(--err); }
+  .ln code { padding-right: 16px; white-space: pre; color: var(--t2); }
+  .ln.add { background: rgba(34,197,94,.14); }
+  .ln.del { background: rgba(242,90,90,.12); }
+  .ln.del code { color: var(--t3); }
+  .kw { color: var(--link); } .fn { color: var(--t1); } .hd { color: var(--cap); }
+
+  /* snapshot address chip, ReferenceChip metrics: @path#N reads as a file path */
+  .anch { display: inline-flex; align-items: baseline; margin-left: 6px;
+          color: var(--biz); font: 12px/18px var(--code); user-select: none; }
+  .anch b { font-weight: 500; }
+  .quote { margin: 2px 0 0; color: var(--t3); font-size: 12px; }
+  .tend { display: flex; align-items: center; gap: 6px; color: var(--cap); font-size: 11px; }
+  .tend b { font-weight: 500; }
+  .dia { display: inline-block; width: 6px; height: 6px; transform: rotate(45deg);
+         border: 1px solid var(--warn); margin-left: 2px; }
+  /* purpose box at the display bottom */
+  .pbox { margin: 8px 0 10px; border: .5px solid var(--b2); border-radius: 12px;
+          background: var(--l2f); padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .pbox .r1 { display: flex; align-items: center; gap: 8px; }
+  .pbox .ttl { font: 600 12px/16px var(--ui); color: var(--t1); }
+  .pbox .tn { color: var(--cap); font-size: 11px; }
+  .pbox p { margin: 0; color: var(--t1); font-size: 12px; }
+  .prow { display: flex; align-items: center; gap: 8px; margin: 8px 12px 10px; }
+  .prow .pbox { flex: 1; margin: 0; }
+  .addb { flex: none; width: 28px; height: 28px; border: .5px solid var(--b2); border-radius: 50%;
+          background: var(--l2f); color: var(--t2); font-size: 14px; cursor: pointer; }
+  .addb:hover { background: var(--hover); color: var(--t1); }
+  /* @ picker popover over the composer, listing stops nested under files */
+  .composerSeat { position: relative; }
+  .pick { position: absolute; left: 16px; right: 16px; bottom: calc(100% + 4px); z-index: 50;
+          background: var(--l3f); border: .5px solid var(--b2); border-radius: 12px;
+          padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); }
+  .pi { padding: 4px 10px; border-radius: 6px; font: 12px/18px var(--code); color: var(--t2); }
+  .pi.on { background: var(--hover); color: var(--t1); }
+  .pi.sub { padding-left: 26px; }
+  .pi .frag { color: var(--biz); }
+  .pi b { font-weight: 500; } .pi .plus { color: var(--ok); } .pi .minus { color: var(--err); }
+  .draft { display: flex; gap: 6px; align-items: baseline; }
+  .qq { color: var(--t3); font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .qx { border: 0; background: none; color: var(--cap); font-size: 10px; cursor: pointer; }
+
+  .efoot { display: flex; gap: 8px; align-items: center; padding: 5px 12px; flex: none;
+           font-size: 12px; color: var(--t3); background: var(--l1f); border-bottom: .5px solid var(--b1); }
+  .segs { display: inline-flex; gap: 2px; padding: 2px; background: var(--hover); border-radius: 6px; }
+  .icb { position: relative; display: inline-flex; align-items: center; justify-content: center;
+         width: 24px; height: 22px; border: 0; border-radius: 4px; background: transparent;
+         color: var(--t2); cursor: pointer; }
+  .icb:hover { background: var(--hover); color: var(--t1); }
+  .icb.on { background: var(--elev); color: var(--t1); }
+  .icb svg { width: 14px; height: 14px; }
+  .icb::after { content: attr(data-tip); position: absolute; top: calc(100% + 4px); left: 50%;
+                transform: translateX(-50%); background: var(--l3f); border: .5px solid var(--b2);
+                border-radius: 6px; padding: 2px 8px; font: 11px/16px var(--ui); color: var(--t1);
+                white-space: nowrap; display: none; z-index: 45; }
+  .icb:hover::after { display: block; }
+  .efoot .st { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* state sheet under the frame */
+  .sheet { padding: 20px 28px 48px; display: flex; flex-direction: column; gap: 18px; }
+  .tagrow { display: flex; align-items: baseline; gap: 10px; color: var(--t3); font-size: 12px; }
+  .tagrow b { color: var(--t1); font-weight: 600; }
+  .panel { width: 640px; background: var(--bg); border: .5px solid var(--b4); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
+  .panel .strip { padding-top: 8px; }
+  .bar { position: absolute; left: 40px; top: 3px; bottom: 3px; width: 2px; }
+  .bar.add { background: var(--ok); } .bar.mod { background: var(--acc); } .bar.del { background: var(--err); }
+  .ovr { position: absolute; right: 3px; top: 0; bottom: 0; width: 4px; }
+  .ovr u { position: absolute; left: 0; width: 4px; height: 8px; border-radius: 1px; }
+  .page { overflow: auto; background: #fff; color: #111; padding: 20px 24px; font: 15px/1.5 Georgia, 'Times New Roman', serif; min-height: 120px; }
+  .page h1 { font-size: 1.5em; margin: 0 0 .4em; }
+  .page button { font: 13px/1 var(--ui); color: #fff; background: rgb(37,99,235); border: 0; border-radius: 6px; padding: 8px 12px; }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <aside class="side">
+    <div class="logo"><span class="mark"></span><b>DeepSeek</b></div>
+    <button class="new">New Session</button>
+    <div class="sess on">Snapshot timeline mock<time>14:32</time></div>
+    <div class="sess">Refactor auth to dsh-client-store<time>09:12</time></div>
+    <div class="sess">Docs Q&amp;A with repo explore<time>Mon</time></div>
+  </aside>
+
+  <main class="center">
+    <div class="chead">
+      <div class="crumb">Snapshot timeline mock <span class="ws">· ~/dev/demo</span></div>
+      <div class="vtabs"><button class="vtab on">Chat</button><button class="vtab">Trajectory</button></div>
+    </div>
+    <div class="chat">
+      <div class="card"><span class="tool">write</span><span class="pur">turn 1 · create src/scan.ts with the pruned stat walk</span>
+        <b class="plus">+120</b></div>
+      <div class="tend">turn 1 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#1#call-1a2</span></span><b class="plus">+120</b> <i style="color:var(--cap);font-style:normal">new file</i></div>
+      <div class="card"><span class="tool">str_replace_editor</span><span class="pur">turn 2 · honor the workspace excludes</span>
+        <b class="plus">+14</b> <b class="minus">−3</b></div>
+      <div class="tend">turn 2 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#2#call-2c4</span></span><b class="plus">+14</b> <b class="minus">−3</b> ·<span class="anch"><b>@</b>demo.html<span class="frag">#2#call-3b8</span></span><b class="plus">+8</b> <b class="minus">−1</b></div>
+      <div class="card"><span class="tool">bash</span><span class="pur">turn 3 · sed -i: sort rows before return</span>
+        <b class="plus">+6</b> <b class="minus">−2</b></div>
+      <div class="tend">turn 3 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#3#call-6d1</span></span><b class="plus">+6</b> <b class="minus">−2</b></div>
+      <div class="msg"><div class="who">you</div><p>raise the oversize cap and surface dropped files</p></div>
+      <div class="card"><span class="tool">bash</span><span class="pur">surface dropped files as gap rows instead of silently skipping oversize reads</span>
+        <b class="plus">+2</b> <b class="minus">−1</b></div>
+      <div class="tend">turn 4 ended ·<span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span><span class="dia" title="chain broke mid-turn: an unattributed write is inside this delta"></span><b class="plus">+3</b> <b class="minus">−1</b></div>
+      <div class="msg"><div class="who">you <span class="anch"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span></div>
+        <p>noteGap should append a row kind, not a toast — the timeline stays the source of truth.</p>
+        <p class="quote">↳ surface dropped files as gap rows instead of silently skipping oversize reads</p></div>
+    </div>
+    <div class="composerSeat">
+      <div class="pick">
+        <div class="pi">@scan.ts</div>
+        <div class="pi sub on"><span class="frag">@scan.ts#4#call-7f2</span> · turn 4 · bash · <b class="plus">+2</b> <b class="minus">−1</b></div>
+        <div class="pi sub"><span class="frag">@scan.ts#gap#call-5e0</span> · gap · unattributed</div>
+        <div class="pi">@demo.html</div>
+        <div class="pi sub"><span class="frag">@demo.html#2#call-3b8</span> · turn 2 · str_replace_editor · <b class="plus">+8</b> <b class="minus">−1</b></div>
+      </div>
+      <div class="composerCard">
+        <div class="draft"><span class="anch" style="margin-left:0"><b>@</b>scan.ts<span class="frag">#4#call-7f2</span></span>
+            <span class="qq">↳ surface dropped files as gap rows instead of silently skipping oversize reads</span>
+            <button class="qx" aria-label="remove purpose from draft">✕</button></div>
+          <span class="ph">Rebut or refine this change…</span>
+        <div class="row"><button class="ic">＋</button><span class="sp"></span><button class="send">↑</button></div>
+      </div>
+    </div>
+  </main>
+
+  <section class="right">
+    <div class="strip">
+      <span class="chip on">scan.ts<button class="x">✕</button></span>
+      <span class="slot blank"></span><span class="chip">demo.html</span><span class="slot"></span>
+      <span class="stripfill"></span>
+      <button class="plus">＋</button><button class="circ">⿻</button><button class="circ">⤢</button><button class="circ">⟩</button>
+    </div>
+    <div class="efoot">
+      <span class="segs"><button class="icb" data-tip="Source" aria-label="Source"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4 2.5 8l3 4M10.5 4l3 4-3 4"/></svg></button><button class="icb on" data-tip="Changes" aria-label="Changes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4.5 2.5v6M1.5 5.5h6M10 10.5h4.5"/></svg></button></span>
+      <span class="st">stop 4 of 4 · +2 −1 · restore appends a fresh row</span>
+      <button class="icb" data-tip="Save" aria-label="Save"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5V9M5.5 6.5 8 9l2.5-2.5M2.5 11v2.5h11V11"/></svg></button><button class="icb" data-tip="Revert" aria-label="Revert"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5v4h4"/><path d="M2.9 6.5a5.5 5.5 0 1 0 1.4-3.4"/></svg></button>
+    </div>
+    <div class="ebody">
+
+      <div class="tstrip">
+        <span class="tt l">turn 1</span><span class="tt r">turn 4</span>
+        <div class="tplot">
+          <span class="tline"></span>
+          <button class="mk" style="left:2%" title="stop 1, turn 1"><span class="g"></span>
+            <span class="tip"><span class="nm">write</span><span class="pm"><b class="plus">+120</b></span></span></button>
+          <button class="mk" style="left:34%" title="stop 2, turn 2"><span class="g"></span>
+            <span class="tip"><span class="nm">str_replace_editor</span><span class="pm"><b class="plus">+14</b><b class="minus">−3</b></span></span></button>
+          <button class="mk gap" style="left:50%" title="gap, unattributed"><span class="g"></span>
+            <span class="tip"><span class="nm warn">gap · unattributed</span></span></button>
+          <button class="mk" style="left:66%" title="stop 3, turn 3"><span class="g"></span>
+            <span class="tip"><span class="nm">bash</span><span class="pm"><b class="plus">+6</b><b class="minus">−2</b></span></span></button>
+          <button class="mk on" style="left:98%" title="stop 4, turn 4, selected"><span class="g"></span>
+            <span class="tip"><span class="nm">bash</span><span class="pm"><b class="plus">+2</b><b class="minus">−1</b></span></span></button>
+          <span class="gh" style="left:58%" data-tip="turn 3 · scrubbing — snaps to the nearest stop on release"></span>
+          <span class="play" style="left:98%"><span class="playh"></span></span>
+        </div>
+      </div>
+
+      <pre class="cm0"><span class="ln"><i class="gn">6</i><i>6</i><s> </s><code><span class="kw">export async function</span> <span class="fn">rescan</span>(root) {</code></span><span class="ln"><i class="gn">7</i><i>7</i><s> </s><code>  <span class="kw">const</span> walk = <span class="kw">await</span> walkWithStats(root, cfg.excludes)</code></span><span class="ln del"><i class="gn"></i><i>8</i><s class="del">−</s><code>  return rows</code></span><span class="ln add"><i class="gn">8</i><i></i><s class="add">+</s><code>  <span class="kw">if</span> (walk.dropped &gt; 0) noteGap(walk.dropped)</code></span><span class="ln add"><i class="gn">9</i><i></i><s class="add">+</s><code>  <span class="kw">return</span> sortRows(rows)</code></span><span class="ln"><i class="gn">10</i><i>9</i><s> </s><code>}</code></span><span class="ln"><i class="gn"></i><i></i><s> </s><code class="hd">— stop 4 vs stop 3 · unified —</code></span></pre>
+
+      <div class="prow">
+        <button class="addb" aria-label="add purpose to next prompt">＋</button>
+        <div class="pbox">
+          <span class="r1"><b class="ttl">Purpose</b><span class="tn">turn 4 · bash · call-7f2</span></span>
+          <p>surface dropped files as gap rows instead of silently skipping oversize reads</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<div class="sheet">
+  <div class="tagrow"><b>Alternate state — Source</b> the live editor keeps VS Code-style change markers for the file's stop lineage; a marker click selects that stop in Changes.</div>
+  <div class="panel">
+    <div class="strip"><span class="chip on">scan.ts<button class="x">✕</button></span><span class="slot blank"></span><span class="chip">demo.html</span><span class="slot"></span><span class="stripfill"></span></div>
+    <div class="efoot">
+      <span class="segs"><button class="icb on" data-tip="Source" aria-label="Source"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4 2.5 8l3 4M10.5 4l3 4-3 4"/></svg></button><button class="icb" data-tip="Changes" aria-label="Changes"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4.5 2.5v6M1.5 5.5h6M10 10.5h4.5"/></svg></button></span>
+      <span class="st">Ready · 3 marked lines on this lineage</span>
+      <button class="icb" data-tip="Save" aria-label="Save"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5V9M5.5 6.5 8 9l2.5-2.5M2.5 11v2.5h11V11"/></svg></button><button class="icb" data-tip="Revert" aria-label="Revert"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5v4h4"/><path d="M2.9 6.5a5.5 5.5 0 1 0 1.4-3.4"/></svg></button>
+    </div>
+    <div style="background: var(--l1f); position: relative;">
+      <pre class="cm0">
+<span class="ln"><i class="gn">5</i><i></i><s> </s><code><span class="kw">export interface</span> ScanConfig {</code></span>
+<span class="ln" style="position:relative"><span class="bar mod" style="left:36px"></span><i class="gn">7</i><i></i><s> </s><code>  <span class="kw">const</span> walk = <span class="kw">await</span> walkWithStats(root, cfg.excludes)</code></span>
+<span class="ln" style="position:relative"><span class="bar del" style="left:36px"></span><i class="gn">8</i><i></i><s> </s><code>  return rows</code></span>
+<span class="ln add" style="position:relative"><span class="bar add" style="left:36px"></span><i class="gn">8</i><i></i><s class="add">+</s><code>  <span class="kw">if</span> (walk.dropped &gt; 0) noteGap(walk.dropped)</code></span>
+<span class="ln add" style="position:relative"><span class="bar add" style="left:36px"></span><i class="gn">9</i><i></i><s class="add">+</s><code>  <span class="kw">return</span> sortRows(rows)</code></span>
+<span class="ln"><i class="gn">10</i><i></i><s> </s><code>}</code></span>
+<span class="ovr"><u style="top:18%;background:var(--acc)"></u><u style="top:34%;background:var(--err)"></u><u style="top:50%;background:var(--ok)"></u></span></pre>
+    </div>
+  </div>
+
+  <div class="tagrow"><b>Alternate state — Preview on a .html tab</b> the same segmented pill renders the sandboxed page, exactly like Markdown's display mode.</div>
+  <div class="panel">
+    <div class="strip"><span class="chip">scan.ts</span><span class="slot"></span><span class="chip on">demo.html<button class="x">✕</button></span><span class="slot blank"></span><span class="stripfill"></span></div>
+    <div class="efoot">
+      <span class="segs"><button class="icb" data-tip="Source" aria-label="Source"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4 2.5 8l3 4M10.5 4l3 4-3 4"/></svg></button><button class="icb on" data-tip="Preview" aria-label="Preview"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 8c2-3.5 4.3-5 6.5-5s4.5 1.5 6.5 5c-2 3.5-4.3 5-6.5 5S3.5 11.5 1.5 8Z"/><circle cx="8" cy="8" r="2"/></svg></button></span>
+      <span class="st">Ready · rendered sandboxed, scripts disabled</span>
+      <button class="icb" data-tip="Save" aria-label="Save"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5V9M5.5 6.5 8 9l2.5-2.5M2.5 11v2.5h11V11"/></svg></button><button class="icb" data-tip="Revert" aria-label="Revert"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 2.5v4h4"/><path d="M2.9 6.5a5.5 5.5 0 1 0 1.4-3.4"/></svg></button>
+    </div>
+    <div class="ebody">
+      <div class="page"><h1>Snapshot timeline</h1><p>Every mutating call appends a stop.</p><button>Restore stop 3</button></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

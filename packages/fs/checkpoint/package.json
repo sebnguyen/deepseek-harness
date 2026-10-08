@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-checkpoint",
   "description": "Workspace snapshot timeline capture: per-call content-addressed rescans, rows, and the restore surface",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

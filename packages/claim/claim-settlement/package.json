@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-claim-settlement",
   "description": "Turn-boundary settlement of verification claims: verifier execution, repair budget, and steering",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

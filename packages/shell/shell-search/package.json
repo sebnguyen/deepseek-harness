@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-shell-search",
   "description": "PATH-shimmed grep-family wrappers that run the vendored ripgrep binary for model shell calls",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

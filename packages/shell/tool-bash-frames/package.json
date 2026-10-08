@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-tool-bash-frames",
   "description": "Model-facing Consumer of the `ctx.shell` capability seam whose `bash` tool carries a multi-command `commands` face with one labeled result frame per element",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "publishConfig": {
     "access": "public"
   },

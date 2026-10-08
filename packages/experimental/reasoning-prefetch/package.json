@@ -1,7 +1,7 @@
 {
   "name": "@deepseek-ai/dsh-experimental-reasoning-prefetch",
   "description": "Opt-in speculative prefetch of files a reasoning stream names, staged as next-step context",
-  "version": "0.1.5-rc.3",
+  "version": "0.1.0",
   "private": true,
   "repository": {
     "type": "git",
