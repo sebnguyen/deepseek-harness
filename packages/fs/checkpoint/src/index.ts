@@ -16,6 +16,7 @@ import type { } from '@deepseek-ai/dsh-sandbox-policy'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { CheckpointStore } from './store.ts'
 import type { CheckpointStop, CheckpointTimeline, SnapshotDigest } from './types.ts'
@@ -153,7 +154,7 @@ export class CheckpointService extends TypertRemoteService {
     const after = await store.put(file.after)
     session.append('checkpoint/scan', {
       rows: [{
-        path: file.path,
+        path: relativizeToCwd(file.path, session.header.cwd),
         callId: call.callId as ToolCallId,
         toolName: call.name,
         ...call.purpose !== undefined ? { purpose: call.purpose } : {},
@@ -195,13 +196,15 @@ export class CheckpointService extends TypertRemoteService {
   /**
    * One file's retained stops for the frozen Changes display and the `@`
    * picker: `checkpoint/scan` rows joined to the `tool/call` that stated
-   * their turn and step, oldest first, paths in path order.
+   * their turn and step, oldest first, paths in path order. Row paths rooted
+   * at the session working directory fold relative, like the client fold.
    * @param session - the owning session whose log is folded.
    * @param path - when set, only this session-relative path is returned.
    * @returns every timeline the session captured, folded like the client fold.
    */
   @Remote('stops')
   async stops(session: Session, path?: string): Promise<CheckpointTimeline[]> {
+    const cwd = session.header.cwd
     const calls = new Map<string, { turn: number; step: number; purpose?: string }>()
     const timelines = new Map<string, CheckpointStop[]>()
     for (const event of session.ownEvents()) {
@@ -215,7 +218,8 @@ export class CheckpointService extends TypertRemoteService {
       }
       if (event.type !== 'checkpoint/scan') continue
       for (const row of event.data.rows) {
-        if (path !== undefined && row.path !== path) continue
+        const rowPath = relativizeToCwd(row.path, cwd)
+        if (path !== undefined && rowPath !== path) continue
         const facts = calls.get(row.callId)
         const purpose = row.purpose ?? facts?.purpose
         const stop: CheckpointStop = {
@@ -228,8 +232,8 @@ export class CheckpointService extends TypertRemoteService {
           ...row.before === undefined ? {} : { before: row.before },
           ...row.after === undefined ? {} : { after: row.after },
         }
-        const list = timelines.get(row.path)
-        if (list === undefined) timelines.set(row.path, [stop])
+        const list = timelines.get(rowPath)
+        if (list === undefined) timelines.set(rowPath, [stop])
         else list.push(stop)
       }
     }

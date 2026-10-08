@@ -184,6 +184,22 @@ describe('checkpoint stops remote', () => {
     expect(only?.stops).toHaveLength(2)
     expect(await service.stops(stack.session, 'other.txt')).toEqual([])
   })
+
+  it('relativizes absolute display paths against the session cwd on capture and fold', async () => {
+    const stack = await harness()
+    const service = stack.ctx.get('checkpoint') as CheckpointService
+    await service.captureWrite({ agent: stack.agent, callId: 'c7', name: 'writer' }, { path: join(stack.root, 'abs.txt'), before: null, after: 'abs' })
+    stack.session.append('checkpoint/scan', {
+      rows: [{ path: join(stack.root, 'legacy.txt'), callId: ToolCallId('c8'), toolName: 'writer', after: digestOf('old') }],
+    })
+    await service.captureWrite({ agent: stack.agent, callId: 'c9', name: 'writer' }, { path: '/elsewhere/far.txt', before: null, after: 'far' })
+    // Capture relativizes new rows; rows appended before that keep their log text and fold relative later.
+    expect(stack.rows().map(row => row.path)).toEqual(['abs.txt', join(stack.root, 'legacy.txt'), '/elsewhere/far.txt'])
+    const timelines = await service.stops(stack.session)
+    expect(timelines.map(timeline => timeline.path)).toEqual(['/elsewhere/far.txt', 'abs.txt', 'legacy.txt'])
+    const [outside] = await service.stops(stack.session, '/elsewhere/far.txt')
+    expect(outside?.stops).toHaveLength(1)
+  })
 })
 
 describe('checkpoint restore surface', () => {

@@ -44,14 +44,16 @@ export function apply(ctx: Context): void {
   const fileHistorySource = (binding: SessionBinding): ObservableSnapshot<FileHistorySnapshot> => {
     let source = sources.get(binding)
     if (source === undefined) {
-      let foldedRevision = -1
+      let foldKey = ''
       let folded: FileHistorySnapshot = EMPTY_FILE_HISTORY
       source = {
         getSnapshot: () => {
           const window = binding.eventSource.getSnapshot()
-          if (window.revision !== foldedRevision) {
-            folded = foldFileHistory(window.entries)
-            foldedRevision = window.revision
+          const cwd = binding.session.getSnapshot().cwd
+          const key = `${String(window.revision)}\u0000${cwd ?? ''}`
+          if (key !== foldKey) {
+            folded = foldFileHistory(window.entries, cwd)
+            foldKey = key
           }
           return folded
         },

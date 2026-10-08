@@ -6,6 +6,7 @@
  * @module ui-file-history/fold
  */
 import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import { relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 
 /** One captured stop of one file, joined to the call whose scan recorded it. */
@@ -64,10 +65,13 @@ interface CallFacts {
 
 /**
  * Fold one session's event window into per-file stop lists, oldest stop first.
+ * Row paths rooted at the session working directory fold relative, so rows a
+ * capture recorded before relativization still join their file's timeline.
  * @param entries - the session binding's live event window entries.
+ * @param cwd - the session working directory; absolute row paths rooted there fold relative.
  * @returns every file the session changed, sorted by path, each with its stops.
  */
-export function foldFileHistory(entries: readonly SessionEventLikeEntry[]): FileHistorySnapshot {
+export function foldFileHistory(entries: readonly SessionEventLikeEntry[], cwd?: string): FileHistorySnapshot {
   const calls = new Map<string, CallFacts>()
   const stops = new Map<string, FileStop[]>()
   for (const entry of entries) {
@@ -95,8 +99,9 @@ export function foldFileHistory(entries: readonly SessionEventLikeEntry[]): File
         ...row.before === undefined ? {} : { before: row.before },
         ...row.after === undefined ? {} : { after: row.after },
       }
-      const list = stops.get(row.path)
-      if (list === undefined) stops.set(row.path, [stop])
+      const rowPath = relativizeToCwd(row.path, cwd)
+      const list = stops.get(rowPath)
+      if (list === undefined) stops.set(rowPath, [stop])
       else list.push(stop)
     }
   }

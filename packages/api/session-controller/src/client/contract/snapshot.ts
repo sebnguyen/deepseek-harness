@@ -98,6 +98,8 @@ export interface SessionSnapshot {
   readonly loadingOlder: boolean
   readonly promptError: PromptError | null
   readonly blank: boolean
+  /** Absolute working directory the session was created in, once the host list reports it. */
+  readonly cwd?: string
   readonly lastAgentError: string | null
   /** A prompt call has begun on this Client Session object. */
   readonly promptAttempted: boolean

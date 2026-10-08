@@ -115,6 +115,8 @@ export class Session implements SessionFace {
   private firstPromptPendingTurn = false
   /** Empty-log mirror (see ConversationSnapshot.blank); unknown bare sessions begin conservatively blank. */
   private blankBit = true
+  /** Working directory relayed from the host summary; absent until the list reports it. */
+  private sessionCwd: string | undefined
   private removed = false
   private promptError: PromptError | null = null
   private lastAgentError: string | null = null
@@ -568,6 +570,17 @@ export class Session implements SessionFace {
     this.notifier.markDirty()
   }
 
+  /**
+   * Working-directory relay from the summary source; filled once, since the
+   * directory a session was created in never changes.
+   * @param cwd - the summary's session working directory, when known.
+   */
+  handleCwd(cwd: string | undefined): void {
+    if (this.sessionCwd !== undefined || cwd === undefined) return
+    this.sessionCwd = cwd
+    this.notifier.markDirty()
+  }
+
   /** `api-session/removed` relay: flag the snapshot while retaining the resident instance. */
   handleRemoved(): void {
     this.removed = true
@@ -811,6 +824,7 @@ export class Session implements SessionFace {
       loadingOlder: this.loadingOlder,
       promptError: this.promptError,
       blank: this.blankBit,
+      ...(this.sessionCwd === undefined ? {} : { cwd: this.sessionCwd }),
       lastAgentError: this.lastAgentError,
       promptAttempted: this.promptAttempted,
       awaitingFirstTurn: this.firstPromptPendingTurn,

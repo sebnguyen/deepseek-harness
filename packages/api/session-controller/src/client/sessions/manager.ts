@@ -349,6 +349,7 @@ export class SessionManager {
       if (summary !== undefined) {
         session.handleBlank(summary.blank)
         session.handleRunning(summary.running)
+        session.handleCwd(summary.cwd)
       } else {
         const address = this.addresses.get(sessionId)
         const child = address === undefined ? undefined : this.catalogs.get(address.parentSessionId)?.entries
@@ -542,6 +543,7 @@ export class SessionManager {
             if (session === undefined) continue
             session.handleBlank(s.blank)
             session.handleRunning(s.running)
+            session.handleCwd(s.cwd)
           }
           // Seed each row's projection baseline into the per-session value
           // store (cold titles surface without opening the session). Per-key

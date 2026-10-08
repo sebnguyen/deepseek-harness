@@ -39,6 +39,18 @@ function eventSeqs(session: Session): number[] {
   return windowEntries(session).map(entry => entry.event.seq)
 }
 
+describe('Session working directory relay', () => {
+  it('fills the snapshot cwd once from the summary relay', async ({ mock, start }) => {
+    const session = await sessionBench(mock, start, SID)
+    expect(session.getSnapshot().cwd).toBeUndefined()
+    session.handleCwd('/tmp/ws')
+    expect(session.getSnapshot().cwd).toBe('/tmp/ws')
+    session.handleCwd('/tmp/other')
+    session.handleCwd(undefined)
+    expect(session.getSnapshot().cwd).toBe('/tmp/ws')
+  })
+})
+
 describe('Session open', () => {
   it('keeps a bare Session blank until an authoritative lifecycle signal arrives', async ({ mock, start }) => {
     const session = await sessionBench(mock, start, SID)

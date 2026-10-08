@@ -47,6 +47,18 @@ describe('foldFileHistory', () => {
     }])
   })
 
+  it('folds absolute row paths relative to the session working directory', () => {
+    const history = foldFileHistory([
+      scan(4, [
+        { path: '/ws/a.txt', callId: 'c1', toolName: 'writer', after: 'sha256:a' },
+        { path: '/other/b.txt', callId: 'c1', toolName: 'writer', after: 'sha256:b' },
+      ]),
+    ], '/ws')
+    expect(history.files.map(file => file.path)).toEqual(['/other/b.txt', 'a.txt'])
+    const unchanged = foldFileHistory([scan(5, [{ path: '/ws/a.txt', callId: 'c1', toolName: 'writer', after: 'sha256:a' }])])
+    expect(unchanged.files[0]?.path).toBe('/ws/a.txt')
+  })
+
   it('prefers the row purpose, keeps a removal stop, and sorts files by path', () => {
     const history = foldFileHistory([
       call('c1', 2, 1, 'from the call'),

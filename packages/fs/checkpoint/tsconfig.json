@@ -15,6 +15,7 @@
     { "path": "../../sandbox/sandbox-policy" },
     { "path": "../../fs/fs" },
     { "path": "../../typert/protocol" },
-    { "path": "../../util/home-paths" }
+    { "path": "../../util/home-paths" },
+    { "path": "../../util/workspace-path" }
   ]
 }
