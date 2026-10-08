@@ -1,0 +1,227 @@
+/* The frozen Changes display: scrubber on layer-2, the unified page on the
+   panel tone, the purpose box as an ioCard. Tokens only, dark-following. */
+.root {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.strip {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 24px;
+  background: var(--dsw-alias-bg-layer-2);
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+}
+
+.edge {
+  flex: none;
+  padding: 0 8px;
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  touch-action: none;
+}
+
+.line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  border-radius: 1px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.tick {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  overflow: visible;
+}
+
+.tick::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  transform: translate(-50%, -50%);
+  border-radius: 1px;
+  background: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+}
+
+.tickOn::before {
+  height: 14px;
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.diamond {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  border: 1px solid var(--dsw-alias-state-warn-primary);
+}
+
+.tick:has(.diamond)::before { display: none; }
+
+.ghost {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-left: 1px dashed var(--dsw-alias-state-business-primary);
+}
+
+.playh {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--dsw-alias-bg-layer-2);
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.playh::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.5px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  background: var(--dsw-alias-state-business-primary);
+  z-index: -1;
+}
+
+.diff {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 6px 0;
+  overflow: auto;
+  font: 12px/19px var(--dsw-code-font-family, 'SF Mono', Consolas, Menlo, monospace);
+}
+
+.ln { display: flex; }
+
+.ln i {
+  flex: none;
+  width: 30px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--dsw-alias-label-caption);
+  font-style: normal;
+  user-select: none;
+}
+
+.ln i.gn {
+  width: 36px;
+  border-right: 0.5px solid var(--dsw-alias-border-l1);
+  padding-right: 10px;
+}
+
+.ln s {
+  flex: none;
+  width: 14px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--dsw-alias-label-caption);
+}
+
+.sAdd { color: var(--dsw-alias-state-success-primary); }
+.sDel { color: var(--dsw-alias-state-error-primary); }
+
+.ln code {
+  padding-right: 16px;
+  white-space: pre;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.add { background: rgba(134, 239, 172, 0.08); }
+.add code { color: var(--dsw-alias-label-primary); }
+.del { background: rgba(252, 165, 165, 0.07); }
+.del code { color: var(--dsw-alias-label-tertiary); }
+
+.missing {
+  flex: 1;
+  padding: 12px 16px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 13px;
+}
+
+.prow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 12px 10px;
+}
+
+.addb {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.addb:hover { background: var(--dsw-alias-bg-overlay); }
+
+.pbox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  padding: 12px 16px;
+  border: 0.5px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.r1 { display: flex; align-items: center; gap: 8px; }
+
+.ttl {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.meta {
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.pbox p {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  line-height: 20px;
+}

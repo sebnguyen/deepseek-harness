@@ -22,6 +22,10 @@ describe('parseSnapshotRef', () => {
     expect(parseSnapshotRef('scan.ts#gap#call-5e0')).toEqual({ path: 'scan.ts', turn: GAP_TURN, callId: 'call-5e0' })
   })
 
+  it('rejects a path that carries no separators', () => {
+    expect(parseSnapshotRef('scan.ts#4#call-a#b')).toBeUndefined()
+  })
+
   it('rejects every malformed shape', () => {
     expect(parseSnapshotRef('scan.ts')).toBeUndefined()
     expect(parseSnapshotRef('#4#call')).toBeUndefined()
@@ -79,6 +83,13 @@ describe('frameForTurn', () => {
       end: { callId: 'c3', after: 'a3' },
       broken: false,
     })
+  })
+
+  it('points at the prior stop without an after when that stop left too', () => {
+    const edge: SnapshotStop[] = [{ callId: 'c1', turn: 1, before: 'z' }, { callId: 'c2', turn: 2, after: 'a2' }]
+    const frame = frameForTurn(edge, 2)
+    expect(frame?.start).toEqual({ callId: 'c1' })
+    expect(frame?.end).toEqual({ callId: 'c2', after: 'a2' })
   })
 
   it('falls back to the prior turn end when the first stop lacks before', () => {

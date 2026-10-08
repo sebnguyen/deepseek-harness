@@ -1,7 +1,7 @@
 /**
- * The stateless halves: every failure code maps to its line, and the grammar
- * set matches exactly the suffixes it advertises.
- */
+ * The stateless halves: every failure code maps to its line, and language
+ * selection answers for the shipped names, suffixes, and interpreters (the
+ * recognition rules themselves belong to the languages spec). */
 import type { TranslateNS } from '@deepseek-ai/dsh-client-locale/client'
 import { describe, expect, it } from 'vitest'
 import { createEditorExtensions, editorHighlight, editorTheme, isMarkdownPath, languageFor, saveCommand } from '../src/client/editor.ts'
@@ -42,7 +42,7 @@ describe('sessionFileOf', () => {
 })
 
 describe('languageFor', () => {
-  it('chooses the advertised grammars and none for the rest', () => {
+  it('chooses a grammar for every shipped name and none for the rest', () => {
     expect(languageFor('a/b.ts')).toBeDefined()
     expect(languageFor('b.tsx')).toBeDefined()
     expect(languageFor('c.js')).toBeDefined()
@@ -54,9 +54,17 @@ describe('languageFor', () => {
     expect(languageFor('g.md')).toBeDefined()
     expect(languageFor('g.markdown')).toBeDefined()
     expect(languageFor('h.py')).toBeDefined()
+    expect(languageFor('i.go')).toBeDefined()
+    expect(languageFor('j.rs')).toBeDefined()
+    expect(languageFor('l.yaml')).toBeDefined()
+    expect(languageFor('m.yml')).toBeDefined()
+    expect(languageFor('n.css')).toBeDefined()
+    expect(languageFor('o.html')).toBeDefined()
+    expect(languageFor('README')).toBeDefined()
+    expect(languageFor('deploy', '#!/usr/bin/env python3')).toBeDefined()
     expect(languageFor('no-dot-or-unknown')).toBeUndefined()
     expect(languageFor('.bashrc')).toBeUndefined()
-    expect(languageFor('x/unknown.rs')).toBeUndefined()
+    expect(languageFor('x/unknown.zzz')).toBeUndefined()
   })
 })
 

@@ -13,6 +13,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-files/remote'
+import type {} from '@deepseek-ai/dsh-checkpoint/remote'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
@@ -38,7 +39,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * Required browser services: the tab registry, the slots, copy, and the Remote
  * carrier with its `workspaceFiles` namespace.
  */
-export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles']
+export const inject = ['slots', 'locale', 'sidebarRightTabs', 'remote', 'remote.workspaceFiles', 'remote.checkpoint']
 
 /**
  * Client plugin body: register the type, its dictionaries, and its body.
@@ -50,6 +51,8 @@ export function apply(ctx: ClientContext): void {
     load: (file, signal) => remote.workspaceFiles.readAll(file.sessionId, file.path, signal),
     save: (file, content, expectedVersion, signal) =>
       remote.workspaceFiles.write(file.sessionId, file.path, content, expectedVersion, signal),
+    blob: (file, digest) => remote.checkpoint.blob(file.sessionId, digest),
+    restore: (file, digest) => remote.checkpoint.restore(file.sessionId, file.path, digest),
   }
   ctx.effect(() => ctx.sidebarRightTabs.register(editorDefinition()), 'ui-editor: editor type')
   ctx.effect(() => ctx.locale.register('editor', { zh, en }), 'ui-editor: dictionaries')

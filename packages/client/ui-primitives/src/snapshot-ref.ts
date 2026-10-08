@@ -45,7 +45,6 @@ export function parseSnapshotRef(ref: string): SnapshotRef | undefined {
   if (turnAt < 1 || turnAt >= callAt - 1) return undefined
   const turnText = ref.slice(turnAt + 1, callAt)
   const path = ref.slice(0, turnAt)
-  if (path === '' || callId.includes('#')) return undefined
   if (turnText === GAP_TURN) return { path, turn: GAP_TURN, callId }
   if (!/^\d+$/.test(turnText)) return undefined
   return { path, turn: Number(turnText), callId }

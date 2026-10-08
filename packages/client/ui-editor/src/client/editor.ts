@@ -1,67 +1,54 @@
 /**
- * The CodeMirror 6 assembly one editor view runs: base editing, per-language
- * grammars, the Mod-S binding that owns saving, and the theme pair that rides
+ * The CodeMirror 6 assembly one editor view runs: base editing, the detected
+ * language, the Mod-S binding that owns saving, and the theme pair that rides
  * the product's design tokens, so the view follows the appearance flip
  * without a second theme.
  *
  * Kept apart from the React body so the assembly is testable without a DOM.
  */
 import { defaultKeymap, historyKeymap } from '@codemirror/commands'
-import { javascript } from '@codemirror/lang-javascript'
-import { json } from '@codemirror/lang-json'
-import { markdown } from '@codemirror/lang-markdown'
-import { python } from '@codemirror/lang-python'
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
 import type { Extension } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
 import { basicSetup } from 'codemirror'
+import { createLanguageRegistry } from './languages/index.ts'
+import { htmlLanguage } from './languages/html.ts'
+import { markdownLanguage } from './languages/markdown.ts'
 
-/**
- * The dotted lowercase suffix one path carries, or the empty string.
- * @param path - the file path its tab addresses.
- * @returns `.ext` from the last segment, lowercased; `''` without one.
- */
-function extensionOf(path: string): string {
-  const base = path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1)
-  const dot = base.lastIndexOf('.')
-  return dot > 0 ? base.slice(dot).toLowerCase() : ''
-}
+/** The registry one editor view detects languages through: this package's shipped set. */
+const languages = createLanguageRegistry()
 
 /**
  * The grammar one path deserves, or undefined for plain text.
  *
- * A fixed first-party set: JavaScript/TypeScript, JSON, Markdown, Python.
- * Everything else edits unhighlighted until the set grows; adding a language
- * is a static import so the single-file client bundle needs no chunking.
+ * Recognition order is the registry's: exact file name, then longest matching
+ * suffix, then — only when `text` is supplied — the interpreter a script's
+ * first line names. Nothing claimed edits as plain text.
  * @param path - the file path its tab addresses.
- * @returns the language extension, or undefined when none matches.
+ * @param text - the buffer, consulted only for a first-line interpreter.
+ * @returns the language extension, or undefined when no language claims the path.
  */
-export function languageFor(path: string): Extension | undefined {
-  switch (extensionOf(path)) {
-    case '.ts': return javascript({ typescript: true })
-    case '.tsx': return javascript({ typescript: true, jsx: true })
-    case '.js':
-    case '.mjs':
-    case '.cjs': return javascript()
-    case '.jsx': return javascript({ jsx: true })
-    case '.json':
-    case '.jsonc': return json()
-    case '.md':
-    case '.markdown': return markdown()
-    case '.py': return python()
-    default: return undefined
-  }
+export function languageFor(path: string, text?: string): Extension | undefined {
+  return languages.resolve(path, text)?.contribution.load(path)
 }
 
 /**
  * Whether the tab body offers the rendered display mode for this path.
  * @param path - the file path its tab addresses.
- * @returns true exactly for the suffixes the Markdown grammar claims.
+ * @returns true exactly for the paths the Markdown contribution claims.
  */
 export function isMarkdownPath(path: string): boolean {
-  const extension = extensionOf(path)
-  return extension === '.md' || extension === '.markdown'
+  return languages.resolve(path)?.id === markdownLanguage.id
+}
+
+/**
+ * Whether the tab body offers the sandboxed rendered display for this path.
+ * @param path - the file path its tab addresses.
+ * @returns true exactly for the paths the HTML contribution claims.
+ */
+export function isHtmlPath(path: string): boolean {
+  return languages.resolve(path)?.id === htmlLanguage.id
 }
 
 /**

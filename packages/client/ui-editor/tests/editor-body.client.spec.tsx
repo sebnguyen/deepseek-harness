@@ -105,6 +105,11 @@ function Harness(props: HarnessOptions & { load: unknown; save: unknown }): Reac
     useResource: () => (version === undefined ? { status: 'none' } : { status: 'live', value: { version } }),
     load: props.load,
     save: props.save,
+    useFileHistory: (selector: (snapshot: unknown) => unknown) => selector({ files: [] }),
+    useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
+    inputActions: { setDraft: () => {} },
+    blob: async () => ({ ok: true, value: null }),
+    restore: async () => ({ ok: true, value: 'notes.txt' }),
     t,
   } as never)
 }
