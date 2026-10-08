@@ -52,22 +52,54 @@ describe('CheckpointStore', () => {
     expect(await store.has(missing)).toBe(false)
   })
 
-  it('round-trips the frontier file with sorted keys', async () => {
+  it('round-trips the frontier file with sorted keys and stored stats', async () => {
     const { root, store } = await tempStore()
-    expect([...(await store.loadFrontier()).keys()]).toEqual([])
+    expect([...(await store.loadFrontier()).after.keys()]).toEqual([])
     const digest = digestOf('gamma')
-    await store.saveFrontier(new Map([['b.txt', digest], ['a.txt', digest]]))
-    expect(JSON.parse(await readFile(join(root, 'frontier.json'), 'utf8'))).toEqual({ 'a.txt': digest, 'b.txt': digest })
-    expect([...(await store.loadFrontier()).entries()]).toEqual([['a.txt', digest], ['b.txt', digest]])
+    await store.saveFrontier(
+      new Map([['a.txt', { mtimeMs: 5, size: 1 }], ['b.txt', { mtimeMs: 6, size: 2 }]]),
+      new Map([['b.txt', digest], ['a.txt', digest]]),
+    )
+    expect(JSON.parse(await readFile(join(root, 'frontier.json'), 'utf8'))).toEqual({
+      'a.txt': { digest, mtimeMs: 5, size: 1 },
+      'b.txt': { digest, mtimeMs: 6, size: 2 },
+    })
+    const loaded = await store.loadFrontier()
+    expect([...loaded.after.entries()]).toEqual([['a.txt', digest], ['b.txt', digest]])
+    expect([...loaded.stat.entries()]).toEqual([['a.txt', { mtimeMs: 5, size: 1 }], ['b.txt', { mtimeMs: 6, size: 2 }]])
   })
 
-  it('treats a malformed frontier as empty and skips non-string entries', async () => {
+  it('keeps a digest that has no stat, and drops a stat that is not finite', async () => {
+    const { root, store } = await tempStore()
+    const digest = digestOf('gamma')
+    await store.saveFrontier(new Map(), new Map([['a.txt', digest]]))
+    const digestOnly = await store.loadFrontier()
+    expect([...digestOnly.after.entries()]).toEqual([['a.txt', digest]])
+    expect(digestOnly.stat.size).toBe(0)
+
+    await writeFile(join(root, 'frontier.json'), JSON.stringify({
+      'a.txt': { digest, mtimeMs: Number.NaN, size: 1 },
+      'b.txt': { digest, mtimeMs: 1, size: -1 },
+    }), 'utf8')
+    const dropped = await store.loadFrontier()
+    expect([...dropped.after.keys()]).toEqual(['a.txt', 'b.txt'])
+    expect(dropped.stat.size).toBe(0)
+  })
+
+  it('treats a malformed frontier as empty and still accepts a legacy digest string', async () => {
     const { root, store } = await tempStore()
     await writeFile(join(root, 'frontier.json'), 'not json', 'utf8')
-    expect((await store.loadFrontier()).size).toBe(0)
-    await writeFile(join(root, 'frontier.json'), JSON.stringify({ 'a.txt': 7, 'b.txt': 'sha256:x' }), 'utf8')
-    expect([...(await store.loadFrontier()).entries()]).toEqual([['b.txt', 'sha256:x']])
+    expect((await store.loadFrontier()).after.size).toBe(0)
+    await writeFile(join(root, 'frontier.json'), JSON.stringify({
+      'a.txt': 7,
+      'b.txt': 'sha256:x',
+      'c.txt': null,
+      'd.txt': { digest: 1 },
+    }), 'utf8')
+    const legacy = await store.loadFrontier()
+    expect([...legacy.after.entries()]).toEqual([['b.txt', 'sha256:x']])
+    expect(legacy.stat.size).toBe(0)
     await writeFile(join(root, 'frontier.json'), JSON.stringify('text'), 'utf8')
-    expect((await store.loadFrontier()).size).toBe(0)
+    expect((await store.loadFrontier()).after.size).toBe(0)
   })
 })

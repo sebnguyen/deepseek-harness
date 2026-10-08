@@ -16,6 +16,8 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { DiffCallView, DiffResultView, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import type { } from '@deepseek-ai/dsh-fs'
+// Type-only: when mounted, `ctx.get('checkpoint')` resolves to the capture service.
+import type { } from '@deepseek-ai/dsh-checkpoint'
 import { computeHunkDiffs, diffsFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
 import type { ToolOwnedGate } from './gate.ts'
@@ -259,6 +261,9 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
         throw remediateFsError(sandbox.mapError(error, sandboxPolicy), target.displayPath)
       }
       ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
+      // The write-gated snapshot capture: the committed before/after texts are
+      // exactly what the write already holds, so capture never re-reads the disk.
+      await ctx.get('checkpoint')?.captureWrite(exec, { path: target.displayPath, before: outcome.before, after: outcome.after })
       return {
         path: target.displayPath,
         before: outcome.before,

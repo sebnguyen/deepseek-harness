@@ -1,30 +1,28 @@
 /**
- * Workspace snapshot timeline capture: a `tools/execute` bracket rescans the
- * pruned workspace after every dispatch, persists changed content into a
- * per-session content-addressed store, and appends `checkpoint/scan` rows
- * attributed to the call. The service also exposes the remote read/restore
- * surface the Web timeline consumes.
+ * Workspace snapshot timeline capture: each committed `write` hands this
+ * service the file's before and after text. Those bytes are stored by digest
+ * and appended as one `checkpoint/scan` row for that file. The service also
+ * exposes the remote read/restore surface the Web timeline consumes.
  * @module @deepseek-ai/dsh-checkpoint
  */
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Session } from '@deepseek-ai/dsh-session'
 // Type-only: resolve the `ctx.fs` and `ctx.sandboxPolicy` declarations.
-import type {} from '@deepseek-ai/dsh-fs'
-import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type { } from '@deepseek-ai/dsh-fs'
+import type { } from '@deepseek-ai/dsh-sandbox-policy'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { resolveDshHome } from '@deepseek-ai/dsh-home-paths'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { ToolDispatchExecution, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { CheckpointStore } from './store.ts'
-import { SimpleIgnoreMatcher, diffStates, walkWorkspace, type ScanState } from './scan.ts'
-import type { CheckpointRow, SnapshotDigest } from './types.ts'
+import type { SnapshotDigest } from './types.ts'
 
 export type * from './types.ts'
 export { CheckpointStore, digestOf } from './store.ts'
+export type { FrontierRecord, FrontierSnapshot } from './store.ts'
 export { SimpleIgnoreMatcher, diffStates, walkWorkspace } from './scan.ts'
 export type { ScanState, ScannedStat } from './scan.ts'
 
@@ -40,27 +38,33 @@ export interface Config {
   enabled: boolean
   /** Optional `DSH_HOME` override for the per-session object store root. */
   dshHome?: string
-  /** Extra directory names pruned from every walk, beside `.git` and `node_modules`. */
-  pruneExtra?: string[]
 }
 
 /** Schemastery config for the checkpoint consumer. */
 export const Config: z<Config> = z.object({
   enabled: z.boolean().required(),
   dshHome: z.string(),
-  pruneExtra: z.array(z.string()),
 })
 
-/** Per-session rescan continuity state. */
-interface SessionState {
-  stat: ScanState
-  after: Map<string, SnapshotDigest>
+/** One committed write's bytes and the call it belongs to. Not part of the remote surface. */
+interface CapturedWrite {
+  readonly path: string
+  readonly before: string | null
+  readonly after: string
+}
+
+/** The call a captured write is attributed to. */
+interface CapturedWriteCall {
+  readonly agent?: { readonly session: Session }
+  readonly callId: string
+  readonly name: string
+  readonly purpose?: string
 }
 
 /**
- * Checkpoint capture service: brackets every dispatch with a pruned rescan,
- * retains post-state blobs per session, and serves the remote surface the
- * Web timeline renders and restores through.
+ * Checkpoint capture service: retains the before/after text of each committed
+ * write and serves the remote surface the Web timeline renders and restores
+ * through.
  */
 export class CheckpointService extends TypertRemoteService {
   static inject = ['tools', 'fs', 'sandboxPolicy', 'sessions']
@@ -68,17 +72,15 @@ export class CheckpointService extends TypertRemoteService {
   static Config: z<Config> = z.object({
     enabled: z.boolean().required(),
     dshHome: z.string(),
-    pruneExtra: z.array(z.string()),
   })
 
-  private readonly states = new WeakMap<Session, Promise<SessionState>>()
+  private readonly enabled: boolean
   private readonly stores = new Map<string, CheckpointStore>()
-  private readonly extra: ReadonlySet<string>
   private readonly home: string
 
   constructor(ctx: Context, config: Config = { enabled: true }) {
     super(ctx, 'checkpoint')
-    this.extra = new Set(config.pruneExtra ?? [])
+    this.enabled = config.enabled
     this.home = resolveDshHome(config.dshHome)
     if (!config.enabled) return
     this.mountCapture(ctx)
@@ -98,28 +100,8 @@ export class CheckpointService extends TypertRemoteService {
     return store
   }
 
-  /**
-   * One session's continuity state, rehydrated from the store's frontier file
-   * so a resumed process still derives truthful `before` digests.
-   * @param session - the owning session.
-   * @returns the continuity state, shared by every scan of this session.
-   */
-  private stateFor(session: Session): Promise<SessionState> {
-    let pending = this.states.get(session)
-    if (pending === undefined) {
-      pending = this.storeFor(session.id).loadFrontier().then(after => ({ stat: new Map(), after }))
-      this.states.set(session, pending)
-    }
-    return pending
-  }
-
-  /** Bracket every dispatch with a rescan and register the restore tool. */
+  /** Register the restore tool. Capture itself is {@link captureWrite}. */
   private mountCapture(ctx: Context): void {
-    ctx.on('tools/execute', async (exec: ToolDispatchExecution, next: () => Promise<ToolExecutionResult>) => {
-      const result = await next()
-      await this.rescan(ctx, exec)
-      return result
-    })
     ctx.tools.register(defineTool({
       name: 'checkpoint_restore',
       description: 'Restore one workspace file to a recorded snapshot stop: the exact bytes captured for the given digest are written back through the fs capability.',
@@ -140,55 +122,45 @@ export class CheckpointService extends TypertRemoteService {
   }
 
   /**
-   * Stat-walk the pruned workspace, digest and retain only changed paths,
-   * and append one `checkpoint/scan` event when the call changed something.
-   * Contained: a store or walk failure degrades to no event, never a failed
-   * tool result — capture is observation, not policy.
+   * Retain one committed write's before and after text and append one
+   * `checkpoint/scan` row attributed to the call. A missing agent or a
+   * disabled service records nothing. A store failure records nothing and
+   * does not reject: the file write has already committed.
+   * @param call - the write call this file belongs to.
+   * @param file - the path and the before/after text the write already holds.
    */
-  private async rescan(ctx: Context, exec: ToolDispatchExecution): Promise<void> {
-    if (exec.agent === undefined) return
-    const session = exec.agent.session
+  async captureWrite(
+    call: { readonly agent?: { readonly session: Session }; readonly callId: string; readonly name: string; readonly purpose?: string },
+    file: { readonly path: string; readonly before: string | null; readonly after: string },
+  ): Promise<void> {
+    if (!this.enabled || call.agent === undefined) return
     try {
-      const policy = ctx.sandboxPolicy.resolve({ session })
-      const root = policy.workspaceRoot
-      const store = this.storeFor(session.id)
-      const state = await this.stateFor(session)
-      const gitignore = await readFile(join(root, '.gitignore'), 'utf8').catch(() => '')
-      const fresh = await walkWorkspace(root, SimpleIgnoreMatcher.parse(gitignore), this.extra)
-      const { added, changed, removed } = diffStates(state.stat, fresh)
-      const rows: CheckpointRow[] = []
-      for (const path of [...added, ...changed]) {
-        let text: string
-        try {
-          text = await readFile(join(root, path), 'utf8')
-        } catch {
-          continue
-        }
-        const after = await store.put(text)
-        const before = state.after.get(path) ?? undefined
-        rows.push({
-          path, callId: exec.callId, toolName: exec.name,
-          ...exec.purpose !== undefined ? { purpose: exec.purpose } : {},
-          ...before !== undefined ? { before } : {},
-          after,
-        })
-        state.after.set(path, after)
-      }
-      for (const path of removed) {
-        const before = state.after.get(path)
-        rows.push({
-          path, callId: exec.callId, toolName: exec.name,
-          ...exec.purpose !== undefined ? { purpose: exec.purpose } : {},
-          ...before === undefined ? {} : { before },
-        })
-        state.after.delete(path)
-      }
-      state.stat = fresh
-      await store.saveFrontier(state.after)
-      if (rows.length > 0) session.append('checkpoint/scan', { rows })
+      await this.retainWrite(call.agent.session, call, file)
     } catch {
-      // capture is observation-only; a failed sweep never fails the call
+      // retainWrite throws only when the object store cannot create or write a blob.
     }
+  }
+
+  /**
+   * Store one write's texts and append its row.
+   * @param session - the owning session.
+   * @param call - the write call this file belongs to.
+   * @param file - the path and the before/after text.
+   */
+  private async retainWrite(session: Session, call: CapturedWriteCall, file: CapturedWrite): Promise<void> {
+    const store = this.storeFor(session.id)
+    const before = file.before === null ? undefined : await store.put(file.before)
+    const after = await store.put(file.after)
+    session.append('checkpoint/scan', {
+      rows: [{
+        path: file.path,
+        callId: call.callId as ToolCallId,
+        toolName: call.name,
+        ...call.purpose !== undefined ? { purpose: call.purpose } : {},
+        ...before !== undefined ? { before } : {},
+        after,
+      }],
+    })
   }
 
   /**

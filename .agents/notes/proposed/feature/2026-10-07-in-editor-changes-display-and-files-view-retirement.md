@@ -199,7 +199,7 @@ The `dsh-client-ui-file-history` conversation view (register at `packages/client
 ## Risks
 
 - **Pruned blobs under live refs**: a `serializeReference` that throws on a pruned digest must surface as the chip's invalid state with locale-owned copy, never as a silent draft-level failure; retentionStops is the tuning that keeps the common case warm.
-- **Gap rows have no turn**: the `#gap` slot is a format constant, not a decoder fallback — every consumer of `parseSnapshotRef` must accept it, and the playhead must place such stops sensibly on a turn axis they are not keyed to.
+- **Gap rows have no turn**: the `#gap` slot is a format constant, not a decoder fallback — every consumer of `parseSnapshotRef` must accept it, and the playhead must place such stops sensibly on a turn axis they are not keyed to. Under the write-gated capture the host never mints gap rows; the diamond stays in the grammar for logs captured before the gate.
 - **Removing a shipped view regresses discoverability**: the Files tab is currently the only surface listing everything a session touched; the scrubber is per-file, so restore and selection flows need the dockkit/`useTabInfo` routes to remain complete.
 - **Turn-proportional axis with many stops per turn**: turns that hold several stops collapse ticks together; hover hit targets keep 16px width by drawing on a sub-tick spread inside their turn, capped before overlap.
 
@@ -207,7 +207,7 @@ The `dsh-client-ui-file-history` conversation view (register at `packages/client
 
 1. `dsh-client-ui-primitives`: promoted editor assembly, `snapshot-ref.ts`, `changes.ts`, `@codemirror/merge` dependency, locale keys for the display and the scrubber captions.
 2. `dsh-client-ui-editor`: `changes` mode, scrubber, purpose box, controls-row icons, face `blob`/`restore` on `remote.checkpoint` (type-only `dsh-checkpoint` edge). PR4 in the parent note lands here.
-3b. `dsh-checkpoint` (host, if absent): a `stops(session, query, signal)` remote answering the open file's retained stops ordered, feeding the picker; `blob` and `restore` ship.
+3b. `dsh-checkpoint` (host): capture is write-gated — `dsh-tool-fs` hands each committed write's before/after text to `captureWrite`, one row per written file, no stat-walk; the presentation adds a `stops(session, path)` remote ordered by log seq feeding the Changes scrubber and the picker; `blob` and `restore` ship.
 3. `dsh-client-ui-reference`: stop rolls in the `@` lexicon, `#` in the text-ref name class, snapshot branch of `serializeReference`, `openReference` routing.
 4. `dsh-client-ui-file-history`: view removal; PR4 in the parent note lands with step 2.
 
