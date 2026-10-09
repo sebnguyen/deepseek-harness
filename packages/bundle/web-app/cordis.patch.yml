@@ -183,6 +183,11 @@
     - id: workspace-files
       name: '@deepseek-ai/dsh-api-workspace-files'
 
+    # Embedded VS Code REH editor frame: manifest row, twin resolution, loopback
+    # spawn with per-launch token, and the `ide` Remote namespace.
+    - id: host-ide
+      name: '@deepseek-ai/dsh-host-ide'
+
     # Configuration-surface reads and writes over Typert Remote. Each method
     # reports an actionable error when its settings-domain provider is absent.
     - id: settings-controller
@@ -303,6 +308,12 @@
     # Markdown, code, HTML, PDF, and plain-text renderers.
     - id: ui-sidebar-documentpreview
       name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'
+
+    # The right Sidebar's frame tab: the embedded editor plane claims file
+    # addresses at the builtin band ahead of the CodeMirror editor while the
+    # frame is ready, and drops back to it the moment readiness falls.
+    - id: ui-vscode
+      name: '@deepseek-ai/dsh-client-ui-vscode'
 
     # The right Sidebar's editable file tab: CodeMirror 6 over the
     # workspaceFiles read and write endpoints.

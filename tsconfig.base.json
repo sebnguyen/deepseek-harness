@@ -160,6 +160,12 @@
       "@deepseek-ai/dsh-client-ui-primitives": ["./packages/client/ui-primitives/src"],
       "@deepseek-ai/dsh-client-ui-dockkit": ["./packages/client/ui-dockkit/src"],
       "@deepseek-ai/dsh-client-ui-sidebar-right": ["./packages/client/ui-sidebar-right/src"],
+      // Named after something other than its directory, so gen-tsconfig-paths
+      // cannot generate these; the frame branch keeps them hand-written.
+      "@deepseek-ai/dsh-host-ide": ["./packages/host/ide/src"],
+      "@deepseek-ai/dsh-client-ui-vscode": ["./packages/client/ui-vscode/src"],
+      "@deepseek-ai/dsh-client-ui-vscode/client": ["./packages/client/ui-vscode/src/client/index.ts"],
+      "@deepseek-ai/dsh-vscode-bridge": ["./packages/ide/bridge/src"],
       "@deepseek-ai/dsh-client-ui-sidebar-right/client": ["./packages/client/ui-sidebar-right/src/client"],
       "@deepseek-ai/dsh-client-ui-sidebar-documentpreview": ["./packages/client/ui-sidebar-documentpreview/src"],
       "@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client": ["./packages/client/ui-sidebar-documentpreview/src/client"],

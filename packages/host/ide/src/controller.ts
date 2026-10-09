@@ -1,0 +1,137 @@
+/**
+ * The frame's lifecycle owner: one loopback REH child per Host, per-launch
+ * token, readiness flipped only by the bridge hello, and a pending-open queue
+ * the bridge downlink drains. A missing twin is the frame-absent posture,
+ * never an error: `ui-vscode`'s `canOpen` reads the snapshot and the registry
+ * falls back to the CodeMirror editor exactly as the tab ranking intends.
+ */
+import { randomBytes } from 'node:crypto'
+import { resolveTwin } from './manifest.ts'
+import type { IdeControllerDependencies, IdeManifestRow, IdeStatus, ResolvedTwin } from './types.ts'
+
+const ABSENT: IdeStatus = { ready: false, twinSha: undefined, reason: undefined, frameUrl: undefined }
+
+export class IdeController {
+  #deps: IdeControllerDependencies
+  #status: IdeStatus = ABSENT
+  #child: { readonly token: string; readonly child: import('./types.ts').IdeChildLike } | undefined
+  #observers = new Set<(status: IdeStatus) => void>()
+  #pendingOpens: string[] = []
+  #twin: ResolvedTwin | undefined
+  #row: IdeManifestRow | undefined
+
+  constructor(deps: IdeControllerDependencies) {
+    this.#deps = deps
+  }
+
+  /** The current readiness snapshot, identity-fresh per change. */
+  get status(): IdeStatus {
+    return this.#status
+  }
+
+  /** The validated manifest row the last ensure read, when one was read. */
+  get row(): IdeManifestRow | undefined {
+    return this.#row
+  }
+
+  /** The resolved twin the live or next child would ride. */
+  get twin(): ResolvedTwin | undefined {
+    return this.#twin
+  }
+
+  /** The launch token of the live child, when one is live. */
+  get launchToken(): string | undefined {
+    return this.#child?.token
+  }
+
+  /**
+   * Observe readiness; the callback fires once immediately with the current
+   * snapshot and on every change until the returned disposer runs.
+   * @param observer - receives each fresh snapshot.
+   * @returns the disposer.
+   */
+  subscribe(observer: (status: IdeStatus) => void): () => void {
+    this.#observers.add(observer)
+    observer(this.#status)
+    return () => {
+      this.#observers.delete(observer)
+    }
+  }
+
+  #set(status: IdeStatus): void {
+    this.#status = status
+    for (const observer of this.#observers) observer(status)
+  }
+
+  /**
+   * Ensure the frame child: read the row, resolve the twin, and degrade to the
+   * named frame-absent posture when no twin or no subprocess seam is present.
+   * Manifest and artifact failures rethrow their named errors so the `ide`
+   * Remote namespace can refuse loud. Idempotent while a child is live.
+   */
+  async ensure(): Promise<IdeStatus> {
+    if (this.#child !== undefined) return this.#status
+    const row = await this.#deps.loadRow()
+    this.#row = row
+    const twin = await resolveTwin(row, this.#deps.env, this.#deps.cacheDir)
+    this.#twin = twin
+    if (twin === undefined || this.#deps.subprocess === undefined) {
+      this.#set({ ready: false, twinSha: twin === undefined ? undefined : row.upstreamSha, reason: 'no-twin', frameUrl: undefined })
+      return this.#status
+    }
+    const subprocess = this.#deps.subprocess
+    const token = randomBytes(24).toString('hex')
+    const child = subprocess.spawn({
+      command: twin.serverPath,
+      args: ['--port', '0', '--connection-token', token],
+      env: {},
+    })
+    this.#child = { token, child }
+    this.#set({ ready: false, twinSha: row.upstreamSha, reason: 'spawning', frameUrl: undefined })
+    if (child.port !== undefined) {
+      void child.port.then((port) => {
+        if (this.#child?.child === child)
+          this.#set({ ...this.#status, frameUrl: `http://127.0.0.1:${port}/?tkn=${token}` })
+      })
+    }
+    void child.exited.finally(() => {
+      if (this.#child?.child === child) {
+        this.#child = undefined
+        this.#set({ ready: false, twinSha: undefined, reason: 'no-twin', frameUrl: undefined })
+      }
+    })
+    return this.#status
+  }
+
+  /**
+   * The bridge's hello over the gateway: the only thing that flips readiness.
+   * A hello without a live child is refused and returns false.
+   * @returns whether the hello landed on a live child.
+   */
+  hello(): boolean {
+    if (this.#child === undefined) return false
+    this.#set({ ...this.#status, ready: true, reason: undefined })
+    return true
+  }
+
+  /**
+   * Queue one `ide.open` request for the bridge downlink.
+   * @param path - workspace path to open in the frame.
+   */
+  open(path: string): void {
+    this.#pendingOpens.push(path)
+  }
+
+  /** Drain the pending open queue; the bridge downlink's pull. */
+  takePendingOpens(): string[] {
+    return this.#pendingOpens.splice(0, this.#pendingOpens.length)
+  }
+
+  /** Kill the child and settle into the disposed frame-absent posture. */
+  async dispose(): Promise<void> {
+    const live = this.#child
+    this.#child = undefined
+    if (live !== undefined) await live.child.kill()
+    this.#set({ ready: false, twinSha: undefined, reason: 'disposed', frameUrl: undefined })
+  }
+}

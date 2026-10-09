@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dsh frame v3 — accurate AppFrame; editor plane carries terminal, extensions, timeline slider, notes</title>
+<style>
+  /* Token sheet: values copied from packages/client/ui-theme/src/styles (base + shiki).
+     Chrome shape from ui-layout (three-column AppFrame: 280px sidebar, center
+     conversation, 45% right track) and ui-deliverables / ui-conversation turn-tail
+     anatomy. Syntax hues are the exact dark --shiki-token-* values. */
+  :root{
+    --dsw-font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;
+    --ds-font-family-code:'SF Mono','JetBrains Mono','Fira Code',Consolas,'Liberation Mono',Menlo,Courier,monospace;
+    --dsw-font-markdown-base:14px/24px var(--dsw-font-family);
+    --dsw-font-markdown-small:12px/20px var(--dsw-font-family);
+    --dsw-font-markdown-code-block-small:11px/16px var(--ds-font-family-code);
+  }
+  body{
+    --dsw-static-deepseek-100:rgb(228,237,253); --dsw-static-deepseek-400:rgb(103,158,254);
+    --dsw-static-deepseek-500:rgb(65,118,230); --dsw-static-deepseek-800:rgb(52,65,91);
+    --dsw-static-amber-400:rgb(247,173,49); --dsw-static-amber-500:rgb(245,158,11);
+    --dsw-static-green-400:rgb(78,209,126); --dsw-static-green-500:rgb(34,197,94);
+    --dsw-static-red-400:rgb(242,90,90);
+    --dsw-static-neutral-bluish-50:rgb(244,245,246); --dsw-static-neutral-bluish-300:rgb(207,211,214);
+    --dsw-static-neutral-bluish-400:rgb(173,178,184); --dsw-static-neutral-bluish-600:rgb(122,127,133);
+    --dsw-static-neutral-bluish-800:rgb(53,54,56); --dsw-static-neutral-bluish-850:rgb(44,44,46);
+    --dsw-static-neutral-bluish-875:rgb(36,36,38); --dsw-static-neutral-bluish-900:rgb(27,27,28);
+    --dsw-static-neutral-bluish-950:rgb(21,21,23);
+    /* shiki.css [data-ds-dark-theme] exact overrides */
+    --shiki-constant:#61c8f9; --shiki-string:#60a5af; --shiki-comment:#738484; --shiki-keyword:#daa549;
+    --shiki-parameter:#d48b63; --shiki-function:#ddc4d8; --shiki-stringexpr:#c0dee1; --shiki-punct:#c5cdcd; --shiki-link:#94c6cc;
+    margin:0;background:var(--dsw-static-neutral-bluish-950);color:var(--dsw-static-neutral-bluish-300);
+    font:var(--dsw-font-markdown-base);
+    --dsw-alias-bg-base:var(--dsw-static-neutral-bluish-950);
+    --dsw-alias-bg-layer-1:var(--dsw-static-neutral-bluish-875);
+    --dsw-alias-border-l1:rgba(255,255,255,.06); --dsw-alias-border-l2:rgba(255,255,255,.12);
+    --dsw-alias-border-l3:rgba(255,255,255,.16); --dsw-alias-border-l4:rgba(255,255,255,.2);
+    --dsw-alias-label-primary:var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-label-secondary:var(--dsw-static-neutral-bluish-300);
+    --dsw-alias-label-tertiary:var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-label-caption:var(--dsw-static-neutral-bluish-600);
+    --dsw-alias-link:var(--dsw-static-deepseek-400);
+    --dsw-alias-code-block:var(--dsw-static-neutral-bluish-900);
+    --dsw-elevation-stroke:0 0 0 .5px var(--dsw-alias-border-l4);
+    --dsw-elevation-panel:var(--dsw-elevation-stroke),0 4px 12px 0 rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box} button{font:inherit;cursor:pointer}
+  h1{font:700 15px/22px var(--dsw-font-family);color:var(--dsw-alias-label-primary);padding:16px 22px 2px}
+  h1 small{font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-tertiary);font-weight:400}
+  .app{margin:12px 22px 20px;display:grid;grid-template-columns:240px minmax(0,1fr) 46%;height:760px;
+       border:.5px solid var(--dsw-alias-border-l2);border-radius:14px;overflow:hidden;background:var(--dsw-alias-bg-base);
+       box-shadow:0 16px 48px rgba(0,0,0,.45)}
+  /* ── left sidebar (AppFrame 264–420, default 280; drawn at 240 for page fit) ── */
+  .lsb{border-right:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);display:flex;flex-direction:column;font:var(--dsw-font-markdown-small)}
+  .brand{display:flex;gap:9px;align-items:center;padding:12px 14px;color:var(--dsw-alias-label-primary);font-weight:600}
+  .logo{width:22px;height:22px;border-radius:7px;corner-shape:round;background:linear-gradient(135deg,var(--dsw-static-deepseek-400),var(--dsw-static-deepseek-500));color:#fff;font:600 12px/22px var(--dsw-font-family);text-align:center;flex:none}
+  .grp{padding:10px 8px 4px;color:var(--dsw-alias-label-caption);font-size:11px;letter-spacing:.4px}
+  .srow{padding:5px 14px;border-radius:8px;corner-shape:round;color:var(--dsw-alias-label-tertiary);display:flex;gap:8px;align-items:center}
+  .srow.on{background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.08));color:var(--dsw-alias-label-primary)}
+  .srow .dot{width:6px;height:6px;border-radius:50%;background:var(--dsw-static-green-500);flex:none}
+  .lsb .foot{margin-top:auto;padding:10px 14px;border-top:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-caption)}
+  /* ── center: conversation shell ── */
+  .ctr{display:flex;flex-direction:column;min-width:0}
+  .chead{padding:10px 18px;border-bottom:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);font-weight:600;display:flex;gap:10px;align-items:center}
+  .chead small{color:var(--dsw-alias-label-caption);font-weight:400}
+  .transcript{flex:1;overflow:auto;padding:16px 18px}
+  .bubble{max-width:64ch;margin:0 0 12px}
+  .bubble .who{font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-caption);margin-bottom:3px}
+  .bubble.user .txt{background:var(--dsw-static-deepseek-800);color:var(--dsw-static-deepseek-100);border-radius:12px;corner-shape:round;padding:7px 12px;display:inline-block}
+  .bubble.ai .txt{color:var(--dsw-alias-label-secondary)}
+  .flow{display:flex;gap:8px;align-items:center;font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-tertiary);margin:5px 0}
+  .flow .st{color:var(--dsw-alias-label-caption)}
+  .appr{border:1px solid var(--dsw-static-amber-500);border-radius:10px;corner-shape:round;padding:8px 12px;margin:8px 0;background:var(--dsw-alias-bg-layer-1);max-width:64ch}
+  .appr b{color:var(--dsw-static-amber-500)}
+  .btn{background:var(--dsw-static-deepseek-500);border:0;color:#fff;border-radius:999px;corner-shape:round;padding:3px 14px;font:var(--dsw-font-markdown-small);margin-top:6px}
+  .btn.ghost{background:transparent;border:.5px solid var(--dsw-alias-border-l3);color:var(--dsw-alias-label-secondary)}
+  /* turn tail: produced-files row, then deliveries, then footer (ui-deliverables) */
+  .tailsec{margin-top:14px}
+  .tailcap{font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-caption);margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chipf{--g:var(--shiki-constant);display:inline-flex;gap:6px;align-items:center;border:0;background:none;padding:2px 8px;border-radius:6px;corner-shape:round;
+        font:var(--dsw-font-markdown-code-block-small);color:var(--dsw-alias-link);font-weight:500;cursor:pointer}
+  .chipf::before{content:attr(data-g);color:var(--dsw-alias-label-tertiary);font:inherit}
+  .chipf:hover{text-decoration:underline dotted;text-underline-offset:3px;background:rgba(255,255,255,.06)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:64ch}
+  .dcard{height:60px;display:flex;gap:10px;align-items:center;padding:8px 10px;background:var(--dsw-alias-bg-layer-1);border-radius:10px;corner-shape:round}
+  .dcard .ic{width:40px;height:40px;flex:none;border-radius:8px;corner-shape:round;background:var(--dsw-alias-code-block);display:flex;align-items:center;justify-content:center;font:600 11px var(--ds-font-family-code);color:var(--shiki-constant)}
+  .dcard .nm{font:13px/18px var(--dsw-font-family);color:var(--dsw-alias-label-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dcard .sub{font:10px/14px var(--dsw-font-family);color:var(--dsw-alias-label-tertiary)}
+  .dcard .open{margin-left:auto;font:12px/16px var(--dsw-font-family);color:var(--dsw-alias-link);font-weight:500;background:none;border:0;border-left:.5px solid var(--dsw-alias-border-l2);padding:4px 0 4px 10px}
+  /* composer */
+  .composer{border-top:.5px solid var(--dsw-alias-border-l1);padding:12px 18px}
+  .cin{display:flex;gap:10px;align-items:center;background:var(--dsw-alias-bg-layer-1);border:.5px solid var(--dsw-alias-border-l2);border-radius:14px;corner-shape:round;padding:9px 12px;color:var(--dsw-alias-label-caption)}
+  .cin .send{margin-left:auto;width:28px;height:28px;border-radius:50%;corner-shape:round;border:0;background:var(--dsw-static-deepseek-500);color:#fff}
+  /* ── right column: our sidebar track (opens at 45%) ── */
+  .rcol{border-left:.5px solid var(--dsw-alias-border-l1);display:flex;flex-direction:column;min-width:0;background:var(--dsw-alias-bg-base)}
+  .rtabs{display:flex;gap:2px;padding:0 10px;background:var(--dsw-alias-bg-layer-1);border-bottom:.5px solid var(--dsw-alias-border-l1)}
+  .rtab{padding:9px 12px;font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-tertiary);border-bottom:2px solid transparent;cursor:pointer;display:flex;gap:6px}
+  .rtab.on{color:var(--dsw-alias-label-primary);border-bottom-color:var(--dsw-alias-link)}
+  .rtab .kind{color:var(--dsw-alias-label-caption)}
+  .rpane{flex:1;display:none;flex-direction:column;min-height:0}
+  .rpane.on{display:flex}
+  .cap{font:11px/16px var(--dsw-font-family);color:var(--dsw-alias-label-caption);padding:5px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1)}
+  .cap code{font:var(--dsw-font-markdown-code-block-small)}
+  /* the frame: editor plane only */
+  .frame{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-code-block)}
+  .tl{display:flex;gap:10px;align-items:center;padding:6px 12px;border-bottom:.5px solid var(--dsw-alias-border-l1);font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-caption)}
+  .tl .track{flex:1;position:relative;height:18px}
+  .tl .rail{position:absolute;left:0;right:0;top:8px;height:2px;background:var(--dsw-static-neutral-bluish-800);border-radius:1px}
+  .tl .stop{position:absolute;top:4px;width:9px;height:9px;border-radius:50%;corner-shape:round;background:var(--dsw-static-neutral-bluish-600);border:0;padding:0;cursor:pointer}
+  .tl .stop.cur{background:var(--dsw-static-deepseek-400);box-shadow:0 0 0 3px rgba(103,158,254,.25)}
+  .tl input[type=range]{position:absolute;inset:0;opacity:0;cursor:ew-resize;margin:0}
+  .tl .btn{margin:0}
+  .crumbs{font:11px/16px var(--dsw-font-family);color:var(--dsw-alias-label-caption);padding:4px 12px}
+  .etabs{display:flex;font:12px/16px var(--dsw-font-family)}
+  .etab{padding:5px 12px;color:var(--dsw-alias-label-tertiary);background:var(--dsw-alias-bg-layer-1)}
+  .etab.on{background:var(--dsw-alias-code-block);color:var(--dsw-alias-label-primary)}
+  .code{flex:1;overflow:auto;font:12.5px/1.6 var(--ds-font-family-code);padding:6px 0;color:var(--dsw-alias-label-primary)}
+  .ln{display:flex;min-height:20px}
+  .ln .bar{width:3px}
+  .ln .no{width:42px;text-align:right;padding-right:12px;color:var(--dsw-static-neutral-bluish-600);user-select:none}
+  .ln .cd{white-space:pre;color:var(--shiki-punct)}
+  .tN{background:rgba(103,158,254,.10)} .tN .bar{background:var(--dsw-static-deepseek-400)}
+  .kw{color:var(--shiki-keyword)} .st{color:var(--shiki-string)} .cm{color:var(--shiki-comment)} .fn{color:var(--shiki-function)}
+  .cn{color:var(--shiki-constant)} .pr{color:var(--shiki-parameter)} .se{color:var(--shiki-stringexpr)} .lk{color:var(--shiki-link)}
+  .lens{color:var(--dsw-alias-label-caption);font:11px/16px var(--dsw-font-family);padding:0 0 2px 58px}
+  .lens b{color:var(--dsw-alias-link);font-weight:500}
+  .thread{margin:6px 12px 8px 56px;background:var(--dsw-alias-bg-layer-1);border-left:3px solid var(--dsw-alias-link);border-radius:8px;corner-shape:round;padding:8px 10px;box-shadow:var(--dsw-elevation-panel);font:var(--dsw-font-markdown-small)}
+  .thread .who{color:var(--dsw-alias-link);font-weight:500}
+  .mini{width:46px;background:var(--dsw-alias-bg-layer-1);position:relative;overflow:hidden;flex:none}
+  .mini i{position:absolute;left:7px;right:7px;height:2px;background:var(--dsw-static-neutral-bluish-800);border-radius:1px}
+  .mini i.hl{background:var(--dsw-static-deepseek-500)}
+  .frow{display:flex;min-height:0}
+  /* frame bottom panel: terminal + extensions */
+  .fpanel{border-top:.5px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-base)}
+  .fptabs{display:flex;padding:4px 8px 0;font:11px/16px var(--dsw-font-family)}
+  .fpt{padding:3px 10px;color:var(--dsw-alias-label-tertiary);border-bottom:1px solid transparent;cursor:pointer}
+  .fpt.on{color:var(--dsw-alias-label-primary);border-bottom-color:var(--dsw-alias-label-primary)}
+  .fpb{display:none;height:96px;overflow:auto;padding:6px 12px;font:var(--dsw-font-markdown-code-block-small)}
+  .fpb.on{display:block}
+  .fpb .p{color:var(--dsw-static-green-400)}
+  .exrow{display:flex;gap:8px;align-items:center;padding:2px 0}
+  .exrow .nm{color:var(--dsw-alias-label-secondary)} .exrow .st2{color:var(--dsw-static-green-400)}
+  .exrow.dimmed{opacity:.45}
+  /* preview pane */
+  .prev{flex:1;overflow:auto;padding:12px 16px;font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-tertiary)}
+  .prev code{font:var(--dsw-font-markdown-code-block-small);color:var(--shiki-stringexpr)}
+  .legend{margin:6px 22px 30px;max-width:1240px;font:var(--dsw-font-markdown-small);color:var(--dsw-alias-label-tertiary)}
+  .legend table{border-collapse:collapse;width:100%}
+  .legend td,.legend th{border:.5px solid var(--dsw-alias-border-l2);padding:5px 9px;text-align:left;vertical-align:top}
+  .legend th{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1)}
+  .flash{animation:fl 1s}
+  @keyframes fl{0%{box-shadow:inset 0 0 0 2px var(--dsw-static-deepseek-400)}100%{box-shadow:none}}
+</style>
+</head>
+<body data-ds-dark-theme>
+<h1>dsh workbench × embedded editor plane — v3 <small>our AppFrame drawn as shipped; the frame adds terminal, extensions, timeline slider, line notes; chips open files in it</small></h1>
+
+<div class="app">
+  <!-- left sidebar -->
+  <aside class="lsb">
+    <div class="brand"><span class="logo">d</span>deepseek-harness <span style="color:var(--dsw-alias-label-caption)">· local build</span></div>
+    <div class="grp">WORKSPACE</div>
+    <div class="srow on"><span class="dot"></span>digitalocean/idk</div>
+    <div class="srow">&nbsp;nova-api spike</div>
+    <div class="grp">SESSIONS</div>
+    <div class="srow on"><span class="dot"></span>editor-frame lift sizing</div>
+    <div class="srow">snapshot timeline review</div>
+    <div class="srow">bench: token efficiency</div>
+    <div class="foot">⚙ Settings · General — appearance: dark</div>
+  </aside>
+
+  <!-- center: conversation -->
+  <main class="ctr">
+    <div class="chead">editor-frame lift sizing <small>· sess_9f2c · qwen3.8-max · view: chat</small></div>
+    <div class="transcript">
+      <div class="bubble user"><div class="who">snguyen</div><div class="txt">draft the ide build lane and sketch the frame</div></div>
+      <div class="bubble ai"><div class="who">agent</div><div class="txt">Lane drafted: manifest row drives a shared content-addressed seat; the frame embeds editor-plane only. Two artifacts landed; the install retry needs your call.</div></div>
+      <div class="flow">▸ write <span class="st">scripts/ide/build.ts</span> ✓</div>
+      <div class="flow">▸ write <span class="st">packages/host/ide/src/index.ts</span> ✓</div>
+      <div class="flow">▸ bash <span class="st">pnpm install</span> — <span style="color:var(--dsw-static-amber-500)">sandbox denied → review</span></div>
+      <div class="appr" id="appr">sandbox escalation → <b>workspace-write</b> · “retry pnpm install — widens this element alone”<br>
+        <button class="btn" onclick="this.closest('.appr').remove()">Allow once</button>
+        <button class="btn ghost" onclick="this.closest('.appr').remove()">Deny</button></div>
+      <div class="bubble ai"><div class="who">agent</div><div class="txt">Delivered the pair; the .ts chip opens in the frame on the right — <code style="font:var(--dsw-font-markdown-code-block-small)">scripts/ide/build.ts</code> is claimed by the ui-vscode tab kind ahead of the fallback preview.</div></div>
+      <!-- turn tail, in ui-deliverables order -->
+      <div class="tailsec">
+        <div class="tailcap">Files changed</div>
+        <div class="chips">
+          <button class="chipf" data-g="TS" data-open="frame" data-file="build">scripts/ide/build.ts</button>
+          <button class="chipf" data-g="TS" data-open="frame" data-file="index">packages/host/ide/src/index.ts</button>
+          <button class="chipf" data-g="MD" data-open="preview">2026-10-09-…-editor-frame.md</button>
+        </div>
+      </div>
+      <div class="tailsec">
+        <div class="tailcap">Delivered</div>
+        <div class="cards">
+          <div class="dcard"><span class="ic">TS</span><span style="min-width:0"><span class="nm">build.ts</span><br><span class="sub">human build lane</span></span><button class="open" data-open="frame" data-file="build">Open ▾</button></div>
+          <div class="dcard"><span class="ic">HT</span><span style="min-width:0"><span class="nm">vscode-frame-ui-sketch.html</span><br><span class="sub">v3 sketch</span></span><button class="open" data-open="preview">Open ▾</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="composer"><div class="cin">＋ <span>Message · / for commands</span><button class="send">↑</button></div></div>
+  </main>
+
+  <!-- right column: our sidebar track -->
+  <section class="rcol">
+    <div class="rtabs">
+      <span class="rtab on" id="rtEditor" data-p="pEditor">index.ts <span class="kind">· editor</span></span>
+      <span class="rtab" data-p="pPrev">sketch.html <span class="kind">· preview</span></span>
+    </div>
+
+    <!-- Editor tab: the iframe plane -->
+    <div class="rpane on" id="pEditor">
+      <div class="cap">iframe <code>127.0.0.1:port</code> · ui-vscode claim over <code>dsh-resource://file/**</code> · chrome hidden · <code>colorTheme dsh-dark</code></div>
+      <div class="frame">
+        <!-- timeline slider: useFileHistory data, resurrected as a frame surface -->
+        <div class="tl" title="dsh timeline — checkpoint slot register projected per file (ui-file-history); restore rides checkpoint restore Remote">
+          <span>⎇ TIMELINE</span>
+          <div class="track">
+            <div class="rail"></div>
+            <button class="stop" style="left:4%"  data-turn="12" title="turn 12 · write · creates index.ts"></button>
+            <button class="stop" style="left:36%" data-turn="13" title="turn 13 · bash · pnpm gen-tool-catalog"></button>
+            <button class="stop cur" style="left:70%" data-turn="14" title="turn 14 · write · +38 −2"></button>
+            <button class="stop" style="left:96%" data-turn="15" title="turn 15 · present"></button>
+            <input type="range" min="12" max="15" value="14" id="scrub">
+          </div>
+          <span id="stopLab">turn 14 · write · +38 −2</span>
+          <button class="btn ghost" id="restoreBtn">restore</button>
+        </div>
+        <div class="frow" style="flex:1;min-height:0">
+          <div style="flex:1;display:flex;flex-direction:column;min-width:0">
+            <div class="crumbs">packages ▸ host ▸ ide ▸ src ▸ <b style="color:var(--dsw-alias-label-secondary)" id="crumb">index.ts</b></div>
+            <div class="etabs"><span class="etab on" data-f="index" id="etIndex">index.ts</span><span class="etab" data-f="build" id="etBuild">build.ts</span></div>
+            <div class="code" id="codeIndex">
+              <div class="lens">spawnIdeChild — <b>2 call sites</b> · 1 impl · <span style="color:var(--shiki-keyword)">dsh-lsp</span></div>
+              <div class="ln"><span class="bar"></span><span class="no">31</span><span class="cd"><span class="kw">export async function</span> <span class="fn">spawnIdeChild</span>(<span class="pr">ctx</span>: <span class="cn">HostContext</span>) {</span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">32</span><span class="cd">  <span class="kw">const</span> twin = <span class="kw">await</span> ctx.<span class="pr">ideArtifacts</span>.<span class="fn">resolve</span>(<span class="cn">MANIFEST</span>.sha)</span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">33</span><span class="cd">  <span class="kw">const</span> tkn = <span class="fn">issueLaunchToken</span>()  <span class="cm">// per-launch, single use</span></span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">34</span><span class="cd">  <span class="kw">return</span> ctx.<span class="pr">subprocess</span>.<span class="fn">spawn</span>(twin.server, [</span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">35</span><span class="cd">    <span class="st">'--port'</span>, <span class="st">'0'</span>, <span class="st">'--connection-token'</span>, tkn, <span class="cm">/* loopback */</span></span></div>
+              <div class="ln"><span class="bar"></span><span class="no">36</span><span class="cd">  ])</span></div>
+              <div class="ln"><span class="bar"></span><span class="no">37</span><span class="cd">}</span></div>
+              <div class="thread"><span class="who">@snguyen</span> · line note — retained <code>“const tkn = issueLaunchToken()”</code> (checkpoint slotPut)<br>rotate per spawn; scrub from child env after handshake. <span style="color:var(--dsw-alias-label-caption)">/gather-comments ↵</span></div>
+              <div class="ln"><span class="bar"></span><span class="no">38</span><span class="cd"><span class="kw">export const</span> ideBridge = <span class="fn">readinessObservable</span>() <span class="cm">// hello ⇒ claim</span></span></div>
+            </div>
+            <div class="code" id="codeBuild" style="display:none">
+              <div class="ln"><span class="bar"></span><span class="no">1</span><span class="cd"><span class="cm">// scripts/ide/build.ts — human build lane</span></span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">2</span><span class="cd"><span class="kw">const</span> seat = <span class="kw">await</span> <span class="fn">materializeSeat</span>(<span class="cn">MANIFEST</span>.sha) <span class="cm">// ~/.cache/dsh/ide/&lt;sha&gt;</span></span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">3</span><span class="cd"><span class="kw">await</span> <span class="fn">applyOverlay</span>(seat, <span class="st">'scripts/ide/overlay'</span>) <span class="cm">// fails loud on conflict</span></span></div>
+              <div class="ln tN"><span class="bar"></span><span class="no">4</span><span class="cd"><span class="kw">await</span> <span class="fn">gulp</span>(seat, [<span class="st">'vscode-web-min'</span>, <span class="st">'vscode-reh-linux-x64'</span>])</span></div>
+              <div class="ln"><span class="bar"></span><span class="no">5</span><span class="cd"><span class="fn">recordSha256</span>(<span class="cn">MANIFEST</span>) <span class="cm">// twin pair pinned</span></span></div>
+            </div>
+          </div>
+          <div class="mini"><i style="top:5%"></i><i class="hl" style="top:11%"></i><i style="top:15%"></i><i style="top:21%"></i><i class="hl" style="top:26%"></i><i style="top:33%"></i><i style="top:41%"></i><i style="top:49%"></i><i style="top:58%"></i><i style="top:67%"></i><i style="top:76%"></i><i style="top:85%"></i></div>
+        </div>
+        <!-- frame bottom panel: terminal + extensions -->
+        <div class="fpanel">
+          <div class="fptabs"><span class="fpt on" data-b="bTerm">TERMINAL</span><span class="fpt" data-b="bExt">EXTENSIONS</span></div>
+          <div class="fpb on" id="bTerm"><span class="p">➜</span> pnpm --filter dsh-host-ide test<br><span style="color:var(--dsw-static-green-400)">✓ 14 tests</span> · 1.9s — <span style="color:var(--dsw-alias-label-caption)">real PTY via REH ext-host, no bridge code</span></div>
+          <div class="fpb" id="bExt">
+            <div class="exrow"><span class="st2">●</span><span class="nm">dsh-bridge</span><span style="color:var(--dsw-alias-label-caption)">workspace-kind · hello/ide.open/events over @Remote</span></div>
+            <div class="exrow"><span class="st2">●</span><span class="nm">dsh-dark theme</span><span style="color:var(--dsw-alias-label-caption)">maps monaco ids → --shiki-token-*</span></div>
+            <div class="exrow"><span class="st2">●</span><span class="nm">dsh-timeline</span><span style="color:var(--dsw-alias-label-caption)">webview over checkpoint slot register</span></div>
+            <div class="exrow dimmed"><span>○</span><span class="nm">typescript-language-features</span><span style="color:var(--dsw-alias-label-caption)">built-in</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview tab: the M1 fallback seat -->
+    <div class="rpane" id="pPrev">
+      <div class="cap">text preview · <code>fallback</code> band · shiki CodeBlock, read-only</div>
+      <div class="prev">vscode-frame-ui-sketch.html — rendered by <code>ui-sidebar-documentpreview</code>. The same tab registry ranking that this pane occupies is what <code>ui-vscode</code>'s <code>priority: builtin</code> claim outranks for frame-ready addresses; kill the REH child and the editor chips land here too.</div>
+    </div>
+  </section>
+</div>
+
+<div class="legend">
+  <table>
+    <tr><th>surface</th><th>lives in</th><th>source of truth</th></tr>
+    <tr><td>AppFrame: 280px sidebar / conversation / 45% right track; turn tail = prose → Files-changed chips → 60px delivery cards (40px icon frame, split Open) → action footer; resident Lexical composer with Send/Stop seat</td><td>our React app, unchanged</td><td>ui-layout, ui-deliverables, ui-conversation READMEs</td></tr>
+    <tr><td>File chips + card Open → right-panel Editor tab, iframe shows that file (<code>ide.open</code> downlink); .md/.html chips keep the text preview, proving registry ranking</td><td>chips route through openFile → sidebarRightTabs claim</td><td>tab-type registry; ui-vscode <code>priority: builtin</code>, pattern <code>dsh-resource://file/**</code></td></tr>
+    <tr><td>Editor plane syntax hues identical to our CodeBlock: keyword #daa549, string #60a5af, constant #61c8f9, function #ddc4d8, comment #738484, bg = markdown-code-block alias</td><td>dsh-dark built-in theme ext inside iframe</td><td>ui-theme shiki.css dark overrides</td></tr>
+    <tr><td>Timeline slider strip over the editor: stops = checkpoint slot register per file (tool + turn + digests); scrub re-scopes the turn gutter; restore rides the checkpoint restore Remote</td><td>bridge webview (the retired Files-view UI, resurrected where the data is hottest)</td><td>ui-file-history useFileHistory projection</td></tr>
+    <tr><td>Terminal (REH PTY) and Extensions (dsh-bridge / dsh-dark / dsh-timeline running) as frame bottom-panel tabs; line note as comment thread with /gather-comments</td><td>inside iframe, terminal costless (stock), views ring 1</td><td>REH terminal plane; comments API; checkpoint slotPut</td></tr>
+  </table>
+  <p>Ring budget after this cut: chrome hiding stays settings (ring 1); the frame's extra stock pieces (panel, extensions view) are stock parts re-shown, not patches; ring 3 remains the single proof patch.</p>
+</div>
+
+<script>
+  const show=(p,tab)=>{document.querySelectorAll('.rpane').forEach(x=>x.classList.toggle('on',x.id===p));
+    document.querySelectorAll('.rtab').forEach(x=>x.classList.toggle('on',x.dataset.p===p));
+    if(tab)selectFrameFile(tab,true);};
+  function selectFrameFile(f,flash){
+    document.getElementById('codeIndex').style.display=f==='index'?'':'none';
+    document.getElementById('codeBuild').style.display=f==='build'?'':'none';
+    document.getElementById('etIndex').classList.toggle('on',f==='index');
+    document.getElementById('etBuild').classList.toggle('on',f==='build');
+    document.getElementById('crumb').textContent=f==='index'?'index.ts':'build.ts';
+    if(flash){show('pEditor');const c=document.querySelector('.frame');c.classList.remove('flash');void c.offsetWidth;c.classList.add('flash');}
+  }
+  document.querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>el.dataset.open==='frame'?selectFrameFile(el.dataset.file,true):show('pPrev'));
+  document.querySelectorAll('.rtab').forEach(t=>t.onclick=()=>show(t.dataset.p));
+  document.querySelectorAll('.fpt').forEach(t=>t.onclick=()=>{document.querySelectorAll('.fpt').forEach(x=>x.classList.toggle('on',x===t));
+    document.querySelectorAll('.fpb').forEach(b=>b.classList.toggle('on',b.id===t.dataset.b));});
+  const stopsMeta={12:'turn 12 · write · creates index.ts',13:'turn 13 · bash · gen-tool-catalog',14:'turn 14 · write · +38 −2',15:'turn 15 · present'};
+  const scrub=document.getElementById('scrub');
+  scrub.oninput=()=>{const v=+scrub.value;document.getElementById('stopLab').textContent=stopsMeta[v];
+    document.querySelectorAll('.tl .stop').forEach(s=>s.classList.toggle('cur',+s.dataset.turn===v));
+    document.querySelectorAll('#codeIndex .tN').forEach(l=>{const n=+l.querySelector('.no').textContent;l.style.visibility='';});
+    document.querySelectorAll('#codeIndex .ln.tN').forEach(l=>l.classList.toggle('tN',v>=14));
+    document.querySelectorAll('#codeIndex .ln').forEach(l=>{});};
+  document.querySelectorAll('.tl .stop').forEach(s=>s.onclick=()=>{scrub.value=s.dataset.turn;scrub.oninput();});
+</script>
+</body>
+</html>

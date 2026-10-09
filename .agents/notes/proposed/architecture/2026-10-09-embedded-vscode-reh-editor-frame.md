@@ -1,0 +1,142 @@
+# Agent Note: Embedded OSS-VS-Code editor frame — our chrome, a self-built and self-modified VS Code twin, and a bridge extension over @Remote
+
+Status: proposed
+
+## Problem
+
+The web workbench's editing roadmap in [the editor-foundation note](2026-10-05-web-workbench-editor-foundation.md) is CodeMirror 6 plus `@codemirror/lsp-client`, with milestone M2 onward rebuilding the pieces a mature IDE already owns: a stateful LSP relay, live diagnostics, jump-to-definition, call hierarchy, implementation lenses. Building those against our own editor substrate is the largest remaining editor investment in the product, and every day it is the primary seat it is also the surface a user compares against VS Code itself.
+
+The product wants the inverse composition: our React workbench stays the product chrome, while the right-sidebar file editor/viewer seat is an iframe of a real VS Code workbench — one we build ourselves from MIT source and modify so it innately carries dsh harness features, not just a stock frame around an extension. The editor, terminal, debugger, and language services become a maintained dependency instead of a roadmap; every harness-native surface lives either inside our modified workbench or in a dsh-authored extension that talks to the Host over the existing @Remote gateway.
+
+This note records the verified external architecture facts the design rides, fixes the integration topology and its seams within this repository, settles the build lane, packaging, licensing, and repository-footprint constraints, and splits scope with the editor-foundation note, whose M1 write seam and fallback posture survive regardless of substrate.
+
+## Proposal
+
+### Verified facts about the VS Code remote stack
+
+Server-side facts were verified in-tree against the pinned upstream checkout at `../vscode` (branch `dsh-build` tracking `upstream/main` of [microsoft/vscode](https://github.com/microsoft/vscode), commit `f6a70e2a0f0424877efcabfffef026ee0ead4fb2`, 2026-10-09; remote `gitpod` retains [gitpod-io/openvscode-server](https://github.com/gitpod-io/openvscode-server) as a configuration and artifact reference; shallow clone, 414 MiB checkout). Client-side and protocol facts against the official extension-host, remote-extensions, and VS Code Server docs:
+
+- The source is MIT and one tree builds both halves: `src/vs/server` (REH; entry points `src/vs/server/node/server.main.ts` and `webClientServer.ts`) and the web workbench client (`src/vs/code/browser/workbench/`) compile from the same build system, so "UI source" is not a second download. The gulp lanes live in `build/gulpfile.reh.ts` (server artifact; it fetches its Node binaries on demand per its product-build comment) and `build/gulpfile.vscode.web.ts` (`vscode-web` / `vscode-web-min` tasks), parameterized by platform and product.
+- The client/server split is by capability, never pixel-streaming: the server owns the workspace plane (filesystem, real terminals, debugger, and a Node extension host running workspace-kind extensions on the server machine); the browser owns only UI state; the workbench DOM renders client-side.
+- The remote protocol hard-pins client and server to the identical commit and quality, and the only client that speaks it is the workbench that ships with the server; there is no public client spec (the existence of an [unofficial protocol decoder](https://github.com/progrium/vscode-protocol) is evidence of that absence). Consequently a dsh-authored browser client against a stock server is impossible, and any modified UI must be built from the same pinned SHA as the server it rides — the twin rule this note treats as absolute.
+- Extensions never touch the wire: they call the `vscode` API and the runtime marshals by location; a workspace-kind Node extension executes inside the server's extension-host process — on our machine — while its UI contributions render client-side; a webview is an extension-owned iframe with a postMessage bridge; the tree-owning `extensions/` directory compiles in-tree built-in extensions (grammars, language features, git, even a copilot seat), which is also the build-time seat for shipping the dsh bridge as a built-in; pure UI-only Node extensions do not load in web-based instances, which is precisely why the bridge extension must be workspace-kind.
+- Raw upstream is the pin and the OpenVSCode fork is only a reference: the fork is verified identical OSS source — GitHub reports it as a fork of microsoft/vscode under the same MIT license — whose delta is configuration, not code. Its `product.json` supplies the non-Microsoft product configuration a shipped build needs (`extensionsGallery` pointed at Open VSX `open-vsx.org` service/item/resource URLs, standalone branding, `embedderIdentifier`), which our ring-two overlay copies as values; the standalone serve helpers (`scripts/code-server.js`, `scripts/code-web.js`) exist verbatim in upstream too, confirming the fork adds no serving capability we need. The fork's release artifacts exist and are digest-pinned ([v1.109.5](https://github.com/gitpod-io/openvscode-server/releases/tag/openvscode-server-v1.109.5), 2026-02-20, linux-x64/arm64/armhf tarballs of 66–77 MiB compressed) but are Linux-only and about eight upstream minors behind the October 2026 upstream (v1.141), so they suit a prototype, not a product lane; pinning the fork as build source would inherit that staleness plus an extra rebase hop for nothing the overlay cannot carry.
+- [coder/code-server](https://github.com/coder/code-server) tracks upstream same-month (v4.141.0 = Code 1.141.0) with 201–244 MiB digested per-platform artifacts, but its stock UI is the frozen product of their pipeline — the requirement to modify the served workbench makes consuming any prebuilt artifact a dead end, which is what promotes the source-build lane from escalation to default in this revision.
+- Microsoft's branded [VS Code Server license](https://aka.ms/vscode-server-license) is single-user and forbids hosting as a service; we never ship that binary — ours is an OSS build — so the license constrains nothing in the chosen lane.
+
+### Topology
+
+```
+ our React workbench (unchanged product chrome)
+ └─ right-sidebar tab registry
+     └─ ui-vscode tab kind (priority: builtin, pattern dsh-resource://file/**)
+         canOpen ⇐ ctx.ideBridge.ready          ──no──▶ ui-editor (CodeMirror) / text preview
+         └─ <iframe src="http://127.0.0.1:<port>/?tkn=<launch-token>">
+              our-built workbench, version-locked to its own REH by the twin rule
+
+ dsh Host (web profile)
+ ├─ ctx.subprocess ──▶ self-built REH child: loopback bind, port 0, per-launch token,
+ │                   --extensions-dir <session dir>; dsh bridge as built-in and/or sideloaded VSIX
+ └─ @Remote gateway (HTTP /api/... + WS /api/remote.mux)
+      ▲                                    ▲
+      │ unary + streams from the browser    │ same wire from Node: the bridge
+      │ (existing web client)              │ ext-host has fetch/ws as globals;
+      │                                   │ stdio `dsh --profile sdk` only when no web host
+      └─── dsh-bridge ext (workspace-kind Node, our machine) + dsh workbench patches
+```
+
+- Build lane: a pinned row in a build-local manifest (upstream SHA and sha256 of the produced twins) drives a CI lane that checks out the pinned microsoft/vscode SHA, applies our overlay held in this repository's `scripts/` (product configuration including the Open VSX gallery block lifted from the fork reference, dsh branding, and the patch layer), and emits the REH server artifact plus the `vscode-web` client twin per platform — the same artifact shape Gitpod's releases prove producible, produced by us from the canonical tree. The sibling clone at `../vscode` is the development seat for authoring workbench patches; it is never committed, mirrored, or submodule-mounted.
+- Host package (proposed `packages/host/ide`): owns the manifest row, the artifact cache, the `ctx.subprocess` spawn and teardown, the token issue, and the `ideBridge` readiness observable fed by the extension's `idePresence.hello`.
+- Client package (proposed `packages/client/ui-vscode`): the tab kind and iframe body only; `canOpen` reads readiness so a missing or dead child degrades to the CodeMirror editor and the text preview exactly as the [tab-type registry](../../implemented/architecture/2026-09-05-sidebar-tab-types-and-navigation.md) ranking intends; no iframe-side probing, because the Host that spawned the child is the authority on its liveness.
+- Extension package (proposed `dsh-vscode-bridge`, compiled as a built-in in our build, sideloaded as VSIX during development): three jobs on existing wire — handshake and liveness against the gateway; command downlink (`ide.open(path)` relayed as an `@Remote` stream into `vscode.open`); event uplink (save, active editor, diagnostics summary) so the outer file tree and dirty indicators stay truthful — plus workbench defaults.
+- Workbench modification layer, by ring, inside-out. Ring one, no patches: webviews and contribution points (views, status bar, decorations, comments API) plus settings and layout-command dressing. Ring two, product inputs: our `product.json` (branding, gallery policy, built-in seat for the bridge). Ring three, real workbench patches in `src/vs/workbench`: only where a harness surface cannot be expressed declaratively; each patch is a file in our overlay with a named upstream-merge owner, and the layer must stay small enough that a fork rebase is a morning, not a project. The proposed-API question flagged by the first revision is settled in the pinned tree in the bridge's favor: `extensionsProposedApi.ts:110` strips `enabledApiProposals` only when `!extension.isBuiltin`, and lines 35–37 unconditionally allow proposed API out of sources, so a shipped in-tree built-in needs no product.json key.
+- The @Remote carrier from Node is the exact envelope and stream frames defined by `packages/client/connection/src/client/rpc.ts` and `packages/api/gateway/src/stream-protocol.ts`; stdio SDK (`packages/sdk/client`, `dsh --profile sdk`) is the fallback carrier when no web Host is up, feature-detected from the spawn environment.
+
+### Chrome posture and frame surfaces (v3 revision)
+
+The companion sketch `vscode-frame-ui-sketch.html` fixes the embedding as editor-plane-only: the iframe carries monaco with its tab strip, breadcrumbs, and minimap; the terminal and the Extensions view in the stock bottom panel; line notes as comment threads; and the dsh-dark theme. Every other harness surface stays in the React chrome exactly as shipped. Chrome hiding is data, not patches: the bridge writes `workbench.statusBar.visible: false` (registered at `src/vs/workbench/browser/workbench.contribution.ts:643`) and `window.menuBarVisibility: 'hidden'` (`src/vs/platform/window/common/window.ts:221`) as settings defaults plus `workbench.startupEditor: 'none'`. The `workbench.activityBar.visible` setting is migrated away in the pinned tree (migrateFn at `workbench.contribution.ts:1053`), so the activity bar hides via a once-on-first-activation `workbench.action.toggleActivityBar` layout command persisted in the frame's UI-state, and sidebar/panel close by the same one-shot commands. Every key remains user-mutable; re-showing stock chrome is supported, not a failure.
+
+The frame re-shows stock parts instead of dropping them: the terminal (real PTY, zero bridge code) and the Extensions view as stock bottom-panel tabs. Two further surfaces enter the frame as ring-1 extensions: line notes render through the stable `vscode.comments` controller over the checkpoint `slotPut` seam (the web `ui-line-note` keeps the same retained-line model; a note written in either plane shows in both), and a DSH Timeline view container — per-file stops (turn, toolName, before/after digests), scrub, and restore riding the checkpoint restore Remote, projected from the checkpoint slot register exactly as `ui-file-history`'s `useFileHistory` does. The pinned tree has no stable extension slot above the editor, so the timeline view is contributed to the frame's bottom panel; the right-panel tab strip wrapping the iframe keeps a compact turn-stop indicator as the visual bridge. The timeline is a deliberate resurrection of the retired Files-view slider UI (`ui-file-history` README records the retirement); a product decision recorded here, replatformed where the data is hottest.
+
+File chips and delivery-card Open actions open in the frame through the path that already exists: the chat view's `openFile` slot (`packages/client/ui-chat/src/client/contract/slots.ts:45`, applied at `apply.ts:133`) already routes every open through `ctx.sidebarRight.openResource(fileAddressFor(...))` — the identical call `ui-sidebar-files` makes (`ui-sidebar-files/src/client/index.ts:79`) — so no chat-view rewiring is needed; the registry ranking decides, with `ui-vscode`'s `builtin` claim taking `dsh-resource://file/**` ahead of `ui-editor` while readiness is up (the roster row order in `packages/bundle/web-app/cordis.patch.yml` fixes the same-band tie), and the fallback preview otherwise, exactly as today.
+
+### Detailed implementation plan
+
+Code volume, source-LOC ranges grounded on measured analogs; the per-file coverage gate adds roughly equal spec LOC on every new `src/`:
+
+| Package | Files | Source LOC | Analog (measured) |
+|---|---|---|---|
+| `packages/host/ide` | 8–12 | 800–1,200 | `api/workspace-files` 9f/1,621 — simpler: spawn, token, manifest, readiness |
+| `packages/client/ui-vscode` | 6–9 | 350–600 | `ui-file-history` 4f/281 plus the tab-kind registration |
+| `dsh-vscode-bridge` extension | 12–18 | 1,300–1,800 | reuses the `packages/sdk/client` 6f/1,170 envelope from the ext-host |
+| built-ins `dsh-dark` + `dsh-timeline` | 5–8 | 400–700 | `ui-line-note` 6f/317 |
+| `scripts/ide` (lane, overlay, patch owner, theme-map generator) | 6–10 | 600–900 | — |
+| `ui-chat` openFile rewiring | 0 (already wired) | 0 | see the chrome-posture section |
+| **total new** | **~40–55** | **~3,500–5,300** | specs near-double the repo diff under the gate |
+
+Wire contract — two Remote namespaces, both on the existing gateway Typert dispatch plus `/api/remote.mux`:
+
+- `ide` (client- and extension-facing in the landed wave): `@Remote status()` unary; `@Remote({ mode: 'stream' }) events()` carrying every readiness change; `@Remote open(path)` enqueues the downlink; `@Remote hello()` is the bridge's liveness verb that flips readiness.
+- `ideBridge` (extension-only follow-up): `report(sessionId, evt)` for save/activeEditor/diagnosticsSummary once the event-uplink surfaces ship.
+
+Bridge internals ride stable extension APIs only: a comments controller for line notes; `window.createTextEditorDecorationType` for the turn gutter fed by turn snapshots; the hello on activation after chrome-hiding defaults; `contributes.viewsContainers.panel` hosts the dsh-timeline webview whose provider asks the extension for register data over postMessage — the webview itself holds no credentials, the extension owns the rpc client. `dsh-dark` contributes one theme whose `colors`/`tokenColors` are generated from `packages/client/ui-theme/src/styles/shiki.css` (dark `--shiki-token-*` overrides) by a `scripts/ide` generator, and regeneration runs inside the build lane, so in-frame code tokens equal the CodeBlock palette token-for-token by construction.
+
+Ring three stays the single proof patch (`src/vs/workbench/` file chosen at implementation time; candidate: suppress the web custom-titlebar row under advertised embedder). The chrome posture above lands with zero additions to the patch layer.
+
+Workstream order: (1) build lane green for linux-x64 plus the Gitpod-tarball prototype escape hatch; (2) host/ide + ui-vscode + bridge hello/`ide.open` round trip with fallback degrade; (3) chrome posture + dsh-dark; (4) line notes + turn gutter; (5) timeline view + restore; (6) proof patch + rebase drill. Steps 2–5 each ship against a landed step 1 and keep the acceptance criteria true with the frame absent.
+
+### Packaging and repository footprint
+
+The repository carries the overlay and one manifest row, never the payload: no git submodule (this repository has none and its `vendor/` mechanism is 2.3 MiB of small source copies — a 414 MiB checkout is three orders of magnitude outside it), no VS Code-derived npm dependency, and no cloned tree committed. Build working space (several GB across `npm ci` plus gulp output) and the ~70–240 MiB compressed per-platform twins live in CI caches and installer slices, absorbing the runtime-file-policy pattern `apps/desktop` already applies to bundled native prebuilds. Prototype deployments may skip the lane entirely and consume a digested Gitpod release tarball, accepting its staleness and Linux-only matrix until the lane lands.
+
+### Scope split with the editor-foundation note
+
+M1's `workspaceFiles.write` seam and buffer store model are substrate-agnostic and remain: they are the permanent web-only and fallback path, and the conflict-safe human-authority decision carries into the frame (the REH edits real files on the same machine, so its writes are governed by the same sandbox-policy stack the Host applies). M2's `lspRelay` is unnecessary on the frame path — the VS Code extension host already is a stateful LSP client against the same `dsh-lsp-stdio` servers — and remains valuable only for the fallback seat. M3–M5's vision features (comment threads gathered to the agent, structural diffs, call-site graph) translate to the bridge extension's and modified workbench's native surfaces — VS Code's comments API, SCM-provider-style diff contributions, and language-client call hierarchy — instead of CodeMirror StateFields; each still opens its own note when work starts.
+
+## Implementation status
+
+Branch `feat/embedded-vscode-frame` (worktree `.worktrees/embedded-vscode-frame`) carries the first waves, all green under the per-file coverage gate for their `src/` trees: `packages/host/ide` (wave A: manifest row parsing with named `ide/*` refusals, sha256 twin resolution with the `DSH_IDE_TWIN_DIR`/`DSH_IDE_TWIN_NOVERIFY` override latch, the spawn controller with per-launch token and port-driven frame URL, and the `ide` Remote namespace with `status`, `events`, `open`, and `hello`); `packages/client/ui-vscode` (wave B: the `vscode` tab kind whose `canOpen` is the degrade contract over the live readiness mirror, the iframe body, zh/en dictionaries, and the web-app roster rows ordering it ahead of `ui-editor`; chat-view file chips reach it through the existing `openFile` → `openResource` registry path, so no rewiring was needed); `packages/ide/bridge` (wave C skeleton: the tested activation glue applying the chrome posture and draining the open downlink, the `dsh-dark` theme map over the shiki dark tokens, and the ext-host-only entry exempted from the per-file gate beside the bin/worker precedents in `vitest.config.ts`); `scripts/ide` (lane skeleton with the default manifest row pinned at `f6a70e2a`); and the companion `vscode-frame-ui-sketch.html` v3 on the live dsw tokens. Remaining waves: the timeline view, line-note comments controller, chrome re-show UX against a real twin, and the proof patch plus rebase drill.
+
+## Alternatives considered
+
+**Consume a prebuilt artifact stock (code-server or Gitpod releases) and extend only by extension.** The prior revision's default; loses to the now-stated product requirement that the served UI itself be modified for harness features — a stock binary cannot carry our workbench changes, and the twin rule forbids pairing our client build with their server. Kept only as the prototype vehicle.
+
+**Pin the OpenVSCode fork instead of raw upstream.** Gains the gallery product config and a patch catalog in-tree; loses upstream freshness (the fork tracks about eight minors behind) and adds a second rebase hop, while both gains are configuration values our ring-two overlay lifts from the fork as a reference anyway. Rejected as the pin; retained as the `gitpod` remote of the sibling clone.
+
+**Complete the CodeMirror roadmap as primary seat.** Loses by rebuilding IDE-standard surfaces (LSP UI, call hierarchy) that the frame provides for free; wins as the zero-dependency seat and stays shipped as fallback. Superseded as primary, retained as fallback.
+
+**Monaco + `monaco-languageclient`, and `monaco-vscode-api` in our bundle.** Rejected in the editor-foundation note for imperative app-scale API friction and for inverting composition into a parallel VS Code universe; `monaco-vscode-api` additionally brings no remote extension host, which the bridge design requires. Rejected again here on the same grounds.
+
+**Adopt code-server or OpenVSCode as the whole product.** License-fine but product-wrong: our conversation, approvals, and trajectory UX become webviews inside someone else's shell, and their version cadence becomes our release cadence. The chosen topology keeps their shell inside one sidebar slot instead.
+
+**Author our own browser client against the stock server.** The impossible cell under the twin rule. Ruled out permanently.
+
+**Vendor or submodule the VS Code source.** Every contributor and CI checkout would pay the clone for a payload only the IDE lane consumes, and git worktrees do not share submodule checkouts, so each of this repository's many worktrees would pay its own ~350 MiB checkout where the manifest-row lane shares one content-addressed seat across all of them. The pin is data consumed by one build lane, and this repository's house pattern for that shape is lockfiles and the `apps/desktop` native-prebuild runtime-file policy. Rejected for the default; the sibling clone remains a development seat outside the repository.
+
+**Ship the full VS Code window as the product seat.** Superseded by the v3 revision: the React chrome already owns conversation, approvals, claims, goals, trace, structural diffs, and file surfaces, so duplicating them inside the frame doubles the payload and the maintenance for surfaces that ship today. The frame ships the editing plane only.
+
+**ACP-based dsh extension for real editors.** Complementary outward surface (installed VS Code and Zed driving dsh sessions over `packages/acp`), not a substitute for the web IDE seat; pursued independently if at all.
+
+**Microsoft's branded VS Code Server binary.** Its license forbids hosting as a service and binds one user; an OSS build delivers the same capability without the restriction. Ruled out.
+
+## Acceptance criteria
+
+- The build lane, from the pinned fork SHA, produces a REH server artifact and the matching `vscode-web` client twin for at least linux-x64, with sha256s recorded in the manifest row; a REAL-composition test boots the web profile against that build, spawns the REH through `ctx.subprocess`, completes `idePresence.hello` over the gateway, and the `ui-vscode` tab kind claims `dsh-resource://file/**` ahead of `ui-editor`; killing the child drops the claim back to the CodeMirror fallback in the same session.
+- The iframe loads our-built workbench on loopback with the launch token, showing the dsh product branding and gallery policy from our `product.json`; the bridge appears as a workspace-kind entry in the running-extension listing; `ide.open` round-trips into a visible editor in the frame.
+- One ring-three workbench patch (the smallest harness-native change chosen at implementation time) ships in the twin, proving the patch overlay and rebase path end to end; the rebase drill against a newer fork or upstream SHA completes as a time-boxed exercise recorded in the implementing PR.
+- The manifest lane fails loud: a sha256 mismatch refuses spawn with a named error; a deployment without the artifact behaves exactly as the editor-foundation note's M1; `verify-client-ui-i18n` passes for all new client copy.
+- No submodule, vendored tree, or VS Code-derived dependency enters the repository; the manifest row, the overlay, and the bridge/host/client packages comprise the entire diff, each new `src/` meeting the coverage gate.
+- v3 surfaces: first activation hides status bar, menu, activity bar, sidebar, and panel in the frame and applies dsh-dark with code tokens equal to shiki.css dark values; terminal and Extensions views are reachable stock bottom-panel tabs; the dsh-timeline bottom-panel view scrubs per-file stops and round-trips one stop's restore through the checkpoint restore Remote into a fresh stop; a file chip or delivery-card Open claims the frame over the preview when ready and degrades to the preview when the child dies.
+
+## Risks
+
+Upstream drift is now the first-class cost: the fork's own release line demonstrates the drift price (v1.109.5 versus an upstream eight minors ahead), and the raw-upstream pin avoids paying it twice; our lane tracks microsoft/vscode `main` at our own cadence and treats each rebase as a scheduled cost whose budget is the ring-three patch count; the ring discipline exists to keep that budget finite. The twin rule doubles every build (server plus web) and pins platform matrix growth to us: Gitpod releases being Linux-only is evidence that darwin and win targets are work we must add, and desktop-adjacent releases therefore sequence after the linux lane proves out. Chrome dressing below ring three remains settings- and commands-addressed, not contractual. File-state truth doubles when the frame is live; the ownership rule is disk as truth with the bridge's events as projection, so our file tree subscribes and never polls. Security posture is unchanged in substance: the loopback REH is a full workspace-plane authority equal to the Host child it is, launched with a scrubbed environment, token-gated, and its file writes pass through the same sandbox-policy stack, with the editor-foundation note's human-authority scope decision carried over. Payload weight touches only CI caches and installer slices, never the repository or the pnpm graph, and CI consumes a pinned test-scope twin rather than the full matrix. The v3 timeline is a resurrection, not scope creep found mid-build: the slider UI was retired from the React app (`ui-file-history` README) and its return inside the frame is the product decision recorded in the v3 section. The activity-bar setting is migrated away in the pinned SHA, so its hiding rides a first-run layout command persisted in frame UI-state; a cleared VS Code storage re-shows the bar until the next activation — cosmetic, bounded, accepted. The frame claim for chat-view file opens rides the existing `openFile` → `openResource` registry path; frame-absent behavior is today's behavior, but the registry's editor-vs-preview ordering tests must cover the claimed path once `ui-vscode` registers.
+
+## Related
+
+- [Web workbench editor foundation](2026-10-05-web-workbench-editor-foundation.md) — owns the M1 write seam, buffer store model, and the fallback seat this note preserves.
+- [Sidebar tab types and navigation](../../implemented/architecture/2026-09-05-sidebar-tab-types-and-navigation.md) — the registry ranking the conditional mount rides.
+- [Subprocess subsystem](../../../docs/subsystems/subprocess.md) — the managed child-process service that spawns the REH.
+- [API gateway](../../../docs/api-gateway.md) — the @Remote dispatch and `/api/remote.mux` stream mux the bridge reuses from Node.
+- [SDK group](../../../packages/sdk/README.md) — the stdio carrier for the no-web-host case.
+- Sibling development clone `../vscode` — branch `dsh-build` on raw microsoft/vscode (`f6a70e2a` at writing), remote `gitpod` on the OpenVSCode fork as configuration and artifact reference; a development seat, never a repository payload.

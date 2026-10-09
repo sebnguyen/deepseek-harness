@@ -1,0 +1,21 @@
+{
+  "name": "@deepseek-ai/dsh-vscode-bridge",
+  "description": "Bridge extension for the embedded VS Code REH editor frame: hello and open downlink over the gateway, one-first-activation chrome posture, dsh-dark theme seat",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/entry.js",
+  "types": "lib/types/entry.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/entry.d.ts",
+      "default": "./lib/entry.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/ide/bridge"
+  }
+}

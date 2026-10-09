@@ -210,6 +210,10 @@ export default defineConfig({
         'packages/*/*/src/types.ts',
         'packages/*/*/src/bin.ts',
         'packages/*/*/src/worker.ts',
+        // The frame bridge's activation entry boots only inside the twin's
+        // VS Code extension host; its behavior lives in the tested glue it
+        // defers to, so no repository-side suite can import it meaningfully.
+        'packages/ide/bridge/src/entry.ts',
         // Dynamic Host/Client composition is covered by its focused lifecycle
         // tests and assembled application checks rather than per-file coverage.
         'packages/self-modification/*/src/**/*.{ts,tsx}',
