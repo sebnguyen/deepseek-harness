@@ -93,7 +93,9 @@ describe('resolveTwin', () => {
     const serverSha256 = await sha256OfFile(join(dir, 'reh-server'))
     const clientSha256 = await sha256OfFile(join(dir, 'web-client'))
     const twin = await resolveTwin(row({ [IDE_PLATFORM]: { serverSha256, clientSha256 } }), {}, cache)
-    expect(twin).toEqual({ serverPath: join(dir, 'reh-server'), clientPath: join(dir, 'web-client'), platform: IDE_PLATFORM })
+    expect(twin).toMatchObject({ serverPath: join(dir, 'reh-server'), clientPath: join(dir, 'web-client'), platform: IDE_PLATFORM })
+    expect(twin?.serverSha256).toBe(serverSha256)
+    expect(twin?.clientSha256).toBe(clientSha256)
   })
 
   it('holds the override to the same digests without the latch', async () => {

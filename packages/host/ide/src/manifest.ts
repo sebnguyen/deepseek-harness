@@ -116,7 +116,7 @@ export async function resolveTwin(
       if (isOverride && noverify) return { serverPath, clientPath, platform: 'override' }
       throw new IdeArtifactError('ide/sha-mismatch', `twin under ${dir} does not match the manifest sha256 for ${IDE_PLATFORM}`)
     }
-    return { serverPath, clientPath, platform: IDE_PLATFORM }
+    return { serverPath, clientPath, platform: IDE_PLATFORM, serverSha256, clientSha256 }
   }
   return undefined
 }

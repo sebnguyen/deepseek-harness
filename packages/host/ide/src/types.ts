@@ -38,6 +38,9 @@ export interface ResolvedTwin {
   readonly clientPath: string
   /** The platform key whose digests matched, or the override's label. */
   readonly platform: string
+  /** Digests the resolver already computed; the unpack skips rehashing. */
+  readonly serverSha256?: string | undefined
+  readonly clientSha256?: string | undefined
 }
 
 /** The unpacked face of a verified twin, what the spawn actually execs. */

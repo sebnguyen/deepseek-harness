@@ -41,7 +41,9 @@ export function pickServerEntry(serverDir: string): string {
 export async function unpackTwin(twin: ResolvedTwin, run: IdeUnpackLike = runTar): Promise<UnpackedTwin> {
   const unpackDir = join(twin.serverPath, '..', '.unpack')
   const marker = join(unpackDir, 'ok')
-  const stamp = `${await sha256OfFile(twin.serverPath)} ${await sha256OfFile(twin.clientPath)}`
+  const serverDigest = twin.serverSha256 ?? await sha256OfFile(twin.serverPath)
+  const clientDigest = twin.clientSha256 ?? await sha256OfFile(twin.clientPath)
+  const stamp = `${serverDigest} ${clientDigest}`
   let fresh: string | undefined
   try {
     fresh = (await readFile(marker, 'utf8')).trim()

@@ -119,26 +119,22 @@ describe('ide Remote namespace', () => {
     void join(home, 'm2.json')
     const sub = new StubSubprocess()
     const service = boot(sub)
-    service.start()
-    await new Promise(resolve => setTimeout(resolve, 10))
+    // status() awaits the ensure, so the spawn is complete before hello runs.
+    await service.status(unAborting)
     const controllerAbort = new AbortController()
     const iterable = service.events(controllerAbort.signal)
     const iterator = iterable[Symbol.asyncIterator]()
     const first = await iterator.next()
     expect(first.value?.ready).toBe(false)
     const nextParked = iterator.next()
-    // Mirror the bridge hello through the controller the service owns; the
-    // spawn lands after the unpack await, so wait for the child to exist.
     const ideControllerProbe = service as unknown as { hello(signal: AbortSignal): Promise<boolean> }
-    await vi.waitFor(async () => {
-      expect(await ideControllerProbe.hello(unAborting)).toBe(true)
-    })
+    expect(await ideControllerProbe.hello(unAborting)).toBe(true)
     const changed = await nextParked
     expect(changed.value?.ready).toBe(true)
     controllerAbort.abort()
     const done = await iterator.next()
     expect(done.done).toBe(true)
-    expect(await iterator.return?.()).toMatchObject({ done: true })
+    await expect(iterator.return?.()).resolves.toMatchObject({ done: true })
     void platform
   })
 
