@@ -73,11 +73,18 @@ export function foldSlotTimelines(timelines: readonly CheckpointSlotTimeline[], 
     const path = relativizeToCwd(timeline.path, cwd)
     for (const slot of timeline.slots) {
       if (slot.kind !== 'worktree') continue
+      const toolName = 'toolName' in slot.detail ? slot.detail.toolName : slot.label
+      const purpose = 'purpose' in slot.detail && slot.detail.purpose !== undefined
+        ? slot.detail.purpose
+        // Registers captured before the detail carried the purpose rode it
+        // as the slot label when one was stated.
+        : slot.label !== toolName ? slot.label : undefined
       const stop: FileStop = {
         seq: slot.createdAt,
         time: slot.createdAt,
         callId: slot.callId ?? slot.slotId,
-        toolName: 'toolName' in slot.detail ? slot.detail.toolName : slot.label,
+        toolName,
+        ...purpose === undefined ? {} : { purpose },
         ...slot.turn === undefined ? {} : { turn: slot.turn },
         ...slot.before === undefined ? {} : { before: slot.before },
         ...slot.after === undefined ? {} : { after: slot.after },
@@ -91,10 +98,44 @@ export function foldSlotTimelines(timelines: readonly CheckpointSlotTimeline[], 
     files: [...stops]
       .map(([filePath, list]) => ({
         path: filePath,
-        stops: list.sort((left, right) => left.time - right.time) as readonly FileStop[],
+        stops: coalesceStops(list.sort((left, right) => left.time - right.time) as readonly FileStop[]),
       }))
       .sort((left, right) => left.path.localeCompare(right.path)),
   }
+}
+
+/**
+ * Merge one file's back-to-back writes into the stop their burst ended at:
+ * a stop whose `before` digest equals the previous stop's `after` observed no
+ * outside write between the two, so the merged stop quotes the burst as one
+ * change from the first before to the last after. A first appearance keeps
+ * no before; a burst that ends by deleting the file keeps no after.
+ * @param stops - one file's stops, oldest first.
+ * @returns the burst-coalesced stop list.
+ */
+export function coalesceStops(stops: readonly FileStop[]): readonly FileStop[] {
+  const merged: FileStop[] = []
+  for (const stop of stops) {
+    const head = merged[merged.length - 1]
+    if (head !== undefined && head.after !== undefined && stop.before === head.after) {
+      // The merged stop is the burst's end state quoting the burst's start:
+      // the first before wins, a creation keeps no before at all.
+      merged[merged.length - 1] = {
+        seq: stop.seq,
+        time: stop.time,
+        callId: stop.callId,
+        toolName: stop.toolName,
+        ...stop.purpose === undefined ? {} : { purpose: stop.purpose },
+        ...stop.turn === undefined ? {} : { turn: stop.turn },
+        ...stop.step === undefined ? {} : { step: stop.step },
+        ...head.before === undefined ? {} : { before: head.before },
+        ...stop.after === undefined ? {} : { after: stop.after },
+      }
+      continue
+    }
+    merged.push(stop)
+  }
+  return merged
 }
 
 /**

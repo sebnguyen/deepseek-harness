@@ -32,7 +32,11 @@ export function quoteInput(draft: string, path: string, stop: FileStop): string 
 /** Translate bound to the `editor` namespace. */
 export type TranslateChanges = (key: EditorKey, params?: Record<string, string | number>) => string
 
-/** Turn-axis positions in percent, one per stop, in stop order. */
+/**
+ * Turn-axis positions in percent, one per stop, in stop order. Stops tied on
+ * one turn spread across the span ending at that turn, else every write of a
+ * busy turn piles onto one tick and the scrubber reads them as one stop.
+ */
 export function placeStops(stops: readonly FileStop[]): readonly number[] {
   const xs: number[] = []
   let cursor = 0
@@ -41,10 +45,24 @@ export function placeStops(stops: readonly FileStop[]): readonly number[] {
     else cursor += 0.5
     xs.push(cursor)
   }
-  const min = xs[0]
-  const max = xs[xs.length - 1]
+  const spread: number[] = []
+  for (let i = 0; i < xs.length;) {
+    let j = i
+    while (j + 1 < xs.length && xs[j + 1] === xs[i]) j += 1
+    const value = xs[i] as number
+    const prev = i === 0 ? value - 1 : (xs[i - 1] as number)
+    for (let k = i; k <= j; k += 1) spread.push(prev + (value - prev) * ((k - i + 1) / (j - i + 1)))
+    i = j + 1
+  }
+  const min = spread[0]
+  const max = spread[spread.length - 1]
   if (min === undefined || max === undefined) return []
-  return xs.map(x => (max === min ? 50 : ((x - min) / (max - min)) * 100))
+  return spread.map(x => (max === min ? 50 : ((x - min) / (max - min)) * 100))
+}
+
+/** Wall-clock text of one stop: hour and minute in the browser's locale. */
+function timeOf(time: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(time)
 }
 
 export interface ChangesSurfaceProps {
@@ -113,7 +131,7 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
       digest === undefined ? Promise.resolve<string | null>('') : blob(digest, controller.signal)
     void Promise.all([read(hovered.before), read(hovered.after)]).then(([before, after]) => {
       if (controller.signal.aborted) return
-      setHoverCounts(frameDiff(before === null ? undefined : before || undefined, after === null ? undefined : after || undefined))
+      setHoverCounts(frameDiff(before || undefined, after || undefined))
     })
     return () => controller.abort()
   }, [hovered, blob])
@@ -175,7 +193,7 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
               type="button"
               className={i === index ? `${css.tick} ${css.tickOn}` : css.tick}
               style={{ left: `${xs[i]}%` }}
-              title={s.turn === undefined ? t('gapMeta') : `${t('turnN', { n: s.turn })} · ${s.toolName}`}
+              title={s.turn === undefined ? t('gapMeta', { time: timeOf(s.time) }) : `${t('turnN', { n: s.turn })} · ${s.toolName}`}
               onClick={() => { setIndex(i) }}
               onMouseEnter={() => { setHover(i) }}
               onMouseLeave={() => { setHover(undefined) }}
@@ -229,8 +247,8 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
             <b className={css.ttl}>{t('purpose')}</b>
             <span className={css.meta}>
               {stop.turn === undefined
-                ? t('gapMeta')
-                : t('meta', { turn: stop.turn, tool: stop.toolName, call: stop.callId })}
+                ? t('gapMeta', { time: timeOf(stop.time) })
+                : t('meta', { turn: stop.turn, tool: stop.toolName, call: stop.callId, time: timeOf(stop.time) })}
             </span>
           </span>
           <p>{stop.purpose ?? t('noPurpose')}</p>

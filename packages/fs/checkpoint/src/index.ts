@@ -185,7 +185,7 @@ export class CheckpointService extends TypertRemoteService {
       callId: call.callId,
       ...before !== undefined ? { before } : {},
       after,
-      detail: { toolName: call.name },
+      detail: { toolName: call.name, ...call.purpose !== undefined ? { purpose: call.purpose } : {} },
     })
   }
 

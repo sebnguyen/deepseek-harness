@@ -17,7 +17,7 @@ import type { } from '@deepseek-ai/dsh-client-ui-session/client'
 import { EMPTY_FILE_HISTORY, foldSlotTimelines, type FileHistorySnapshot } from './fold.ts'
 
 export type { FileHistorySnapshot, FileStop, FileTimeline, UseFileHistory } from './fold.ts'
-export { EMPTY_FILE_HISTORY, foldSlotTimelines, groupStopsByTurn } from './fold.ts'
+export { coalesceStops, EMPTY_FILE_HISTORY, foldSlotTimelines, groupStopsByTurn } from './fold.ts'
 
 /** Required services: the view slot registry, session bindings, hook registry, locale, and the checkpoint Remote. */
 export const inject = ['slots', 'sessions', 'uiSession', 'locale', 'remote', 'remote.checkpoint']
@@ -44,24 +44,34 @@ export function apply(ctx: Context): void {
     if (source === undefined) {
       let folded: FileHistorySnapshot = EMPTY_FILE_HISTORY
       let fetchKey = ''
+      let fetching = false
       const listeners = new Set<() => void>()
+      /** Refetch the register for `key`, coalescing bursts into one round trip. */
+      const fetchFor = (key: string): void => {
+        fetchKey = key
+        fetching = true
+        void ctx.remote.checkpoint.slots(binding.sessionId, undefined).then((result) => {
+          fetching = false
+          // A failed read keeps the last folded register in place.
+          if (!result.ok) return
+          const next = foldSlotTimelines(result.value, binding.session.getSnapshot().cwd)
+          // Streaming bumps the binding revision per event while the register
+          // moves only on checkpoint writes: an unchanged fold keeps its
+          // identity so hook consumers do not re-render on unrelated events.
+          if (sameFolded(folded, next)) return
+          folded = next
+          for (const listener of listeners) listener()
+        }, () => {
+          // Transport failure: the next revision bump refetches.
+          fetching = false
+        })
+      }
       source = {
         getSnapshot: () => {
           const window = binding.eventSource.getSnapshot()
           const cwd = binding.session.getSnapshot().cwd
           const key = `${String(window.revision)}\u0000${cwd ?? ''}`
-          if (key !== fetchKey) {
-            fetchKey = key
-            void ctx.remote.checkpoint.slots(binding.sessionId, undefined).then((result) => {
-              // A newer revision owns the fold once the key moves on, and a
-              // failed read keeps the last folded register in place.
-              if (!result.ok || key !== fetchKey) return
-              folded = foldSlotTimelines(result.value, binding.session.getSnapshot().cwd)
-              for (const listener of listeners) listener()
-            }, () => {
-              // Transport failure: the next revision bump refetches.
-            })
-          }
+          if (key !== fetchKey && !fetching) fetchFor(key)
           return folded
         },
         subscribe: (listener) => {
@@ -81,4 +91,16 @@ export function apply(ctx: Context): void {
     hooks: ['fileHistory'],
     resolve: binding => ({ hooks: { fileHistory: fileHistorySource(binding) } }),
   })
+}
+
+/**
+ * Whether two folds name identical stops in identical order. The fold is a
+ * plain-data projection, so one serialization decides; a differing key
+ * order with equal content costs one harmless extra bump.
+ * @param left - the fold currently served.
+ * @param right - the fold of the freshest register read.
+ * @returns true when both folds carry the same stops.
+ */
+function sameFolded(left: FileHistorySnapshot, right: FileHistorySnapshot): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }

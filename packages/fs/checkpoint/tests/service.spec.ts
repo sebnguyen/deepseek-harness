@@ -214,7 +214,7 @@ describe('checkpoint slot register', () => {
     const [timeline] = await service.slots(stack.session)
     expect(timeline?.slots).toEqual([{
       slotId: 'c1', kind: 'worktree', path: 'a.txt', label: 'stated', turn: 2, callId: 'c1',
-      after: digestOf('one'), createdAt: expect.any(Number), detail: { toolName: 'writer' },
+      after: digestOf('one'), createdAt: expect.any(Number), detail: { toolName: 'writer', purpose: 'stated' },
     }])
 
     // The register is keyed per session: a different session under the same

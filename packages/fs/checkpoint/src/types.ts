@@ -93,7 +93,7 @@ export interface CheckpointSlotDetailMap {
   /** A line the user pinned; the comment producer. */
   readonly note: { readonly text: string }
   /** A committed write the capture gate recorded; slotId reuses the call id. */
-  readonly worktree: { readonly toolName: string }
+  readonly worktree: { readonly toolName: string; readonly purpose?: string }
 }
 
 /** The wire-safe union of every merged payload; the register's stored payload type. */

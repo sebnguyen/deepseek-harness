@@ -33,7 +33,7 @@ The hook selects over the current session's timeline and re-fetches the register
 
 ### Reading a stop
 
-Each stop names the tool that ran through the slot's `detail.toolName` and the turn the producer scoped, and carries the before/after digests of the write it records: a stop with no prior digest is the file's creation, and a stop with no after digest is its deletion. Restoring a stop's bytes back to the workspace rides the checkpoint `restore` Remote, so a later stop in the same file shows the restoration as another change.
+Each stop names the tool that ran through the slot's `detail.toolName`, the turn the producer scoped, and the call's stated purpose when one rode the detail or the pre-detail label, and carries the before/after digests of the write it records: a stop with no prior digest is the file's creation, and a stop with no after digest is its deletion. Consecutive writes of one file whose digests chain — each `before` the previous `after` — fold into the single stop the burst ended at, quoting from the burst's first before to its last after, so callers see one change per uninterrupted run of writes. Restoring a stop's bytes back to the workspace rides the checkpoint `restore` Remote, so a later stop in the same file shows the restoration as another change.
 
 -----
 

@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest'
 import type { CheckpointSlot, CheckpointSlotId, CheckpointSlotTimeline, SnapshotDigest } from '@deepseek-ai/dsh-checkpoint/types'
-import { foldSlotTimelines, groupStopsByTurn, type FileStop } from '../src/client/fold.ts'
+import { coalesceStops, foldSlotTimelines, groupStopsByTurn, type FileStop } from '../src/client/fold.ts'
 
 /** Plain-string stand-ins for the branded slot fields the Remote would mint. */
 interface SlotFixture {
@@ -48,18 +48,52 @@ function timeline(path: string, slots: readonly CheckpointSlot[]): CheckpointSlo
 }
 
 describe('foldSlotTimelines', () => {
-  it('maps each worktree slot onto a stop of its file', () => {
+  it('coalesces one file\'s burst of chained writes into the stop the burst ended at', () => {
     const history = foldSlotTimelines([timeline('a.txt', [
-      slot({ slotId: 'c1', createdAt: 7, turn: 1, after: 'sha256:one', detail: { toolName: 'write' } }),
-      slot({ slotId: 'c2', createdAt: 9, turn: 1, before: 'sha256:one', after: 'sha256:two', detail: { toolName: 'edit' } }),
+      slot({ slotId: 'c1', createdAt: 7, label: 'write', turn: 1, after: 'sha256:one', detail: { toolName: 'write' } }),
+      slot({ slotId: 'c2', createdAt: 9, label: 'edit', turn: 1, before: 'sha256:one', after: 'sha256:two', detail: { toolName: 'edit' } }),
+    ])])
+    // No outside write between the two: one stop from no before to the last after.
+    expect(history.files).toEqual([{
+      path: 'a.txt',
+      stops: [{ seq: 9, time: 9, callId: 'c2', toolName: 'edit', turn: 1, after: 'sha256:two' }],
+    }])
+  })
+
+  it('a burst ending in a delete keeps the first before and no after', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 1, label: 'write', turn: 1, before: 'sha256:b0', after: 'sha256:m', detail: { toolName: 'write' } }),
+      slot({ slotId: 'c2', createdAt: 2, label: 'edit', turn: 1, before: 'sha256:m', after: 'sha256:n', detail: { toolName: 'edit' } }),
+      slot({ slotId: 'c3', createdAt: 3, label: 'bash', before: 'sha256:n', detail: { toolName: 'bash' } }),
     ])])
     expect(history.files).toEqual([{
       path: 'a.txt',
-      stops: [
-        { seq: 7, time: 7, callId: 'c1', toolName: 'write', turn: 1, after: 'sha256:one' },
-        { seq: 9, time: 9, callId: 'c2', toolName: 'edit', turn: 1, before: 'sha256:one', after: 'sha256:two' },
-      ],
+      stops: [{ seq: 3, time: 3, callId: 'c3', toolName: 'bash', before: 'sha256:b0' }],
     }])
+  })
+
+  it('the merged stop carries the last stop\'s stated purpose, turn, and step', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 1, label: 'write', after: 'sha256:p', detail: { toolName: 'write' } }),
+      slot({
+        slotId: 'c2', createdAt: 2, label: 'edit', turn: 2, before: 'sha256:p', after: 'sha256:q',
+        detail: { toolName: 'edit', purpose: 'why' },
+      }),
+    ])])
+    expect(history.files).toEqual([{
+      path: 'a.txt',
+      stops: [{
+        seq: 2, time: 2, callId: 'c2', toolName: 'edit', purpose: 'why', turn: 2, after: 'sha256:q',
+      }],
+    }])
+  })
+
+  it('keeps stops whose before breaks the digest chain as their own entries', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 7, label: 'write', turn: 1, after: 'sha256:one', detail: { toolName: 'write' } }),
+      slot({ slotId: 'c2', createdAt: 9, label: 'edit', turn: 2, before: 'sha256:other', after: 'sha256:two', detail: { toolName: 'edit' } }),
+    ])])
+    expect(history.files[0]?.stops).toHaveLength(2)
   })
 
   it('filters out non-worktree slots', () => {
@@ -88,6 +122,15 @@ describe('foldSlotTimelines', () => {
     expect(history.files[0]?.stops.map(stop => stop.toolName)).toEqual(['write', 'bash'])
   })
 
+  it('maps the stated purpose from the detail, or from the pre-detail label', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 1, label: 'stated', detail: { toolName: 'write', purpose: 'stated' }, after: 'sha256:a' }),
+      slot({ slotId: 'c2', createdAt: 2, label: 'legacy', detail: { toolName: 'edit' }, after: 'sha256:b' }),
+      slot({ slotId: 'c3', createdAt: 3, label: 'edit', detail: { toolName: 'edit' }, after: 'sha256:c' }),
+    ])])
+    expect(history.files[0]?.stops.map(stop => stop.purpose)).toEqual(['stated', 'legacy', undefined])
+  })
+
   it('uses the call id when scoped and the slot id otherwise, sorting stops by creation time', () => {
     const history = foldSlotTimelines([timeline('a.txt', [
       slot({ slotId: 'c2', callId: 'c2', createdAt: 9, after: 'sha256:b' }),
@@ -107,6 +150,21 @@ describe('foldSlotTimelines', () => {
       path: 'a.txt',
       stops: [{ seq: 5, time: 5, callId: 'cp', toolName: 'reader' }],
     }])
+  })
+})
+
+describe('coalesceStops', () => {
+  /** One stop literal carrying the optional members a merge must carry. */
+  const full = (over: Partial<FileStop>): FileStop => ({
+    seq: 1, time: 1, callId: 'c', toolName: 'w', after: 'sha256:x', ...over,
+  })
+
+  it('keeps the last stop turn and step when a burst merges', () => {
+    const merged = coalesceStops([
+      full({ callId: 'a', after: 'sha256:x' }),
+      full({ callId: 'b', before: 'sha256:x', after: 'sha256:y', turn: 2, step: 4 }),
+    ])
+    expect(merged).toEqual([full({ callId: 'b', after: 'sha256:y', turn: 2, step: 4 })])
   })
 })
 

@@ -29,6 +29,11 @@ function stopFixture(): FileStop[] {
   ]
 }
 
+/** The same wall-clock text the surface formats into its meta row. */
+function when(ms: number): string {
+  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(ms)
+}
+
 function t(key: keyof typeof en, params?: Record<string, string | number>): string {
   const line = en[key]
   if (params === undefined) return line
@@ -98,7 +103,7 @@ describe('Changes display', () => {
     render(createElement(Harness, { stops: stopFixture(), setDrafts }))
     await enterChanges()
     expect(await screen.findByText('two')).toBeDefined()
-    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))).toBeDefined()
+    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2', time: when(2) }))).toBeDefined()
     expect(screen.getByText('fix the x')).toBeDefined()
   })
 
@@ -110,7 +115,7 @@ describe('Changes display', () => {
     act(() => {
       fireEvent.click(screen.getByTitle(t('turnN', { n: 1 }) + ' · write'))
     })
-    expect(screen.getByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
+    expect(screen.getByText(t('meta', { turn: 1, tool: 'write', call: 'c1', time: when(1) }))).toBeDefined()
     expect(screen.queryByText('two')).toBeNull()
   })
 
@@ -125,7 +130,7 @@ describe('Changes display', () => {
       fireEvent.pointerMove(track, { clientX: 0, pointerId: 1 })
       fireEvent.pointerUp(track, { clientX: 0, pointerId: 1 })
     })
-    expect(screen.getByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
+    expect(screen.getByText(t('meta', { turn: 1, tool: 'write', call: 'c1', time: when(1) }))).toBeDefined()
   })
 
   it('quotes the selected stop and purpose into the draft', async () => {
@@ -154,13 +159,13 @@ describe('Changes display', () => {
   it('opens straight onto the Changes display when the tab params ask for it', async () => {
     const setDrafts: string[] = []
     render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes' } }))
-    expect(await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))).toBeDefined()
+    expect(await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c2', time: when(2) }))).toBeDefined()
   })
 
   it('selects the stop a tab navigation names', async () => {
     const setDrafts: string[] = []
     render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes', stop: 'c1' } }))
-    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
+    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1', time: when(1) }))).toBeDefined()
   })
 
   it('matches register keys when the tab address carries the absolute path', async () => {
@@ -173,7 +178,7 @@ describe('Changes display', () => {
   it('lands on the first stop when the named stop is unknown', async () => {
     const setDrafts: string[] = []
     render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes', stop: 'nope' } }))
-    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
+    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1', time: when(1) }))).toBeDefined()
   })
 
   it('marks a stop whose call never logged a turn as a gap diamond', async () => {
@@ -184,12 +189,12 @@ describe('Changes display', () => {
     ]
     const { container } = render(createElement(Harness, { stops, setDrafts }))
     await enterChanges()
-    await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))
+    await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c2', time: when(2) }))
     expect(container.querySelector('[class*="diamond"]')).not.toBeNull()
     act(() => {
-      fireEvent.click(screen.getByTitle(en.gapMeta))
+      fireEvent.click(screen.getByTitle(t('gapMeta', { time: when(1) })))
     })
-    expect(screen.getByText(en.gapMeta)).toBeDefined()
+    expect(screen.getByText(t('gapMeta', { time: when(1) }))).toBeDefined()
   })
 
   it('reports pruned blobs instead of a page', async () => {
@@ -284,7 +289,7 @@ describe('Changes display', () => {
       fireEvent.pointerMove(track, { clientX: 4, pointerId: 1 })
       fireEvent.pointerUp(track, { clientX: 4, pointerId: 1 })
     })
-    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))).toBeDefined()
+    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2', time: when(2) }))).toBeDefined()
     expect(container.querySelector('[class*="ghost"]')).toBeNull()
   })
 
@@ -341,7 +346,7 @@ describe('Changes display', () => {
       fireEvent.pointerUp(track, { clientX: 100, pointerId: 1 })
     })
     expect(container.querySelector('[class*="ghost"]')).toBeNull()
-    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2' }))).toBeDefined()
+    expect(screen.getByText(t('meta', { turn: 2, tool: 'write', call: 'c2', time: when(2) }))).toBeDefined()
   })
 
   it('drops an in-flight blob read when the surface unmounts', async () => {
@@ -393,5 +398,12 @@ describe('quoteInput and placeStops', () => {
       { seq: 2, time: 2, callId: 'b', toolName: 'w', step: 0 },
       { seq: 3, time: 3, callId: 'c', toolName: 'w', turn: 3, step: 0 },
     ])).toEqual([0, 25, 100])
+    // Stops tied on one turn spread across the span ending at that turn.
+    const tied = placeStops([
+      { seq: 1, time: 1, callId: 'a', toolName: 'w', turn: 2, step: 0 },
+      { seq: 2, time: 2, callId: 'b', toolName: 'w', turn: 2, step: 0 },
+      { seq: 3, time: 3, callId: 'c', toolName: 'w', turn: 2, step: 0 },
+    ])
+    expect(tied.map(position => Math.round(position))).toEqual([0, 50, 100])
   })
 })

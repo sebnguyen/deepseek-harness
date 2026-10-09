@@ -23,12 +23,12 @@ function provideCarrierServices(ctx: Context): void {
   ctx.provide('locale', { register: () => () => {}, bind: () => (key: string) => key } as never)
 }
 
-/** One binding with a hand-advanced revision and a session cwd. */
-function bindingFixture(cwd = '/w') {
+/** One binding with a hand-advanced revision and a session cwd; null leaves the cwd absent. */
+function bindingFixture(cwd: string | null = '/w') {
   const revisionBox = { revision: 0 }
   const binding = {
     sessionId: 's-1',
-    session: { getSnapshot: () => ({ cwd }) },
+    session: { getSnapshot: () => ({ cwd: cwd === null ? undefined : cwd }) },
     eventSource: {
       getSnapshot: () => revisionBox,
       subscribe: () => () => {},
@@ -41,6 +41,16 @@ const TIMELINES = [{
   path: 'a.txt',
   slots: [{
     slotId: 'c1', kind: 'worktree', path: 'a.txt', label: 'writer', createdAt: 7, turn: 1, after: 'sha256:b', detail: { toolName: 'writer' },
+  }],
+}]
+
+/** The same register after one more write: the fold must move. */
+const TIMELINES_NEXT = [{
+  path: 'a.txt',
+  slots: [{
+    slotId: 'c1', kind: 'worktree', path: 'a.txt', label: 'writer', createdAt: 7, turn: 1, after: 'sha256:b', detail: { toolName: 'writer' },
+  }, {
+    slotId: 'c2', kind: 'worktree', path: 'a.txt', label: 'writer', createdAt: 8, turn: 1, before: 'sha256:b', after: 'sha256:c', detail: { toolName: 'writer' },
   }],
 }]
 
@@ -93,18 +103,31 @@ describe('client apply', () => {
     expect(calls).toEqual(['s-1'])
     expect(descriptor.resolve(binding).hooks.fileHistory).toBe(source)
 
-    // Listeners ride the settle bump and unsubscribe cleanly.
+    // An unrelated revision bump refetches but keeps the served fold's
+    // identity, so hook consumers do not re-render on every session event.
     const listener = vi.fn()
     const off = source.subscribe(listener)
+    const served = source.getSnapshot()
     revisionBox.revision = 2
+    await vi.waitFor(async () => {
+      source.getSnapshot()
+      expect(calls.length).toBe(2)
+    })
+    expect(listener).not.toHaveBeenCalled()
+    expect(source.getSnapshot()).toBe(served)
+
+    // A register that moved serves a fresh fold and notifies.
+    resultBox.value = { ok: true, value: TIMELINES_NEXT }
+    revisionBox.revision = 3
     await vi.waitFor(async () => {
       source.getSnapshot()
       expect(listener).toHaveBeenCalled()
     })
+    expect(source.getSnapshot()).not.toBe(served)
     off()
 
     // A binding without a cwd folds under the empty-cwd key too.
-    const { binding: cwdless } = bindingFixture(undefined)
+    const { binding: cwdless } = bindingFixture(null)
     const cwdlessSource = descriptor.resolve(cwdless).hooks.fileHistory
     await vi.waitFor(() => {
       cwdlessSource.getSnapshot()
@@ -113,10 +136,10 @@ describe('client apply', () => {
 
     // A failed envelope keeps the last fold.
     resultBox.value = { ok: false, error: 'down' }
-    revisionBox.revision = 3
+    revisionBox.revision = 4
     await vi.waitFor(() => {
       source.getSnapshot()
-      expect(calls.length).toBe(4)
+      expect(calls.length).toBe(5)
     })
     expect(source.getSnapshot().files.map(file => file.path)).toEqual(['a.txt'])
     await fiber.dispose()
@@ -144,6 +167,39 @@ describe('client apply', () => {
     await fiber.await()
     if (descriptor === undefined) throw new Error('the hook provider must register')
     const source = descriptor.resolve(binding).hooks.fileHistory
+    await vi.waitFor(() => {
+      expect(source.getSnapshot().files.map(file => file.path)).toEqual(['a.txt'])
+    })
+    await fiber.dispose()
+  })
+
+  it('a revision bump mid-flight coalesces into the in-flight read', async () => {
+    const { binding, revisionBox } = bindingFixture()
+    let release: (value: { ok: true; value: unknown }) => void = () => {}
+    const pending = new Promise<{ ok: true; value: unknown }>((resolve) => { release = resolve })
+    const slots = vi.fn(() => pending)
+    const ctx = new Context()
+    new RemoteService(ctx)
+    provideCarrierServices(ctx)
+    ctx.provide('remote.checkpoint', { slots } as never)
+    let descriptor: ApplyDescriptor | undefined
+    ctx.provide('uiSession', {
+      provide: (one: ApplyDescriptor) => {
+        descriptor = one
+        return () => {}
+      },
+    } as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply: apply })
+    await fiber.await()
+    if (descriptor === undefined) throw new Error('the hook provider must register')
+    const source = descriptor.resolve(binding).hooks.fileHistory
+    source.getSnapshot()
+    // The bump arrives while the first read is still in flight: no second read.
+    revisionBox.revision = 2
+    source.getSnapshot()
+    source.getSnapshot()
+    expect(slots).toHaveBeenCalledTimes(1)
+    release({ ok: true, value: TIMELINES })
     await vi.waitFor(() => {
       expect(source.getSnapshot().files.map(file => file.path)).toEqual(['a.txt'])
     })
