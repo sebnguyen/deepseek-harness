@@ -18,6 +18,8 @@ Three parts ship together.
 
 **A provenance collector over the slot events.** A host-side fold, `touchedFilesFromLog(events)`, reduces slot events to the session's touched-file list, note paths included and released slots counted as touched-then-withdrawn. The SDK, export, and any reconstruction that reads a log without the store consume it. The register remains authoritative for every live read — gutter, menu, chips, file-history fold — and no read fold ever consults the event mirror, so the mirror's worst failure is provenance staleness, not a wrong live surface.
 
+The [interactive mock](./2026-10-08-note-tombstones-and-log-visible-slot-provenance.mock.html) shows the withdraw gesture, the append-only ledger, and the fork reading parent provenance from the log on the shipped dark chrome.
+
 ## Fork and restart semantics
 
 The log forks; `slots.jsonl` does not, and a fork's register starts empty. The collector over the forked log therefore names the parent's touched and noted files while the fork's live surfaces start clean and accumulate only the fork's own slots. That asymmetry is the product behavior this note specifies: history rides the log, live state rides the register, and the two are never reconciled into one source. After a restart of the same session the register and the collector agree by construction, since both replay their own append-only record.

@@ -1,0 +1,309 @@
+<!doctype html>
+<!-- Interactive mock, companion of the proposed Agent Note
+     2026-10-08-note-tombstones-and-log-visible-slot-provenance.md, rebuilt on
+     the SHIPPED web chrome exactly like its sibling line-notes mock:
+     CodeMirror-theme editor geometry (13px code face, caption gutter numbers
+     with the 0.5px right rule, hovered line fill), the GitHub-diff comment
+     column left of the line numbers, HoverCard chrome for the popover, and
+     the business-ink inline reference chip in the sent message. New here:
+     the note marker opens a management view (one row per live note with a
+     withdraw button that appends the release tombstone), the turn-tail chip
+     row grows a withdraw button on its note chips, and the provenance strip
+     below shows the log-only checkpoint/slot mirror, slots.jsonl staying
+     append-only, and a fork reading parent provenance from the log while its
+     own register starts empty. All colors are the dark resolved --dsw-*
+     alias values from design-platform.css. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Note tombstones and log-visible slot provenance — mock</title>
+<style>
+  :root {
+    --bluish-950: rgb(18, 22, 24);  --bluish-900: rgb(23, 27, 29);
+    --bluish-875: rgb(27, 31, 33);  --bluish-850: rgb(32, 36, 38);
+    --bluish-800: rgb(37, 41, 42);  --bluish-750: rgb(46, 50, 52);
+    --bluish-700: rgb(65, 74, 75);
+    --bg-base: var(--bluish-950);
+    --layer-1: var(--bluish-875);  --layer-2: var(--bluish-850);  --layer-3: var(--bluish-800);
+    --code-block: var(--bluish-900);
+    --l1: rgba(247, 248, 248, 0.06);  --l2: rgba(247, 248, 248, 0.12);
+    --l3: rgba(247, 248, 248, 0.16);  --l4: rgba(247, 248, 248, 0.2);
+    --t1: rgb(247, 248, 248);  --t2: rgb(160, 162, 163);  --t3: rgb(145, 159, 158);  --cap: rgb(132, 134, 135);
+    --biz: rgb(148, 198, 204);  --biz-tert: rgb(46, 67, 75);  --brand: rgb(96, 165, 175);
+    --ok: rgb(134, 239, 172);  --err: rgb(252, 165, 165);
+    --warn-lbl: rgb(252, 211, 77);  --warn-2: rgb(218, 165, 73);
+    --warn-bg: rgba(245, 158, 11, 0.12);
+    --hover: rgba(255, 255, 255, 0.08);
+    --elev-fill: var(--bluish-750);
+    --hovercard: #202426;
+    --tooltip-bg: var(--bluish-700);
+    --lv3: 0 0 1px 0 rgba(0,0,0,0.2), 0 0 4px 0 rgba(0,0,0,0.02), 0 12px 32px 0 rgba(0,0,0,0.08);
+    --ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);  --t-fast: 0.1s;
+  }
+  @supports (corner-shape: superellipse(1.5)) { *, *::before, *::after { corner-shape: superellipse(1.5); } }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg-base); color: var(--t2); font: 14px/22px var(--ui); -webkit-font-smoothing: antialiased; }
+  button { font-family: var(--ui); }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--biz); outline-offset: 2px; }
+  .pagecap { position: fixed; top: 8px; left: 16px; color: var(--cap); font: 11px/16px var(--ui); z-index: 9; }
+
+  .app { display: grid; grid-template-columns: minmax(0,1fr) 600px; grid-template-rows: minmax(0,1fr) auto; height: 100vh; }
+  .convo { grid-row: 1; display: flex; flex-direction: column; min-width: 0; padding: 32px 16px 8px; }
+  .chain { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+  .msg { max-width: 680px; padding: 2px 4px; font: 14px/24px var(--ui); color: var(--t2); white-space: pre-wrap; word-break: break-word; }
+  .msg.user { color: var(--t1); }
+  .refChip { display: inline-flex; align-items: baseline; gap: 3px; max-width: 260px; padding: 0 4px; border-radius: 6px; color: var(--biz); font-weight: 500; white-space: nowrap; user-select: none; vertical-align: baseline; cursor: default; }
+  .refChip:hover { background: var(--biz-tert); }
+  .row { position: relative; overflow: hidden; display: flex; align-items: center; height: 24px; padding: 0 2px; min-width: 0; }
+  .row .lead { flex: none; width: 16px; height: 16px; margin-right: 6px; display: inline-flex; align-items: center; justify-content: center; color: var(--t3); }
+  .row .title { flex: none; font-size: 13px; line-height: 24px; color: var(--t2); }
+  .row .sep { flex: none; width: 2px; height: 2px; border-radius: 1px; margin: 0 8px; background: var(--cap); }
+  .row .sum { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--t3); }
+
+  /* turn-tail chip row: worktree chip keeps the counts badge; note chips gain ✕ */
+  .chipsrow { display: flex; gap: 6px; align-items: center; padding: 2px 26px; }
+  .tchip { position: relative; display: inline-flex; align-items: center; gap: 5px; max-width: 240px; padding: 1px 8px; border: 0.5px solid var(--l2); border-radius: 8px; background: var(--layer-2); color: var(--t2); font-size: 12px; line-height: 20px; cursor: pointer; }
+  .tchip:hover { background: var(--layer-3); color: var(--t1); }
+  .tchip code { font: 12px/18px var(--code); color: var(--t1); overflow: hidden; text-overflow: ellipsis; }
+  .tchip .counts { color: var(--ok); font-variant-numeric: tabular-nums; }
+  .tchip .ng { color: var(--warn-lbl); }
+  .tchip .x { display: none; width: 14px; height: 14px; border: 0; border-radius: 999px; corner-shape: round; background: transparent; color: var(--err); font-size: 10px; line-height: 14px; padding: 0; cursor: pointer; }
+  .tchip:hover .x { display: inline-block; }
+  .tchip .x:hover { background: rgba(252, 165, 165, 0.15); }
+
+  .panel { grid-row: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg-base); border-left: 0.5px solid var(--l4); }
+  .tabStrip { flex: none; display: flex; gap: 4px; height: 38px; padding: 10px 6px 0 10px; align-items: flex-end; }
+  .tab { min-width: 80px; max-width: 170px; height: 28px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--t2); font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .tab.on { color: var(--t1); background: var(--layer-2); }
+  .edroot { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--layer-1); }
+  .edbody { flex: 1; min-height: 0; overflow: auto; position: relative; }
+  .ecode { position: relative; padding: 6px 0 22px; font: 13px/22.1px var(--code); }
+  .ln { position: relative; display: flex; min-height: 22.1px; }
+  .ecode .ln:hover { background: var(--hover); }
+  .ln .act { flex: none; width: 22px; display: flex; align-items: center; justify-content: center; align-self: stretch; }
+  .ln .g { flex: none; min-width: 24px; padding: 0 8px 0 12px; text-align: right; color: var(--cap); user-select: none; border-right: 0.5px solid var(--l1); }
+  .ln .c { padding: 0 16px; color: var(--t1); white-space: pre; }
+  .kw { color: var(--biz); } .st { color: var(--ok); } .nu { color: rgb(208, 135, 48); }
+  .ty { color: var(--warn-lbl); } .fn { color: var(--biz); } .op { color: var(--t2); }
+  .plus { width: 18px; height: 18px; border: 0; border-radius: 999px; corner-shape: round; background: transparent; color: var(--t2); font-size: 13px; line-height: 18px; opacity: 0; cursor: pointer; transition: opacity var(--t-fast) var(--ease); }
+  .ecode .ln:hover .plus { opacity: 1; }
+  .plus:hover { background: var(--hover); color: var(--t1); }
+  .ln.hasnote .plus { display: none; }
+  .marker { width: 18px; height: 18px; border: 0; border-radius: 999px; corner-shape: round; background: var(--warn-bg); color: var(--warn-lbl); font-size: 10px; cursor: pointer; }
+  .marker:hover { background: color-mix(in srgb, var(--warn-2) 26%, transparent); }
+
+  /* management popover = HoverCard chrome; one row per live note on the line */
+  .pop { position: absolute; left: 84px; width: 452px; max-width: calc(100% - 100px); padding: 12px 16px; border: 0; border-radius: 12px; background: var(--hovercard); box-shadow: var(--lv3); z-index: 20; animation: popin 150ms var(--ease); }
+  @keyframes popin { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+  .pop .ph { display: flex; align-items: baseline; gap: 6px; color: var(--cap); font-size: 11px; line-height: 16px; margin-bottom: 8px; font-family: var(--code); }
+  .pop .ph .addr { color: var(--warn-lbl); }
+  .nrow { display: flex; gap: 10px; align-items: flex-start; padding: 7px 2px; }
+  .nrow + .nrow { border-top: 0.5px solid var(--l1); }
+  .nrow .ng { flex: none; color: var(--warn-lbl); font-size: 11px; line-height: 20px; }
+  .nrow .ntxt { flex: 1; min-width: 0; }
+  .nrow .nlabel { color: var(--t1); font-size: 13px; line-height: 20px; }
+  .nrow .nfrozen { display: block; margin-top: 2px; padding: 3px 8px; border-radius: 6px; background: var(--code-block); border: 0.5px solid var(--l1); color: var(--t3); font: 11px/17px var(--code); white-space: pre; overflow-x: auto; }
+  .nrow .x { flex: none; width: 20px; height: 20px; margin-top: 1px; border: 0; border-radius: 999px; corner-shape: round; background: transparent; color: var(--err); font-size: 11px; line-height: 20px; cursor: pointer; }
+  .nrow .x:hover { background: rgba(252, 165, 165, 0.15); }
+  .pdiv { height: 0.5px; background: var(--l2); margin: 8px 0; }
+  .pop textarea { display: block; width: 100%; min-height: 44px; resize: vertical; border: 0; border-radius: 8px; background: var(--layer-1); color: var(--t1); font: 13px/20px var(--ui); padding: 6px 8px; }
+  .pop textarea:focus { outline: none; box-shadow: 0 0 0 2px var(--biz); }
+  .pbtns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+  .pbtn { padding: 3px 10px; color: var(--t2); background: transparent; border: 0.5px solid var(--l2); border-radius: 6px; cursor: pointer; font-size: 12px; line-height: 16px; }
+  .pbtn:hover { color: var(--t1); background: var(--hover); }
+  .pbtn.primary { background: var(--elev-fill); color: var(--t1); border-color: transparent; }
+
+  /* provenance strip below both columns */
+  .prov { grid-column: 1 / -1; display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 10px; padding: 10px 16px 14px; border-top: 0.5px solid var(--l2); background: var(--layer-1); }
+  .pcard { min-width: 0; padding: 10px 14px; border: 0.5px solid var(--l1); border-radius: 12px; background: var(--layer-2); }
+  .pcard h2 { margin: 0 0 6px; color: var(--t1); font-size: 12px; font-weight: 500; line-height: 16px; display: flex; align-items: baseline; gap: 8px; }
+  .pcard h2 small { color: var(--cap); font-weight: 400; font-size: 11px; }
+  .ev { display: grid; grid-template-columns: 26px auto 1fr; gap: 8px; padding: 2px 0; font: 11px/17px var(--code); }
+  .ev .seq { color: var(--cap); text-align: right; }
+  .ev .ty0 { color: var(--brand); white-space: nowrap; }
+  .ev .pl { color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ev .pl .rel { color: var(--err); }
+  .ev .pl .line { color: var(--warn-lbl); }
+  .pcard .cap { margin-top: 6px; color: var(--cap); font-size: 11px; line-height: 16px; }
+  .pill { display: inline-flex; align-items: baseline; gap: 6px; margin: 3px 6px 0 0; padding: 1px 8px; border: 0.5px solid var(--l2); border-radius: 8px; background: var(--layer-3); color: var(--t1); font: 11px/17px var(--code); }
+  .pill .n { color: var(--warn-lbl); }
+  .pill .w { color: var(--ok); }
+  .pill .r { color: var(--err); }
+  .empty { margin-top: 4px; color: var(--cap); font-size: 12px; line-height: 18px; }
+
+  .tooltip { position: fixed; z-index: 100; padding: 3px 7px; border-radius: 8px; background: var(--tooltip-bg); color: var(--t1); font-size: 13px; line-height: 20px; pointer-events: none; animation: popin 150ms var(--ease); }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none; } }
+</style>
+</head>
+<body>
+<span class="pagecap">mock — the note marker opens the management view; its ✕ appends the release tombstone; the strip below reads slots.jsonl and the log-only checkpoint/slot mirror</span>
+<div class="app">
+  <div class="convo"><div class="chain" id="chain"></div></div>
+  <div class="panel">
+    <div class="tabStrip"><button class="tab on" type="button">src/handler.ts</button><button class="tab" type="button">Files</button></div>
+    <div class="edroot"><div class="edbody" id="edbody"></div></div>
+  </div>
+  <div class="prov">
+    <div class="pcard">
+      <h2>slots.jsonl <small>append-only rows, tombstones included; the fold drops released ids</small></h2>
+      <div id="ledger"></div>
+      <div class="cap">release never deletes: rows and blobs stay, so submitted mentions keep resolving.</div>
+    </div>
+    <div class="pcard">
+      <h2>checkpoint/slot <small>log-only event: deriveMessage returns null, no surfaceOp, no format bump</small></h2>
+      <div id="log"></div>
+      <div class="cap">ids, kind, path, line, turn, released — never retained text, never digests.</div>
+    </div>
+    <div class="pcard">
+      <h2>fork of turn 3 <small>the log inherits provenance; the register does not fork</small></h2>
+      <div id="fork"></div>
+      <div class="cap">touchedFilesFromLog names the parent's files; the fork's gutter, menu, and chips start clean.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FILE = 'src/handler.ts'
+const HL = [
+  [1, "<span class='kw'>import type</span> <span class='op'>{</span> <span class='ty'>Request</span> <span class='op'>}</span> <span class='kw'>from</span> <span class='st'>'./types.ts'</span>"],
+  [2, ''],
+  [3, "<span class='kw'>const</span> AUDIT <span class='op'>=</span> <span class='kw'>new</span> <span class='ty'>AuditSink</span><span class='op'>()</span>"],
+  [4, ''],
+  [5, "<span class='kw'>export async function</span> <span class='fn'>handle</span><span class='op'>(</span>req<span class='op'>:</span> <span class='ty'>Request</span><span class='op'>)</span> <span class='op'>{</span>"],
+  [6, "  <span class='kw'>const</span> token <span class='op'>=</span> req<span class='op'>.</span>headers<span class='op'>.</span><span class='fn'>get</span><span class='op'>(</span><span class='st'>'authorization'</span><span class='op'>)</span>"],
+  [7, "  <span class='kw'>if</span> <span class='op'>(!</span>token<span class='op'>)</span> <span class='kw'>return</span> <span class='fn'>respond</span><span class='op'>(</span><span class='nu'>401</span><span class='op'>)</span>"],
+  [8, "  <span class='kw'>const</span> user <span class='op'>=</span> <span class='kw'>await</span> <span class='fn'>verify</span><span class='op'>(</span>token<span class='op'>)</span>"],
+  [9, "  <span class='kw'>if</span> <span class='op'>(</span>user <span class='op'>===</span> <span class='nu'>undefined</span><span class='op'>)</span> <span class='kw'>return</span> <span class='fn'>respond</span><span class='op'>(</span><span class='nu'>401</span><span class='op'>)</span>"],
+  [10, "  AUDIT<span class='op'>.</span><span class='fn'>record</span><span class='op'>(</span>user<span class='op'>.</span>id<span class='op'>,</span> req<span class='op'>.</span>url<span class='op'>)</span>"],
+  [11, "  <span class='kw'>return</span> <span class='fn'>route</span><span class='op'>(</span>user<span class='op'>,</span> req<span class='op'>)</span>"],
+  [12, "<span class='op'>}</span>"],
+]
+let SEQ = 40
+let NOTES = [
+  { id: 1, line: 7, turn: 2, label: 'record the rejection', frozen: '  if (!token) return respond(401)', released: false },
+  { id: 2, line: 7, turn: 3, label: 'same early return, second sink', frozen: '  if (!token) return respond(401)', released: false },
+  { id: 3, line: 9, turn: 3, label: 'verify() can throw — wrap it', frozen: '  if (user === undefined) return respond(401)', released: false },
+]
+let ROWS = [
+  { seq: 41, put: 1 }, { seq: 42, put: 2 }, { seq: 43, put: 3 },
+  { seq: 44, slot: 'call-7f3a', kind: 'worktree' },
+]
+let nextId = 4
+let popLine = null
+
+const live = () => NOTES.filter(n => !n.released)
+const notesAt = line => live().filter(n => n.line === line)
+const addr = n => '@' + FILE + '#L' + n.line + '#note-' + n.id
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/* tooltips, shipped bubble with the 500ms dwell */
+let tipEl = null, tipTimer = 0
+function tip(text, x, y) {
+  untip()
+  tipTimer = setTimeout(() => {
+    tipEl = document.createElement('div')
+    tipEl.className = 'tooltip'
+    tipEl.textContent = text
+    tipEl.style.left = Math.min(x, innerWidth - 300) + 'px'
+    tipEl.style.top = (y + 24) + 'px'
+    document.body.appendChild(tipEl)
+  }, 500)
+}
+function untip() { clearTimeout(tipTimer); if (tipEl) { tipEl.remove(); tipEl = null } }
+document.addEventListener('mouseover', e => { const t = e.target.closest('[data-tip]'); if (t) { const r = t.getBoundingClientRect(); tip(t.dataset.tip, r.left, r.top) } })
+document.addEventListener('mouseout', e => { if (!e.relatedTarget?.closest?.('[data-tip]')) untip() })
+
+function release(id) {
+  const n = NOTES.find(x => x.id === id)
+  n.released = true
+  ROWS.push({ seq: ++SEQ, release: id })
+  if (popLine !== null && notesAt(popLine).length === 0 && n.line === popLine) popLine = null
+  render()
+}
+
+function renderChat() {
+  const chips = live().filter(n => n.turn === 3).map(n =>
+    '<button class="tchip" data-tip="open ' + esc(addr(n)) + '"><span class="ng">✎</span><code>handler.ts</code><span class="x" data-x="' + n.id + '" data-tip="withdraw — the note tombstones; submitted mentions keep resolving">✕</span></button>').join('')
+  document.getElementById('chain').innerHTML =
+    '<div class="msg user">the early 401 skips the audit sink — <span class="refChip" data-tip="submitted in turn 2; still serializes after withdrawal">✎ @src/handler.ts#L7#note-1</span> please record the rejection before responding</div>' +
+    '<div class="row"><span class="lead"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 11l7-7 3 3-7 7H2v-3z" stroke="currentColor"/></span><span class="title">write</span><span class="sep"></span><span class="sum">src/handler.ts</span></div>' +
+    '<div class="chipsrow"><button class="tchip" data-tip="worktree stop call-7f3a"><code>handler.ts</code><span class="counts">+2 −0</span></button>' + chips + '</div>'
+}
+
+function popHtml(line) {
+  const rows = notesAt(line).map(n =>
+    '<div class="nrow"><span class="ng">✎</span><div class="ntxt"><div class="nlabel">' + esc(n.label) + '</div><span class="nfrozen">' + esc(n.frozen) + '</span></div><button class="x" data-x="' + n.id + '" data-tip="withdraw — appends the release tombstone">✕</button></div>').join('')
+  return '<div class="pop" style="top:' + ((line - 1) * 22.1 + 8) + 'px">' +
+    '<div class="ph"><span class="addr">@' + FILE + '#L' + line + '</span><span>· ' + notesAt(line).length + ' live note(s) · withdrawal tombstones, never deletes</span></div>' +
+    rows +
+    '<div class="pdiv"></div>' +
+    '<textarea id="newnote" placeholder="Note for line ' + line + '…"></textarea>' +
+    '<div class="pbtns"><button class="pbtn" data-close>Close</button><button class="pbtn primary" data-addline="' + line + '">Add</button></div></div>'
+}
+
+function renderEditor() {
+  const body = document.getElementById('edbody')
+  body.innerHTML = '<div class="ecode">' + HL.map(([n, html]) => {
+    const notes = notesAt(n)
+    const act = notes.length
+      ? '<button class="marker" data-line="' + n + '" data-tip="' + notes.length + ' note(s) on line ' + n + ' — manage">✎</button>'
+      : '<button class="plus" data-line="' + n + '" data-tip="add a note on line ' + n + '">＋</button>'
+    return '<div class="ln' + (notes.length ? ' hasnote' : '') + '"><span class="act">' + act + '</span><span class="g">' + n + '</span><span class="c">' + (html || '') + '</span></div>'
+  }).join('') + '</div>' + (popLine !== null ? popHtml(popLine) : '')
+}
+
+function renderProv() {
+  document.getElementById('ledger').innerHTML = ROWS.map(r => {
+    if (r.put !== undefined) {
+      const n = NOTES.find(x => x.id === r.put)
+      return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0">put</span><span class="pl">note-' + n.id + ' · note · ' + FILE + ' <span class="line">L' + n.line + '</span> · turn ' + n.turn + '</span></div>'
+    }
+    if (r.slot !== undefined) return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0">put</span><span class="pl">' + r.slot + ' · worktree · ' + FILE + '</span></div>'
+    return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0 rel">release</span><span class="pl"><span class="rel">note-' + r.release + ' · released: true — the put row above stays</span></span></div>'
+  }).join('')
+  document.getElementById('log').innerHTML = ROWS.map(r => {
+    if (r.put !== undefined) {
+      const n = NOTES.find(x => x.id === r.put)
+      return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0">checkpoint/slot</span><span class="pl">{ slotId: note-' + n.id + ', kind: note, path: ' + FILE + ', <span class="line">line: ' + n.line + '</span>, turn: ' + n.turn + ' }</span></div>'
+    }
+    if (r.slot !== undefined) return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0">checkpoint/slot</span><span class="pl">{ slotId: ' + r.slot + ', kind: worktree, path: ' + FILE + ' }</span></div>'
+    const n = NOTES.find(x => x.id === r.release)
+    return '<div class="ev"><span class="seq">' + r.seq + '</span><span class="ty0">checkpoint/slot</span><span class="pl">{ slotId: note-' + r.release + ', kind: note, path: ' + FILE + ', <span class="line">line: ' + n.line + '</span>, <span class="rel">released: true</span> }</span></div>'
+  }).join('')
+  document.getElementById('fork').innerHTML =
+    '<div><span class="pill"><code>src/handler.ts</code><span class="w">1 worktree stop</span><span class="n">2 notes</span><span class="r">1 withdrawn</span></span></div>' +
+    '<div class="empty">live register: empty — the fork\'s gutter draws no ✎ and the menu lists no note rows until the fork writes its own.</div>'
+}
+
+function render() { renderChat(); renderEditor(); renderProv() }
+
+document.getElementById('edbody').addEventListener('click', e => {
+  const x = e.target.closest('[data-x]')
+  if (x) { release(Number(x.dataset.x)); return }
+  const close = e.target.closest('[data-close]')
+  if (close) { popLine = null; render(); return }
+  const add = e.target.closest('[data-addline]')
+  if (add) {
+    const text = document.getElementById('newnote').value.trim()
+    if (text === '') return
+    NOTES.push({ id: nextId, line: Number(add.dataset.addline), turn: 4, label: text, frozen: '  if (!token) return respond(401)', released: false })
+    ROWS.push({ seq: ++SEQ, put: nextId })
+    nextId += 1
+    popLine = null
+    render()
+    return
+  }
+  const m = e.target.closest('.marker, .plus')
+  if (m) { const line = Number(m.dataset.line); popLine = popLine === line ? null : line; render() }
+})
+document.getElementById('chain').addEventListener('click', e => {
+  const x = e.target.closest('[data-x]')
+  if (x) release(Number(x.dataset.x))
+})
+render()
+</script>
+</body>
+</html>
