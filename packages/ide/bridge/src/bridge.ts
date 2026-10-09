@@ -34,6 +34,28 @@ export const LAYOUT_HIDE_COMMANDS = [
 ] as const
 
 /**
+ * One posture application. `hidden` writes the hide defaults and runs the
+ * layout commands; `revealed` restores only the settings the bridge owns,
+ * leaving the user's later choices alone — it is their seat.
+ * @param vscodeApi - the ext-host face.
+ * @param hidden - which posture to apply.
+ */
+export async function applyChromePosture(vscodeApi: VscodeGlueFace, hidden: boolean): Promise<void> {
+  const posture: Record<string, unknown> = hidden ? { ...CHROME_DEFAULTS } : {
+    'workbench.statusBar.visible': true,
+    'window.menuBarVisibility': 'classic',
+  }
+  for (const [key, value] of Object.entries(posture)) {
+    await vscodeApi.updateSetting(key, value)
+  }
+  if (hidden) {
+    for (const command of LAYOUT_HIDE_COMMANDS) {
+      await vscodeApi.runLayoutCommand(command)
+    }
+  }
+}
+
+/**
  * Activate the bridge glue: apply the posture once, hello the gateway, then
  * drain open requests until disposed.
  * @param vscodeApi - the ext-host face.
@@ -46,12 +68,7 @@ export async function activateBridge(
   ide: IdeBridgeFace,
   shouldDrain: () => boolean = () => true,
 ): Promise<() => void> {
-  for (const [key, value] of Object.entries(CHROME_DEFAULTS)) {
-    await vscodeApi.updateSetting(key, value)
-  }
-  for (const command of LAYOUT_HIDE_COMMANDS) {
-    await vscodeApi.runLayoutCommand(command)
-  }
+  await applyChromePosture(vscodeApi, true)
   await ide.hello()
   let stopped = false
   const pump = async (): Promise<void> => {

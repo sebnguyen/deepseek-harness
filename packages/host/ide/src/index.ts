@@ -16,7 +16,7 @@ import { Service } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { IdeController } from './controller.ts'
 import { parseManifest } from './manifest.ts'
-import { IdeArtifactError, type IdeSpawnLike, type IdeStatus } from './types.ts'
+import { IdeArtifactError, type IdeReport, type IdeSpawnLike, type IdeStatus } from './types.ts'
 
 export { IdeController } from './controller.ts'
 export { IDE_PLATFORM, parseManifest, resolveTwin, sha256OfFile } from './manifest.ts'
@@ -171,6 +171,27 @@ export default class Ide extends TypertRemoteService {
     catch (error) {
       this.#refuse(error)
     }
+  }
+
+  /** Drain one queued open; `undefined` empties the bridge's pump loop. */
+  @Remote
+  async openNext(signal: AbortSignal): Promise<string | undefined> {
+    void signal
+    return this.#controller.takeOpen()
+  }
+
+  /** One bridge event-uplink frame: save, active editor, diagnostics. */
+  @Remote
+  async report(kind: IdeReport['kind'], path: string | undefined, detail: string | undefined, signal: AbortSignal): Promise<void> {
+    void signal
+    this.#controller.report({ kind, path, detail })
+  }
+
+  /** The live event-uplink projection the outer chrome mirrors. */
+  @Remote
+  async reports(signal: AbortSignal): Promise<readonly IdeReport[]> {
+    void signal
+    return this.#controller.reports()
   }
 
   /** The bridge's hello: flips readiness when a child is live. */

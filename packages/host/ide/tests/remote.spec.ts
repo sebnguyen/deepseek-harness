@@ -134,6 +134,22 @@ describe('ide Remote namespace', () => {
     await service.open('packages/host/ide/src/index.ts', AbortSignal.none)
     // No twin on the cold manifest: nothing spawns, the queue stays for the bridge.
     expect(sub.children).toHaveLength(0)
+    // openNext drains the downlink FIFO and empties to undefined.
+    expect(await service.openNext(AbortSignal.none)).toBe('packages/host/ide/src/index.ts')
+    expect(await service.openNext(AbortSignal.none)).toBeUndefined()
+  })
+
+  it('round-trips bridge event-uplink reports under the Host cap', async () => {
+    await writeManifest()
+    const service = boot()
+    await service.report('save', 'a.ts', 'v2', AbortSignal.none)
+    await service.report('activeEditor', 'b.ts', undefined, AbortSignal.none)
+    await service.report('diagnostics', undefined, '0 problems', AbortSignal.none)
+    expect(await service.reports(AbortSignal.none)).toEqual([
+      { kind: 'save', path: 'a.ts', detail: 'v2' },
+      { kind: 'activeEditor', path: 'b.ts', detail: undefined },
+      { kind: 'diagnostics', path: undefined, detail: '0 problems' },
+    ])
   })
 
   it('exposes the controller surface to the Host composition', () => {

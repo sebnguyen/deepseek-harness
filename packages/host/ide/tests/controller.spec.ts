@@ -6,7 +6,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { IdeController } from '../src/controller.ts'
+import { IdeController, IDE_REPORT_CAP } from '../src/controller.ts'
 import type { IdeChildLike, IdeManifestRow, IdeSpawnLike } from '../src/types.ts'
 
 const ROW: IdeManifestRow = { upstreamSha: 'f'.repeat(40), upstreamUrl: 'https://x', twins: {} }
@@ -147,13 +147,22 @@ describe('IdeController', () => {
     expect(ctl.status.frameUrl).toBeUndefined()
   })
 
-  it('drains the pending open queue exactly once', async () => {
+  it('drains the pending open queue one entry at a time', async () => {
     const ctl = controller()
     ctl.open('a.ts')
     ctl.open('b.ts')
-    expect(ctl.takePendingOpens()).toEqual(['a.ts', 'b.ts'])
-    expect(ctl.takePendingOpens()).toEqual([])
+    expect(ctl.takeOpen()).toBe('a.ts')
+    expect(ctl.takeOpen()).toBe('b.ts')
+    expect(ctl.takeOpen()).toBeUndefined()
     void seededTwinDir
+  })
+
+  it('caps the report journal at the bound', async () => {
+    const ctl = controller()
+    for (let index = 0; index < IDE_REPORT_CAP + 5; index++) ctl.report({ kind: 'save', path: `f${index}`, detail: undefined })
+    const reports = ctl.reports()
+    expect(reports).toHaveLength(IDE_REPORT_CAP)
+    expect(reports[0]!.path).toBe('f5')
   })
 
   it('exposes the row and twin after a resolved ensure, and disposes cold', async () => {

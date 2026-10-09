@@ -7,16 +7,20 @@
  */
 import { randomBytes } from 'node:crypto'
 import { resolveTwin } from './manifest.ts'
-import type { IdeControllerDependencies, IdeManifestRow, IdeStatus, ResolvedTwin } from './types.ts'
+import type { IdeChildLike, IdeControllerDependencies, IdeManifestRow, IdeReport, IdeStatus, ResolvedTwin } from './types.ts'
 
 const ABSENT: IdeStatus = { ready: false, twinSha: undefined, reason: undefined, frameUrl: undefined }
+
+/** The event uplink keeps only its most recent records; older journal lives in the session stream. */
+export const IDE_REPORT_CAP = 100
 
 export class IdeController {
   #deps: IdeControllerDependencies
   #status: IdeStatus = ABSENT
-  #child: { readonly token: string; readonly child: import('./types.ts').IdeChildLike } | undefined
+  #child: { readonly token: string; readonly child: IdeChildLike } | undefined
   #observers = new Set<(status: IdeStatus) => void>()
   #pendingOpens: string[] = []
+  #reports: IdeReport[] = []
   #twin: ResolvedTwin | undefined
   #row: IdeManifestRow | undefined
 
@@ -122,9 +126,23 @@ export class IdeController {
     this.#pendingOpens.push(path)
   }
 
-  /** Drain the pending open queue; the bridge downlink's pull. */
-  takePendingOpens(): string[] {
-    return this.#pendingOpens.splice(0, this.#pendingOpens.length)
+  /** Drain the pending open queue one entry; the bridge downlink's poll. */
+  takeOpen(): string | undefined {
+    return this.#pendingOpens.shift()
+  }
+
+  /**
+   * Record one bridge event-uplink frame under the cap.
+   * @param report - save, active-editor, or diagnostics observation.
+   */
+  report(report: IdeReport): void {
+    this.#reports.push(report)
+    if (this.#reports.length > IDE_REPORT_CAP) this.#reports.splice(0, this.#reports.length - IDE_REPORT_CAP)
+  }
+
+  /** The live event-uplink projection the outer chrome mirrors. */
+  reports(): readonly IdeReport[] {
+    return [...this.#reports]
   }
 
   /** Kill the child and settle into the disposed frame-absent posture. */

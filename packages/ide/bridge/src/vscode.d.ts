@@ -14,6 +14,12 @@ declare module 'vscode' {
   export const Uri: {
     file(path: string): Uri
   }
+  export interface TextDocumentRef {
+    readonly uri: Uri
+  }
+  export interface TextEditorRef {
+    readonly document: TextDocumentRef
+  }
   export namespace commands {
     export function executeCommand(command: string, ...args: unknown[]): Thenable<unknown>
   }
@@ -21,5 +27,9 @@ declare module 'vscode' {
     export function getConfiguration(section?: string): {
       update(key: string, value: unknown, global?: boolean): Thenable<void>
     }
+    export function onDidSaveTextDocument(listener: (document: TextDocumentRef) => void): Disposable
+  }
+  export namespace window {
+    export function onDidChangeActiveTextEditor(listener: (editor: TextEditorRef | undefined) => void): Disposable
   }
 }
