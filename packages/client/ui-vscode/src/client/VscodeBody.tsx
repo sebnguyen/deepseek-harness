@@ -33,7 +33,7 @@ export function VscodeBody({ useTabInfo, t, ide }: VscodeBodyProps): ReactNode {
   const ready = status?.ready === true
   const path = sessionFileOf(tab.contentId).path
   useEffect(() => {
-    if (ready) void ide.open(path, AbortSignal.none)
+    if (ready) void ide.open(path, new AbortController().signal)
   }, [ready, ide, path])
   if (status === undefined) return <div role="status">{t('loading')}</div>
   if (!ready || status.frameUrl === undefined) return <div role="status">{t('absent')}</div>
