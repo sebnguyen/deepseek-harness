@@ -79,7 +79,7 @@ describe('IdeController', () => {
   it('degrades to no-twin without a twin or a subprocess seam', async () => {
     expect((await controller(new FakeSubprocess()).ensure()).reason).toBe('no-twin')
     const noSub = controller()
-    expect((await noSub.ensure()).twinSha).toBeUndefined()
+    expect((await noSub.ensure()).twinSha).toBeNull()
     expect(noSub.status.reason).toBe('no-twin')
   })
 
@@ -120,7 +120,7 @@ describe('IdeController', () => {
     const ctl = controller(sub, true)
     expect(controller().hello()).toBe(false)
     await ctl.ensure()
-    expect(ctl.status.frameUrl).toBeUndefined()
+    expect(ctl.status.frameUrl).toBeNull()
   })
 
   it('drops to no-twin when the child exits and respawns on the next ensure', async () => {
@@ -144,7 +144,7 @@ describe('IdeController', () => {
     expect(ctl.status.reason).toBe('disposed')
     first.portResolve!(1)
     await new Promise(resolve => setTimeout(resolve, 0))
-    expect(ctl.status.frameUrl).toBeUndefined()
+    expect(ctl.status.frameUrl).toBeNull()
   })
 
   it('drains the pending open queue one entry at a time', async () => {
@@ -153,13 +153,13 @@ describe('IdeController', () => {
     ctl.open('b.ts')
     expect(ctl.takeOpen()).toBe('a.ts')
     expect(ctl.takeOpen()).toBe('b.ts')
-    expect(ctl.takeOpen()).toBeUndefined()
+    expect(ctl.takeOpen()).toBeNull()
     void seededTwinDir
   })
 
   it('caps the report journal at the bound', async () => {
     const ctl = controller()
-    for (let index = 0; index < IDE_REPORT_CAP + 5; index++) ctl.report({ kind: 'save', path: `f${index}`, detail: undefined })
+    for (let index = 0; index < IDE_REPORT_CAP + 5; index++) ctl.report({ kind: 'save', path: `f${index}`, detail: null })
     const reports = ctl.reports()
     expect(reports).toHaveLength(IDE_REPORT_CAP)
     expect(reports[0]!.path).toBe('f5')

@@ -36,6 +36,6 @@ export function VscodeBody({ useTabInfo, t, ide }: VscodeBodyProps): ReactNode {
     if (ready) void ide.open(path, new AbortController().signal)
   }, [ready, ide, path])
   if (status === undefined) return <div role="status">{t('loading')}</div>
-  if (!ready || status.frameUrl === undefined) return <div role="status">{t('absent')}</div>
+  if (!ready || status.frameUrl === null) return <div role="status">{t('absent')}</div>
   return <iframe title={t('frame')} src={status.frameUrl} style={{ width: '100%', height: '100%', border: 0 }} />
 }

@@ -11,6 +11,15 @@
     "directory": "packages/host/ide"
   },
   "type": "module",
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts"
+  ],
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -21,6 +30,10 @@
     "./types": {
       "types": "./lib/types/types.d.ts",
       "default": "./lib/types/types.js"
+    },
+    "./typert": {
+      "types": "./lib/typert.host.d.ts",
+      "default": "./lib/typert.host.js"
     },
     "./remote": {
       "types": "./lib/typert.remote-client.d.ts",

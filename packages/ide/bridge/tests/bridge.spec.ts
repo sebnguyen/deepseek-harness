@@ -36,7 +36,7 @@ describe('activateBridge', () => {
         hellos.count += 1
         return true
       },
-      openNext: async () => queue.shift(),
+      openNext: async () => queue.shift() ?? null,
     })
     await new Promise(resolve => setTimeout(resolve, 0))
     expect(vscode.settings).toEqual(Object.entries(CHROME_DEFAULTS))
@@ -44,6 +44,16 @@ describe('activateBridge', () => {
     expect(hellos.count).toBe(1)
     expect(vscode.opens).toEqual(['a.ts', 'b.ts'])
     dispose()
+  })
+
+  it('exposes the public surface through the package index', async () => {
+    const surface = await import('../src/index.ts')
+    expect(surface.activateBridge).toBeTypeOf('function')
+    expect(surface.applyChromePosture).toBeTypeOf('function')
+    expect(surface.dshDarkTheme).toBeTypeOf('function')
+    expect(surface.syncNotes).toBeTypeOf('function')
+    expect(surface.restoreAt).toBeTypeOf('function')
+    expect(surface.presentGutter).toBeTypeOf('function')
   })
 
   it('stops the drain when the host says so before the queue empties', async () => {
@@ -54,7 +64,7 @@ describe('activateBridge', () => {
       hello: async () => true,
       openNext: async () => {
         await new Promise(resolve => setTimeout(resolve, 1))
-        return queue.shift()
+        return queue.shift() ?? null
       },
     }, () => live)
     live = false

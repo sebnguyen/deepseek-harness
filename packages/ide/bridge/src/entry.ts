@@ -18,16 +18,16 @@ export async function activate(): Promise<() => void> {
     })
     return response.json()
   }
-  const report = async (kind: 'save' | 'activeEditor', path: string | undefined): Promise<void> => {
+  const report = async (kind: 'save' | 'activeEditor', path: string | null): Promise<void> => {
     await fetch(`${base}/api/remote.ide.report`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ args: [session, kind, path, undefined] }),
+      body: JSON.stringify({ args: [session, kind, path, null] }),
     })
   }
   const ide: IdeBridgeFace = {
     hello: async () => (await call('hello')) as boolean,
-    openNext: async () => (await call('openNext')) as string | undefined,
+    openNext: async () => (await call('openNext')) as string | null,
   }
   const glue: VscodeGlueFace = {
     executeOpen: async (path) => {
@@ -42,7 +42,7 @@ export async function activate(): Promise<() => void> {
       void report('save', document.uri.fsPath)
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      void report('activeEditor', editor?.document.uri.fsPath)
+      void report('activeEditor', editor?.document.uri.fsPath ?? null)
     }),
   ]
   return () => {

@@ -137,21 +137,21 @@ describe('ide Remote namespace', () => {
     await service.open('packages/host/ide/src/index.ts', unAborting)
     // No twin on the cold manifest: nothing spawns, the queue stays for the bridge.
     expect(sub.children).toHaveLength(0)
-    // openNext drains the downlink FIFO and empties to undefined.
+    // openNext drains the downlink FIFO and empties to null.
     expect(await service.openNext(unAborting)).toBe('packages/host/ide/src/index.ts')
-    expect(await service.openNext(unAborting)).toBeUndefined()
+    expect(await service.openNext(unAborting)).toBeNull()
   })
 
   it('round-trips bridge event-uplink reports under the Host cap', async () => {
     await writeManifest()
     const service = boot()
     await service.report('save', 'a.ts', 'v2', unAborting)
-    await service.report('activeEditor', 'b.ts', undefined, unAborting)
-    await service.report('diagnostics', undefined, '0 problems', unAborting)
+    await service.report('activeEditor', 'b.ts', null, unAborting)
+    await service.report('diagnostics', null, '0 problems', unAborting)
     expect(await service.reports(unAborting)).toEqual([
       { kind: 'save', path: 'a.ts', detail: 'v2' },
-      { kind: 'activeEditor', path: 'b.ts', detail: undefined },
-      { kind: 'diagnostics', path: undefined, detail: '0 problems' },
+      { kind: 'activeEditor', path: 'b.ts', detail: null },
+      { kind: 'diagnostics', path: null, detail: '0 problems' },
     ])
   })
 

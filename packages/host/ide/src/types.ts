@@ -41,11 +41,11 @@ export interface IdeStatus {
   /** True once the bridge's hello has crossed the gateway. */
   readonly ready: boolean
   /** The upstream sha of the twin in play, when one is. */
-  readonly twinSha: string | undefined
+  readonly twinSha: string | null
   /** Why the frame is absent, when it is. */
-  readonly reason: 'no-twin' | 'spawning' | 'disposed' | undefined
+  readonly reason: 'no-twin' | 'spawning' | 'disposed' | null
   /** Loopback iframe url with the launch token, once the child reports its port. */
-  readonly frameUrl: string | undefined
+  readonly frameUrl: string | null
 }
 
 /** One bridge event-uplink record, the projection the outer chrome mirrors. */
@@ -53,9 +53,9 @@ export interface IdeReport {
   /** Which surface the frame observed. */
   readonly kind: 'save' | 'activeEditor' | 'diagnostics'
   /** The addressed workspace file, when the event names one. */
-  readonly path: string | undefined
+  readonly path: string | null
   /** Free-form detail carrying the payload the kind implies. */
-  readonly detail: string | undefined
+  readonly detail: string | null
 }
 
 /** Spawn handle the controller needs from `ctx.subprocess`. */

@@ -175,14 +175,14 @@ export default class Ide extends TypertRemoteService {
 
   /** Drain one queued open; `undefined` empties the bridge's pump loop. */
   @Remote
-  async openNext(signal: AbortSignal): Promise<string | undefined> {
+  async openNext(signal: AbortSignal): Promise<string | null> {
     void signal
     return this.#controller.takeOpen()
   }
 
   /** One bridge event-uplink frame: save, active editor, diagnostics. */
   @Remote
-  async report(kind: IdeReport['kind'], path: string | undefined, detail: string | undefined, signal: AbortSignal): Promise<void> {
+  async report(kind: IdeReport['kind'], path: string | null, detail: string | null, signal: AbortSignal): Promise<void> {
     void signal
     this.#controller.report({ kind, path, detail })
   }

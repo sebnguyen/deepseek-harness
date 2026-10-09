@@ -5,6 +5,8 @@
  * type-checks against the host's Remote contract without importing host code
  * into the browser bundle.
  */
+import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
+import type { IdeReport } from '@deepseek-ai/dsh-host-ide/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 
@@ -13,18 +15,27 @@ export interface IdeWireStatus {
   /** True once the bridge's hello has crossed the gateway. */
   readonly ready: boolean
   /** The upstream sha of the twin in play, when one is. */
-  readonly twinSha: string | undefined
+  readonly twinSha: string | null
   /** Why the frame is absent, when it is. */
-  readonly reason: 'no-twin' | 'spawning' | 'disposed' | undefined
+  readonly reason: 'no-twin' | 'spawning' | 'disposed' | null
   /** Loopback iframe url with the launch token, once known. */
-  readonly frameUrl: string | undefined
+  readonly frameUrl: string | null
 }
 
-/** The `ide` Remote namespace as this client consumes it. */
+/** The `ide` Remote namespace as this client consumes it, envelope and all. */
 export interface IdeClientFace {
-  status(signal: AbortSignal): Promise<IdeWireStatus>
-  events(signal: AbortSignal): AsyncIterable<IdeWireStatus>
-  open(path: string, signal: AbortSignal): Promise<void>
+  status(signal?: AbortSignal): Promise<RemoteResult<IdeWireStatus>>
+  events(signal?: AbortSignal): AsyncIterable<IdeWireStatus>
+  open(path: string, signal?: AbortSignal): Promise<RemoteResult<void>>
+  openNext(signal?: AbortSignal): Promise<RemoteResult<string | null>>
+  hello(signal?: AbortSignal): Promise<RemoteResult<boolean>>
+  report(
+    kind: 'save' | 'activeEditor' | 'diagnostics',
+    path: string | null,
+    detail: string | null,
+    signal?: AbortSignal,
+  ): Promise<RemoteResult<void>>
+  reports(signal?: AbortSignal): Promise<RemoteResult<readonly IdeReport[]>>
 }
 
 /** The file the addressed tab names, in the Host's addressing. */

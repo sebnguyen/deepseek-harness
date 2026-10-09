@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/client/index.ts'
 import type { IdeWireStatus } from '../src/client/rpc.ts'
 
-const STATUS: IdeWireStatus = { ready: false, twinSha: undefined, reason: 'no-twin', frameUrl: undefined }
+const STATUS: IdeWireStatus = { ready: false, twinSha: null, reason: 'no-twin', frameUrl: null }
 
 function fakeIde(): { readonly face: object; flip(ready: boolean): void } {
   const listeners = new Set<(status: IdeWireStatus) => void>()

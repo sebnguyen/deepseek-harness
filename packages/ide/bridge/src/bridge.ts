@@ -8,7 +8,7 @@
 /** The `ide` namespace as the bridge consumes it from the ext-host. */
 export interface IdeBridgeFace {
   hello(): Promise<boolean>
-  openNext(): Promise<string | undefined>
+  openNext(): Promise<string | null>
 }
 
 /** The slice of the `vscode` API the glue drives. */
@@ -74,7 +74,7 @@ export async function activateBridge(
   const pump = async (): Promise<void> => {
     while (!stopped && shouldDrain()) {
       const path = await ide.openNext()
-      if (path === undefined) break
+      if (path === null) break
       await vscodeApi.executeOpen(path)
     }
   }

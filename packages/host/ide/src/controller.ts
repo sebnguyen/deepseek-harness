@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { resolveTwin } from './manifest.ts'
 import type { IdeChildLike, IdeControllerDependencies, IdeManifestRow, IdeReport, IdeStatus, ResolvedTwin } from './types.ts'
 
-const ABSENT: IdeStatus = { ready: false, twinSha: undefined, reason: undefined, frameUrl: undefined }
+const ABSENT: IdeStatus = { ready: false, twinSha: null, reason: null, frameUrl: null }
 
 /** The event uplink keeps only its most recent records; older journal lives in the session stream. */
 export const IDE_REPORT_CAP = 100
@@ -80,7 +80,7 @@ export class IdeController {
     const twin = await resolveTwin(row, this.#deps.env, this.#deps.cacheDir)
     this.#twin = twin
     if (twin === undefined || this.#deps.subprocess === undefined) {
-      this.#set({ ready: false, twinSha: twin === undefined ? undefined : row.upstreamSha, reason: 'no-twin', frameUrl: undefined })
+      this.#set({ ready: false, twinSha: twin === undefined ? null : row.upstreamSha, reason: 'no-twin', frameUrl: null })
       return this.#status
     }
     const subprocess = this.#deps.subprocess
@@ -91,7 +91,7 @@ export class IdeController {
       env: {},
     })
     this.#child = { token, child }
-    this.#set({ ready: false, twinSha: row.upstreamSha, reason: 'spawning', frameUrl: undefined })
+    this.#set({ ready: false, twinSha: row.upstreamSha, reason: 'spawning', frameUrl: null })
     if (child.port !== undefined) {
       void child.port.then((port) => {
         if (this.#child?.child === child)
@@ -101,7 +101,7 @@ export class IdeController {
     void child.exited.finally(() => {
       if (this.#child?.child === child) {
         this.#child = undefined
-        this.#set({ ready: false, twinSha: undefined, reason: 'no-twin', frameUrl: undefined })
+        this.#set({ ready: false, twinSha: null, reason: 'no-twin', frameUrl: null })
       }
     })
     return this.#status
@@ -114,7 +114,7 @@ export class IdeController {
    */
   hello(): boolean {
     if (this.#child === undefined) return false
-    this.#set({ ...this.#status, ready: true, reason: undefined })
+    this.#set({ ...this.#status, ready: true, reason: null })
     return true
   }
 
@@ -127,8 +127,8 @@ export class IdeController {
   }
 
   /** Drain the pending open queue one entry; the bridge downlink's poll. */
-  takeOpen(): string | undefined {
-    return this.#pendingOpens.shift()
+  takeOpen(): string | null {
+    return this.#pendingOpens.shift() ?? null
   }
 
   /**
@@ -150,6 +150,6 @@ export class IdeController {
     const live = this.#child
     this.#child = undefined
     if (live !== undefined) await live.child.kill()
-    this.#set({ ready: false, twinSha: undefined, reason: 'disposed', frameUrl: undefined })
+    this.#set({ ready: false, twinSha: null, reason: 'disposed', frameUrl: null })
   }
 }

@@ -42,7 +42,7 @@ describe('VscodeBody', () => {
   })
 
   it('shows the absent line when ready never arrives', async () => {
-    mount(faceOf([{ ready: false, twinSha: undefined, reason: 'no-twin', frameUrl: undefined }]).face)
+    mount(faceOf([{ ready: false, twinSha: null, reason: 'no-twin', frameUrl: null }]).face)
     await waitFor(() => {
       expect(screen.getByRole('status').textContent).toBe(en.absent)
     })
@@ -50,7 +50,7 @@ describe('VscodeBody', () => {
 
   it('mounts the iframe and pushes the open once ready', async () => {
     const { face, opens } = faceOf([
-      { ready: true, twinSha: 'f', reason: undefined, frameUrl: 'http://127.0.0.1:41000/?tkn=t' },
+      { ready: true, twinSha: 'f', reason: null, frameUrl: 'http://127.0.0.1:41000/?tkn=t' },
     ])
     mount(face)
     await waitFor(() => {
