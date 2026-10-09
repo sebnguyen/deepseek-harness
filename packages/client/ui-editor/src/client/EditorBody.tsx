@@ -29,6 +29,7 @@ import type {} from '@deepseek-ai/dsh-client-resources/client'
 import type {} from '@deepseek-ai/dsh-client-ui-file-history/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { FileStop } from '@deepseek-ai/dsh-client-ui-file-history/client'
+import { relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import { ChangesSurface, quoteInput } from './ChangesSurface.tsx'
 import type { WorkspaceFileBytes, WorkspaceFileStat } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -91,11 +92,18 @@ export function getEditorView(container: HTMLElement): EditorView | undefined {
  * @returns the editor or its rendered display, with the banner and status row.
  */
 export function EditorBody({
-  useTabInfo, useResource, useFileHistory, useInput, inputActions, load, save, blob, renderSlot, t,
+  useTabInfo, useResource, useFileHistory, useSession, useInput, inputActions, load, save, blob, renderSlot, t,
 }: EditorBodyProps): ReactNode {
   const { tab } = useTabInfo()
   const meta = useResource<'file'>(tab.contentId)
-  const file = useMemo(() => sessionFileOf(tab.contentId), [tab.contentId])
+  // Tab addresses may carry the absolute spelling of a path the register
+  // folds relative; one normalization makes the stops, gutter notes, and
+  // quoted mentions key identically, and Host calls resolve either form.
+  const cwd = useSession(snapshot => snapshot.cwd)
+  const file = useMemo(() => {
+    const parsed = sessionFileOf(tab.contentId)
+    return { sessionId: parsed.sessionId, path: relativizeToCwd(parsed.path, cwd) }
+  }, [tab.contentId, cwd])
   const markdown = useMemo(() => isMarkdownPath(file.path), [file.path])
   const html = useMemo(() => isHtmlPath(file.path), [file.path])
   const history = useFileHistory(snapshot => snapshot)

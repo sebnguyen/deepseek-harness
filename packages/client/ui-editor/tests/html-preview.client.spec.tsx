@@ -92,6 +92,7 @@ function Harness(props: { address: string; load: unknown; save: unknown }): Reac
   return createElement(EditorBody, {
     useTabInfo: () => tabInfo(props.address),
     useResource: () => ({ status: 'none' }),
+    useSession: (selector: (snapshot: unknown) => unknown) => selector({ cwd: undefined }),
     load: props.load,
     save: props.save,
     useFileHistory: (selector: (snapshot: unknown) => unknown) => selector({ files: [] }),

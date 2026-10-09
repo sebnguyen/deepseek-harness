@@ -105,6 +105,7 @@ function Harness(props: HarnessOptions & { load: unknown; save: unknown }): Reac
     useResource: () => (version === undefined ? { status: 'none' } : { status: 'live', value: { version } }),
     load: props.load,
     save: props.save,
+    useSession: (selector: (snapshot: unknown) => unknown) => selector({ cwd: undefined }),
     useFileHistory: (selector: (snapshot: unknown) => unknown) => selector({ files: [] }),
     useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
     inputActions: { setDraft: () => {} },

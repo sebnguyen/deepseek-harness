@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 
 afterEach(cleanup)
 import type { FileStop } from '@deepseek-ai/dsh-client-ui-file-history/client'
+import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { placeStops, quoteInput } from '../src/client/ChangesSurface.tsx'
 import { EditorBody } from '../src/client/EditorBody.tsx'
 import { en } from '../src/client/locales.ts'
@@ -35,13 +36,13 @@ function t(key: keyof typeof en, params?: Record<string, string | number>): stri
     name in params ? String(params[name]) : match)
 }
 
-function tabInfo(params?: { display: 'changes'; stop?: string }): unknown {
+function tabInfo(params?: { display: 'changes'; stop?: string }, address = ADDRESS): unknown {
   return {
     sidebar: { expanded: true, fullscreen: false },
     panel: { id: 'main' },
     tab: {
-      id: 'tab-1', contentId: ADDRESS, visible: true,
-      navigation: { address: ADDRESS, params, revision: 0 },
+      id: 'tab-1', contentId: address, visible: true,
+      navigation: { address, params, revision: 0 },
       signal: new AbortController().signal,
       actions: { openResource: () => {}, openTab: () => {}, close: () => {} },
     },
@@ -54,13 +55,16 @@ interface HarnessOptions {
   readonly pruned?: boolean
   readonly setDrafts: string[]
   readonly params?: { display: 'changes'; stop?: string }
+  readonly absolute?: boolean
 }
 
 /** The body over a fixed two-stop timeline with a controllable input machine. */
-function Harness({ stops, draft = '', pruned = false, setDrafts, params }: HarnessOptions): ReactNode {
+function Harness({ stops, draft = '', pruned = false, setDrafts, params, absolute = false }: HarnessOptions): ReactNode {
+  const address = absolute ? sessionFileAddress('s-1', '/w/notes.txt') : ADDRESS
   return createElement(EditorBody, {
-    useTabInfo: () => tabInfo(params),
+    useTabInfo: () => tabInfo(params, address),
     useResource: () => ({ status: 'none' }),
+    useSession: (selector: (snapshot: unknown) => unknown) => selector({ cwd: '/w' }),
     useFileHistory: (selector: (snapshot: unknown) => unknown) =>
       selector({ files: [{ path: 'notes.txt', stops }] }),
     useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft }),
@@ -159,6 +163,13 @@ describe('Changes display', () => {
     expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
   })
 
+  it('matches register keys when the tab address carries the absolute path', async () => {
+    const setDrafts: string[] = []
+    render(createElement(Harness, { stops: stopFixture(), setDrafts, absolute: true }))
+    await enterChanges()
+    expect(await screen.findByText('two')).toBeDefined()
+  })
+
   it('lands on the first stop when the named stop is unknown', async () => {
     const setDrafts: string[] = []
     render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes', stop: 'nope' } }))
@@ -208,6 +219,7 @@ describe('Changes display', () => {
     const { container, unmount } = render(createElement(EditorBody, {
       useTabInfo: () => tabInfo({ display: 'changes' }),
       useResource: () => ({ status: 'none' }),
+      useSession: (selector: (snapshot: unknown) => unknown) => selector({ cwd: undefined }),
       useFileHistory: (selector: (snapshot: unknown) => unknown) =>
         selector({ files: [{ path: 'notes.txt', stops: stopFixture() }] }),
       useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
@@ -339,6 +351,7 @@ describe('Changes display', () => {
     const { container, unmount } = render(createElement(EditorBody, {
       useTabInfo: tabInfo,
       useResource: () => ({ status: 'none' }),
+      useSession: (selector: (snapshot: unknown) => unknown) => selector({ cwd: undefined }),
       useFileHistory: (selector: (snapshot: unknown) => unknown) =>
         selector({ files: [{ path: 'notes.txt', stops: stopFixture() }] }),
       useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
