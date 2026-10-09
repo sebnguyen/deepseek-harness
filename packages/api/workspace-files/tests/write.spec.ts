@@ -72,6 +72,62 @@ it('refuses every save while the Session is read-only', async () => {
   }
 })
 
+it('mints a human save stop with the replaced text, and none beyond its caps', async () => {
+  await writeFile(join(harness.workspace, 'noted.txt'), 'one\n')
+  type Capture = {
+    call: { name: string; purpose?: string; agent?: { session?: unknown } }
+    file: { before: string | null; after: string }
+  }
+  const captures: Capture[] = []
+  const session = { header: { cwd: harness.workspace }, append: () => {} }
+  harness.ctx.provide('sessions', {
+    get: (id: string) => (id === 's-test' ? session : undefined),
+  } as never)
+  harness.ctx.provide('checkpoint', {
+    captureWrite: async (call: never, file: never) => {
+      captures.push({ call, file })
+    },
+  } as never)
+  const endpoint = harness.endpoint()
+  await endpoint.write(harness.scope, 'noted.txt', 'two\n', undefined, signal())
+  expect(captures).toHaveLength(1)
+  expect(captures[0]?.file).toMatchObject({ before: 'one\n', after: 'two\n' })
+  expect(captures[0]?.call).toMatchObject({ name: 'human-save', purpose: 'human save' })
+  expect(captures[0]?.call.agent?.session).toBe(session)
+  // A new file carries no before side.
+  await endpoint.write(harness.scope, 'fresh.txt', 'x', undefined, signal())
+  expect(captures[1]?.file).toMatchObject({ before: null, after: 'x' })
+  // A prior above the cap keeps the stop on its after side alone.
+  const capped = await openWorkspace('wffs-write-cap-', 'workspace-write')
+  try {
+    await writeFile(join(capped.workspace, 'big.txt'), '0'.repeat(64))
+    capped.ctx.provide('sessions', { get: () => session } as never)
+    capped.ctx.provide('checkpoint', {
+      captureWrite: async (call: never, file: never) => {
+        captures.push({ call, file })
+      },
+    } as never)
+    const cappedEndpoint = capped.endpoint({ maxFileBytes: 8 })
+    await cappedEndpoint.write(capped.scope, 'big.txt', 'small', undefined, signal())
+    expect(captures[2]?.file).toMatchObject({ before: null, after: 'small' })
+  } finally {
+    await capped.dispose()
+  }
+})
+
+it('records nothing when the session is not live', async () => {
+  await writeFile(join(harness.workspace, 'alone.txt'), 'one\n')
+  const captures: unknown[] = []
+  harness.ctx.provide('checkpoint', {
+    captureWrite: async (call: never, file: never) => {
+      captures.push({ call, file })
+    },
+  } as never)
+  const endpoint = harness.endpoint()
+  await endpoint.write(harness.scope, 'alone.txt', 'two\n', undefined, signal())
+  expect(captures).toEqual([])
+})
+
 it('propagates a backend write failure that is not a version refusal', async () => {
   await writeFile(join(harness.workspace, 'parent.txt'), 'file\n')
   const endpoint = harness.endpoint()

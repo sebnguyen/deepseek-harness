@@ -509,6 +509,12 @@
     # (image pull, if not cached, plus SearXNG's own startup) can take up to its
     # readyTimeoutMs (60s default), so the tool timeout below gives margin
     # beyond that for the first search's actual HTTP round trip.
+    - id: git
+      name: '@deepseek-ai/dsh-git'
+
+    - id: git-isomorphic
+      name: '@deepseek-ai/dsh-git-isomorphic'
+
     - id: web
       name: '@deepseek-ai/dsh-web'
       config:

@@ -24,7 +24,12 @@ import { EDITOR_ID, editorDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
 import type { EditorFilesRemote } from './rpc.ts'
 
-export type { EditorCmEntryInjected, EditorCmExtensionOwner } from './contract/slots.ts'
+export type {
+  EditorAnnotationOwner, EditorCmEntryInjected, EditorGutterDescriptor, EditorGutterMarker,
+  EditorRuntimeModules,
+} from './contract/slots.ts'
+export type { EditorDoors } from './runtime.ts'
+export { annotationGutter, gutterMarkersField, setGutterMarkers } from './annotations.ts'
 export type { EditorKey } from './locales.ts'
 export type { EditorBodyProps, EditorInjected } from './EditorBody.tsx'
 export type { EditorFilesRemote, SessionFile } from './rpc.ts'
@@ -65,14 +70,14 @@ export function apply(ctx: ClientContext): void {
       locale: 'editor',
       inject: (): EditorInjected => face,
       children: {
-        'editor.cm.extension': { kind: 'list', scope: 'session' },
+        'editor.annotation': { kind: 'list', scope: 'session' },
       },
     },
     EditorBody,
   )), 'ui-editor: editor body')
-  ctx.effect(() => ctx.slots.inject('editor.cm.extension', () => ctx.slots.register(
+  ctx.effect(() => ctx.slots.inject('editor.annotation', () => ctx.slots.register(
     {
-      name: 'editor.cm.extension',
+      name: 'editor.annotation',
       id: 'editor-change-markers',
       order: 10,
     },

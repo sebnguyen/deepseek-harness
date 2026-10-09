@@ -14,9 +14,10 @@ import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   FileTypeIcon, IconFolderClose16, IconFolderOpen16, classifyFileType,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { WorkspaceDirectoryEntry } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { WorkspaceDirectoryEntry, WorkspaceScmStatus } from '@deepseek-ai/dsh-api-workspace-files/types'
 import { childPath } from './face.ts'
 import type {} from './locales.ts'
+import { scmBadgeOf } from './store.ts'
 import type { FilesTabState } from './store.ts'
 import css from './Tree.module.css'
 
@@ -53,6 +54,15 @@ export function failureLine(t: TranslateNS<'sidebarFiles'>, failure: RemoteFailu
   }
 }
 
+/** The badge character one git status draws; vs Code's column, minus the staged split. */
+const SCM_BADGE: Record<WorkspaceScmStatus, string> = {
+  modified: 'M',
+  added: 'A',
+  deleted: 'D',
+  untracked: 'U',
+  other: '?',
+}
+
 /** What every level shares: the tree's state and the two gestures. */
 export interface TreeContext {
   readonly state: FilesTabState
@@ -80,6 +90,7 @@ export function Entry({ parent, entry, tree }: { parent: string; entry: Workspac
   }
   if (entry.type === 'file') {
     const highlighted = tree.highlighted === path
+    const badge = scmBadgeOf(tree.state, path)
     return (
       <li className={css.item} data-files-entry="file" data-files-path={path}>
         <button
@@ -95,6 +106,13 @@ export function Entry({ parent, entry, tree }: { parent: string; entry: Workspac
         >
           <FileTypeIcon kind={classifyFileType(entry.name)} size={16} className={css.fileIcon} />
           <span className={css.name}>{entry.name}</span>
+          {badge !== undefined
+            ? (
+              <span className={css.badge} data-files-scm={badge} title={tree.t(`scm.${badge}`)}>
+                {SCM_BADGE[badge]}
+              </span>
+            )
+            : null}
         </button>
       </li>
     )

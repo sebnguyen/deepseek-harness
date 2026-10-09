@@ -1,6 +1,6 @@
 /**
  * Browser half: the line-note gutter composes into the editor's
- * `editor.cm.extension` hole; the register read rides a session-standard
+ * `editor.annotation` hole as a data-level gutter column; the register read rides a session-standard
  * `lineNotes` hook so every session component may see the notes.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -82,9 +82,9 @@ export function apply(ctx: ClientContext): void {
     hooks: ['lineNotes'],
     resolve: binding => ({ hooks: { lineNotes: sourceFor(binding) } }),
   }), 'ui-line-note: lineNotes hook')
-  ctx.effect(() => ctx.slots.inject('editor.cm.extension', () => ctx.slots.register(
+  ctx.effect(() => ctx.slots.inject('editor.annotation', () => ctx.slots.register(
     {
-      name: 'editor.cm.extension',
+      name: 'editor.annotation',
       id: 'line-note',
       order: 20,
       locale: 'lineNote',

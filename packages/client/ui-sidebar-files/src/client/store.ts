@@ -15,7 +15,7 @@ import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-sto
 import type { RemoteFailure } from '@deepseek-ai/dsh-api-remotes/client'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import type { WorkspaceDirectoryEntry } from '@deepseek-ai/dsh-api-workspace-files/types'
+import type { WorkspaceDirectoryEntry, WorkspaceScmStatus } from '@deepseek-ai/dsh-api-workspace-files/types'
 
 /** One tree's key: a tab id for a files tab, the session id for the explorer column. */
 export type TreeKey = TabId | SessionId
@@ -31,6 +31,31 @@ export interface DirLevel {
   readonly entries: readonly WorkspaceDirectoryEntry[]
   /** The listing hit the endpoint's entry cap, so entries are missing. */
   readonly truncated: boolean
+}
+
+/**
+ * The tree root's git state relative to HEAD, refreshed with the root and on
+ * reload. `ready` with `notRepository` draws no badges; `failed` and `idle`
+ * are quiet the same way.
+ */
+export type ScmState =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed' }
+  | {
+    readonly kind: 'ready'
+    /** The workspace carries no git repository. */
+    readonly notRepository: boolean
+    /** Changed file status by repository-relative path. */
+    readonly entries: Readonly<Record<string, WorkspaceScmStatus>>
+  }
+
+/** One tree's git-relative badge lookup, or undefined when nothing draws. */
+export function scmBadgeOf(state: FilesTabState, path: string): WorkspaceScmStatus | undefined {
+  if (state.scm.kind !== 'ready' || state.scm.notRepository) return undefined
+  const prefix = `${state.root.replace(/[/\\]+$/, '')}/`
+  if (!path.startsWith(prefix)) return undefined
+  return state.scm.entries[path.slice(prefix.length)]
 }
 
 /** What one directory level is doing right now. */
@@ -54,6 +79,8 @@ export interface FilesTabState {
   expanded: string[]
   /** Row the reveal gesture currently highlights; null outside one. */
   highlighted: string | null
+  /** The root's git state; seeded idle at `start`. */
+  scm: ScmState
 }
 
 /** Every tree, keyed by its owner id. */
@@ -84,6 +111,9 @@ type FilesActions = {
   expandedPaths: (draft: FilesState, key: TreeKey, paths: readonly string[]) => void
   highlightedSet: (draft: FilesState, key: TreeKey, path: string) => void
   highlightedClear: (draft: FilesState, key: TreeKey, path: string) => void
+  scmLoading: (draft: FilesState, key: TreeKey) => void
+  scmLoaded: (draft: FilesState, key: TreeKey, notRepository: boolean, entries: Readonly<Record<string, WorkspaceScmStatus>>) => void
+  scmFailed: (draft: FilesState, key: TreeKey) => void
   reset: (draft: FilesState, key: TreeKey) => void
   forget: (draft: FilesState, key: TreeKey) => void
 }
@@ -107,7 +137,7 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
        * @param root - absolute path of the workspace root.
        */
       start: (d, key: TreeKey, root: string) => {
-        d.byTree[key] = { root, levels: {}, expanded: [root], highlighted: null }
+        d.byTree[key] = { root, levels: {}, expanded: [root], highlighted: null, scm: { kind: 'idle' } }
       },
       /**
        * Mark one directory as being listed. A level that already shows rows
@@ -188,6 +218,33 @@ export function createFilesStore(): EngineStoreHandle<FilesState, FilesActions> 
       highlightedClear: (d, key, path) => {
         const state = d.byTree[key]
         if (state !== undefined && state.highlighted === path) state.highlighted = null
+      },
+      /**
+       * Mark the root's git state as being read.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       */
+      scmLoading: (d, key) => {
+        bucket(d, key).scm = { kind: 'loading' }
+      },
+      /**
+       * Record the root's git state; a non-repository workspace keeps the
+       * ready kind with no entries so a later reload can flip it.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       * @param notRepository - the workspace carries no git repository.
+       * @param entries - changed file status by repository-relative path.
+       */
+      scmLoaded: (d, key, notRepository, entries) => {
+        bucket(d, key).scm = { kind: 'ready', notRepository, entries }
+      },
+      /**
+       * Record a failed git read; badges stay absent.
+       * @param d - draft state.
+       * @param key - the tree being written.
+       */
+      scmFailed: (d, key) => {
+        bucket(d, key).scm = { kind: 'failed' }
       },
       /**
        * Drop every loaded level, keeping what is expanded.

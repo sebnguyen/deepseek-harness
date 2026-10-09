@@ -21,6 +21,12 @@
       "path": "../../core/session"
     },
     {
+      "path": "../../fs/checkpoint"
+    },
+    {
+      "path": "../../git/git"
+    },
+    {
       "path": "../../fs/fs"
     },
     {

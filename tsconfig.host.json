@@ -282,6 +282,8 @@
     { "path": "./packages/fs/tool-present" },
     { "path": "./packages/fs/tool-fs-search" },
     { "path": "./packages/fs/tool-str-replace-editor" },
+    { "path": "./packages/git/git" },
+    { "path": "./packages/git/git-isomorphic" },
     { "path": "./packages/compaction/compaction" },
     { "path": "./packages/compaction/compaction-basic" },
     { "path": "./packages/compaction/command-compact" },

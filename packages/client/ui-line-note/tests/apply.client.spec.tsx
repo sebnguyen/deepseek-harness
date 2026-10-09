@@ -66,13 +66,13 @@ describe('client apply', () => {
     const fiber = ctx.plugin({ inject: [...inject], apply: apply })
     await fiber.await()
     expect(locales).toEqual(['lineNote'])
-    expect(injected).toEqual(['editor.cm.extension'])
+    expect(injected).toEqual(['editor.annotation'])
     expect(bodies).toEqual(['line-note'])
     expect(bindings).toHaveLength(1)
     const descriptor = bindings[0] as { hooks: string[] }
     expect(descriptor.hooks).toEqual(['lineNotes'])
     await fiber.dispose()
-    expect(disposed.sort()).toEqual(['editor.cm.extension', 'entry', 'hook', 'locale'])
+    expect(disposed.sort()).toEqual(['editor.annotation', 'entry', 'hook', 'locale'])
   })
 
   it('serves the lineNotes hook as a register read keyed to the binding', async () => {

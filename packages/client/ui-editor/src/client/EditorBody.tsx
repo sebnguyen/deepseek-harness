@@ -34,10 +34,15 @@ import { ChangesSurface, quoteInput } from './ChangesSurface.tsx'
 import type { WorkspaceFileBytes, WorkspaceFileStat } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
-import { EditorState, StateEffect } from '@codemirror/state'
+import * as cmState from '@codemirror/state'
+import * as cmView from '@codemirror/view'
+import { EditorState } from '@codemirror/state'
 import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
+import { annotationGutter, setGutterMarkers } from './annotations.ts'
+import type { EditorGutterDescriptor, EditorGutterMarker, EditorRuntimeModules } from './contract/slots.ts'
+import { createEditorDoors, type EditorDoors } from './runtime.ts'
 import { createEditorExtensions, isHtmlPath, isMarkdownPath, languageFor } from './editor.ts'
 import { decodeText, failureLine, sessionFileOf, type SessionFile } from './rpc.ts'
 import css from './EditorBody.module.css'
@@ -63,7 +68,7 @@ export interface EditorInjected {
 export type EditorBodyProps =
   & PropsRuntime<'sidebar.right.pane.tab'>
   & InjectFace<EditorInjected>
-  & PropsRenderSlots<'editor.cm.extension'>
+  & PropsRenderSlots<'editor.annotation'>
   & PropsLocale<'editor'>
 
 /** One loaded document generation; each reload or replace builds a new editor view. */
@@ -80,6 +85,9 @@ type Banner =
 
 /** The body's three display modes; Markdown and HTML files start on the rendered one. */
 export type EditorDisplayMode = 'edit' | 'preview' | 'changes'
+
+/** The provider's CodeMirror namespaces: the one copy entries mint with. */
+const modules: EditorRuntimeModules = { state: cmState, view: cmView }
 
 /** Access the CodeMirror view one body mounted, for diagnostics and tests. */
 export function getEditorView(container: HTMLElement): EditorView | undefined {
@@ -110,7 +118,7 @@ export function EditorBody({
   const draft = useInput(state => state.draft)
   // A tab opened with `{ display: 'changes', stop }` starts on the frozen page.
   const navParams = tab.navigation.params
-  const openChanges = navParams !== undefined && 'display' in navParams && navParams.display === 'changes'
+  const openChanges = navParams !== undefined && 'display' in navParams
   const openStop = navParams !== undefined && 'stop' in navParams ? navParams.stop : undefined
   const stops = useMemo(
     () => history.files.find(timeline => timeline.path === file.path)?.stops ?? [],
@@ -128,20 +136,35 @@ export function EditorBody({
   const loadedRef = useRef<{ text: string; version: string } | undefined>(undefined)
   const viewRef = useRef<EditorView | undefined>(undefined)
   const hostRef = useRef<HTMLDivElement | null>(null)
-  const extsRef = useRef<readonly Extension[]>([])
+  const [doors] = useState<EditorDoors>(() => createEditorDoors())
   const [viewVersion, setViewVersion] = useState(0)
 
-  /** Append one contributed extension to the live view and future ones. */
-  const append = useCallback((extension: Extension): (() => void) => {
-    extsRef.current = [...extsRef.current, extension]
-    viewRef.current?.dispatch({ effects: StateEffect.appendConfig.of(extension) })
-    return () => {
-      extsRef.current = extsRef.current.filter(candidate => candidate !== extension)
-    }
+  // The annotation seam shares the runtime: entries mint extensions with
+  // the provider's namespaces and install them through the retain-and-
+  // replay doors, so one CodeMirror copy and one dispatcher serve them.
+  /** Retain one entry extension under an id into the live and future views. */
+  const add = useCallback((id: string, extension: Extension): (() => void) => doors.add(id, extension), [doors])
+  /** Set one retained compartment's content, installed or swapped live. */
+  const replace = useCallback((id: string, extension: Extension): void => {
+    doors.replace(id, extension)
+  }, [doors])
+  /** The stable compartment for an id; its last content replays per view. */
+  const compartmentOf = useCallback((id: string) => doors.compartmentOf(id), [doors])
+  /** Register one described gutter column into the live and future views. */
+  const describeColumn = useCallback((descriptor: EditorGutterDescriptor): (() => void) =>
+    doors.add(`column:${descriptor.id}`, annotationGutter(descriptor)), [doors])
+
+  /** Publish one column's marker set into the live view. */
+  const pushMarkers = useCallback((id: string, markers: readonly EditorGutterMarker[]): void => {
+    viewRef.current?.dispatch({ effects: setGutterMarkers.of({ id, markers }) })
   }, [])
 
-  /** The live view, for entry components that dispatch their own effects. */
-  const viewOf = useCallback(() => viewRef.current, [])
+  /** One live document line's text, for retained-note freezes. */
+  const lineTextOf = useCallback((line: number): string => {
+    const view = viewRef.current
+    if (view === undefined || line > view.state.doc.lines) return ''
+    return view.state.doc.line(line).text
+  }, [])
   const showPreview = previewKind !== undefined && mode === 'preview' && doc !== undefined
   const showChanges = mode === 'changes'
 
@@ -213,7 +236,7 @@ export function EditorBody({
         doc: doc.text,
         extensions: [
           ...createEditorExtensions(guardedSave, languageFor(file.path, doc.text)),
-          ...extsRef.current,
+          ...doors.compose(),
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return
             const loaded = loadedRef.current
@@ -223,12 +246,14 @@ export function EditorBody({
       }),
     })
     viewRef.current = view
+    doors.attach(view)
     setViewVersion(version => version + 1)
     return () => {
+      doors.attach(undefined)
       viewRef.current = undefined
       view.destroy()
     }
-  }, [doc, file.path, guardedSave, showPreview, showChanges])
+  }, [doc, doors, file.path, guardedSave, showPreview, showChanges])
 
   /** Frozen text of one side of the selected stop, for the Changes page. */
   const blobText = useCallback((digest: string) =>
@@ -309,7 +334,10 @@ export function EditorBody({
               />
             )
             : <div className={css.host} ref={hostRef} />}
-      {renderSlot('editor.cm.extension', { file, append, blob: blobText, view: viewOf, viewVersion })}
+      {renderSlot('editor.annotation', {
+        file, blob: blobText, viewVersion, modules, liveView: () => viewRef.current,
+        add, replace, compartmentOf, describeColumn, publishMarkers: pushMarkers, lineText: lineTextOf,
+      })}
       {failed === undefined && (
         <div className={css.footer}>
           <div className={css.modeToggle} role="group" aria-label={t('displayModes')}>

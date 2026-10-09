@@ -632,6 +632,7 @@
     "testing/2026-08-18-session-snapshot-envelope-projection.md": "sha256:a01c4bfec0c0f9ef492926553906fd207e045441e6fd5121c35902be646460e3",
     "testing/2026-08-27-translation-pairing-merge-budget.md": "sha256:303e490a351f321cf08711ffd901dc1f315237fbc1dbf9085fed8e1435c00c0d",
     "testing/2026-08-28-ci-test-reliability-skill.md": "sha256:118c1e4fde672fb9ce0270d1783efc5dafaf6762daa8103c134bd69a47249e26",
-    "testing/2026-08-29-windows-lane-hook-and-lefthook-budget.md": "sha256:f56bb4de37ff2865e2d78007168f4e91021e59b16961a3335e852864de895a1b"
+    "testing/2026-08-29-windows-lane-hook-and-lefthook-budget.md": "sha256:f56bb4de37ff2865e2d78007168f4e91021e59b16961a3335e852864de895a1b",
+    "architecture/2026-10-08-codemirror-platform-singleton-and-slots-arity.md": "sha256:63a6e18f05c1397748a9e98eeb0c338885baa4482b3e31514b789aec2da84942"
   }
 }

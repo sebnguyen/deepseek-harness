@@ -174,6 +174,10 @@ flowchart LR
   cfg --> plugin_dsh_base_repeat_tool_reminder
   plugin_dsh_base_staged_escalation["staged-escalation<br/>@deepseek-ai/dsh-staged-escalation"]
   cfg --> plugin_dsh_base_staged_escalation
+  plugin_dsh_base_git["git<br/>@deepseek-ai/dsh-git"]
+  cfg --> plugin_dsh_base_git
+  plugin_dsh_base_git_isomorphic["git-isomorphic<br/>@deepseek-ai/dsh-git-isomorphic"]
+  cfg --> plugin_dsh_base_git_isomorphic
   plugin_dsh_base_web["web<br/>@deepseek-ai/dsh-web"]
   cfg --> plugin_dsh_base_web
   plugin_dsh_base_web_search_searxng["web-search-searxng<br/>@deepseek-ai/dsh-web-search-searxng"]
@@ -279,6 +283,8 @@ flowchart LR
 | `tool-ralph` | `@deepseek-ai/dsh-tool-ralph` |
 | `repeat-tool-reminder` | `@deepseek-ai/dsh-repeat-tool-reminder` |
 | `staged-escalation` | `@deepseek-ai/dsh-staged-escalation` |
+| `git` | `@deepseek-ai/dsh-git` |
+| `git-isomorphic` | `@deepseek-ai/dsh-git-isomorphic` |
 | `web` | `@deepseek-ai/dsh-web` |
 | `web-search-searxng` | `@deepseek-ai/dsh-web-search-searxng` |
 | `web-fetch-http` | `@deepseek-ai/dsh-web-fetch-http` |

@@ -142,6 +142,40 @@ export type WorkspaceFileWatchFrame =
   | { readonly kind: 'ready' }
   | { readonly kind: 'change'; readonly change: WorkspaceFileChange }
 
+/**
+ * One file's state relative to the workspace repository's HEAD; mirror of the
+ * git seam's vocabulary: `modified` covers staged and unstaged content change,
+ * `added` covers staged new files and every file under an unborn HEAD,
+ * `deleted` covers removals, `untracked` covers files the index does not know,
+ * and `other` covers renames, copies, and type changes.
+ */
+export type WorkspaceScmStatus = 'modified' | 'added' | 'deleted' | 'untracked' | 'other'
+
+/** One changed file the workspace repository reports relative to HEAD. */
+export interface WorkspaceScmEntry {
+  /** Repository-relative path, slash-separated. */
+  readonly path: string
+  readonly status: WorkspaceScmStatus
+}
+
+/**
+ * The git state of one Session's workspace root. `present` is false when the
+ * Host composes no git seam at all; `notRepository` names a workspace with no
+ * `.git`, where the explorer draws no badges.
+ */
+export type WorkspaceScmState =
+  | { readonly present: false }
+  | {
+    readonly present: true
+    /** True when the workspace root carries no git repository. */
+    readonly notRepository: boolean
+    /** The resolved HEAD object id, or null under an unborn HEAD. */
+    readonly head: string | null
+    readonly entries: readonly WorkspaceScmEntry[]
+    /** Whether the provider's entry cap dropped further changed files. */
+    readonly truncated: boolean
+  }
+
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** No entry exists at that path. */

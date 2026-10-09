@@ -14,8 +14,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceDirectoryListing } from '@deepseek-ai/dsh-api-workspace-files/types'
-import { childPath, createList, filesFace } from '../src/client/face.ts'
-import type { WorkspaceFilesListRemote } from '../src/client/face.ts'
+import { childPath, createList, createScm, filesFace } from '../src/client/face.ts'
+import type { LoadWorkspaceScm, ScmResult, WorkspaceFilesListRemote } from '../src/client/face.ts'
+import type { WorkspaceScmStatus } from '@deepseek-ai/dsh-api-workspace-files/types'
 import { createFilesStore } from '../src/client/store.ts'
 import type { DirLevel } from '../src/client/store.ts'
 import { scriptedList } from './scripted-list.client.ts'
@@ -27,12 +28,16 @@ const TAB = 'tab-1' as TabId
 
 const LEVEL: DirLevel = { entries: [{ name: 'src', type: 'directory' }], truncated: false }
 
-function mount() {
+const quietScm: LoadWorkspaceScm = async () => ({ ok: false })
+
+function mount(scm: LoadWorkspaceScm = quietScm) {
   const instance = createFilesStore().create()
   const script = scriptedList()
-  const face = filesFace(script.list)(SESSION, instance.actions)
+  const face = filesFace(script.list, scm)(SESSION, instance.actions)
   return { ...script, face, snapshot: () => instance.getSnapshot().byTree[TAB] }
 }
+
+const flush = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0))
 
 describe('filesFace', () => {
   it('start seeds the tab and lists the root with the session and the absolute root path', async () => {
@@ -78,6 +83,61 @@ describe('filesFace', () => {
     expect(snapshot()).toBeUndefined()
   })
 
+  it('start reads the workspace git state beside the root listing', async () => {
+    const scm = vi.fn<LoadWorkspaceScm>().mockResolvedValue({
+      ok: true,
+      notRepository: false,
+      entries: { 'a.txt': 'modified' as WorkspaceScmStatus },
+    })
+    const { face, snapshot } = mount(scm)
+    const controller = new AbortController()
+    face.start(TAB, ROOT, controller.signal)
+    expect(scm).toHaveBeenCalledWith(SESSION, controller.signal)
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'a.txt': 'modified' } })
+    face.reloadScm(TAB, controller.signal)
+    await flush()
+    expect(scm).toHaveBeenCalledTimes(2)
+  })
+
+  it('a quiet git failure leaves the badge state failed', async () => {
+    const { face, snapshot } = mount()
+    face.start(TAB, ROOT, new AbortController().signal)
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'failed' })
+  })
+
+  it('a retired git read lands nowhere', async () => {
+    const resolvers: Array<(value: ScmResult) => void> = []
+    const scm = vi.fn<LoadWorkspaceScm>()
+      .mockImplementation(() => new Promise((resolve) => {
+        resolvers.push(resolve)
+      }))
+    const { face, snapshot } = mount(scm)
+    const controller = new AbortController()
+    face.start(TAB, ROOT, controller.signal)
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'loading' })
+    face.reloadScm(TAB, controller.signal)
+    await flush()
+    resolvers[0]?.({ ok: true, notRepository: false, entries: { 'stale.txt': 'modified' } })
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'loading' })
+    resolvers[1]?.({ ok: true, notRepository: false, entries: { 'fresh.txt': 'added' } })
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'fresh.txt': 'added' } })
+  })
+
+  it('loadScm honors an already-aborted signal', async () => {
+    const scm = vi.fn<LoadWorkspaceScm>().mockResolvedValue({ ok: false })
+    const { face } = mount(scm)
+    const controller = new AbortController()
+    controller.abort()
+    face.reloadScm(TAB, controller.signal)
+    await flush()
+    expect(scm).not.toHaveBeenCalled()
+  })
+
   it('makes no request for a record that already ended', () => {
     const { face, list } = mount()
     const controller = new AbortController()
@@ -118,8 +178,9 @@ describe('createList', () => {
     }
     const list = vi.fn<WorkspaceFilesListRemote['workspaceFiles']['list']>()
       .mockResolvedValue({ ok: true, value: listing })
+    const scmStatus = vi.fn<WorkspaceFilesListRemote['workspaceFiles']['scmStatus']>()
     const signal = new AbortController().signal
-    const result = await createList({ workspaceFiles: { list } })(SESSION, `${ROOT}/src`, signal)
+    const result = await createList({ workspaceFiles: { list, scmStatus } })(SESSION, `${ROOT}/src`, signal)
     expect(list).toHaveBeenCalledWith(SESSION, `${ROOT}/src`, signal)
     expect(result).toEqual({ ok: true, value: { entries: listing.entries, truncated: true } })
   })
@@ -128,8 +189,32 @@ describe('createList', () => {
     const error = new RemoteError('workspace-file/not-directory', 'file', { path: 'x', kind: 'file' })
     const list = vi.fn<WorkspaceFilesListRemote['workspaceFiles']['list']>()
       .mockResolvedValue({ ok: false, error })
-    const result = await createList({ workspaceFiles: { list } })(SESSION, `${ROOT}/x`, new AbortController().signal)
+    const scmStatus = vi.fn<WorkspaceFilesListRemote['workspaceFiles']['scmStatus']>()
+    const result = await createList({ workspaceFiles: { list, scmStatus } })(SESSION, `${ROOT}/x`, new AbortController().signal)
     expect(result).toEqual({ ok: false, error })
+  })
+})
+
+describe('createScm', () => {
+  it('maps a present result to entries by path and a quiet face to ok false', async () => {
+    const remote = {
+      workspaceFiles: {
+        list: vi.fn(),
+        scmStatus: vi.fn<WorkspaceFilesListRemote['workspaceFiles']['scmStatus']>()
+          .mockResolvedValue({ ok: true, value: { present: true, notRepository: false, head: 'h', entries: [{ path: 'a.txt', status: 'modified' as WorkspaceScmStatus }], truncated: false } }),
+      },
+    }
+    const signal = new AbortController().signal
+    expect(await createScm(remote)(SESSION, signal)).toEqual({
+      ok: true,
+      notRepository: false,
+      entries: { 'a.txt': 'modified' },
+    })
+    expect(remote.workspaceFiles.scmStatus).toHaveBeenCalledWith(SESSION, signal)
+    remote.workspaceFiles.scmStatus.mockResolvedValue({ ok: true, value: { present: false } })
+    expect(await createScm(remote)(SESSION, signal)).toEqual({ ok: false })
+    remote.workspaceFiles.scmStatus.mockResolvedValue({ ok: false, error: new RemoteError('workspace-file/not-found', 'gone', { path: 'x' }) })
+    expect(await createScm(remote)(SESSION, signal)).toEqual({ ok: false })
   })
 })
 

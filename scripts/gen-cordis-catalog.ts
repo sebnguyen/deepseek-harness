@@ -102,6 +102,7 @@ export const SERVICE_PAGE: Record<string, string> = {
   systemPrompt: 'system-prompt.md',
   jobs: 'jobs.md',
   claims: 'claim.md',
+  git: 'git.md',
   searxngRuntime: 'web.md',
   sessionTelemetry: 'session-telemetry.md',
   agentTeams: 'agent-team.md',
@@ -240,6 +241,17 @@ export const EVENT_WALK_EXEMPTIONS: Record<string, string> = {
  * appear on more than one page.
  */
 export const LINK_MAP: Readonly<Record<string, string>> = {
+  WorkspaceScmEntry: 'sidebar-right.md',
+  WorkspaceScmState: 'sidebar-right.md',
+  WorkspaceScmStatus: 'sidebar-right.md',
+  GitDiffRequest: 'git.md',
+  GitError: 'git.md',
+  GitFileDiff: 'git.md',
+  GitFileStatus: 'git.md',
+  GitProvider: 'git.md',
+  GitStatusEntry: 'git.md',
+  GitStatusRequest: 'git.md',
+  GitStatusResult: 'git.md',
   Claim: 'claim.md',
   ClaimError: 'claim.md',
   ClaimId: 'claim.md',

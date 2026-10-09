@@ -1160,6 +1160,31 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'git',
+    summary: 'The git capability service.',
+    description: 'The git capability service. Registered as `ctx.git` (one instance per context).\n\nSelection semantics (resolved at execution time, never order-dependent):\n\n- A configured id that is registered and `available()` → that provider.\n- A configured id not registered → `GIT_PROVIDER_CONFIGURED_MISSING`.\n- A configured id registered but unavailable → `GIT_PROVIDER_CONFIGURED_UNAVAILABLE`.\n- No id configured, exactly one registered usable provider → that provider.\n- No id configured, multiple usable providers → `GIT_PROVIDER_AMBIGUOUS`.\n- No id configured, no usable provider → `GIT_PROVIDER_UNAVAILABLE`.',
+    methods: [
+      {
+        signature: 'registerProvider(provider: GitProvider): () => void',
+        description: 'Register a provider. Throws GitError `GIT_DUPLICATE_PROVIDER` if its id is already registered. Returns a disposer; disposed with the calling fiber.',
+        parameters: [{ name: 'provider', description: 'the provider; its `id` is the registry key.' }],
+        returns: 'the disposer that unregisters the provider.',
+      },
+      {
+        signature: 'async status(request: GitStatusRequest, signal?: AbortSignal): Promise<GitStatusResult>',
+        description: 'Read one repository\'s status through the selected provider. A result above the request\'s (or configured) entry cap is truncated and flagged.',
+        parameters: [{ name: 'request', description: 'the repository root and optional entry cap.' }, { name: 'signal', description: 'optional cancellation forwarded to the provider.' }],
+        returns: 'the status, cut to the effective entry cap.',
+      },
+      {
+        signature: 'async diff(request: GitDiffRequest, signal?: AbortSignal): Promise<GitFileDiff>',
+        description: 'Read one file\'s HEAD and worktree texts through the selected provider.',
+        parameters: [{ name: 'request', description: 'the repository root, file path, and optional byte cap.' }, { name: 'signal', description: 'optional cancellation forwarded to the provider.' }],
+        returns: 'the two texts, each within the effective byte cap.',
+      },
+    ],
+  },
+  {
     key: 'goals',
     summary: 'Goal service (`ctx.goals`) backed exclusively by the owning session log.',
     description: 'Goal service (`ctx.goals`) backed exclusively by the owning session log.',
@@ -3143,6 +3168,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'signal', description: 'generation cancellation.' }],
         returns: '`ready` once the Host observation queue is active and the workspace root is resolved, then queued and live observations in emission order.',
       },
+      {
+        signature: '@Remote async scmStatus(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): Promise<WorkspaceScmState>',
+        description: 'Report the Session workspace root\'s git status relative to HEAD for the explorer\'s change badges. A Host without the git seam answers `present: false`; a workspace that is not a repository answers `notRepository` with no entries; any other provider refusal crosses as a normal failure.',
+        parameters: [{ name: 'workspaceFileScope', description: 'header-derived workspace root for the Session identity on the wire.' }, { name: 'signal', description: 'caller cancellation.' }],
+        returns: 'the workspace\'s git state.',
+      },
     ],
   },
   {
@@ -4537,6 +4568,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'GenericResultView',
     declaration: 'export interface GenericResultView {\n    card: \'generic\';\n    title?: string;\n    content?: ContentBlock[];\n}',
+  },
+  {
+    name: 'GitDiffRequest',
+    declaration: 'export interface GitDiffRequest {\n    readonly workspaceRoot: string;\n    readonly path: string;\n    readonly maxFileBytes?: number;\n}',
+  },
+  {
+    name: 'GitFileDiff',
+    declaration: 'export interface GitFileDiff {\n    readonly path: string;\n    readonly oldText: string | null;\n    readonly newText: string | null;\n}',
+  },
+  {
+    name: 'GitFileStatus',
+    declaration: 'export type GitFileStatus = \'modified\' | \'added\' | \'deleted\' | \'untracked\' | \'other\';',
+  },
+  {
+    name: 'GitProvider',
+    declaration: 'export interface GitProvider {\n    readonly id: string;\n    available(): boolean;\n    status(request: GitStatusRequest, signal?: AbortSignal): Promise<GitStatusResult>;\n    diff(request: GitDiffRequest, signal?: AbortSignal): Promise<GitFileDiff>;\n}',
+  },
+  {
+    name: 'GitStatusEntry',
+    declaration: 'export interface GitStatusEntry {\n    readonly path: string;\n    readonly status: GitFileStatus;\n}',
+  },
+  {
+    name: 'GitStatusRequest',
+    declaration: 'export interface GitStatusRequest {\n    readonly workspaceRoot: string;\n    readonly maxEntries?: number;\n}',
+  },
+  {
+    name: 'GitStatusResult',
+    declaration: 'export interface GitStatusResult {\n    readonly head: string | null;\n    readonly entries: readonly GitStatusEntry[];\n    readonly truncated: boolean;\n}',
   },
   {
     name: 'GoalActivation',
@@ -6825,6 +6884,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WorkspaceRenameRequest',
     declaration: 'export interface WorkspaceRenameRequest {\n    readonly workspaceId: WorkspaceId;\n    readonly title: string;\n}',
+  },
+  {
+    name: 'WorkspaceScmEntry',
+    declaration: 'export interface WorkspaceScmEntry {\n    readonly path: string;\n    readonly status: WorkspaceScmStatus;\n}',
+  },
+  {
+    name: 'WorkspaceScmState',
+    declaration: 'export type WorkspaceScmState = {\n    readonly present: false;\n} | {\n    readonly present: true;\n    readonly notRepository: boolean;\n    readonly head: string | null;\n    readonly entries: readonly WorkspaceScmEntry[];\n    readonly truncated: boolean;\n};',
+  },
+  {
+    name: 'WorkspaceScmStatus',
+    declaration: 'export type WorkspaceScmStatus = \'modified\' | \'added\' | \'deleted\' | \'untracked\' | \'other\';',
   },
   {
     name: 'WorkspaceValue',

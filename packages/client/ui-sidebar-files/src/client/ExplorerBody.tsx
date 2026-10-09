@@ -35,7 +35,7 @@ const REVEAL_HIGHLIGHT_MS = 2500
  * request expands and re-lists the file's ancestors and highlights its row.
  */
 export function ExplorerBody({
-  sessionId, useSessions, useStore, actions, start, load, toggle, open, subscribeReveals, t,
+  sessionId, useSessions, useStore, actions, start, load, toggle, reloadScm, open, subscribeReveals, t,
 }: ExplorerBodyProps): ReactNode {
   const cwd = useSessions(sessions => sessions.byId[sessionId]?.cwd)
   const state = useStore(store => store.byTree[sessionId])
@@ -105,6 +105,7 @@ export function ExplorerBody({
   const reload = (): void => {
     actions.reset(sessionId)
     for (const path of state.expanded) load(sessionId, path, signal)
+    reloadScm(sessionId, signal)
   }
   const { name } = pathPartsOf(state.root)
   return (

@@ -20,10 +20,13 @@
  * file content across the wire, which is a different level of exposure.
  */
 
+import { randomUUID } from 'node:crypto'
 import { posix, win32 } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-checkpoint'
 import type {} from '@deepseek-ai/dsh-fs'
+import type {} from '@deepseek-ai/dsh-git'
 import type { FsDirEntry, FsInfo, FsTarget, FsVersion, FsWriteIntent } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
@@ -40,6 +43,7 @@ import type {
   WorkspaceFileStat,
   WorkspaceFileText,
   WorkspaceFileWatchFrame,
+  WorkspaceScmState,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -394,6 +398,7 @@ export class WorkspaceFiles extends TypertRemoteService {
     if (present !== undefined && present.type !== 'file') {
       throw new RemoteError('workspace-file/not-regular-file', `"${path}" is a ${present.type}`, { path, kind: present.type })
     }
+    const replaced = present === undefined ? null : await this.replacedText(workspaceFileScope, path, signal)
     const intent: FsWriteIntent | undefined = expectedVersion === undefined
       ? undefined
       : { kind: 'replaceIfVersion', version: expectedVersion as FsVersion }
@@ -409,7 +414,62 @@ export class WorkspaceFiles extends TypertRemoteService {
       }
       throw error
     }
+    // A committed save is a stop like any other write: the timeline derives
+    // from observations, and this door is the human half of them.
+    this.observeSave(workspaceFileScope, target, replaced, content)
     return this.statOf(target, await this.statTarget(target, path, signal))
+  }
+
+  /**
+   * The text a save is about to overwrite; null when the prior read fails
+   * (an oversize or concurrently removed file), so capture keeps its
+   * after side alone.
+   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+   * @param path - the file the save addresses.
+   * @param signal - caller cancellation.
+   * @returns the prior content, or null when it cannot be read.
+   */
+  private async replacedText(
+    workspaceFileScope: WorkspaceFileScope,
+    path: string,
+    signal: AbortSignal,
+  ): Promise<string | null> {
+    try {
+      const whole = await this.readAll(workspaceFileScope, path, signal)
+      return Buffer.from(whole.data, 'base64').toString('utf8')
+    } catch {
+      // A prior read may refuse (size cap, concurrent removal): the save
+      // proceeds and the stop carries only its after text.
+      return null
+    }
+  }
+
+  /**
+   * Attribute one committed save to its session's checkpoint ledger as a
+   * human stop; absent checkpoint or live session records nothing.
+   * @param workspaceFileScope - the session identity that performed the save.
+   * @param target - the written file.
+   * @param before - the overwritten text, when readable.
+   * @param after - the saved text.
+   */
+  private observeSave(
+    workspaceFileScope: WorkspaceFileScope,
+    target: FsTarget,
+    before: string | null,
+    after: string,
+  ): void {
+    const session = this.ctx.get('sessions')?.get(workspaceFileScope.sessionId)
+    const checkpoint = this.ctx.get('checkpoint')
+    if (session === undefined || checkpoint === undefined) return
+    void checkpoint.captureWrite(
+      {
+        agent: { session },
+        callId: `save-${randomUUID()}`,
+        name: 'human-save',
+        purpose: 'human save',
+      },
+      { path: this.ctx.fs.processPath(target), before, after },
+    )
   }
 
   /**
@@ -424,6 +484,29 @@ export class WorkspaceFiles extends TypertRemoteService {
   @Remote({ mode: 'stream' })
   changes(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame> {
     return this.feed.follow(workspaceFileScope.workspaceRoot, signal)
+  }
+
+  /**
+   * Report the Session workspace root's git status relative to HEAD for the
+   * explorer's change badges. A Host without the git seam answers
+   * `present: false`; a workspace that is not a repository answers
+   * `notRepository` with no entries; any other provider refusal crosses as a
+   * normal failure.
+   * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+   * @param signal - caller cancellation.
+   * @returns the workspace's git state.
+   */
+  @Remote
+  async scmStatus(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): Promise<WorkspaceScmState> {
+    const git = this.ctx.get('git')
+    if (git === undefined) return { present: false }
+    try {
+      const result = await git.status({ workspaceRoot: workspaceFileScope.workspaceRoot }, signal)
+      return { present: true, notRepository: false, head: result.head, entries: result.entries, truncated: result.truncated }
+    } catch (error: unknown) {
+      if (isNotRepository(error)) return { present: true, notRepository: true, head: null, entries: [], truncated: false }
+      throw error
+    }
   }
 
   /** Apply the page defaults and caps here, so the request never carries them implicitly. */
@@ -524,6 +607,14 @@ export class WorkspaceFiles extends TypertRemoteService {
  */
 function isNotTextRefusal(error: unknown): boolean {
   return typeof error === 'object' && error !== null && 'code' in error && error.code === 'FS_NOT_TEXT'
+}
+
+/**
+ * The git seam's not-a-repository refusal, recognized by its code alone: the
+ * error class belongs to whichever `dsh-git` instance the provider loaded.
+ */
+function isNotRepository(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'GIT_NOT_REPOSITORY'
 }
 
 /**

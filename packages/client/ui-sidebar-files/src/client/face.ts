@@ -21,6 +21,7 @@
 import type { ClientRemote, RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { BoundActions } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import type { WorkspaceScmStatus } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type { FilesRevealChannel } from './reveal.ts'
 import type { DirLevel, TreeKey, createFilesStore } from './store.ts'
 
@@ -39,11 +40,28 @@ export type ListWorkspaceDirectory = (
 
 /**
  * The slice of the Client Remote face this package calls: the `workspaceFiles`
- * namespace's `list`, exactly as the Host's generated client declares it.
+ * namespace's `list` and `scmStatus`, exactly as the Host's generated client
+ * declares them.
  */
 export type WorkspaceFilesListRemote = {
-  readonly workspaceFiles: Pick<ClientRemote['workspaceFiles'], 'list'>
+  readonly workspaceFiles: Pick<ClientRemote['workspaceFiles'], 'list' | 'scmStatus'>
 }
+
+/** One workspace git read: changed paths by repository-relative path, or a quiet failure. */
+export type ScmResult =
+  | {
+    readonly ok: true
+    /** The workspace carries no git repository. */
+    readonly notRepository: boolean
+    readonly entries: Readonly<Record<string, WorkspaceScmStatus>>
+  }
+  | { readonly ok: false }
+
+/** One workspace git read bound to the owner's lifetime. */
+export type LoadWorkspaceScm = (
+  sessionId: SessionId,
+  signal: AbortSignal,
+) => Promise<ScmResult>
 
 /**
  * Bind the listing to one Remote face, keeping only what the tree stores.
@@ -55,6 +73,23 @@ export function createList(remote: WorkspaceFilesListRemote): ListWorkspaceDirec
     const result = await remote.workspaceFiles.list(sessionId, path, signal)
     if (!result.ok) return result
     return { ok: true, value: { entries: result.value.entries, truncated: result.value.truncated } }
+  }
+}
+
+/**
+ * Bind the workspace git read to one Remote face: a Host without the git
+ * seam or a failed read answers `ok: false` and the tree simply draws no
+ * badges.
+ * @param remote - the Client Remote face carrying the `workspaceFiles` namespace.
+ * @returns the git read the tree's face performs alongside the root listing.
+ */
+export function createScm(remote: WorkspaceFilesListRemote): LoadWorkspaceScm {
+  return async (sessionId, signal) => {
+    const result = await remote.workspaceFiles.scmStatus(sessionId, signal)
+    if (!result.ok || !result.value.present) return { ok: false }
+    const entries: Record<string, WorkspaceScmStatus> = {}
+    for (const entry of result.value.entries) entries[entry.path] = entry.status
+    return { ok: true, notRepository: result.value.notRepository, entries }
   }
 }
 
@@ -95,6 +130,13 @@ export interface FilesInjected {
    * @param signal - the owner's lifetime.
    */
   readonly toggle: (key: TreeKey, path: string, loaded: boolean, signal: AbortSignal) => void
+  /**
+   * Ask for the root's git state again; a failed or seam-less read leaves
+   * the previous state alone.
+   * @param key - the tree being drawn.
+   * @param signal - the owner's lifetime.
+   */
+  readonly reloadScm: (key: TreeKey, signal: AbortSignal) => void
 }
 
 /** The explorer column's face: the tree's face plus opening a file into the panes. */
@@ -119,6 +161,7 @@ export interface ExplorerInjected extends FilesInjected {
  */
 export function filesFace(
   list: ListWorkspaceDirectory,
+  scm: LoadWorkspaceScm,
 ): (sessionId: SessionId, actions: BoundActions<ReturnType<typeof createFilesStore>>) => FilesInjected {
   return (
     sessionId: SessionId,
@@ -145,6 +188,16 @@ export function filesFace(
         else actions.failed(key, path, result.error)
       })
     }
+    const loadScm = (key: TreeKey, signal: AbortSignal): void => {
+      if (signal.aborted) return
+      const generation = nextGeneration(key, '')
+      actions.scmLoading(key)
+      void scm(sessionId, signal).then((result) => {
+        if (generations.get(key)?.get('') !== generation) return
+        if (result.ok) actions.scmLoaded(key, result.notRepository, result.entries)
+        else actions.scmFailed(key)
+      })
+    }
     return {
       start(key, root, signal) {
         actions.start(key, root)
@@ -153,11 +206,15 @@ export function filesFace(
           actions.forget(key)
         }, { once: true })
         load(key, root, signal)
+        loadScm(key, signal)
       },
       load,
       toggle(key, path, loaded, signal) {
         actions.toggled(key, path)
         if (!loaded) load(key, path, signal)
+      },
+      reloadScm(key, signal) {
+        loadScm(key, signal)
       },
     }
   }
@@ -174,11 +231,12 @@ export function filesFace(
  */
 export function explorerFace(
   list: ListWorkspaceDirectory,
+  scm: LoadWorkspaceScm,
   open: (address: string) => void,
   channel: FilesRevealChannel,
 ): (sessionId: SessionId, actions: BoundActions<ReturnType<typeof createFilesStore>>) => ExplorerInjected {
   return (sessionId, actions) => ({
-    ...filesFace(list)(sessionId, actions),
+    ...filesFace(list, scm)(sessionId, actions),
     open,
     subscribeReveals: listener => channel.subscribe((request) => {
       if (request.sessionId === sessionId) listener(request.path)

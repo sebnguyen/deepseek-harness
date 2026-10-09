@@ -30,6 +30,11 @@ export const zh = {
   'error.notFound': '这个目录不在了。可能已被移动或删除。',
   'error.notDirectory': '这不是一个目录。',
   'error.unavailable': '读取失败：{message}',
+  'scm.modified': '相对 HEAD 有修改',
+  'scm.added': '相对 HEAD 的新文件',
+  'scm.deleted': '相对 HEAD 已删除',
+  'scm.untracked': '未被 git 跟踪',
+  'scm.other': '相对 HEAD 已重命名或类型改变',
 } satisfies Record<string, string>
 
 /** Files dictionary key union. */
@@ -47,4 +52,9 @@ export const en = {
   'error.notFound': 'That directory is gone. It may have been moved or deleted.',
   'error.notDirectory': 'That is not a directory.',
   'error.unavailable': 'Read failed: {message}',
+  'scm.modified': 'Modified relative to HEAD',
+  'scm.added': 'New file relative to HEAD',
+  'scm.deleted': 'Deleted relative to HEAD',
+  'scm.untracked': 'Not tracked by git',
+  'scm.other': 'Renamed or type-changed relative to HEAD',
 } satisfies Record<SidebarFilesKey, string>

@@ -21,6 +21,35 @@
   min-width: 100%;
 }
 
+.badge {
+  margin-left: auto;
+  padding-left: 8px;
+  font-family: var(--dsh-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.badge[data-files-scm='modified'] {
+  color: #e2b93d;
+}
+
+.badge[data-files-scm='added'] {
+  color: #73c991;
+}
+
+.badge[data-files-scm='deleted'] {
+  color: #e07a7a;
+}
+
+.badge[data-files-scm='untracked'] {
+  color: #73a9c9;
+}
+
+.badge[data-files-scm='other'] {
+  color: var(--dsh-fg-muted, #999);
+}
+
 .item {
   margin: 0;
   padding: 0;

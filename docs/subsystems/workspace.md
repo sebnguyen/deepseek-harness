@@ -333,7 +333,21 @@ Host Remote file reads and workspace directory observations over the composed fi
  *   root is resolved, then queued and live observations in emission order.
  */
 @Remote({ mode: 'stream' }) changes(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): AsyncIterable<WorkspaceFileWatchFrame>
+
+/**
+ * Report the Session workspace root's git status relative to HEAD for the
+ * explorer's change badges. A Host without the git seam answers
+ * `present: false`; a workspace that is not a repository answers
+ * `notRepository` with no entries; any other provider refusal crosses as a
+ * normal failure.
+ * @param workspaceFileScope - header-derived workspace root for the Session identity on the wire.
+ * @param signal - caller cancellation.
+ * @returns the workspace's git state.
+ */
+@Remote async scmStatus(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): Promise<WorkspaceScmState>
 ```
+
+Types: [WorkspaceScmState](sidebar-right.md)
 
 Source: [`packages/api/workspace-files/src/index.ts`](../../packages/api/workspace-files/src/index.ts)
 

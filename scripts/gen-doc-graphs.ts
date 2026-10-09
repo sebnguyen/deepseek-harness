@@ -81,6 +81,7 @@ const GROUP_ORDER = [
   'workflow',
   'web',
   'webhook',
+  'git',
   'spill',
   'todo',
   'plan',
@@ -633,6 +634,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     implementations: ['web-search-exa', 'web-search-perplexity', 'web-search-deepseek', 'web-fetch-http'],
     consumers: ['tool-web'],
     note: 'Search and fetch providers register into one ctx.web seam; tool-web owns the stable model-facing names.',
+  },
+  {
+    key: 'git',
+    pkg: 'git',
+    title: 'Read-only git provider registry',
+    mode: 'seam',
+    implementations: ['git-isomorphic'],
+    consumers: ['api-workspace-files'],
+    note: 'Providers run status and diff reads through the composed ctx.fs; api-workspace-files exposes scmStatus to the explorer\'s change badges.',
   },
   {
     key: 'spillStore',

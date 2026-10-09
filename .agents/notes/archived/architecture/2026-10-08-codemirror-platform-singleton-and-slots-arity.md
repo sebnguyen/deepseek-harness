@@ -1,6 +1,7 @@
 # Agent Note: CodeMirror state as a platform singleton, and full-arity remote calls
 
 Status: implemented
+Archived: 2026-10-08
 
 ## Problem
 

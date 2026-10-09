@@ -63,7 +63,7 @@ function usePathClipped(
 
 /** The file tree's body: the workspace root and whatever the reader has opened under it. */
 export function FilesBody({
-  useTabInfo, sessionId, useSessions, useStore, actions, start, load, toggle, t,
+  useTabInfo, sessionId, useSessions, useStore, actions, start, load, toggle, reloadScm, t,
 }: FilesBodyProps): ReactNode {
   const { tab } = useTabInfo()
   const { signal, actions: tabActions } = tab
@@ -99,6 +99,7 @@ export function FilesBody({
   const reload = (): void => {
     actions.reset(tab.id)
     for (const path of state.expanded) load(tab.id, path, signal)
+    reloadScm(tab.id, signal)
   }
   const { directory, name } = pathPartsOf(state.root)
   return (

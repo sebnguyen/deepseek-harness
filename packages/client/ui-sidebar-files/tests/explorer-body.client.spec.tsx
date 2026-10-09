@@ -15,6 +15,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { explorerFace } from '../src/client/face.ts'
+import type { LoadWorkspaceScm } from '../src/client/face.ts'
 import { ExplorerBody } from '../src/client/ExplorerBody.tsx'
 import type { ExplorerBodyProps } from '../src/client/ExplorerBody.tsx'
 import { zh } from '../src/client/locales.ts'
@@ -53,12 +54,12 @@ interface Mounted {
 }
 
 /** Mount the column over one store instance and a scripted listing. */
-function mountExplorer(cwd: string | null = ROOT): Mounted {
+function mountExplorer(cwd: string | null = ROOT, scm: LoadWorkspaceScm = async () => ({ ok: false })): Mounted {
   const instance = createFilesStore().create()
   const script = scriptedList()
   const open = vi.fn<(address: string) => void>()
   const channel = createRevealChannel()
-  const face = explorerFace(script.list, open, channel)(SESSION, instance.actions)
+  const face = explorerFace(script.list, scm, open, channel)(SESSION, instance.actions)
   const sessions = { byId: cwd === null ? {} : { [SESSION]: { cwd } } } as unknown as SessionListState
   const view = render(<ExplorerBody
     {...{
@@ -151,6 +152,61 @@ describe('ExplorerBody', () => {
     act(() => { channel.request({ sessionId: 's-other' as SessionId, path: `${ROOT}/README.md` }) })
     expect(script.list).not.toHaveBeenCalled()
     expect(view.container.querySelector('[data-files-highlighted]')).toBeNull()
+  })
+
+  it('a reveal while the session has no tree writes nothing', () => {
+    const { view, script, channel } = mountExplorer(null)
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
+    expect(script.list).not.toHaveBeenCalled()
+    expect(view.container.querySelector('[data-files-highlighted]')).toBeNull()
+  })
+
+  it('a reveal skips re-listing an ancestor already in flight', async () => {
+    const { view, script, channel } = mountExplorer()
+    // The mount listing of the root is still outstanding when the reveal
+    // lands, so the root is not re-asked; only the unlisted ancestor is.
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/src/a.ts` }) })
+    expect(script.list).toHaveBeenCalledTimes(2)
+    expect(script.list.mock.calls.map(call => call[1])).toEqual([ROOT, `${ROOT}/src`])
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    await act(() => script.settle({ ok: true, value: { entries: [{ name: 'a.ts', type: 'file' }], truncated: false } }))
+    expect(view.container.querySelector(`[data-files-path="${ROOT}/src/a.ts"]`)).not.toBeNull()
+  })
+
+  it('a second reveal clears the pending highlight timer', async () => {
+    const { view, script, channel } = mountExplorer()
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
+    expect(view.container.querySelector('[data-files-highlighted]')).not.toBeNull()
+  })
+
+  it('a ready git state draws the row badges', async () => {
+    const { view, script } = mountExplorer(ROOT, async () => ({
+      ok: true,
+      notRepository: false,
+      entries: { 'README.md': 'modified' },
+    }))
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    await act(() => new Promise(resolve => setTimeout(resolve, 0)))
+    const badge = view.container.querySelector(`[data-files-path="${ROOT}/README.md"] [data-files-scm="modified"]`)
+    expect(badge?.getAttribute('title')).toBe(zh['scm.modified'])
+    expect(view.container.querySelector(`[data-files-path="${ROOT}/src"] [data-files-scm]`)).toBeNull()
+  })
+
+  it('a highlighted row scrolls itself into view', async () => {
+    const original = Element.prototype.scrollIntoView
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      const { view, script, channel } = mountExplorer()
+      await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+      act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
+      expect(view.container.querySelector('[data-files-highlighted]')).not.toBeNull()
+      expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+    } finally {
+      Element.prototype.scrollIntoView = original
+    }
   })
 
   it('the reveal highlight expires on its own', async () => {

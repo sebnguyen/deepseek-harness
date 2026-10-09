@@ -86,7 +86,7 @@ describe('ui-editor client apply', () => {
     expect(definition.canOpen?.('dsh-resource://file/session/s-1/notes.md')).toBe(true)
     expect(definition.canOpen?.('dsh-resource://file/absolute/notes.md')).toBe(false)
     expect(locales.map(entry => entry[0])).toEqual(['editor'])
-    expect(injected).toEqual(['sidebar.right.pane.tab', 'editor.cm.extension'])
+    expect(injected).toEqual(['sidebar.right.pane.tab', 'editor.annotation'])
     expect(bodies).toEqual([EDITOR_ID, 'editor-change-markers'])
     if (specification === undefined) throw new Error('the body must register with an inject face')
     const face = specification.inject() as {
@@ -106,6 +106,6 @@ describe('ui-editor client apply', () => {
     expect(restores).toEqual(['s-1/notes.txt@sha256:aa'])
     hostApply()
     await fiber.dispose()
-    expect(disposed.sort()).toEqual(['body', 'editor.cm.extension', 'entry', 'locale', 'sidebar.right.pane.tab', 'type'])
+    expect(disposed.sort()).toEqual(['body', 'editor.annotation', 'entry', 'locale', 'sidebar.right.pane.tab', 'type'])
   })
 })

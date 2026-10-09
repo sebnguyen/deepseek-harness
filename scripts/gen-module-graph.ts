@@ -24,6 +24,7 @@ const GROUP_ORDER = [
   'compact',
   'subagent',
   'web',
+  'git',
   'spill',
   'timeout',
   'todo',

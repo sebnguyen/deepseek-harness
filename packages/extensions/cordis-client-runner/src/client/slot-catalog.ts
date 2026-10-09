@@ -1544,11 +1544,11 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     source: 'packages/client/ui-conversation/src/client/contract/slots.ts:156',
   },
   {
-    key: 'editor.cm.extension',
+    key: 'editor.annotation',
     kind: 'list',
     scope: 'session',
-    summary: 'CodeMirror extensions composed into the session\'s source editor by contributng plugins; each entry owns its extension\'s lifecycle.',
-    doc: 'CodeMirror extensions composed into the session\'s source editor by\ncontributng plugins; each entry owns its extension\'s lifecycle.',
+    summary: 'Annotations composed into the session\'s source editor by contributing plugins: entries mint extensions with the shared runtime and publish plain gutter markers, so one CodeMirror instance serves every view.',
+    doc: 'Annotations composed into the session\'s source editor by contributing\nplugins: entries mint extensions with the shared runtime and publish\nplain gutter markers, so one CodeMirror instance serves every view.',
     registerOptions: [
       {
         name: 'id',
@@ -1570,9 +1570,13 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       },
     ],
     ownerProps: [
-      '/**\n * One owner share an `editor.cm.extension` entry receives at render time:\n * the addressed file, and the sole supported mutation of the live view.\n */\nexport interface EditorCmExtensionOwner {\n  /** The session-scoped file the body\'s view is over. */\n  readonly file: SessionFile\n  /**\n   * Append one extension to the live view (`appendConfig`); extensions present\n   * at view creation time ride the initial state. Views are created per loaded\n   * generation, so a disposer only shapes later views.\n   * @returns disposer removing the extension from future view creations.\n   */\n  readonly append: (extension: Extension) => () => void\n  /** One retained snapshot text of this session\'s store; null when absent. */\n  readonly blob: (digest: string) => Promise<string | null>\n  /** The live view while the edit mode shows it; undefined otherwise. */\n  readonly view: () => EditorView | undefined\n  /** Bumps once per view creation, so entries reseed fields into fresh views. */\n  readonly viewVersion: number\n}',
+      '/**\n * One owner share an `editor.annotation` entry receives at render time:\n * the addressed file, the shared CodeMirror runtime with its admission\n * doors, and the data-level gutter bulletin the editor composites.\n */\nexport interface EditorAnnotationOwner {\n  /** The session-scoped file the body\'s view is over. */\n  readonly file: SessionFile\n  /** One retained snapshot text of this session\'s store; null when absent. */\n  readonly blob: (digest: string) => Promise<string | null>\n  /** Bumps once per view creation, so entries republish their markers. */\n  readonly viewVersion: number\n  /** The provider\'s CodeMirror namespaces; mint contributions with these. */\n  readonly modules: EditorRuntimeModules\n  /** The live view while source mode shows one; undefined otherwise. */\n  readonly liveView: () => EditorView | undefined\n  /**\n   * Retain one extension under an id and append it to the live view; the\n   * retained value replays into every later generated view.\n   * @returns disposer removing the id from the live and future views.\n   */\n  readonly add: (id: string, extension: Extension) => () => void\n  /** Set one compartment\'s content, installed or swapped in the live view. */\n   /* …truncated — full shape in source */',
     ],
-    ownerPropsReferences: [],
+    ownerPropsReferences: [
+      'EditorGutterDescriptor',
+      'EditorGutterMarker',
+      'EditorRuntimeModules',
+    ],
     standardProps: [
       'useResource: UseResource',
       'useWorkspaces: SnapshotSelectorHook<WorkspaceSnapshot>',
@@ -1601,8 +1605,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-line-note LineNoteGutter id \'line-note\'',
     ],
     replaceRisk: 'none',
-    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'editor.cm.extension\', () => ctx.slots.register(\n      { name: \'editor.cm.extension\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-editor/src/client/contract/slots.ts:59',
+    example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'editor.annotation\', () => ctx.slots.register(\n      { name: \'editor.annotation\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
+    source: 'packages/client/ui-editor/src/client/contract/slots.ts:121',
   },
   {
     key: 'main',

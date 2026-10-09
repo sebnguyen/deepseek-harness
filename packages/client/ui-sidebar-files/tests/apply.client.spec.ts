@@ -17,6 +17,7 @@ import { FilesBody } from '../src/client/FilesBody.tsx'
 import { FilesTitle } from '../src/client/FilesTitle.tsx'
 import { ExplorerBody } from '../src/client/ExplorerBody.tsx'
 import { en, zh } from '../src/client/locales.ts'
+import { createFilesStore } from '../src/client/store.ts'
 
 interface Recorded {
   name: string
@@ -48,21 +49,43 @@ async function boot() {
       return () => { dictionaries.delete(ns) }
     }),
   }
-  const workspaceFiles = { list: vi.fn() }
+  const workspaceFiles = { list: vi.fn(), scmStatus: vi.fn() }
+  const sidebarRight = { openResource: vi.fn() }
   ctx.provide('sidebarRightTabs', tabs as never)
-  ctx.provide('sidebarRight', { openResource: vi.fn() } as never)
+  ctx.provide('sidebarRight', sidebarRight as never)
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   ctx.provide('remote', { workspaceFiles } as never)
   ctx.provide('remote.workspaceFiles', workspaceFiles as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { tabs, registered, dictionaries, fiber }
+  return { tabs, registered, dictionaries, fiber, ctx, sidebarRight }
 }
 
 describe('ui-sidebar-files apply', () => {
   it('keeps the host Loader entry inert', () => {
     expect(hostApply).not.toThrow()
+  })
+
+  it('the explorer seat face opens through the sidebar and the reveal extension feeds the channel', async () => {
+    const ROOT = '/work/app'
+    const { registered, ctx, sidebarRight } = await boot()
+    const instance = createFilesStore().create()
+    const explorer = registered.find(entry => entry.name === 'sidebar.right.explorer')!
+    const face = (explorer.inject as (sessionId: string, actions: unknown) => {
+      open: (address: string) => void
+      subscribeReveals: (listener: (path: string) => void) => () => void
+    })('s-x', instance.actions)
+    const seen: string[] = []
+    const unsubscribe = face.subscribeReveals((path) => {
+      seen.push(path)
+    })
+    const extensions = ctx.get('sidebarFilesExtensions') as { revealIn: (sessionId: string, path: string) => void }
+    extensions.revealIn('s-x', `${ROOT}/a.ts`)
+    expect(seen).toEqual([`${ROOT}/a.ts`])
+    unsubscribe()
+    face.open('sidebar://s-x/a.ts')
+    expect(sidebarRight.openResource).toHaveBeenCalledWith('sidebar://s-x/a.ts')
   })
 
   it('registers the type, its dictionaries, and the body, title, and explorer seats', async () => {

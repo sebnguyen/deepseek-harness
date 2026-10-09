@@ -196,7 +196,30 @@ export function collectClientPackageViolations(facts: ClientPackageFacts): strin
     ...facts.malformed,
     ...collectModeViolations(facts),
     ...collectModuleViolations(facts),
+    ...collectCodeMirrorViolations(facts),
   ].sort((left, right) => left.localeCompare(right))
+}
+
+/**
+ * CodeMirror confinement: only the editor package imports CodeMirror at
+ * runtime; every other client plugin mints contributions through the
+ * editor's shared namespaces, so one copy crosses plugin boundaries.
+ * @param facts - collected facts of every client package.
+ * @returns One violation per foreign runtime CodeMirror import.
+ */
+function collectCodeMirrorViolations(facts: ClientPackageFacts): string[] {
+  const violations: string[] = []
+  for (const pkg of facts.packages) {
+    if (pkg.name === '@deepseek-ai/dsh-client-ui-editor') continue
+    for (const name of Object.keys(pkg.runtimeSourceUses)) {
+      if (name === 'codemirror' || name.startsWith('@codemirror/')) {
+        violations.push(
+          `${pkg.name}: runtime CodeMirror import ${name}; only @deepseek-ai/dsh-client-ui-editor may import CodeMirror`,
+        )
+      }
+    }
+  }
+  return violations
 }
 
 interface ManifestDocument {

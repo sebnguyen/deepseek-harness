@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
-import { createFilesStore } from '../src/client/store.ts'
+import { createFilesStore, scmBadgeOf } from '../src/client/store.ts'
 import type { DirLevel } from '../src/client/store.ts'
 import type { TabId } from '@deepseek-ai/dsh-client-ui-dockkit'
 
@@ -39,7 +39,7 @@ describe('createFilesStore', () => {
     const getSnapshot = (): ReturnType<typeof store.getSnapshot> => store.getSnapshot()
     actions.start(TAB, ROOT)
     expect(getSnapshot().byTree[TAB]).toEqual({
-      root: ROOT, levels: {}, expanded: [ROOT], highlighted: null,
+      root: ROOT, levels: {}, expanded: [ROOT], highlighted: null, scm: { kind: 'idle' },
     })
   })
 
@@ -83,7 +83,7 @@ describe('createFilesStore', () => {
     actions.loaded(TAB, child, LEVEL)
     actions.reset(TAB)
     expect(getSnapshot().byTree[TAB]).toEqual({
-      root: ROOT, levels: {}, expanded: [ROOT, child], highlighted: null,
+      root: ROOT, levels: {}, expanded: [ROOT, child], highlighted: null, scm: { kind: 'idle' },
     })
   })
 
@@ -141,5 +141,27 @@ describe('createFilesStore', () => {
     actions.start('tab-2' as TabId, ROOT)
     actions.forget(TAB)
     expect(Object.keys(getSnapshot().byTree)).toEqual(['tab-2'])
+  })
+})
+
+describe('scm state', () => {
+  it('tracks loading, loaded, and failed badge states', () => {
+    const store = createFilesStore().create()
+    const { actions } = store
+    const getSnapshot = (): ReturnType<typeof store.getSnapshot> => store.getSnapshot()
+    actions.start(TAB, ROOT)
+    actions.scmLoading(TAB)
+    expect(getSnapshot().byTree[TAB]!.scm).toEqual({ kind: 'loading' })
+    actions.scmLoaded(TAB, false, { 'a.txt': 'modified' })
+    const ready = getSnapshot().byTree[TAB]!
+    expect(ready.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'a.txt': 'modified' } })
+    expect(scmBadgeOf(ready, `${ROOT}/a.txt`)).toBe('modified')
+    expect(scmBadgeOf(ready, `${ROOT}/sub/b.ts`)).toBeUndefined()
+    expect(scmBadgeOf(ready, '/elsewhere/a.txt')).toBeUndefined()
+    actions.scmLoaded(TAB, true, { 'a.txt': 'modified' })
+    expect(scmBadgeOf(getSnapshot().byTree[TAB]!, `${ROOT}/a.txt`)).toBeUndefined()
+    actions.scmFailed(TAB)
+    expect(getSnapshot().byTree[TAB]!.scm).toEqual({ kind: 'failed' })
+    expect(scmBadgeOf(getSnapshot().byTree[TAB]!, `${ROOT}/a.txt`)).toBeUndefined()
   })
 })
