@@ -2,6 +2,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type {} from '@deepseek-ai/dsh-checkpoint/remote'
 import type { SessionBinding } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -44,9 +45,11 @@ const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
 }
 
 /** Services required by the Chat target and its presentation registrations. */
+import { TurnChipRow, type TurnChipsInjected } from './chat/TurnChipRow.tsx'
+
 export const inject = [
   'slots', 'sessions', 'uiSession', 'uiConversation', 'locale',
-  'remote', 'remote.session', 'sidebarRight',
+  'remote', 'remote.session', 'remote.checkpoint', 'sidebarRight',
 ]
 
 /**
@@ -130,7 +133,14 @@ export function apply(ctx: Context): void {
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
             const url = fileAddressFor(sessionId, cwd, path)
-            if (options?.line === undefined) ctx.sidebarRight.openResource(url)
+            if (options?.display === 'changes') {
+              ctx.sidebarRight.openResource(url, {
+                params: options.stop === undefined
+                  ? { display: 'changes' }
+                  : { display: 'changes', stop: options.stop },
+              })
+            }
+            else if (options?.line === undefined) ctx.sidebarRight.openResource(url)
             else ctx.sidebarRight.openResource(url, { params: { line: options.line } })
             await Promise.resolve()
           },
@@ -168,6 +178,16 @@ export function apply(ctx: Context): void {
     return disposeView
   })
 
+  ctx.slots.inject('conversation.chat.turnChips', () => ctx.slots.register({
+    name: 'conversation.chat.turnChips',
+    id: 'turn-chip-row',
+    order: 10,
+    locale: 'chat',
+    inject: (sessionId): TurnChipsInjected => ({
+      slots: () => ctx.remote.checkpoint.slots(sessionId).then(result => (result.ok ? result.value : [])),
+      blob: digest => ctx.remote.checkpoint.blob(sessionId, digest).then(result => (result.ok ? result.value : null)),
+    }),
+  }, TurnChipRow))
   ctx.slots.inject('conversation.composer.dock', () =>
     ctx.slots.register({
       name: 'conversation.composer.dock', id: 'stats', order: 0, locale: NS,

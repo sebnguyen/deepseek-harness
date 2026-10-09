@@ -1,0 +1,42 @@
+.gutter {
+  width: 14px;
+}
+
+.button {
+  border: none;
+  background: none;
+  color: var(--dsw-alias-text-secondary, #8b949e);
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0.35;
+  padding: 0;
+}
+
+.button:hover,
+.button:focus {
+  opacity: 1;
+}
+
+.noted {
+  opacity: 1;
+  color: var(--dsw-alias-state-business-primary, #2f6feb);
+}
+
+.pop {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  background: var(--dsw-alias-surface-raised, #161b22);
+  border: 1px solid var(--dsw-alias-border, #30363d);
+  border-radius: 6px;
+}
+
+.pop textarea {
+  width: 240px;
+  min-height: 48px;
+  resize: vertical;
+}

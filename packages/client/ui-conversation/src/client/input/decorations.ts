@@ -25,7 +25,9 @@ export interface TextRefRange {
  * word-ish name (never crosses \n). An `@` name may carry `#turn#call-id`
  * snapshot tails; the lexicon membership test still gates every hit.
  */
-const TEXT_REF_RE = /(^|\s)([/@])([\w.-]+(?:#[\w-]+)*)/g
+// The `@` name class carries `/` so typed paths decorate; the `#` tail
+// class also admits `.` and `/` so `#L<line>#<note-id>` tokens scan whole.
+const TEXT_REF_RE = /(^|\s)([/@])([\w./-]+(?:#[\w./-]+)*)/g
 const FOLDER_REF_RE = /(^|\s)(@(?:"[^"\n]*\/|[^\s"]+\/))/g
 /**
  * What may follow a `/name` token: whitespace or the draft end, the boundary

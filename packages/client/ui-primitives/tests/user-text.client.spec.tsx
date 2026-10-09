@@ -100,6 +100,23 @@ describe('projectUserText', () => {
     expect(host.textContent).toBe('会话一 收尾')
   })
 
+  it('chips snapshot and note addresses with their glyphs and click destinations', () => {
+    const openFile = vi.fn()
+    const openSkill = vi.fn()
+    const { container } = render(<div>
+      {projectUserText('fix @annot.md#2#call-9 and @annot.md#L3#note-a', [], [], 'skill', { openFile, openSkill })}
+    </div>)
+    const chips = [...container.querySelectorAll('[data-ref-chip]')]
+    expect(chips.map(c => c.getAttribute('data-ref-chip'))).toEqual(['snapshot', 'note'])
+    expect(chips.map(c => c.textContent)).toEqual(['annot.md', 'annot.md'])
+    fireEvent.click(chips[0] as Element)
+    fireEvent.click(chips[1] as Element)
+    expect(openFile.mock.calls).toEqual([
+      ['annot.md', { display: 'changes', stop: 'call-9' }],
+      ['annot.md', { line: 3 }],
+    ])
+  })
+
   it('falls back to the raw quoted label when the path has no basename', () => {
     const host = project('看 @"/" 下面')
     const chip = host.querySelector('[data-ref-chip="folder"]')!

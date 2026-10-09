@@ -1,15 +1,16 @@
 /**
- * Workspace timeline fold for the file-history view: reads the `checkpoint/scan`
- * rows a session logged and joins each to the `tool/call` that captured it, so
- * a stop carries its turn, step, and purpose without the row repeating them.
+ * Workspace timeline projection of the checkpoint slot register: maps each
+ * file's `worktree` slots onto the stop timeline the surviving consumers type
+ * against. Tombstones are already folded absent by the `slots` Remote, so the
+ * input carries live slots only.
  *
  * @module ui-file-history/fold
  */
-import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { CheckpointSlotTimeline } from '@deepseek-ai/dsh-checkpoint/types'
 import { relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 
-/** One captured stop of one file, joined to the call whose scan recorded it. */
+/** One captured stop of one file, projected from a `worktree` register slot. */
 export interface FileStop {
   /** Sequence number of the `checkpoint/scan` event that carried this stop. */
   readonly seq: number
@@ -38,7 +39,7 @@ export interface FileTimeline {
   readonly stops: readonly FileStop[]
 }
 
-/** The folded workspace timeline the view renders. */
+/** The folded workspace timeline the hook serves. */
 export interface FileHistorySnapshot {
   readonly files: readonly FileTimeline[]
 }
@@ -56,58 +57,42 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-/** Turn, step, and purpose of one call, read from its `tool/call` event. */
-interface CallFacts {
-  readonly turn: number
-  readonly step: number
-  readonly purpose?: string
-}
-
 /**
- * Fold one session's event window into per-file stop lists, oldest stop first.
- * Row paths rooted at the session working directory fold relative, so rows a
- * capture recorded before relativization still join their file's timeline.
- * @param entries - the session binding's live event window entries.
- * @param cwd - the session working directory; absolute row paths rooted there fold relative.
- * @returns every file the session changed, sorted by path, each with its stops.
+ * Project the register's per-file slot timelines onto per-file stop lists.
+ * Only `worktree` slots carry a write capture; every other kind belongs to
+ * another projection. Slot paths rooted at the session working directory fold
+ * relative, so paths a capture recorded before relativization still join their
+ * file's timeline.
+ * @param timelines - the checkpoint register as the `slots` Remote returns it.
+ * @param cwd - the session working directory; absolute slot paths rooted there fold relative.
+ * @returns every file the session changed, sorted by path, stops sorted by creation time.
  */
-export function foldFileHistory(entries: readonly SessionEventLikeEntry[], cwd?: string): FileHistorySnapshot {
-  const calls = new Map<string, CallFacts>()
+export function foldSlotTimelines(timelines: readonly CheckpointSlotTimeline[], cwd?: string): FileHistorySnapshot {
   const stops = new Map<string, FileStop[]>()
-  for (const entry of entries) {
-    if (entry.type !== 'event') continue
-    const event = entry.event
-    if (event.type === 'tool/call') {
-      calls.set(event.data.callId, {
-        turn: event.data.turn,
-        step: event.data.step,
-        ...event.data.purpose === undefined ? {} : { purpose: event.data.purpose },
-      })
-      continue
-    }
-    if (event.type !== 'checkpoint/scan') continue
-    for (const row of event.data.rows) {
-      const facts = calls.get(row.callId)
-      const purpose = row.purpose ?? facts?.purpose
+  for (const timeline of timelines) {
+    const path = relativizeToCwd(timeline.path, cwd)
+    for (const slot of timeline.slots) {
+      if (slot.kind !== 'worktree') continue
       const stop: FileStop = {
-        seq: event.seq,
-        time: event.time,
-        callId: row.callId,
-        toolName: row.toolName,
-        ...purpose === undefined ? {} : { purpose },
-        ...facts === undefined ? {} : { turn: facts.turn, step: facts.step },
-        ...row.before === undefined ? {} : { before: row.before },
-        ...row.after === undefined ? {} : { after: row.after },
+        seq: slot.createdAt,
+        time: slot.createdAt,
+        callId: slot.callId ?? slot.slotId,
+        toolName: 'toolName' in slot.detail ? slot.detail.toolName : slot.label,
+        ...slot.turn === undefined ? {} : { turn: slot.turn },
+        ...slot.before === undefined ? {} : { before: slot.before },
+        ...slot.after === undefined ? {} : { after: slot.after },
       }
-      const rowPath = relativizeToCwd(row.path, cwd)
-      const list = stops.get(rowPath)
-      if (list === undefined) stops.set(rowPath, [stop])
+      const list = stops.get(path)
+      if (list === undefined) stops.set(path, [stop])
       else list.push(stop)
     }
   }
   return {
     files: [...stops]
-      .map(([path, list]) => ({ path, stops: list as readonly FileStop[] }))
+      .map(([filePath, list]) => ({
+        path: filePath,
+        stops: list.sort((left, right) => left.time - right.time) as readonly FileStop[],
+      }))
       .sort((left, right) => left.path.localeCompare(right.path)),
   }
 }

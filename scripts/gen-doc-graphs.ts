@@ -570,8 +570,8 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'checkpoint',
     title: 'Workspace snapshot capture and restore',
     mode: 'core',
-    consumers: ['client-ui-file-history'],
-    note: 'Brackets every dispatch with a pruned workspace rescan, retains changed content in a per-session content-addressed store, and serves the blob/restore Remote that the file-history view and the checkpoint_restore tool drive.',
+    consumers: ['client-ui-file-history', 'client-ui-editor', 'client-ui-reference'],
+    note: 'Brackets every dispatch with a pruned workspace rescan, retains changed content in a per-session content-addressed store, and serves the blob/restore/stops/slots Remotes that the file-history hook, the editor Changes surface, the @-menu stops, and the checkpoint_restore tool drive.',
   },
   {
     key: 'fs',

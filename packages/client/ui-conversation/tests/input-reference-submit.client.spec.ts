@@ -208,6 +208,72 @@ describe('reference submission', () => {
   })
 })
 
+describe('typed reference tokens', () => {
+  /** A mutable @-lexicon the tests fill and drain to model roll churn. */
+  function lexiconBox() {
+    const box: { current: ReadonlyMap<'/' | '@', readonly string[]> } = {
+      current: new Map([['@', ['notes.md#2#call-9'] as readonly string[]]]),
+    }
+    const controller = {
+      serializeReference: (_source: string, ref: string) =>
+        Promise.resolve(`@${ref}\n\`\`\`\nfrozen\n\`\`\``),
+      track: vi.fn(),
+      lexicon: { getSnapshot: () => box.current, subscribe: () => () => {} },
+    } as unknown as InputTriggerController
+    return { box, controller }
+  }
+
+  it('serializes a typed stop token through the owner codec at submit', async () => {
+    const { controller } = lexiconBox()
+    const serializeReference = vi.fn(controller.serializeReference as never)
+    const wired = { ...controller, serializeReference } as InputTriggerController
+    const sink = vi.fn((_text: string, _ids: readonly DraftAttachmentId[], _mode: 'queue' | 'steer', _signal: AbortSignal) =>
+      Promise.resolve<SubmitOutcome>({ kind: 'success' }))
+    const shell = new SessionInputShell({
+      actx: {} as Context,
+      inputTriggers: () => wired,
+      defaultSink: sink,
+      commandAttachments,
+    })
+    shell.setDraft('fix @notes.md#2#call-9 please')
+    await vi.waitFor(() => {
+      expect(shell.snapshot.occurrences.some(o => o.typed === true)).toBe(true)
+    })
+    shell.submit('queue')
+    await vi.waitFor(() => {
+      expect(sink).toHaveBeenCalled()
+    })
+    const sent = sink.mock.calls[0]?.[0] as string
+    expect(sent).toContain('```\nfrozen\n```')
+    expect(serializeReference).toHaveBeenCalledWith('reference', 'notes.md#2#call-9', expect.any(AbortSignal))
+  })
+
+  it('keeps a typed token literal once it drops off the live lexicon', async () => {
+    const { box, controller } = lexiconBox()
+    const serializeReference = vi.fn(() => Promise.resolve('expanded'))
+    const wired = { ...controller, serializeReference } as InputTriggerController
+    const sink = vi.fn((_text: string, _ids: readonly DraftAttachmentId[], _mode: 'queue' | 'steer', _signal: AbortSignal) =>
+      Promise.resolve<SubmitOutcome>({ kind: 'success' }))
+    const shell = new SessionInputShell({
+      actx: {} as Context,
+      inputTriggers: () => wired,
+      defaultSink: sink,
+      commandAttachments,
+    })
+    shell.setDraft('fix @notes.md#2#call-9 please')
+    await vi.waitFor(() => {
+      expect(shell.snapshot.occurrences.some(o => o.typed === true)).toBe(true)
+    })
+    box.current = new Map()
+    shell.submit('queue')
+    await vi.waitFor(() => {
+      expect(sink).toHaveBeenCalled()
+    })
+    expect(sink.mock.calls[0]?.[0]).toBe('fix @notes.md#2#call-9 please')
+    expect(serializeReference).not.toHaveBeenCalled()
+  })
+})
+
 describe('submit transaction hardening', () => {
   it('sends one image-only prompt per settlement, ignoring Enter during the round-trip', async () => {
     let settle!: (outcome: SubmitOutcome) => void

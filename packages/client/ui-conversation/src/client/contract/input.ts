@@ -64,7 +64,7 @@ export interface ReferenceInsert {
   readonly source: string
   readonly ref: string
   readonly label: string
-  readonly appearance?: 'session' | 'file' | 'folder' | 'snapshot'
+  readonly appearance?: 'session' | 'file' | 'folder' | 'snapshot' | 'note'
   readonly clipboardText: string
 }
 
@@ -334,6 +334,8 @@ export interface Occurrence {
   readonly label: string
   /** Optional domain glyph (insert-time cache). */
   readonly appearance?: ReferenceInsert['appearance']
+  /** True for typed text ranges, so submit may gate their serialization on the live lexicon. */
+  readonly typed?: boolean
   /** Clipboard / persistence projection, e.g. `/name` (insert-time cache, never the model form). */
   readonly clipboardText: string
   /** Owner-resolution failure flag: the chip renders the failure treatment. */

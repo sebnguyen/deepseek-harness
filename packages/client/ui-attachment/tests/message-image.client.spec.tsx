@@ -51,6 +51,7 @@ const useConversation: MessageImagesProps['useConversation'] = selector => selec
 const useChat: MessageImagesProps['useChat'] = selector => selector(EMPTY_CHAT_SNAPSHOT)
 const useTrajectory: MessageImagesProps['useTrajectory'] = selector => selector(emptyTrajectory)
 const useFileHistory: MessageImagesProps['useFileHistory'] = () => { throw new Error('unused') }
+const useLineNotes: MessageImagesProps['useLineNotes'] = () => { throw new Error('unused') }
 const useTrajectoryComposition: MessageImagesProps['useTrajectoryComposition'] = selector => selector({ events: new Map() })
 
 describe('MessageImage', () => {
@@ -283,6 +284,7 @@ describe('ImageGallery', () => {
       useChat,
       useTrajectory,
       useFileHistory,
+      useLineNotes,
       useTrajectoryComposition,
       useInput,
       inputActions: {

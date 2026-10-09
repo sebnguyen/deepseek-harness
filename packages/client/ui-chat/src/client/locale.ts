@@ -6,6 +6,8 @@ export const NS = 'chat'
 /** Simplified Chinese dictionary and key-set source of truth. */
 export const zh = {
   'view.chat': '对话',
+  'turnChips.aria': '本轮变更的文件',
+  'turnChips.counts': '+{added} −{removed}',
   'number.groupSeparator': ',',
   'number.usdSymbol': '$',
   'duration.compactSeconds': '{seconds}秒',
@@ -171,6 +173,8 @@ export type ChatKey = keyof typeof zh
 /** English dictionary, checked against the Chinese key set. */
 export const en = {
   'view.chat': 'Chat',
+  'turnChips.aria': 'Files changed this turn',
+  'turnChips.counts': '+{added} −{removed}',
   'number.groupSeparator': ',',
   'number.usdSymbol': '$',
   'duration.compactSeconds': '{seconds}s',

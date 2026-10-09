@@ -124,6 +124,7 @@ const kitBase: Omit<QuestionComposerProps, 'matched' | 'useStore' | 'actions'> =
   useChat: selector => selector(chatState),
   useTrajectory: selector => selector(trajectoryState),
   useFileHistory: (() => { throw new Error('unused') }),
+  useLineNotes: () => { throw new Error('unused') },
   useTrajectoryComposition: selector => selector(trajectoryCompositionState),
   useProjection: (() => undefined),
   useInput: selector => selector(inputState),

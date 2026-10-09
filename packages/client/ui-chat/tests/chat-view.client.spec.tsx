@@ -375,6 +375,7 @@ function makeHarness(
     useConversation: bindSnapshotSelector(createSnapshotStore(EMPTY_CONVERSATION_SNAPSHOT)),
     useTrajectory: (() => { throw new Error('unused') }),
     useFileHistory: (() => { throw new Error('unused') }),
+    useLineNotes: () => { throw new Error('unused') },
     useTrajectoryComposition: (() => { throw new Error('unused') }),
     useSessions: emptySessions(),
     useResource,

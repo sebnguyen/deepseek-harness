@@ -12,7 +12,7 @@ afterEach(cleanup)
 
 describe('ReferenceIcon', () => {
   it('renders one glyph per reference kind', () => {
-    for (const kind of ['session', 'file', 'folder', 'snapshot'] as readonly ReferenceIconKind[]) {
+    for (const kind of ['session', 'file', 'folder', 'snapshot', 'note'] as readonly ReferenceIconKind[]) {
       const { container, unmount } = render(createElement(ReferenceIcon, { kind }))
       expect(container.querySelector('svg')).not.toBeNull()
       unmount()

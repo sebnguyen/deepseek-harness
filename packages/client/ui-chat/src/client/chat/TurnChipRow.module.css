@@ -1,0 +1,29 @@
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: none;
+  background: none;
+  color: var(--dsw-alias-state-business-primary, #2f6feb);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 16px;
+  padding: 0;
+}
+
+.chip:hover code,
+.chip:focus code {
+  text-decoration: underline;
+}
+
+.counts {
+  color: var(--dsw-alias-label-caption, #8b949e);
+  font-size: 11px;
+}

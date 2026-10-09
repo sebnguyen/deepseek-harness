@@ -99,6 +99,7 @@ function Harness(props: { address: string; load: unknown; save: unknown }): Reac
     inputActions: { setDraft: () => {} },
     blob: async () => ({ ok: true, value: null }),
     restore: async () => ({ ok: true, value: 'a.html' }),
+    renderSlot: () => null,
     t,
   } as never)
 }

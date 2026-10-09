@@ -91,6 +91,7 @@ function kitFor(snapshot: SessionSnapshot, injected: Partial<QueueDockInjected> 
     useChat: (() => { throw new Error('unused') }) as QueueDockProps['useChat'],
     useTrajectory: (() => { throw new Error('unused') }) as QueueDockProps['useTrajectory'],
     useFileHistory: (() => { throw new Error('unused') }) as QueueDockProps['useFileHistory'],
+    useLineNotes: (() => { throw new Error('unused') }) as QueueDockProps['useLineNotes'],
     useTrajectoryComposition: (() => { throw new Error('unused') }) as QueueDockProps['useTrajectoryComposition'],
     useInput: (() => { throw new Error('unused') }) as never,
     inputActions: { setDraft: () => {}, submit: () => {} } as never,

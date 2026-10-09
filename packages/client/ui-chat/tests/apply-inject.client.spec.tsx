@@ -52,12 +52,16 @@ async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const layout = { closeRightbar: vi.fn(), openRightbar: vi.fn() }
   runtime.ctx.provide('layout', layout as never)
-  const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
+  const sidebarRight = { openResource: vi.fn<(address: string, options?: unknown) => void>() }
   runtime.ctx.provide('sidebarRight', sidebarRight as never)
   const openWorkspacePath = vi.fn<ClientRemote['session']['openWorkspacePath']>(
     () => Promise.resolve({ ok: true, value: { opened: true } }),
   )
-  new TestRemote(runtime.ctx, { session: { openWorkspacePath } })
+  const checkpoint = {
+    slots: vi.fn(async () => ({ ok: true, value: [] })),
+    blob: vi.fn(async () => ({ ok: true, value: null })),
+  }
+  new TestRemote(runtime.ctx, { session: { openWorkspacePath }, checkpoint } as never)
   runtime.ctx.provide('uiWorkspace', {
     openWorkspace: vi.fn(async (_workspaceId: WorkspaceId, beforeOpen: (id: SessionId) => void) => {
       beforeOpen(ROOT)
@@ -74,8 +78,11 @@ async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)
+  // The turn-chips seat is declared implicitly by the turn-tail node entry's
+  // children, not by this bench: a root declaration would double-declare it.
   await runtime.root.declare({
     'main': { kind: 'keyed', scope: 'root' },
+    'settings.trigger-item': { kind: 'list', scope: 'root' },
   }, (_props: { renderSlot?: unknown }) => null)
   await runtime.mount({ inject: [...injectConversation], apply: applyConversation })
   await runtime.mount({ inject: [...injectChat], apply: applyChat })
@@ -90,7 +97,7 @@ async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
     ) => ChatViewInjected)(id, instance.actions)
     return { instance, injected }
   }
-  return { runtime, layout, openWorkspacePath, sidebarRight, session, chatViewApi }
+  return { runtime, layout, openWorkspacePath, sidebarRight, session, chatViewApi, checkpoint }
 }
 
 describe('Chat inject API', () => {
@@ -203,6 +210,20 @@ describe('Chat inject API', () => {
     ) => ChatViewInjected
     expect(() => injectView('never-listed' as SessionId, {} as ChatActions))
       .toThrow(/unknown session/)
+    await b.runtime.dispose()
+  })
+
+  it('opens the frozen Changes display and serves the keyed node hooks', async () => {
+    const b = await bench()
+    const { injected } = b.chatViewApi(ROOT)
+    await injected.openFile('src/a.ts', { display: 'changes' })
+    expect(b.sidebarRight.openResource).toHaveBeenLastCalledWith(
+      'dsh-resource://file/session/root-1/src/a.ts', { params: { display: 'changes' } })
+    await injected.openFile('src/a.ts', { display: 'changes', stop: 'c4' })
+    expect(b.sidebarRight.openResource).toHaveBeenLastCalledWith(
+      'dsh-resource://file/session/root-1/src/a.ts', { params: { display: 'changes', stop: 'c4' } })
+    expect(injected.keyedHooks.chatNode('n1')).toBeDefined()
+    expect(injected.keyedHooks.chatNodeProcess('n1')).toBeDefined()
     await b.runtime.dispose()
   })
 

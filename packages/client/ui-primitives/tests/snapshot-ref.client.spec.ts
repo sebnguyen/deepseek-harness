@@ -3,6 +3,7 @@
  * gap slots, call-id stop keying, and stop-only frame reconstruction.
  */
 import { describe, expect, it } from 'vitest'
+import { parseNoteRef } from '../src/snapshot-ref.ts'
 import {
   GAP_TURN, findStop, frameDiff, frameForTurn, parseSnapshotRef, serializeSnapshotRef,
   type SnapshotStop,
@@ -122,6 +123,28 @@ describe('frameForTurn', () => {
       end: undefined,
       broken: false,
     })
+  })
+})
+
+describe('parseNoteRef', () => {
+  it('parses path, L-prefixed line, and note id', () => {
+    expect(parseNoteRef('notes.md#L3#note-a1b2c3d4e5f6'))
+      .toEqual({ path: 'notes.md', line: 3, noteId: 'note-a1b2c3d4e5f6' })
+    expect(parseNoteRef('dir/a b.ts#L41#note-000000000000'))
+      .toEqual({ path: 'dir/a b.ts', line: 41, noteId: 'note-000000000000' })
+  })
+
+  it('keeps a hash inside the path, splitting only the last two separators', () => {
+    expect(parseNoteRef('we#ird.ts#L2#note-9'))
+      .toEqual({ path: 'we#ird.ts', line: 2, noteId: 'note-9' })
+  })
+
+  it('refuses malformed parts', () => {
+    expect(parseNoteRef('notes.md#3#note-1')).toBeUndefined()
+    expect(parseNoteRef('notes.md#L3#')).toBeUndefined()
+    expect(parseNoteRef('#L3#note-1')).toBeUndefined()
+    expect(parseNoteRef('notes.md#Lx#note-1')).toBeUndefined()
+    expect(parseNoteRef('notes.md#L3')).toBeUndefined()
   })
 })
 

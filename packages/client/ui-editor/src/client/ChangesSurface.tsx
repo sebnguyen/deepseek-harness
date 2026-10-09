@@ -9,7 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent, ReactNode } from 'react'
-import { GAP_TURN, serializeSnapshotRef, unifiedLines } from '@deepseek-ai/dsh-client-ui-primitives'
+import { frameDiff, GAP_TURN, serializeSnapshotRef, unifiedLines } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { FileStop } from '@deepseek-ai/dsh-client-ui-file-history/client'
 import type { EditorKey } from './locales.ts'
 import css from './ChangesSurface.module.css'
@@ -69,8 +69,11 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
   const [frame, setFrame] = useState<{ before?: string; after?: string } | undefined>(undefined)
   const [missing, setMissing] = useState(false)
   const [ghost, setGhost] = useState<number | undefined>(undefined)
+  const [hover, setHover] = useState<number | undefined>(undefined)
+  const [hoverCounts, setHoverCounts] = useState<{ added: number; removed: number } | undefined>(undefined)
   const dragging = useRef(false)
   const stop = stops[index]
+  const hovered = hover === undefined ? undefined : stops[hover]
 
   useEffect(() => {
     const controller = new AbortController()
@@ -100,7 +103,23 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
     if (next >= 0) setIndex(next)
   }, [selectCallId, stops])
 
+  // The tick card's counts ride the same blob reads as the page, resolved
+  // for whichever tick holds the pointer or the focus.
+  useEffect(() => {
+    const controller = new AbortController()
+    setHoverCounts(undefined)
+    if (hovered === undefined) return () => controller.abort()
+    const read = (digest: string | undefined) =>
+      digest === undefined ? Promise.resolve<string | null>('') : blob(digest, controller.signal)
+    void Promise.all([read(hovered.before), read(hovered.after)]).then(([before, after]) => {
+      if (controller.signal.aborted) return
+      setHoverCounts(frameDiff(before === null ? undefined : before || undefined, after === null ? undefined : after || undefined))
+    })
+    return () => controller.abort()
+  }, [hovered, blob])
+
   const xs = useMemo(() => placeStops(stops), [stops])
+  const hoverX = hover === undefined ? undefined : xs[hover]
   const lines = useMemo(() => (frame === undefined ? [] : unifiedLines(frame.before, frame.after)), [frame])
 
   const fracOf = (event: ReactPointerEvent<HTMLDivElement>): number => {
@@ -158,6 +177,10 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
               style={{ left: `${xs[i]}%` }}
               title={s.turn === undefined ? t('gapMeta') : `${t('turnN', { n: s.turn })} · ${s.toolName}`}
               onClick={() => { setIndex(i) }}
+              onMouseEnter={() => { setHover(i) }}
+              onMouseLeave={() => { setHover(undefined) }}
+              onFocus={() => { setHover(i) }}
+              onBlur={() => { setHover(undefined) }}
             >
               {i === index
                 ? <span className={css.playh} />
@@ -165,6 +188,18 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
             </button>
           ))}
           {ghost === undefined ? null : <span className={css.ghost} style={{ left: `${ghost}%` }} />}
+          {hovered === undefined || hoverX === undefined
+            ? null
+            : (
+              <div className={css.card} style={{ left: `${hoverX}%` }} data-tick-card="">
+                <span className={css.cardTool}>{hovered.toolName}</span>
+                <span className={css.cardCounts}>
+                  {hoverCounts === undefined || hover === undefined
+                    ? '…'
+                    : `${t('tick.added', { n: hoverCounts.added })} ${t('tick.removed', { n: hoverCounts.removed })}`}
+                </span>
+              </div>
+            )}
         </div>
         <span className={css.edge}>{lastTurn === undefined ? '' : t('turnN', { n: lastTurn })}</span>
       </div>

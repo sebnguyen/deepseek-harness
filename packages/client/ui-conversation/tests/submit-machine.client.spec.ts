@@ -392,6 +392,18 @@ describe('decorations: scanTextRefs', () => {
     expect(out).toEqual([{ start: 2, end: 7, trigger: '/' }])
   })
 
+  it('an `@` path with an `#L<line>#<note-id>` note tail scans whole against the lexicon', () => {
+    const notes: ReadonlyMap<'/' | '@', readonly string[]> = new Map([
+      ['@', ['src/deep/file.ts#L3#note-a1b2c3d4e5f6'] as readonly string[]],
+    ])
+    expect(scanTextRefs('see @src/deep/file.ts#L3#note-a1b2c3d4e5f6 soon', notes))
+      .toEqual([{ start: 4, end: 42, trigger: '@' }])
+    // Without the lexicon entry the path-shaped token still decorates by
+    // folder detection only, so a typed note address never half-matches.
+    expect(scanTextRefs('see @src/deep/file.ts#L3#note-a1b2c3d4e5f6 soon', new Map()))
+      .toEqual([{ start: 4, end: 14, trigger: '@' }])
+  })
+
   it('an `@` name carries its `#turn#call-id` snapshot tail as one decoration token', () => {
     const stops: ReadonlyMap<'/' | '@', readonly string[]> = new Map([
       ['@', ['notes.md#2#call-9'] as readonly string[]],

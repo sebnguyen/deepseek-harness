@@ -33,8 +33,10 @@ import { ChangesSurface, quoteInput } from './ChangesSurface.tsx'
 import type { WorkspaceFileBytes, WorkspaceFileStat } from '@deepseek-ai/dsh-api-workspace-files/types'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives'
-import { EditorState } from '@codemirror/state'
+import { EditorState, StateEffect } from '@codemirror/state'
+import type { Extension } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import { createEditorExtensions, isHtmlPath, isMarkdownPath, languageFor } from './editor.ts'
 import { decodeText, failureLine, sessionFileOf, type SessionFile } from './rpc.ts'
 import css from './EditorBody.module.css'
@@ -56,10 +58,11 @@ export interface EditorInjected {
   readonly restore: (file: SessionFile, digest: string) => Promise<RemoteResult<string>>
 }
 
-/** The body's composed props: the tab, the injected face, and copy. */
+/** The body's composed props: the tab, the injected face, the child hole, and copy. */
 export type EditorBodyProps =
   & PropsRuntime<'sidebar.right.pane.tab'>
   & InjectFace<EditorInjected>
+  & PropsRenderSlots<'editor.cm.extension'>
   & PropsLocale<'editor'>
 
 /** One loaded document generation; each reload or replace builds a new editor view. */
@@ -88,7 +91,7 @@ export function getEditorView(container: HTMLElement): EditorView | undefined {
  * @returns the editor or its rendered display, with the banner and status row.
  */
 export function EditorBody({
-  useTabInfo, useResource, useFileHistory, useInput, inputActions, load, save, blob, t,
+  useTabInfo, useResource, useFileHistory, useInput, inputActions, load, save, blob, renderSlot, t,
 }: EditorBodyProps): ReactNode {
   const { tab } = useTabInfo()
   const meta = useResource<'file'>(tab.contentId)
@@ -117,6 +120,20 @@ export function EditorBody({
   const loadedRef = useRef<{ text: string; version: string } | undefined>(undefined)
   const viewRef = useRef<EditorView | undefined>(undefined)
   const hostRef = useRef<HTMLDivElement | null>(null)
+  const extsRef = useRef<readonly Extension[]>([])
+  const [viewVersion, setViewVersion] = useState(0)
+
+  /** Append one contributed extension to the live view and future ones. */
+  const append = useCallback((extension: Extension): (() => void) => {
+    extsRef.current = [...extsRef.current, extension]
+    viewRef.current?.dispatch({ effects: StateEffect.appendConfig.of(extension) })
+    return () => {
+      extsRef.current = extsRef.current.filter(candidate => candidate !== extension)
+    }
+  }, [])
+
+  /** The live view, for entry components that dispatch their own effects. */
+  const viewOf = useCallback(() => viewRef.current, [])
   const showPreview = previewKind !== undefined && mode === 'preview' && doc !== undefined
   const showChanges = mode === 'changes'
 
@@ -188,6 +205,7 @@ export function EditorBody({
         doc: doc.text,
         extensions: [
           ...createEditorExtensions(guardedSave, languageFor(file.path, doc.text)),
+          ...extsRef.current,
           EditorView.updateListener.of((update) => {
             if (!update.docChanged) return
             const loaded = loadedRef.current
@@ -197,6 +215,7 @@ export function EditorBody({
       }),
     })
     viewRef.current = view
+    setViewVersion(version => version + 1)
     return () => {
       viewRef.current = undefined
       view.destroy()
@@ -282,6 +301,7 @@ export function EditorBody({
               />
             )
             : <div className={css.host} ref={hostRef} />}
+      {renderSlot('editor.cm.extension', { file, append, blob: blobText, view: viewOf, viewVersion })}
       {failed === undefined && (
         <div className={css.footer}>
           <div className={css.modeToggle} role="group" aria-label={t('displayModes')}>

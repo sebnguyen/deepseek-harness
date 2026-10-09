@@ -11,8 +11,10 @@ import type { ElementNode, LexicalNode, NodeKey, Point } from 'lexical'
 import {
   $getRoot, $getSelection, $isElementNode, $isLineBreakNode, $isRangeSelection, $isTextNode,
 } from 'lexical'
+import { parseNoteRef, parseSnapshotRef } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Occurrence } from '../../contract/input.ts'
 import { $isReferenceChipNode } from './chip-node.tsx'
+import { TextRefNode } from './text-ref.ts'
 
 /** The detect-projection stand-in for one chip (object replacement character). */
 export const ATOMIC_CHAR = '￼'
@@ -197,6 +199,27 @@ export function $projectComposer(idOf: (key: NodeKey) => number): EditorProjecti
   const layout = $composerLayout()
   const occurrences: Occurrence[] = []
   for (const segment of layout.segments) {
+    // A typed reference token joins the codec path exactly when its `@`
+    // tail parses as a stop or a note address; the submit plane gates the
+    // codec call on the live lexicon so withdrawn refs stay prose.
+    if (segment.kind === 'text' && segment.node instanceof TextRefNode) {
+      const text = segment.node.getTextContent()
+      const name = text.startsWith('@') ? text.slice(1) : ''
+      if (name !== '' && (parseNoteRef(name) !== undefined || parseSnapshotRef(name) !== undefined)) {
+        occurrences.push({
+          occurrenceId: idOf(segment.node.getKey()),
+          source: 'reference',
+          ref: name,
+          offset: segment.clipboardStart,
+          length: segment.clipboardLength,
+          label: name.split('/').at(-1) ?? name,
+          appearance: parseNoteRef(name) !== undefined ? 'note' : 'snapshot',
+          typed: true,
+          clipboardText: text,
+        })
+      }
+      continue
+    }
     if (segment.kind !== 'chip' || !$isReferenceChipNode(segment.node)) continue
     const chip = segment.node
     occurrences.push({

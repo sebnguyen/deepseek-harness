@@ -25,7 +25,10 @@ import type {} from '@deepseek-ai/dsh-checkpoint/types'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { findStop, parseSnapshotRef, rankByName, relativeTime } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  findStop, parseNoteRef, parseSnapshotRef, rankByName, relativeTime,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { CheckpointSlotTimeline } from '@deepseek-ai/dsh-checkpoint/types'
 import type {
   ClientSessionContext, InputTriggerCandidate, InputTriggerCrumb, InputTriggerServiceContract, InputTriggerSource,
 } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
@@ -83,7 +86,13 @@ export function apply(ctx: ClientContext): void {
       const stopsLookup = quoted === true
         ? Promise.resolve([] as StopRollEntry[])
         : fetchRoll(session.sessionId)
-      const [fileItems, sessionItems, stopItems] = await Promise.all([fileLookup, sessionLookup, stopsLookup])
+      const notesLookup = quoted === true
+        ? Promise.resolve([] as CheckpointSlotTimeline[])
+        : ctx.remote.checkpoint.slots(session.sessionId)
+          .then(result => (result.ok ? result.value : []))
+      const [fileItems, sessionItems, stopItems, noteTimelines] = await Promise.all([
+        fileLookup, sessionLookup, stopsLookup, notesLookup,
+      ])
       if (signal.aborted) return []
       if (quoted !== true) setRoll(session.sessionId, stopItems)
       // The header already names the directory being listed; rows repeat it only
@@ -96,6 +105,8 @@ export function apply(ctx: ClientContext): void {
         ...fileItems.flatMap(candidate => fileCandidate(candidate, quoted === true, withLocation, t)),
         ...rankByName(stopItems.map(entry => ({ ...entry, name: entry.mention })), query)
           .map(entry => stopCandidate(entry, withLocation, t)),
+        ...rankByName(noteEntries(noteTimelines).map(entry => ({ ...entry, name: entry.mention })), query)
+          .map(entry => noteCandidate(entry, t)),
         ...sessionItems.map(candidate => sessionCandidate(
           candidate,
           listed[candidate.sessionId]?.updatedAt ?? candidate.createdAt,
@@ -168,19 +179,33 @@ export function apply(ctx: ClientContext): void {
           },
         }
       }
+      if (value?.kind === 'note') {
+        return {
+          insert: {
+            source: 'reference',
+            ref: value.mention,
+            label: value.label,
+            appearance: 'note',
+            clipboardText: value.mention,
+          },
+        }
+      }
       return undefined
     },
     openReference(session, { ref, appearance }) {
-      if (appearance !== 'file' && appearance !== 'snapshot') return false
+      if (appearance !== 'file' && appearance !== 'snapshot' && appearance !== 'note') return false
       const raw = ref.startsWith('@"') ? ref.slice(2, -1) : ref.slice(1)
+      const note = appearance === 'note' ? parseNoteRef(raw) : undefined
       const parsed = appearance === 'snapshot' ? parseSnapshotRef(raw) : undefined
-      const path = parsed?.path ?? raw
+      const path = note?.path ?? parsed?.path ?? raw
       const cwd = sessions.list.getSnapshot().byId[session.sessionId]?.cwd
       ctx.sidebarRight.openResource(
         fileAddressFor(session.sessionId, cwd, path),
-        parsed === undefined
-          ? undefined
-          : { params: { display: 'changes', stop: parsed.callId } as const },
+        note !== undefined
+          ? { params: { line: note.line } as const }
+          : parsed !== undefined
+            ? { params: { display: 'changes', stop: parsed.callId } as const }
+            : undefined,
       )
       return true
     },
@@ -188,6 +213,26 @@ export function apply(ctx: ClientContext): void {
       clipboardText: ref => ref,
       serialize: async (session, ref, signal) => {
         const body = ref.startsWith('@') ? ref.slice(1) : ref
+        const noteRef = parseNoteRef(body)
+        if (noteRef !== undefined) {
+          const timelines = await ctx.remote.checkpoint.slots(session.sessionId, noteRef.path)
+          if (!timelines.ok) {
+            throw new Error(`checkpoint.slots failed: ${timelines.error.code}: ${timelines.error.message}`)
+          }
+          const slot = (timelines.value.find(timeline => timeline.path === noteRef.path)?.slots ?? [])
+            .find(candidate => candidate.slotId === noteRef.noteId)
+          if (slot === undefined || slot.kind !== 'note') {
+            throw new Error(`note ${ref} is not in this session's register`)
+          }
+          const detail = slot.detail as { text?: string }
+          signal.throwIfAborted()
+          if (slot.after === undefined) return `${ref}\n${detail.text ?? slot.label}`
+          const blob = await ctx.remote.checkpoint.blob(session.sessionId, slot.after)
+          if (!blob.ok || blob.value === null) {
+            throw new Error(`note ${ref} was pruned from the checkpoint store`)
+          }
+          return `${ref}\n${detail.text ?? slot.label}\n\`\`\`\n${blob.value}\n\`\`\``
+        }
         const parsed = parseSnapshotRef(body)
         if (parsed === undefined) return ref
         const timelines = await ctx.remote.checkpoint.stops(session.sessionId, parsed.path)
@@ -224,6 +269,7 @@ type ReferenceCandidateValue =
   | { kind: 'file'; fileKind: FileReferenceCandidate['kind']; label: string; mention: string }
   | { kind: 'session'; label: string; mention: string }
   | { kind: 'stop'; label: string; mention: string }
+  | { kind: 'note'; label: string; mention: string }
 
 /** One serializable stop of one file, flattened for menu ranking and lexicon rolls. */
 interface StopRollEntry {
@@ -237,6 +283,42 @@ interface StopRollEntry {
 /** Whether one stop can serialize: a turn key and a retained after text. */
 function isSerializableStop(stop: { turn?: number | string; after?: string }): boolean {
   return typeof stop.turn === 'number' && stop.after !== undefined
+}
+
+/** One serializable note slot of one file, flattened for menu ranking. */
+interface NoteRollEntry {
+  readonly path: string
+  readonly mention: string
+  readonly line: number
+  readonly label: string
+}
+
+/** Flatten one register's note slots into roll entries. */
+function noteEntries(timelines: readonly CheckpointSlotTimeline[]): NoteRollEntry[] {
+  const out: NoteRollEntry[] = []
+  for (const timeline of timelines) {
+    for (const slot of timeline.slots) {
+      if (slot.kind !== 'note' || slot.line === undefined) continue
+      out.push({
+        path: timeline.path,
+        mention: `${timeline.path}#L${slot.line}#${slot.slotId}`,
+        line: slot.line,
+        label: slot.label,
+      })
+    }
+  }
+  return out
+}
+
+/** One menu row per live note, ranked with the same name ranking as skills. */
+function noteCandidate(entry: NoteRollEntry, t: Translate): InputTriggerCandidate {
+  return {
+    name: entry.mention,
+    label: t('note.meta', { line: entry.line, text: entry.label }),
+    icon: 'note' as const,
+    section: t('section.notes'),
+    value: JSON.stringify({ kind: 'note', label: entry.label, mention: entry.mention } satisfies ReferenceCandidateValue),
+  }
 }
 
 /** One menu row per serializable stop, ranked with the same name ranking as skills. */

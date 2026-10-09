@@ -71,10 +71,10 @@ describe('ui-editor client apply', () => {
           disposed.push(seat)
         }
       },
-      register: (specificationIn: { key: string; inject: () => unknown }) => {
-        specification = specificationIn
-        bodies.push(specificationIn.key)
-        return () => { disposed.push('body') }
+      register: (specificationIn: { key?: string; id?: string; inject: () => unknown }) => {
+        if (specificationIn.key !== undefined) specification = specificationIn
+        bodies.push(specificationIn.key ?? specificationIn.id ?? 'entry')
+        return () => { disposed.push(specificationIn.key !== undefined ? 'body' : 'entry') }
       },
     } as never)
     const fiber = await ctx.plugin({ inject: [...inject], apply })
@@ -86,8 +86,8 @@ describe('ui-editor client apply', () => {
     expect(definition.canOpen?.('dsh-resource://file/session/s-1/notes.md')).toBe(true)
     expect(definition.canOpen?.('dsh-resource://file/absolute/notes.md')).toBe(false)
     expect(locales.map(entry => entry[0])).toEqual(['editor'])
-    expect(injected).toEqual(['sidebar.right.pane.tab'])
-    expect(bodies).toEqual([EDITOR_ID])
+    expect(injected).toEqual(['sidebar.right.pane.tab', 'editor.cm.extension'])
+    expect(bodies).toEqual([EDITOR_ID, 'editor-change-markers'])
     if (specification === undefined) throw new Error('the body must register with an inject face')
     const face = specification.inject() as {
       load: (file: unknown, signal: AbortSignal) => Promise<unknown>
@@ -106,6 +106,6 @@ describe('ui-editor client apply', () => {
     expect(restores).toEqual(['s-1/notes.txt@sha256:aa'])
     hostApply()
     await fiber.dispose()
-    expect(disposed.sort()).toEqual(['body', 'locale', 'sidebar.right.pane.tab', 'type'])
+    expect(disposed.sort()).toEqual(['body', 'editor.cm.extension', 'entry', 'locale', 'sidebar.right.pane.tab', 'type'])
   })
 })

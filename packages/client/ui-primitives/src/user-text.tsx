@@ -16,6 +16,7 @@
  */
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
+import { parseNoteRef, parseSnapshotRef } from './snapshot-ref.ts'
 import { ReferenceIcon } from './ReferenceIcon.tsx'
 import css from './user-text.module.css'
 import markdownCss from './markdown/MarkdownText.module.css'
@@ -36,10 +37,20 @@ interface DecorationRange {
   readonly display?: string
 }
 
+/** Where a sent-text chip's click should land inside the file. */
+export interface UserTextOpenFileOptions {
+  /** 1-based line to reveal; absent = the file's beginning. */
+  readonly line?: number
+  /** Open on the frozen Changes display instead of the default mode. */
+  readonly display?: 'changes'
+  /** The stop the Changes display selects on arrival. */
+  readonly stop?: string
+}
+
 /** Optional navigation supplied by consumers that can preview references. */
 export interface UserTextReferences {
-  /** Open a file path decoded from an `@` mention. */
-  openFile: (path: string) => void
+  /** Open a file path decoded from an `@` mention, optionally at one stop or line. */
+  openFile: (path: string, options?: UserTextOpenFileOptions) => void
   /** Open the source of a skill loaded for this message. */
   openSkill: (name: string) => void
 }
@@ -107,17 +118,32 @@ export function projectUserText(
     if (range.start < cursor) continue
     const { start: tokenStart, end, label, kind } = range
     if (tokenStart > cursor) pushPlain(cursor, tokenStart)
+    // Quoted and sent chips keep their shape-based kinds; only a plain
+    // `@path#...` token can be a stop or a note address.
+    const isPlainAt = kind !== 'session' && label.startsWith('@') && !label.startsWith('@"')
+    const bare = isPlainAt ? label.slice(1) : ''
+    const noteRef = isPlainAt ? parseNoteRef(bare) : undefined
+    const snapRef = isPlainAt && noteRef === undefined ? parseSnapshotRef(bare) : undefined
     const referenceKind = kind === 'session'
       ? 'session'
-      : label.startsWith('@')
-        ? label.replace(/^@"|"$/gu, '').endsWith('/') ? 'folder' : 'file'
-        : undefined
+      : noteRef !== undefined
+        ? 'note' as const
+        : snapRef !== undefined
+          ? 'snapshot' as const
+          : label.startsWith('@')
+            ? label.replace(/^@"|"$/gu, '').endsWith('/') ? 'folder' : 'file'
+            : undefined
+    // A stop or note address renders its path's basename; the turn, line,
+    // and id half of the token lives in the hover title alone.
     const displayLabel = range.display
       ?? (referenceKind === undefined
         ? label
         : referenceKind === 'session'
           ? label.slice(1)
-          : label.slice(1).replace(/^"|"$/gu, '').split(/[\\/]/u).filter(Boolean).at(-1) ?? label.slice(1))
+          : (noteRef?.path ?? snapRef?.path ?? label.slice(1).replace(/^"|"$/gu, ''))
+            .split(/[\\/]/u)
+            .filter(Boolean)
+            .at(-1) ?? label.slice(1))
     const contents = <>
       {referenceKind !== undefined && (
         <ReferenceIcon kind={referenceKind} size={16} className={css.refIcon} />
@@ -127,9 +153,13 @@ export function projectUserText(
     const open = references === undefined ? undefined
       : referenceKind === 'file'
         ? () => { references.openFile(label.slice(1).replace(/^"|"$/gu, '')) }
-        : referenceKind === undefined && slashKind === 'skill'
-          ? () => { references.openSkill(label.slice(1)) }
-          : undefined
+        : referenceKind === 'snapshot' && snapRef !== undefined
+          ? () => { references.openFile(snapRef.path, { display: 'changes', stop: snapRef.callId }) }
+          : referenceKind === 'note' && noteRef !== undefined
+            ? () => { references.openFile(noteRef.path, { line: noteRef.line }) }
+            : referenceKind === undefined && slashKind === 'skill'
+              ? () => { references.openSkill(label.slice(1)) }
+              : undefined
     const className = clsx(css.refChip, referenceKind === undefined && css.slashChip)
     parts.push(open === undefined
       ? <span key={tokenStart} className={className} data-ref-chip={referenceKind ?? slashKind} title={label}>

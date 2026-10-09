@@ -738,6 +738,13 @@ export class SessionInputShell implements SessionInput {
     }
     const inputTriggers = this.deps.inputTriggers?.()
     void Promise.all(occurrences.map(async (o) => {
+      if (o.typed === true) {
+        // A typed token off the live lexicon stays literal prose.
+        const at = this.lexicon.getSnapshot().get('@') ?? []
+        if (!at.includes(o.ref)) {
+          return { offset: o.offset, length: o.length, text: draft.slice(o.offset, o.offset + o.length) }
+        }
+      }
       if (inputTriggers === undefined) throw new Error(`no serializer for reference source "${o.source}"`)
       return {
         offset: o.offset,

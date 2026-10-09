@@ -32,6 +32,10 @@ export type UseChatNodeProcess = KeyedSnapshotSelectorHook<StepSpanFold | undefi
 export interface OpenFileOptions {
   /** 1-based line to reveal; absent = the file's beginning. */
   readonly line?: number
+  /** Open on the frozen Changes display instead of the default mode. */
+  readonly display?: 'changes'
+  /** The stop the Changes display selects on arrival. */
+  readonly stop?: string
 }
 
 /** Owner currency of the completed-Turn extension chain. */
@@ -39,6 +43,21 @@ export interface TurnTailOwnerProps {
   turn: TurnLocation
   seq: number
   openFile: (path: string) => void
+}
+
+/** Owner currency of the turn's register chip row. */
+export interface TurnChipsOwnerProps {
+  turn: TurnLocation
+  seq: number
+  openFile: (path: string, options?: OpenFileOptions) => void
+}
+
+/** The register face each turn-chips entry receives, wired per session. */
+export interface TurnChipsInjected {
+  /** The register as a file-to-slot-array map. */
+  readonly slots: () => Promise<import('@deepseek-ai/dsh-checkpoint/types').CheckpointSlotTimeline[]>
+  /** One retained snapshot text; null when the object is absent. */
+  readonly blob: (digest: string) => Promise<string | null>
 }
 
 /** Owner currency of finalized-assistant actions. */
@@ -205,5 +224,12 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * that entry. With no entries, the standard action row remains unchanged.
      */
     'conversation.chat.assistant-actions': { kind: 'list'; scope: 'session'; owner: AssistantActionOwnerProps }
+    /**
+     * The register chips of one completed turn: the files the agent changed,
+     * badged with their line counts, plus note slots stamped into the turn.
+     * Entries compose beside the tail chain; an entry without chips renders
+     * nothing.
+     */
+    'conversation.chat.turnChips': { kind: 'list'; scope: 'session'; owner: TurnChipsOwnerProps }
   }
 }

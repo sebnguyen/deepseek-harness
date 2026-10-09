@@ -111,6 +111,7 @@ type SessionSlotProps = ComponentProps<typeof ConversationSession>
 const useChat: SessionSlotProps['useChat'] = () => { throw new Error('unused') }
 const useTrajectory: SessionSlotProps['useTrajectory'] = () => { throw new Error('unused') }
 const useFileHistory: SessionSlotProps['useFileHistory'] = () => { throw new Error('unused') }
+const useLineNotes: SessionSlotProps['useLineNotes'] = () => { throw new Error('unused') }
 const useTrajectoryComposition: SessionSlotProps['useTrajectoryComposition'] = () => { throw new Error('unused') }
 
 function workspace(id = 'w1'): WorkspaceView {
@@ -220,6 +221,7 @@ function mount(
           useChat={useChat}
           useTrajectory={useTrajectory}
           useFileHistory={useFileHistory}
+          useLineNotes={useLineNotes}
           useTrajectoryComposition={useTrajectoryComposition}
           useSessions={props.useSessions}
           usePanelInfo={props.usePanelInfo}
@@ -249,6 +251,7 @@ function mount(
           useChat={useChat}
           useTrajectory={useTrajectory}
           useFileHistory={useFileHistory}
+          useLineNotes={useLineNotes}
           useTrajectoryComposition={useTrajectoryComposition}
           useSessions={props.useSessions}
           usePanelInfo={props.usePanelInfo}

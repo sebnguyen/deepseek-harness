@@ -209,6 +209,35 @@ describe('$projectComposer', () => {
     })
   })
 
+  it('projects typed stop and note addresses as typed occurrences, prose never', () => {
+    const editor = makeEditor()
+    editor.update(() => {
+      const p = $createParagraphNode()
+      p.append(
+        $createTextNode('see '),
+        new TextRefNode('@notes.md#2#call-9'),
+        $createTextNode(' and '),
+        new TextRefNode('@notes.md#L3#note-a'),
+        $createTextNode(' at @src/ now'),
+      )
+      $getRoot().append(p)
+    }, { discrete: true })
+    editor.read(() => {
+      const projection = $projectComposer(idAssigner())
+      const typed = projection.occurrences.filter(o => o.typed === true)
+      expect(typed).toHaveLength(2)
+      expect(typed[0]).toMatchObject({
+        source: 'reference', ref: 'notes.md#2#call-9', appearance: 'snapshot', typed: true,
+      })
+      expect(typed[1]).toMatchObject({
+        source: 'reference', ref: 'notes.md#L3#note-a', appearance: 'note', typed: true,
+      })
+      // Clipboard text keeps the literal tokens; offsets span them.
+      expect(projection.clipboardText).toContain('@notes.md#2#call-9')
+      expect(typed[0]!.offset).toBe(projection.clipboardText.indexOf('@notes.md#2#call-9'))
+    })
+  })
+
   it('projects paragraph gaps and line breaks as newlines in both views', () => {
     const editor = makeEditor()
     editor.update(() => {

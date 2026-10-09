@@ -265,6 +265,8 @@
       // client view reads the checkpoint event/row vocabulary through the owner's /types entry.
       "@deepseek-ai/dsh-client-ui-file-history": ["./packages/client/ui-file-history/src"],
       "@deepseek-ai/dsh-client-ui-file-history/client": ["./packages/client/ui-file-history/src/client/index.ts"],
+      "@deepseek-ai/dsh-client-ui-line-note": ["./packages/client/ui-line-note/src"],
+      "@deepseek-ai/dsh-client-ui-line-note/client": ["./packages/client/ui-line-note/src/client/index.ts"],
       "@deepseek-ai/dsh-checkpoint/types": ["./packages/fs/checkpoint/src/types.ts"],
       // BEGIN generated package aliases — pnpm run gen-tsconfig-paths
       "@deepseek-ai/dsh-acp": ["./packages/acp/acp/src"],

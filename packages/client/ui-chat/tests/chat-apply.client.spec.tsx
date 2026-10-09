@@ -45,7 +45,11 @@ async function bench() {
   } as never)
   new TestRemote(runtime.ctx, {
     session: { openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })) },
-  })
+    checkpoint: {
+      slots: vi.fn(async () => ({ ok: true, value: [] })),
+      blob: vi.fn(async () => ({ ok: true, value: null })),
+    },
+  } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)

@@ -67,6 +67,7 @@
     "@deepseek-ai/dsh-client-ui-directory-picker-native": "workspace:^",
     "@deepseek-ai/dsh-client-ui-editor": "workspace:^",
     "@deepseek-ai/dsh-client-ui-file-history": "workspace:^",
+    "@deepseek-ai/dsh-client-ui-line-note": "workspace:^",
     "@deepseek-ai/dsh-client-ui-goal": "workspace:^",
     "@deepseek-ai/dsh-client-ui-input-trigger": "workspace:^",
     "@deepseek-ai/dsh-client-ui-layout": "workspace:^",

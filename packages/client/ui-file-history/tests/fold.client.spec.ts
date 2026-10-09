@@ -1,94 +1,112 @@
-/** Covers the workspace timeline fold and its turn-granularity zoom. */
+/** Covers the register projection and its turn-granularity zoom. */
 
 import { describe, expect, it } from 'vitest'
-import type { SessionEventLikeEntry } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
-import { foldFileHistory, groupStopsByTurn, type FileStop } from '../src/client/fold.ts'
+import type { CheckpointSlot, CheckpointSlotId, CheckpointSlotTimeline, SnapshotDigest } from '@deepseek-ai/dsh-checkpoint/types'
+import { foldSlotTimelines, groupStopsByTurn, type FileStop } from '../src/client/fold.ts'
+
+/** Plain-string stand-ins for the branded slot fields the Remote would mint. */
+interface SlotFixture {
+  readonly slotId: string
+  readonly createdAt: number
+  readonly kind?: string
+  readonly path?: string
+  readonly label?: string
+  readonly turn?: number
+  readonly callId?: string
+  readonly line?: number
+  readonly before?: string
+  readonly after?: string
+  readonly detail?: Readonly<Record<string, unknown>>
+}
 
 /**
- * Build one log entry. These specs judge the fold's joins, so the events are
- * literals: a real store would add envelope fields the fold never reads.
- * @param event - the event envelope and payload under test.
- * @returns the window entry carrying it.
+ * Build one register slot. These specs judge the projection's field mapping,
+ * so the slots are literals: the Remote adds envelope fields the fold never
+ * reads, and the branded identity fields are minted here as plain strings.
+ * @param fields - the slot members under test.
+ * @returns the slot carrying them.
  */
-function entry(event: { type: string; seq: number; time: number; data: unknown }): SessionEventLikeEntry {
-  return { type: 'event', event: event as unknown as SessionEvent }
+function slot(fields: SlotFixture): CheckpointSlot {
+  return {
+    kind: fields.kind ?? 'worktree',
+    path: fields.path ?? 'a.txt',
+    label: fields.label ?? 'writer',
+    detail: (fields.detail ?? { toolName: 'writer' }) as CheckpointSlot['detail'],
+    slotId: fields.slotId as CheckpointSlotId,
+    createdAt: fields.createdAt,
+    ...fields.turn === undefined ? {} : { turn: fields.turn },
+    ...fields.callId === undefined ? {} : { callId: fields.callId },
+    ...fields.line === undefined ? {} : { line: fields.line },
+    ...fields.before === undefined ? {} : { before: fields.before as SnapshotDigest },
+    ...fields.after === undefined ? {} : { after: fields.after as SnapshotDigest },
+  }
 }
 
-/** One `tool/call` event for a call that changed a file. */
-function call(callId: string, turn: number, step: number, purpose?: string): SessionEventLikeEntry {
-  return entry({
-    type: 'tool/call',
-    seq: 0,
-    time: 0,
-    data: { turn, step, callId, name: 'writer', arguments: '{}', ...purpose === undefined ? {} : { purpose } },
-  })
+/** One register timeline over the given slots. */
+function timeline(path: string, slots: readonly CheckpointSlot[]): CheckpointSlotTimeline {
+  return { path, slots }
 }
 
-/** One `checkpoint/scan` event carrying the given rows. */
-function scan(seq: number, rows: readonly Record<string, unknown>[]): SessionEventLikeEntry {
-  return entry({ type: 'checkpoint/scan', seq, time: seq, data: { rows } })
-}
-
-describe('foldFileHistory', () => {
-  it('joins each row to the tool call that captured it', () => {
-    const history = foldFileHistory([
-      call('c1', 1, 2, 'first write'),
-      scan(7, [{ path: 'a.txt', callId: 'c1', toolName: 'writer', after: 'sha256:one' }]),
-      call('c2', 1, 3),
-      scan(9, [{ path: 'a.txt', callId: 'c2', toolName: 'writer', before: 'sha256:one', after: 'sha256:two' }]),
-    ])
+describe('foldSlotTimelines', () => {
+  it('maps each worktree slot onto a stop of its file', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 7, turn: 1, after: 'sha256:one', detail: { toolName: 'write' } }),
+      slot({ slotId: 'c2', createdAt: 9, turn: 1, before: 'sha256:one', after: 'sha256:two', detail: { toolName: 'edit' } }),
+    ])])
     expect(history.files).toEqual([{
       path: 'a.txt',
       stops: [
-        { seq: 7, time: 7, callId: 'c1', toolName: 'writer', purpose: 'first write', turn: 1, step: 2, after: 'sha256:one' },
-        { seq: 9, time: 9, callId: 'c2', toolName: 'writer', turn: 1, step: 3, before: 'sha256:one', after: 'sha256:two' },
+        { seq: 7, time: 7, callId: 'c1', toolName: 'write', turn: 1, after: 'sha256:one' },
+        { seq: 9, time: 9, callId: 'c2', toolName: 'edit', turn: 1, before: 'sha256:one', after: 'sha256:two' },
       ],
     }])
   })
 
-  it('folds absolute row paths relative to the session working directory', () => {
-    const history = foldFileHistory([
-      scan(4, [
-        { path: '/ws/a.txt', callId: 'c1', toolName: 'writer', after: 'sha256:a' },
-        { path: '/other/b.txt', callId: 'c1', toolName: 'writer', after: 'sha256:b' },
-      ]),
+  it('filters out non-worktree slots', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 7, after: 'sha256:one' }),
+      slot({ slotId: 'note-1', createdAt: 8, kind: 'note', line: 4, detail: { text: 'fix this' } }),
+    ])])
+    expect(history.files[0]?.stops.map(stop => stop.callId)).toEqual(['c1'])
+  })
+
+  it('folds absolute slot paths relative to the session working directory and sorts files by path', () => {
+    const history = foldSlotTimelines([
+      timeline('/ws/a.txt', [slot({ slotId: 'c1', createdAt: 4, after: 'sha256:a' })]),
+      timeline('/other/b.txt', [slot({ slotId: 'c1', createdAt: 4, after: 'sha256:b' })]),
     ], '/ws')
     expect(history.files.map(file => file.path)).toEqual(['/other/b.txt', 'a.txt'])
-    const unchanged = foldFileHistory([scan(5, [{ path: '/ws/a.txt', callId: 'c1', toolName: 'writer', after: 'sha256:a' }])])
+    const unchanged = foldSlotTimelines([timeline('/ws/a.txt', [slot({ slotId: 'c1', createdAt: 5, after: 'sha256:a' })])])
     expect(unchanged.files[0]?.path).toBe('/ws/a.txt')
   })
 
-  it('prefers the row purpose, keeps a removal stop, and sorts files by path', () => {
-    const history = foldFileHistory([
-      call('c1', 2, 1, 'from the call'),
-      scan(5, [
-        { path: 'b/c.txt', callId: 'c1', toolName: 'writer', purpose: 'from the row', after: 'sha256:x' },
-        { path: 'a.txt', callId: 'c1', toolName: 'remover', before: 'sha256:y' },
-      ]),
-    ])
-    expect(history.files.map(file => file.path)).toEqual(['a.txt', 'b/c.txt'])
-    expect(history.files[1]?.stops[0]?.purpose).toBe('from the row')
-    expect(history.files[0]?.stops[0]).toEqual({
-      seq: 5, time: 5, callId: 'c1', toolName: 'remover', purpose: 'from the call', turn: 2, step: 1, before: 'sha256:y',
-    })
+  it('names the tool from detail.toolName and falls back to the slot label', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c1', createdAt: 1, label: 'write', detail: { toolName: 'write' }, after: 'sha256:a' }),
+      slot({ slotId: 'c2', createdAt: 2, label: 'bash', detail: {}, after: 'sha256:b' }),
+    ])])
+    expect(history.files[0]?.stops.map(stop => stop.toolName)).toEqual(['write', 'bash'])
   })
 
-  it('keeps stops whose call facts were never logged, and ignores unrelated entries', () => {
-    const transient = entry({ type: 'assistant/live-chunk', seq: 0, time: 0, data: {} })
-    const history = foldFileHistory([
-      call('c1', 1, 1),
-      transient,
-      entry({ type: 'assistant/message', seq: 3, time: 3, data: {} }),
-      scan(4, [{ path: 'a.txt', callId: 'c9', toolName: 'writer', after: 'sha256:z' }]),
-    ])
-    expect(history.files[0]?.stops).toEqual([
-      { seq: 4, time: 4, callId: 'c9', toolName: 'writer', after: 'sha256:z' },
-    ])
+  it('uses the call id when scoped and the slot id otherwise, sorting stops by creation time', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [
+      slot({ slotId: 'c2', callId: 'c2', createdAt: 9, after: 'sha256:b' }),
+      slot({ slotId: 'c1', callId: 'c1', createdAt: 7, after: 'sha256:a' }),
+      slot({ slotId: 's3', createdAt: 8, after: 'sha256:c' }),
+    ])])
+    expect(history.files[0]?.stops.map(stop => stop.callId)).toEqual(['c1', 's3', 'c2'])
   })
 
-  it('folds an empty window into an empty timeline', () => {
-    expect(foldFileHistory([])).toEqual({ files: [] })
+  it('folds an empty register into an empty timeline', () => {
+    expect(foldSlotTimelines([])).toEqual({ files: [] })
+  })
+
+  it('drops no capture members for a worktree slot without digests', () => {
+    const history = foldSlotTimelines([timeline('a.txt', [slot({ slotId: 'cp', createdAt: 5, label: 'reader', detail: {} })])])
+    expect(history.files).toEqual([{
+      path: 'a.txt',
+      stops: [{ seq: 5, time: 5, callId: 'cp', toolName: 'reader' }],
+    }])
   })
 })
 

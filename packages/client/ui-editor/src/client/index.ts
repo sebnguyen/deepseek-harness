@@ -18,11 +18,13 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import { ChangeMarkers } from './change-markers.tsx'
 import { EditorBody, type EditorInjected } from './EditorBody.tsx'
 import { EDITOR_ID, editorDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
 import type { EditorFilesRemote } from './rpc.ts'
 
+export type { EditorCmEntryInjected, EditorCmExtensionOwner } from './contract/slots.ts'
 export type { EditorKey } from './locales.ts'
 export type { EditorBodyProps, EditorInjected } from './EditorBody.tsx'
 export type { EditorFilesRemote, SessionFile } from './rpc.ts'
@@ -62,7 +64,18 @@ export function apply(ctx: ClientContext): void {
       key: EDITOR_ID,
       locale: 'editor',
       inject: (): EditorInjected => face,
+      children: {
+        'editor.cm.extension': { kind: 'list', scope: 'session' },
+      },
     },
     EditorBody,
   )), 'ui-editor: editor body')
+  ctx.effect(() => ctx.slots.inject('editor.cm.extension', () => ctx.slots.register(
+    {
+      name: 'editor.cm.extension',
+      id: 'editor-change-markers',
+      order: 10,
+    },
+    ChangeMarkers,
+  )), 'ui-editor: change markers')
 }

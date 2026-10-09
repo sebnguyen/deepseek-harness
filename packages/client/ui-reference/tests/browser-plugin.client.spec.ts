@@ -92,6 +92,7 @@ async function bench(
   checkpoint: {
     stops?: (sessionId: SessionId, path?: string, signal?: AbortSignal) => Promise<RemoteEnvelope<typeof STOP_TIMELINES>>
     blob?: (sessionId: SessionId, digest: string, signal?: AbortSignal) => Promise<RemoteEnvelope<string | null>>
+    slots?: (sessionId: SessionId, path?: string) => Promise<RemoteEnvelope<unknown[]>>
   } = {},
 ): Promise<{ ctx: Context; fiber: ReturnType<Context['plugin']>; source: InputTriggerSource; openResource: ReturnType<typeof vi.fn> }> {
   const openResource = vi.fn()
@@ -100,6 +101,7 @@ async function bench(
   ctx.provide('remote.checkpoint', {
     stops: checkpoint.stops ?? vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
     blob: checkpoint.blob ?? vi.fn(() => Promise.resolve({ ok: true as const, value: 'frozen\n' })),
+    slots: checkpoint.slots ?? vi.fn(() => Promise.resolve({ ok: true as const, value: [] })),
   })
   let source: InputTriggerSource | undefined
   ctx.provide('inputTriggers', {
@@ -155,6 +157,7 @@ describe('apply', () => {
     ctx.provide('remote.checkpoint', {
       stops: () => Promise.resolve({ ok: true, value: [] }),
       blob: () => Promise.resolve({ ok: true, value: null }),
+      slots: () => Promise.resolve({ ok: true, value: [] }),
     })
     ctx.provide('locale', new LocaleRuntime(ctx))
     ctx.provide('sessions', { list: { getSnapshot: () => ({ byId: {} }) } })
@@ -557,12 +560,14 @@ describe('reference preview', () => {
   })
 })
 
+/** One menu pick over the shared session fixture. */
+const pick = (source: InputTriggerSource, candidate: InputTriggerCandidate) => source.onPick({
+  candidate, session, position: 'inline', via: 'menu', action: 'pick' as const, span: { start: 0, end: 1, draftRev: 1 },
+})
+
 describe('snapshot stops', () => {
   const withStops = () => ({
     stops: vi.fn(() => Promise.resolve({ ok: true as const, value: STOP_TIMELINES })),
-  })
-  const pick = (source: InputTriggerSource, candidate: InputTriggerCandidate) => source.onPick({
-    candidate, session, position: 'inline', via: 'menu', action: 'pick' as const, span: { start: 0, end: 1, draftRev: 1 },
   })
 
   it('ranks serializable stops between files and sessions', async () => {
@@ -600,6 +605,23 @@ describe('snapshot stops', () => {
         clipboardText: 'notes.md#2#call-9',
       },
     })
+  })
+
+  it('drops warmed stop rolls on connection reset and survives a failing stops remote', async () => {
+    const failing = {
+      stops: vi.fn(() => Promise.resolve({ ok: false as const, error: { code: 'down', message: 'down', details: {} } })),
+    }
+    const cold = await bench(undefined, undefined, {}, failing)
+    cold.source.warm?.(session)
+    await vi.waitFor(() => { expect(cold.source.lexicon?.(session)).toEqual([]) })
+    await cold.fiber.dispose()
+
+    const warm = await bench(undefined, undefined, {}, withStops())
+    warm.source.warm?.(session)
+    await vi.waitFor(() => { expect(warm.source.lexicon?.(session)).toEqual(['notes.md#2#call-9']) })
+    warm.ctx.emit('connection/reset')
+    expect(warm.source.lexicon?.(session)).toBeUndefined()
+    await warm.fiber.dispose()
   })
 
   it('warms the lexicon roll and refreshes it as menus poll', async () => {
@@ -646,5 +668,178 @@ describe('snapshot stops', () => {
     const { source } = await bench(undefined, undefined, {}, checkpoint)
     await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
       .rejects.toThrow('checkpoint.stops failed')
+  })
+})
+
+describe('line notes', () => {
+  /** One file's register carrying a single note slot at line 3. */
+  const NOTE_TIMELINES = [{
+    path: 'notes.md',
+    slots: [{
+      slotId: 'note-abc',
+      kind: 'note',
+      path: 'notes.md',
+      label: 'fix this',
+      line: 3,
+      createdAt: CREATED_AT,
+      detail: { text: 'fix this' },
+      after: 'sha256:a',
+    }],
+  }]
+  const withNotes = () => ({
+    slots: vi.fn(() => Promise.resolve({ ok: true as const, value: NOTE_TIMELINES })),
+  })
+
+  it('lists live note slots in their own section after stops', async () => {
+    const { source } = await bench(undefined, undefined, {}, withNotes())
+    const rows = await source.candidates(session, request('notes'))
+    const note = rows.find(row => row.section === 'Line notes')
+    expect(note).toEqual(expect.objectContaining({
+      name: 'notes.md#L3#note-abc',
+      label: 'line 3 · fix this',
+      icon: 'note',
+    }))
+    const quoted = await source.candidates(session, request('', { quoted: true }))
+    expect(quoted.some(row => row.section === 'Line notes')).toBe(false)
+  })
+
+  it('settles a note pick as a note chip', async () => {
+    const { source } = await bench(undefined, undefined, {}, withNotes())
+    const rows = await source.candidates(session, request('notes'))
+    const note = rows.find(row => row.section === 'Line notes')!
+    expect(pick(source, note)).toEqual({
+      insert: {
+        source: 'reference',
+        ref: 'notes.md#L3#note-abc',
+        label: 'fix this',
+        appearance: 'note',
+        clipboardText: 'notes.md#L3#note-abc',
+      },
+    })
+  })
+
+  it('opens a note reference at its line', async () => {
+    const { source, openResource } = await bench(undefined, undefined, {}, withNotes())
+    expect(source.openReference?.(session, { ref: '@notes.md#L3#note-abc', appearance: 'note' })).toBe(true)
+    expect(openResource).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ params: { line: 3 } }),
+    )
+  })
+
+  it('serializes a note chip as address, note text, and the fenced retained line', async () => {
+    const { source } = await bench(undefined, undefined, {}, withNotes())
+    await expect(source.codec?.serialize(session, '@notes.md#L3#note-abc', new AbortController().signal))
+      .resolves.toBe('@notes.md#L3#note-abc\nfix this\n```\nfrozen\n\n```')
+  })
+
+  it('serializes a note without a retained line from its text alone', async () => {
+    const timeline = NOTE_TIMELINES[0]!
+    const slot = timeline.slots[0]!
+    const timelines = [{ ...timeline, slots: [{ ...slot, after: undefined }] }]
+    const checkpoint = { slots: vi.fn(() => Promise.resolve({ ok: true as const, value: timelines })) }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, '@notes.md#L3#note-abc', new AbortController().signal))
+      .resolves.toBe('@notes.md#L3#note-abc\nfix this')
+  })
+
+  it('serializes an un-@-prefixed ref and a detail-less note from its label', async () => {
+    const timeline = NOTE_TIMELINES[0]!
+    const slot = timeline.slots[0]!
+    const labelOnly = [{ ...timeline, slots: [{ ...slot, detail: {} as never }] }]
+    const checkpoint = { slots: vi.fn(() => Promise.resolve({ ok: true as const, value: labelOnly })) }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, 'notes.md#L3#note-abc', new AbortController().signal))
+      .resolves.toBe('notes.md#L3#note-abc\nfix this\n```\nfrozen\n\n```')
+  })
+
+  /** One file's serializable stop roll for the line-notes describe. */
+  const NOTE_STOPS = {
+    stops: vi.fn(() => Promise.resolve({
+      ok: true as const,
+      value: [{
+        path: 'src/deep.md',
+        stops: [{ seq: 1, time: 1, callId: 'call-9', toolName: 'write', turn: 2, step: 0, after: 'sha256:b' }],
+      }],
+    })),
+  }
+
+  it('keeps stop rows when the notes remote fails, drops unlined notes, and names a parent folder', async () => {
+    const lined = NOTE_TIMELINES[0]!
+    const timelines = [{
+      ...lined,
+      path: 'src/deep.md',
+      slots: [
+        { ...lined.slots[0]!, path: 'src/deep.md' },
+        { ...lined.slots[0]!, slotId: 'note-noline', line: undefined },
+      ] as typeof lined.slots,
+    }]
+    const checkpoint = {
+      ...NOTE_STOPS,
+      slots: vi.fn(() => Promise.resolve({ ok: true as const, value: timelines })),
+    }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    const rows = await source.candidates(session, request(''))
+    expect(rows.filter(row => row.section === 'Line notes')).toHaveLength(1)
+    const stop = rows.find(row => row.section === 'Snapshot stops')
+    expect(stop?.description).toBe('src')
+
+    const failingNotes = {
+      ...NOTE_STOPS,
+      slots: vi.fn(() => Promise.resolve({ ok: false as const, error: { code: 'checkpoint/down', message: 'gone', details: {} } })),
+    }
+    const cold = await bench(undefined, undefined, {}, failingNotes)
+    const stopRows = await cold.source.candidates(session, request(''))
+    expect(stopRows.some(row => row.section === 'Snapshot stops')).toBe(true)
+    expect(stopRows.some(row => row.section === 'Line notes')).toBe(false)
+    await cold.fiber.dispose()
+  })
+
+  it('swallows a rejecting stops remote while warming and keeps a second lexicon listener live', async () => {
+    const rejecting = { stops: vi.fn(() => Promise.reject(new Error('transport'))) }
+    const cold = await bench(undefined, undefined, {}, rejecting)
+    cold.source.warm?.(session)
+    await vi.waitFor(() => { expect(rejecting.stops).toHaveBeenCalled() })
+    expect(cold.source.lexicon?.(session)).toBeUndefined()
+    await cold.fiber.dispose()
+
+    const warm = await bench(undefined, undefined, {}, NOTE_STOPS)
+    const one = vi.fn()
+    const two = vi.fn()
+    const offOne = warm.source.subscribeLexicon?.(session, one)
+    const offTwo = warm.source.subscribeLexicon?.(session, two)
+    warm.source.warm?.(session)
+    await vi.waitFor(() => { expect(warm.source.lexicon?.(session)).toEqual(['src/deep.md#2#call-9']) })
+    offOne?.()
+    offTwo?.()
+    await warm.fiber.dispose()
+  })
+
+  it('refuses serialization when the register carries no such note', async () => {
+    const { source } = await bench()
+    await expect(source.codec?.serialize(session, '@notes.md#L3#note-abc', new AbortController().signal))
+      .rejects.toThrow('not in this session\'s register')
+  })
+
+  it('refuses serialization when the slots remote fails', async () => {
+    const checkpoint = {
+      slots: vi.fn(() => Promise.resolve({
+        ok: false as const,
+        error: { code: 'checkpoint/down', message: 'gone', details: {} },
+      })),
+    }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, '@notes.md#L3#note-abc', new AbortController().signal))
+      .rejects.toThrow('checkpoint.slots failed')
+  })
+
+  it('refuses serialization when the note\'s retained line was pruned', async () => {
+    const checkpoint = {
+      ...withNotes(),
+      blob: vi.fn(() => Promise.resolve({ ok: true as const, value: null })),
+    }
+    const { source } = await bench(undefined, undefined, {}, checkpoint)
+    await expect(source.codec?.serialize(session, '@notes.md#L3#note-abc', new AbortController().signal))
+      .rejects.toThrow('pruned')
   })
 })

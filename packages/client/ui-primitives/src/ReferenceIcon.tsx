@@ -4,7 +4,7 @@ import {
 } from './icons/index.tsx'
 
 /** Reference domains with distinct composer and transcript glyphs. */
-export type ReferenceIconKind = 'session' | 'file' | 'folder' | 'snapshot'
+export type ReferenceIconKind = 'session' | 'file' | 'folder' | 'snapshot' | 'note'
 
 /** Props shared by inline reference glyphs. */
 export interface ReferenceIconProps {
@@ -32,5 +32,14 @@ export function ReferenceIcon({ kind, size = 16, className }: ReferenceIconProps
     case 'file': return <IconBrowseOutline16 size={size} className={className} />
     case 'folder': return <IconFolderClose16 size={size} className={className} />
     case 'snapshot': return <IconClockOutline16 size={size} className={className} />
+    case 'note':
+      return (
+        <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path
+            d="M11.2 1.6a1.7 1.7 0 0 1 2.4 0l0.8 0.8a1.7 1.7 0 0 1 0 2.4l-8.6 8.6-3.6 0.9 0.9-3.6 8.1-9.1ZM4.3 11.2l-0.4 1.6 1.6-0.4 7.2-7.2-1.2-1.2-7.2 7.2Z"
+            fill="currentColor"
+          />
+        </svg>
+      )
   }
 }

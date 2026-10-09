@@ -28,6 +28,8 @@
   "dsh": {
     "client": {
       "inject": [
+        "@deepseek-ai/dsh-checkpoint",
+        "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-api-workspace-controller",
         "@deepseek-ai/dsh-client-locale",
@@ -68,6 +70,7 @@
     "@deepseek-ai/dsh-client-ui-primitives": "workspace:^",
     "@deepseek-ai/dsh-client-ui-renderer": "workspace:^",
     "@deepseek-ai/dsh-client-ui-session": "workspace:^",
+    "@deepseek-ai/dsh-checkpoint": "workspace:^",
     "@deepseek-ai/dsh-client-ui-settings": "workspace:^",
     "@deepseek-ai/dsh-client-ui-sidebar-files": "workspace:^",
     "@deepseek-ai/dsh-client-ui-sidebar-documentpreview": "workspace:^",

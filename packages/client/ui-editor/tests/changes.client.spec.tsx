@@ -77,6 +77,7 @@ function Harness({ stops, draft = '', pruned = false, setDrafts, params }: Harne
       return { ok: true, value: text }
     },
     restore: async () => ({ ok: true, value: 'notes.txt' }),
+    renderSlot: () => null,
     t,
   } as never)
 }
@@ -158,6 +159,12 @@ describe('Changes display', () => {
     expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
   })
 
+  it('lands on the first stop when the named stop is unknown', async () => {
+    const setDrafts: string[] = []
+    render(createElement(Harness, { stops: stopFixture(), setDrafts, params: { display: 'changes', stop: 'nope' } }))
+    expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1' }))).toBeDefined()
+  })
+
   it('marks a stop whose call never logged a turn as a gap diamond', async () => {
     const setDrafts: string[] = []
     const stops: FileStop[] = [
@@ -179,6 +186,51 @@ describe('Changes display', () => {
     render(createElement(Harness, { stops: stopFixture(), setDrafts, pruned: true }))
     await enterChanges()
     expect(await screen.findByText(en.missingBlob)).toBeDefined()
+  })
+
+  it('counts a pruned hover with no sides', async () => {
+    const setDrafts: string[] = []
+    const { container } = render(createElement(Harness, { stops: stopFixture(), setDrafts, pruned: true }))
+    await enterChanges()
+    await screen.findByText(en.missingBlob)
+    const tick = screen.getByTitle(t('turnN', { n: 2 }) + ' · write')
+    act(() => { fireEvent.mouseEnter(tick) })
+    const card = container.querySelector('[data-tick-card]')
+    expect(card).not.toBeNull()
+    await waitFor(() => expect(card!.textContent).toContain('+0'))
+    act(() => { fireEvent.mouseLeave(tick) })
+  })
+
+  it('drops a hover count read when the surface unmounts mid-flight', async () => {
+    const setDrafts: string[] = []
+    let release!: (value: string | null) => void
+    const stalled = new Promise<string | null>((resolve) => { release = resolve })
+    const { container, unmount } = render(createElement(EditorBody, {
+      useTabInfo: () => tabInfo({ display: 'changes' }),
+      useResource: () => ({ status: 'none' }),
+      useFileHistory: (selector: (snapshot: unknown) => unknown) =>
+        selector({ files: [{ path: 'notes.txt', stops: stopFixture() }] }),
+      useInput: (selector: (snapshot: unknown) => unknown) => selector({ draft: '' }),
+      inputActions: { setDraft: (text: string) => { setDrafts.push(text) } },
+      load: async () => ({
+        ok: true,
+        value: { absolutePath: '/w/notes.txt', version: 'v1', bytes: 4, offset: 0, data: btoa('one\n'), eof: true },
+      }),
+      save: async () => ({ ok: true, value: { absolutePath: '/w/notes.txt', version: 'v2' } }),
+      blob: () => stalled,
+      restore: async () => ({ ok: true, value: 'notes.txt' }),
+      renderSlot: () => null,
+      t,
+    } as never))
+    await waitFor(() => { expect(container.querySelector('[data-changes]')).toBeDefined() })
+    const tick = screen.getByTitle(t('turnN', { n: 2 }) + ' · write')
+    act(() => { fireEvent.mouseEnter(tick) })
+    unmount()
+    await act(async () => {
+      release('one\n')
+      await Promise.resolve()
+    })
+    expect(container.querySelector('[data-tick-card]')).toBeNull()
   })
 
   it('tells the file has no stops yet', async () => {
@@ -224,6 +276,39 @@ describe('Changes display', () => {
     expect(container.querySelector('[class*="ghost"]')).toBeNull()
   })
 
+  it('counts a hover over a first-appearance stop with no before', async () => {
+    const setDrafts: string[] = []
+    const { container } = render(createElement(Harness, {
+      stops: [{ seq: 1, time: 1, callId: 'c1', toolName: 'write', turn: 1, after: 'sha256:b' }],
+      setDrafts,
+    }))
+    await enterChanges()
+    await screen.findByText('two')
+    const tick = screen.getByTitle(t('turnN', { n: 1 }) + ' · write')
+    act(() => { fireEvent.mouseEnter(tick) })
+    const card = container.querySelector('[data-tick-card]')
+    expect(card).not.toBeNull()
+    await waitFor(() => expect(card!.textContent).toContain('+2'))
+    act(() => { fireEvent.mouseLeave(tick) })
+  })
+
+  it('shows a hover card with the tick\'s added and removed counts', async () => {
+    const setDrafts: string[] = []
+    const { container } = render(createElement(Harness, { stops: stopFixture(), setDrafts }))
+    await enterChanges()
+    await screen.findByText('two')
+    const tick = screen.getByTitle(t('turnN', { n: 2 }) + ' · write')
+    act(() => { fireEvent.mouseEnter(tick) })
+    const card = container.querySelector('[data-tick-card]')
+    expect(card).not.toBeNull()
+    await waitFor(() => expect(card!.textContent).toContain('+1'))
+    expect(card!.textContent).toContain('−0')
+    act(() => { fireEvent.focus(tick) })
+    act(() => { fireEvent.blur(tick) })
+    act(() => { fireEvent.mouseLeave(tick) })
+    expect(container.querySelector('[data-tick-card]')).toBeNull()
+  })
+
   it('shows the ghost while dragging over a measured track', async () => {
     const setDrafts: string[] = []
     const { container } = render(createElement(Harness, { stops: stopFixture(), setDrafts }))
@@ -265,6 +350,7 @@ describe('Changes display', () => {
       save: async () => ({ ok: true, value: { absolutePath: '/w/notes.txt', version: 'v2' } }),
       blob: () => stalled,
       restore: async () => ({ ok: true, value: 'notes.txt' }),
+      renderSlot: () => null,
       t,
     } as never))
     await enterChanges()

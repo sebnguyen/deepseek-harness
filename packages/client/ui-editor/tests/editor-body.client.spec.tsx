@@ -110,6 +110,7 @@ function Harness(props: HarnessOptions & { load: unknown; save: unknown }): Reac
     inputActions: { setDraft: () => {} },
     blob: async () => ({ ok: true, value: null }),
     restore: async () => ({ ok: true, value: 'notes.txt' }),
+    renderSlot: () => null,
     t,
   } as never)
 }

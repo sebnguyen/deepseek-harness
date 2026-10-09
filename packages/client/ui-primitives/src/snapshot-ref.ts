@@ -18,6 +18,33 @@ export interface SnapshotRef {
   readonly callId: string
 }
 
+/** One line-note address: `path#L<line>#<note-id>`. */
+export interface NoteRef {
+  readonly path: string
+  readonly line: number
+  readonly noteId: string
+}
+
+/**
+ * Parse the `@`-less note address `path#L<line>#<note-id>`; the path is
+ * everything before the last two `#` separators, so paths may themselves
+ * contain `#`, and the middle slot must carry the `L` prefix the stop
+ * grammar never uses.
+ * @param ref - the address text following `@`.
+ * @returns the ref, or undefined on any malformed part.
+ */
+export function parseNoteRef(ref: string): NoteRef | undefined {
+  const idAt = ref.lastIndexOf('#')
+  if (idAt < 1 || ref.length === idAt + 1) return undefined
+  const noteId = ref.slice(idAt + 1)
+  const lineAt = ref.lastIndexOf('#', idAt - 1)
+  if (lineAt < 1 || lineAt >= idAt - 1) return undefined
+  const lineText = ref.slice(lineAt + 1, idAt)
+  if (!/^L\d+$/.test(lineText)) return undefined
+  const path = ref.slice(0, lineAt)
+  return { path, line: Number(lineText.slice(1)), noteId }
+}
+
 /** One file stop, structurally: what an address and a frame need. */
 export interface SnapshotStop {
   readonly callId: string
