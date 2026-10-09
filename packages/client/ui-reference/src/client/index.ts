@@ -88,7 +88,7 @@ export function apply(ctx: ClientContext): void {
         : fetchRoll(session.sessionId)
       const notesLookup = quoted === true
         ? Promise.resolve([] as CheckpointSlotTimeline[])
-        : ctx.remote.checkpoint.slots(session.sessionId)
+        : ctx.remote.checkpoint.slots(session.sessionId, undefined)
           .then(result => (result.ok ? result.value : []))
       const [fileItems, sessionItems, stopItems, noteTimelines] = await Promise.all([
         fileLookup, sessionLookup, stopsLookup, notesLookup,

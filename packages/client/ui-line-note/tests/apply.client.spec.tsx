@@ -84,8 +84,8 @@ describe('client apply', () => {
     const ctx = new Context()
     new RemoteService(ctx)
     ctx.provide('remote.checkpoint', {
-      slots: vi.fn(async (_sessionId: string) => {
-        notesRemote.calls.push(_sessionId)
+      slots: vi.fn(async (_sessionId: string, _path?: string) => {
+        notesRemote.calls.push(`${_sessionId}:${String(_path)}`)
         return { ok: true as const, value: [{ path: 'notes.txt', slots: [noteSlot()] }] }
       }),
       slotPut: vi.fn(async () => ({ ok: true, value: {} })),
@@ -121,7 +121,9 @@ describe('client apply', () => {
     await vi.waitFor(() => {
       expect(source.getSnapshot().byPath.get('notes.txt')).toHaveLength(1)
     })
-    expect(notesRemote.calls).toEqual(['s-1'])
+    // The wire arity is the full declared parameter list: an omitted
+    // optional path rides as explicit undefined, not elision.
+    expect(notesRemote.calls).toEqual(['s-1:undefined'])
   })
 
   it('exposes putSlot and slots over the checkpoint remote, memoizes sources, and survives a failing remote', async () => {
@@ -139,8 +141,8 @@ describe('client apply', () => {
     const ctx = new Context()
     new RemoteService(ctx)
     ctx.provide('remote.checkpoint', {
-      slots: vi.fn(async (sessionId: string) => {
-        calls.push(sessionId)
+      slots: vi.fn(async (sessionId: string, path?: string) => {
+        calls.push(`${sessionId}:${String(path)}`)
         if (!ok) return { ok: false as const, error: 'down' }
         return { ok: true as const, value: [{ path: 'notes.txt', slots: [noteSlot()] }] }
       }),
@@ -183,7 +185,7 @@ describe('client apply', () => {
     await vi.waitFor(() => {
       expect(first.getSnapshot().byPath.get('notes.txt')).toHaveLength(1)
     })
-    expect(calls).toEqual(['s-1'])
+    expect(calls).toEqual(['s-1:undefined'])
 
     // The entry's inject factory hands out working putSlot and slots faces.
     const face = registered.inject('s-9')

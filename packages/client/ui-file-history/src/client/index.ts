@@ -52,7 +52,7 @@ export function apply(ctx: Context): void {
           const key = `${String(window.revision)}\u0000${cwd ?? ''}`
           if (key !== fetchKey) {
             fetchKey = key
-            void ctx.remote.checkpoint.slots(binding.sessionId).then((result) => {
+            void ctx.remote.checkpoint.slots(binding.sessionId, undefined).then((result) => {
               // A newer revision owns the fold once the key moves on, and a
               // failed read keeps the last folded register in place.
               if (!result.ok || key !== fetchKey) return

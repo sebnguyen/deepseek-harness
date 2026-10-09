@@ -601,6 +601,12 @@ importers:
 
   apps/web:
     devDependencies:
+      '@codemirror/state':
+        specifier: ^6.5.0
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: ^6.36.0
+        version: 6.43.13
       '@deepseek-ai/cordis-plugin-group':
         specifier: workspace:^
         version: link:../../vendor/group
@@ -5028,6 +5034,12 @@ importers:
 
   packages/client/web:
     devDependencies:
+      '@codemirror/state':
+        specifier: ^6.5.0
+        version: 6.7.6
+      '@codemirror/view':
+        specifier: ^6.36.0
+        version: 6.43.13
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis

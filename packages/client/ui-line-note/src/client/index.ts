@@ -49,8 +49,8 @@ export const inject = ['slots', 'uiSession', 'locale', 'remote', 'remote.checkpo
  */
 /** The checkpoint namespace face with its Remoteraw unwrapped result types. */
 interface CheckpointRemoteFace {
-  /** The register as a file-to-slot-array map. */
-  readonly slots: (sessionId: string) => Promise<RemoteResult<CheckpointSlotTimeline[]>>
+  /** The register as a file-to-slot-array map; `path` narrows to one key. */
+  readonly slots: (sessionId: string, path?: string) => Promise<RemoteResult<CheckpointSlotTimeline[]>>
   /** Put one producer-minted slot into this session's register. */
   readonly slotPut: (sessionId: string, slot: {
     readonly slotId: string
@@ -66,7 +66,7 @@ interface CheckpointRemoteFace {
 export function apply(ctx: ClientContext): void {
   const remote = ctx.remote as unknown as { checkpoint: CheckpointRemoteFace }
   const notesRemote: LineNotesRemote = {
-    slots: sessionId => remote.checkpoint.slots(sessionId).then(result => (result.ok ? result.value : [])),
+    slots: sessionId => remote.checkpoint.slots(sessionId, undefined).then(result => (result.ok ? result.value : [])),
   }
   const sources = new WeakMap<SessionBinding, ObservableSnapshot<LineNotesSnapshot>>()
   const sourceFor = (binding: SessionBinding): ObservableSnapshot<LineNotesSnapshot> => {
@@ -90,7 +90,7 @@ export function apply(ctx: ClientContext): void {
       locale: 'lineNote',
       inject: (sessionId: string): EditorCmEntryInjected => ({
         putSlot: slot => remote.checkpoint.slotPut(sessionId, slot),
-        slots: () => remote.checkpoint.slots(sessionId).then(result => (result.ok ? result.value : [])),
+        slots: () => remote.checkpoint.slots(sessionId, undefined).then(result => (result.ok ? result.value : [])),
       }),
     },
     LineNoteGutter,

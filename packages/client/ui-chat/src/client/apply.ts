@@ -184,7 +184,7 @@ export function apply(ctx: Context): void {
     order: 10,
     locale: 'chat',
     inject: (sessionId): TurnChipsInjected => ({
-      slots: () => ctx.remote.checkpoint.slots(sessionId).then(result => (result.ok ? result.value : [])),
+      slots: () => ctx.remote.checkpoint.slots(sessionId, undefined).then(result => (result.ok ? result.value : [])),
       blob: digest => ctx.remote.checkpoint.blob(sessionId, digest).then(result => (result.ok ? result.value : null)),
     }),
   }, TurnChipRow))
