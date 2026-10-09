@@ -50,7 +50,7 @@ A contributed column can no longer blank the pane: no annotation entry carries C
 
 Manual browser saves carry the same provenance as tool captures, closing the split the proposal's checkpoint half describes; the log-side migration is still open in step 2.
 
-The git seam reads through `ctx.fs`, so sandboxed and remote execution worlds serve badges identically and a seam-less deployment keeps a badge-free explorer without a switch; the uncapped status walk keeps the seam note's re-hash cost, the first limit to revisit on a large-worktree complaint.
+The git seam reads through `ctx.fs`, so sandboxed and remote execution worlds serve badges identically and a seam-less deployment keeps a badge-free explorer without a switch; the status walk runs off the Host loop on a worker thread and the badges ride one pushed refresh per write burst ([off-loop walk note](./2026-10-09-off-loop-git-walk-and-pushed-scm-state.md)).
 
 ## Testing
 
