@@ -45,8 +45,24 @@ export interface SessionFileRef {
 }
 
 /**
- * The session and path one `dsh-resource://file/…` address names.
- * @param address - a tab's `dsh-resource://file/…` address.
+ * A frame can only be the Host's own loopback child; mirror of the bridge-side
+ * guard so the body never iframes a foreign origin.
+ * @param frameUrl - the status-provided iframe source.
+ * @returns true only for 127.0.0.1, localhost, or [::1] hosts.
+ */
+export function frameIsLoopback(frameUrl: string): boolean {
+  let host: string
+  try {
+    host = new URL(frameUrl).hostname
+  }
+  catch {
+    return false
+  }
+  const bare = host.replace(/^\[/, '').replace(/\]$/, '')
+  return bare === '127.0.0.1' || bare === 'localhost' || bare === '::1'
+}
+
+/** @param address - a tab's `dsh-resource://file/…` address.
  * @returns the session and the path, throwing on any other address shape.
  */
 export function sessionFileOf(address: string): SessionFileRef {

@@ -48,6 +48,13 @@ describe('VscodeBody', () => {
     })
   })
 
+  it('renders the absent line when the frame url is not loopback', async () => {
+    mount(faceOf([{ ready: true, twinSha: 'f', reason: null, frameUrl: 'https://evil.example/?tkn=t' }]).face)
+    await waitFor(() => {
+      expect(screen.getByRole('status').textContent).toBe(en.absent)
+    })
+  })
+
   it('mounts the iframe and pushes the open once ready', async () => {
     const { face, opens } = faceOf([
       { ready: true, twinSha: 'f', reason: null, frameUrl: 'http://127.0.0.1:41000/?tkn=t' },

@@ -1,6 +1,6 @@
 /** Wave D glue specs: notes, timeline, gutter, and the revealed posture. */
 import { describe, expect, it } from 'vitest'
-import { applyChromePosture, LAYOUT_HIDE_COMMANDS } from '../src/bridge.ts'
+import { applyChromePosture, frameIsLoopback, LAYOUT_HIDE_COMMANDS } from '../src/bridge.ts'
 import { mergeBands, presentGutter, type GutterFace } from '../src/gutter.ts'
 import { syncNotes, type CommentsFace, type NoteRecord } from '../src/notes.ts'
 import { projectStops, restoreAt, type StopRecord } from '../src/timeline.ts'
@@ -115,6 +115,16 @@ describe('timeline', () => {
     await restoreAt(wire, projectStops(STOPS), 1)
     expect(restored).toEqual(['d14'])
     await expect(restoreAt(wire, projectStops(STOPS), 5)).rejects.toMatchObject({ code: 'ide/timeline-out-of-range' })
+  })
+})
+
+describe('frameIsLoopback', () => {
+  it('guards the bridge side of the loopback contract too', () => {
+    expect(frameIsLoopback('http://127.0.0.1:41000/?tkn=t')).toBe(true)
+    expect(frameIsLoopback('http://localhost:8080/')).toBe(true)
+    expect(frameIsLoopback('http://[::1]:9100/')).toBe(true)
+    expect(frameIsLoopback('https://evil.example/')).toBe(false)
+    expect(frameIsLoopback('not a url')).toBe(false)
   })
 })
 

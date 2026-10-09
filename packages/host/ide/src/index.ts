@@ -16,7 +16,7 @@ import { Service } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { IdeController } from './controller.ts'
 import { parseManifest } from './manifest.ts'
-import { IdeArtifactError, type IdeReport, type IdeSpawnLike, type IdeStatus } from './types.ts'
+import { IdeArtifactError, type IdeReport, type IdeSpawnLike, type IdeStatus, type IdeUnpackLike } from './types.ts'
 
 export { IdeController } from './controller.ts'
 export { IDE_PLATFORM, parseManifest, resolveTwin, sha256OfFile } from './manifest.ts'
@@ -62,6 +62,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'ide/twin-unrecorded': { readonly detail: string }
     /** Twin digests disagree with the manifest; spawn refused. */
     'ide/sha-mismatch': { readonly detail: string }
+    /** The unpacked tree names no REH entry the spawn can exec. */
+    'ide/twin-layout': { readonly detail: string }
   }
 }
 
@@ -84,6 +86,7 @@ export default class Ide extends TypertRemoteService {
       env: process.env,
       cacheDir: defaultCacheDir(process.env),
       subprocess: (ctx as { subprocess?: IdeSpawnLike }).subprocess,
+      unpack: (ctx as { unpack?: IdeUnpackLike }).unpack,
     })
   }
 

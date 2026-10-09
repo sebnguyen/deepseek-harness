@@ -1,9 +1,20 @@
 /** The definition's degrade contract, read straight off canOpen. */
 import { describe, expect, it } from 'vitest'
+import { frameIsLoopback } from '../src/client/rpc.ts'
 import { VSCODE_ID, VSCODE_KIND, vscodeDefinition } from '../src/client/definition.ts'
 import { sessionFileOf } from '../src/client/rpc.ts'
 
 const ADDR = 'dsh-resource://file/session/s1/packages/host/ide/src/index.ts'
+
+describe('frameIsLoopback', () => {
+  it('accepts loopback in every spelling and refuses the foreign', () => {
+    expect(frameIsLoopback('http://127.0.0.1:41000/?tkn=t')).toBe(true)
+    expect(frameIsLoopback('http://localhost:8080/')).toBe(true)
+    expect(frameIsLoopback('http://[::1]:9000/')).toBe(true)
+    expect(frameIsLoopback('https://evil.example/')).toBe(false)
+    expect(frameIsLoopback('not a url')).toBe(false)
+  })
+})
 
 describe('vscode tab definition', () => {
   it('claims session file addresses only while readiness holds', () => {

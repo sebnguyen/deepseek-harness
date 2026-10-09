@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { IdeController, IDE_REPORT_CAP } from '../src/controller.ts'
-import type { IdeChildLike, IdeManifestRow, IdeSpawnLike } from '../src/types.ts'
+import type { IdeChildLike, IdeManifestRow, IdeSpawnLike, IdeUnpackLike } from '../src/types.ts'
 
 const ROW: IdeManifestRow = { upstreamSha: 'f'.repeat(40), upstreamUrl: 'https://x', twins: {} }
 
@@ -66,12 +66,21 @@ beforeEach(async () => {
   await writeFile(join(twinDir, 'web-client'), 'c')
 })
 
+/** The tar seam for specs: extract means "place the entry the spawn expects". */
+const fakeUnpack: IdeUnpackLike = async (_command, args) => {
+  const destination = args[args.indexOf('-C') + 1]!
+  const { mkdir, writeFile } = await import('node:fs/promises')
+  await mkdir(destination, { recursive: true })
+  if (destination.endsWith('server')) await writeFile(join(destination, 'server.js'), '')
+}
+
 function controller(subprocess?: FakeSubprocess, withTwin = false): IdeController {
   return new IdeController({
     loadRow: async () => ROW,
     env: withTwin ? { DSH_IDE_TWIN_DIR: twinDir, DSH_IDE_TWIN_NOVERIFY: '1' } : {},
     cacheDir: '/definitely/absent',
     subprocess,
+    unpack: fakeUnpack,
   })
 }
 
@@ -100,6 +109,7 @@ describe('IdeController', () => {
     expect(seen).toEqual([false])
     await ctl.ensure()
     expect(sub.spawns).toHaveLength(1)
+    expect(sub.spawns[0]!.command).toBe(process.execPath)
     expect(sub.spawns[0]!.args).toContain('--port')
     expect(ctl.status.reason).toBe('spawning')
     expect(ctl.hello()).toBe(true)

@@ -1,14 +1,14 @@
 /**
- * Shape of the IDE lane: the manifest row, the resolved twin, the readiness
- * snapshot, the spawn seam, the event uplink, and the artifact errors every
- * refusal rides.
+ * Shape of the IDE lane: the manifest row, the verified twin pair as
+ * transported tarballs, the unpacked spawn face, the readiness snapshot, the
+ * spawn and unpack seams, and the artifact errors every refusal rides.
  */
 
 /** One platform's twin pair digests as recorded in the manifest row. */
 export interface IdePlatformTwin {
-  /** sha256 of the produced REH server artifact. */
+  /** sha256 of the REH server tarball as published. */
   readonly serverSha256: string
-  /** sha256 of the produced `vscode-web` client twin. */
+  /** sha256 of the `vscode-web` client tarball as published. */
   readonly clientSha256: string
 }
 
@@ -26,14 +26,28 @@ export interface IdeManifestRow {
   readonly twins: Readonly<Record<string, IdePlatformTwin>>
 }
 
-/** A twin whose digests agreed with the manifest, ready to spawn. */
+/**
+ * A twin whose digests agreed with the manifest: two gzip tarballs in the
+ * content-addressed cache. Byte-identical to the release assets the fork tags,
+ * so a compiled twin and a fetched twin are the same twin.
+ */
 export interface ResolvedTwin {
-  /** Absolute path of the REH server entry. */
+  /** Path of the verified REH server tarball. */
   readonly serverPath: string
-  /** Absolute path of the `vscode-web` client directory. */
+  /** Path of the verified `vscode-web` client tarball. */
   readonly clientPath: string
   /** The platform key whose digests matched, or the override's label. */
   readonly platform: string
+}
+
+/** The unpacked face of a verified twin, what the spawn actually execs. */
+export interface UnpackedTwin {
+  /** Node entry of the extracted REH tree. */
+  readonly serverEntry: string
+  /** Extracted `vscode-web` directory the frame assets ride. */
+  readonly clientDir: string
+  /** The unpack root carrying the freshness marker. */
+  readonly unpackDir: string
 }
 
 /** The readiness observable the `ui-vscode` tab kind's `canOpen` reads. */
@@ -77,22 +91,29 @@ export interface IdeSpawnLike {
   }): IdeChildLike
 }
 
+/** The tar executive the unpack needs; the host machine's `tar` when absent. */
+export interface IdeUnpackLike {
+  (command: string, args: readonly string[]): Promise<void>
+}
+
 /** Inputs the controller composes from; tests and the Host supply them differently. */
 export interface IdeControllerDependencies {
   /** Reads and validates the manifest row; refusals ride their named error. */
   loadRow(): Promise<IdeManifestRow>
   /** Spawn environment, read for the twin override and noverify latch only. */
   readonly env: Readonly<Record<string, string | undefined>>
-  /** Artifact cache root the lane writes. */
+  /** Artifact cache root the lane and the fetch client write. */
   readonly cacheDir: string
   /** The Host's managed child-process seam; absent means never spawn. */
   readonly subprocess?: IdeSpawnLike | undefined
+  /** Unpack executive; absent means the real `tar` of the host machine. */
+  readonly unpack?: IdeUnpackLike | undefined
 }
 
 /** Named refusal for every manifest and artifact failure. */
 export class IdeArtifactError extends Error {
   constructor(
-    readonly code: 'ide/manifest-invalid' | 'ide/twin-incomplete' | 'ide/twin-unrecorded' | 'ide/sha-mismatch',
+    readonly code: 'ide/manifest-invalid' | 'ide/twin-incomplete' | 'ide/twin-unrecorded' | 'ide/sha-mismatch' | 'ide/twin-layout',
     message: string,
   ) {
     super(message)

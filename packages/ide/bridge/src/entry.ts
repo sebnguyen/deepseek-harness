@@ -10,10 +10,13 @@ export async function activate(): Promise<() => void> {
   const vscode = await import('vscode')
   const base = process.env.DSH_GATEWAY_URL ?? 'http://127.0.0.1:0'
   const session = process.env.DSH_SESSION_ID ?? ''
+  // The launch token the Host set on the spawn env; the bridge proves on every
+  // call that it is the child this Host meant to start.
+  const auth = process.env.DSH_IDE_TOKEN ?? ''
   const call = async (method: string): Promise<unknown> => {
     const response = await fetch(`${base}/api/remote.ide.${method}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${auth}` },
       body: JSON.stringify({ args: [session] }),
     })
     return response.json()
@@ -21,7 +24,7 @@ export async function activate(): Promise<() => void> {
   const report = async (kind: 'save' | 'activeEditor', path: string | null): Promise<void> => {
     await fetch(`${base}/api/remote.ide.report`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${auth}` },
       body: JSON.stringify({ args: [session, kind, path, null] }),
     })
   }

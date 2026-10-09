@@ -9,7 +9,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Ide, { IdeController } from '../src/index.ts'
-import type { IdeChildLike, IdeSpawnLike } from '../src/types.ts'
+import type { IdeChildLike, IdeSpawnLike, IdeUnpackLike } from '../src/types.ts'
 
 /** The house lib target lacks AbortSignal.none; a controller that is never aborted is the never-ending idiom. */
 const unAborting = new AbortController().signal
@@ -60,9 +60,18 @@ async function writeManifest(twins: object = {}): Promise<void> {
   await writeFile(manifestPath, JSON.stringify({ upstreamSha: 'e'.repeat(40), upstreamUrl: 'https://github.com/microsoft/vscode.git', twins }))
 }
 
+/** The tar seam for specs: extract means “place the entry the spawn expects”. */
+const fakeUnpack: IdeUnpackLike = async (_command, args) => {
+  const destination = args[args.indexOf('-C') + 1]!
+  const { mkdir, writeFile } = await import('node:fs/promises')
+  await mkdir(destination, { recursive: true })
+  if (destination.endsWith('server')) await writeFile(join(destination, 'server.js'), '')
+}
+
 function boot(subprocess?: StubSubprocess): Ide {
   const ctx = new Context()
   if (subprocess !== undefined) ctx.provide('subprocess', subprocess as never)
+  ctx.provide('unpack', fakeUnpack as never)
   const service = new Ide(ctx)
   expect(service.name).toBe('ide')
   return service
@@ -118,9 +127,12 @@ describe('ide Remote namespace', () => {
     const first = await iterator.next()
     expect(first.value?.ready).toBe(false)
     const nextParked = iterator.next()
-    // Mirror the bridge hello through the controller the service owns.
+    // Mirror the bridge hello through the controller the service owns; the
+    // spawn lands after the unpack await, so wait for the child to exist.
     const ideControllerProbe = service as unknown as { hello(signal: AbortSignal): Promise<boolean> }
-    expect(await ideControllerProbe.hello(unAborting)).toBe(true)
+    await vi.waitFor(async () => {
+      expect(await ideControllerProbe.hello(unAborting)).toBe(true)
+    })
     const changed = await nextParked
     expect(changed.value?.ready).toBe(true)
     controllerAbort.abort()

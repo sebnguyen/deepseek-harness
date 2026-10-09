@@ -34,6 +34,24 @@ export const LAYOUT_HIDE_COMMANDS = [
 ] as const
 
 /**
+ * The frame is the Host's own loopback child; a non-loopback frame url can
+ * never ride the body, whatever the readiness mirror says.
+ * @param frameUrl - the status-provided iframe source.
+ * @returns true only for 127.0.0.1, localhost, or [::1] hosts.
+ */
+export function frameIsLoopback(frameUrl: string): boolean {
+  let host: string
+  try {
+    host = new URL(frameUrl).hostname
+  }
+  catch {
+    return false
+  }
+  const bare = host.replace(/^\[/, '').replace(/\]$/, '')
+  return bare === '127.0.0.1' || bare === 'localhost' || bare === '::1'
+}
+
+/**
  * One posture application. `hidden` writes the hide defaults and runs the
  * layout commands; `revealed` restores only the settings the bridge owns,
  * leaving the user's later choices alone — it is their seat.

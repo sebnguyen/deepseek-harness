@@ -7,6 +7,7 @@
  */
 import { randomBytes } from 'node:crypto'
 import { resolveTwin } from './manifest.ts'
+import { unpackTwin } from './unpack.ts'
 import type { IdeChildLike, IdeControllerDependencies, IdeManifestRow, IdeReport, IdeStatus, ResolvedTwin } from './types.ts'
 
 const ABSENT: IdeStatus = { ready: false, twinSha: null, reason: null, frameUrl: null }
@@ -84,11 +85,16 @@ export class IdeController {
       return this.#status
     }
     const subprocess = this.#deps.subprocess
+    const unpacked = await unpackTwin(twin, this.#deps.unpack)
     const token = randomBytes(24).toString('hex')
+    const env: Record<string, string> = { DSH_IDE_TOKEN: token }
+    for (const [key, value] of Object.entries(this.#deps.env)) {
+      if (value !== undefined) env[key] = value
+    }
     const child = subprocess.spawn({
-      command: twin.serverPath,
-      args: ['--port', '0', '--connection-token', token],
-      env: {},
+      command: process.execPath,
+      args: [unpacked.serverEntry, '--port', '0', '--connection-token', token],
+      env,
     })
     this.#child = { token, child }
     this.#set({ ready: false, twinSha: row.upstreamSha, reason: 'spawning', frameUrl: null })

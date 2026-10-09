@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
-import { sessionFileOf, type IdeClientFace, type IdeWireStatus } from './rpc.ts'
+import { frameIsLoopback, sessionFileOf, type IdeClientFace, type IdeWireStatus } from './rpc.ts'
 import type { VscodeKey } from './locales.ts'
 
 /** The slot-rendered props: the tab-info hook, copy, and the injected wire face. */
@@ -36,6 +36,6 @@ export function VscodeBody({ useTabInfo, t, ide }: VscodeBodyProps): ReactNode {
     if (ready) void ide.open(path, new AbortController().signal)
   }, [ready, ide, path])
   if (status === undefined) return <div role="status">{t('loading')}</div>
-  if (!ready || status.frameUrl === null) return <div role="status">{t('absent')}</div>
+  if (!ready || status.frameUrl === null || !frameIsLoopback(status.frameUrl)) return <div role="status">{t('absent')}</div>
   return <iframe title={t('frame')} src={status.frameUrl} style={{ width: '100%', height: '100%', border: 0 }} />
 }
