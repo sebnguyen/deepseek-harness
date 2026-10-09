@@ -1,36 +1,52 @@
+import { randomUUID } from 'node:crypto'
 import { activateBridge, type IdeBridgeFace, type VscodeGlueFace } from './bridge.ts'
 
 /**
- * Real activation entry inside the twin's ext-host: wires `vscode` and the
- * loopback gateway face from spawn env, then defers to the tested glue. The
- * event uplink rides document-save and active-editor changes; teardown drops
- * the subscriptions before the drain.
+ * Real activation entry inside the twin's ext-host: the bridge is a colocated
+ * non-browser client of the Host Connection. Calls ride the house wire
+ * verbatim — POST `/api/<endpoint>` with the `client-request` envelope, the
+ * process launch token from the spawn env as the `token` query credential —
+ * so the Host's trust fence and browser-auth see exactly what a house client
+ * sends. A missing credential or a refused call is the frame-absent posture,
+ * never a crash of the twin's extension host.
  */
 export async function activate(): Promise<() => void> {
   const vscode = await import('vscode')
-  const base = process.env.DSH_GATEWAY_URL ?? 'http://127.0.0.1:0'
-  const session = process.env.DSH_SESSION_ID ?? ''
-  // The launch token the Host set on the spawn env; the bridge proves on every
-  // call that it is the child this Host meant to start.
-  const auth = process.env.DSH_IDE_TOKEN ?? ''
-  const call = async (method: string): Promise<unknown> => {
-    const response = await fetch(`${base}/api/remote.ide.${method}`, {
+  const base = (process.env.DSH_GATEWAY_URL ?? 'http://127.0.0.1:0').replace(/\/$/u, '')
+  const token = process.env.DSH_IDE_TOKEN ?? ''
+  const unavailable = (): (() => void) => () => {}
+  if (token === '') return unavailable()
+  /** One unary remote verb over the Connection envelope. */
+  const call = async (endpoint: string, args: readonly unknown[]): Promise<unknown> => {
+    const url = `${base}/api/${endpoint}?token=${encodeURIComponent(token)}`
+    const response = await fetch(url, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${auth}` },
-      body: JSON.stringify({ args: [session] }),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'client-request', rpcId: randomUUID(), method: endpoint, payload: { args } }),
     })
-    return response.json()
+    if (!response.ok) throw new Error(`gateway answered ${response.status} for ${endpoint}`)
+    const envelope = await response.json() as {
+      readonly result?: { readonly ok: boolean; readonly value?: unknown; readonly error?: { readonly message: string } }
+    }
+    const result = envelope.result
+    if (result === undefined) throw new Error(`gateway sent no result for ${endpoint}`)
+    if (!result.ok) throw new Error(result.error?.message ?? `gateway refused ${endpoint}`)
+    return result.value
   }
-  const report = async (kind: 'save' | 'activeEditor', path: string | null): Promise<void> => {
-    await fetch(`${base}/api/remote.ide.report`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${auth}` },
-      body: JSON.stringify({ args: [session, kind, path, null] }),
-    })
+  const safe = async (endpoint: string, args: readonly unknown[]): Promise<unknown | undefined> => {
+    try {
+      return await call(endpoint, args)
+    }
+    catch {
+      return undefined
+    }
   }
   const ide: IdeBridgeFace = {
-    hello: async () => (await call('hello')) as boolean,
-    openNext: async () => (await call('openNext')) as string | null,
+    hello: async () => (await safe('ide/hello', [])) === true,
+    openNext: async () => {
+      const next = await safe('ide/openNext', [])
+      return typeof next === 'string' ? next : null
+    },
   }
   const glue: VscodeGlueFace = {
     executeOpen: async (path) => {
@@ -40,12 +56,15 @@ export async function activate(): Promise<() => void> {
     runLayoutCommand: command => vscode.commands.executeCommand(command),
   }
   const drainDown = await activateBridge(glue, ide)
+  const report = (kind: 'save' | 'activeEditor', path: string | null): void => {
+    void safe('ide/report', [kind, path, null])
+  }
   const subscriptions = [
     vscode.workspace.onDidSaveTextDocument((document) => {
-      void report('save', document.uri.fsPath)
+      report('save', document.uri.fsPath)
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      void report('activeEditor', editor?.document.uri.fsPath ?? null)
+      report('activeEditor', editor?.document.uri.fsPath ?? null)
     }),
   ]
   return () => {
