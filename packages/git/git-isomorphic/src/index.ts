@@ -10,6 +10,7 @@ import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-git'
 import { IsomorphicGitProvider } from './provider.ts'
+import { GitWalkRunner } from './runner.ts'
 
 /** Cordis plugin name used by loader diagnostics. */
 export const name = 'git-isomorphic'
@@ -32,5 +33,12 @@ export const Config: z<Config> = z.object({
 
 /** Register the isomorphic-git provider with `ctx.git`. */
 export function apply(ctx: Context, config: Config): void {
-  ctx.git.registerProvider(new IsomorphicGitProvider(ctx, config.id ?? 'isomorphic-git', config.maxFileBytes ?? 32 * 1024 * 1024))
+  const provider = new IsomorphicGitProvider(
+    ctx,
+    config.id ?? 'isomorphic-git',
+    config.maxFileBytes ?? 32 * 1024 * 1024,
+    new GitWalkRunner(),
+  )
+  ctx.effect(() => () => { provider.dispose() }, 'git-isomorphic: walk runner')
+  ctx.git.registerProvider(provider)
 }

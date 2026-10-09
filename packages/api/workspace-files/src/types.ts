@@ -176,6 +176,19 @@ export type WorkspaceScmState =
     readonly truncated: boolean
   }
 
+declare module '@deepseek-ai/cordis' {
+  interface Events {
+    /**
+     * The Host recomputed one workspace's git state after observed writes;
+     * the explorer applies it without re-asking.
+     * @param workspaceRoot - the session scope root the state was walked for.
+     * @param state - the fresh git state of that root.
+     * @mode emit
+     */
+    'workspaceFiles/scm-updated'(workspaceRoot: string, state: import('./types.ts').WorkspaceScmState): void
+  }
+}
+
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** No entry exists at that path. */

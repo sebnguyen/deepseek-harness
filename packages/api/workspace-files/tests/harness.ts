@@ -72,6 +72,7 @@ export async function openWorkspace(prefix: string, sandboxMode: 'workspace-writ
         maxFileBytes: caps?.maxFileBytes ?? 1024 * 1024,
         maxLines: caps?.maxLines ?? 5000,
         maxEntries: caps?.maxEntries ?? 2000,
+        scmUpdateDebounceMs: caps?.scmUpdateDebounceMs ?? 700,
       })
       return service
     },

@@ -10,21 +10,13 @@ import git from 'isomorphic-git'
 import type {
   GitDiffRequest,
   GitFileDiff,
-  GitFileStatus,
-  GitStatusEntry,
   GitStatusRequest,
   GitStatusResult,
 } from '@deepseek-ai/dsh-git'
 import { GitError } from '@deepseek-ai/dsh-git'
 import { FsAdapter } from './adapter.ts'
-
-/** The statusMatrix column holding the repository-relative path. */
-const FILE = 0
-
-/** isomorphic-git refusal carrying a stable error class name. */
-function isNotFound(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'NotFoundError'
-}
+import { entriesOf, isNotFound } from './status-rows.ts'
+import { GitWalkRunner } from './runner.ts'
 
 /** Decode bytes as UTF-8 text; NUL bytes mark binary content. */
 function textOf(bytes: Uint8Array, path: string): string {
@@ -33,17 +25,6 @@ function textOf(bytes: Uint8Array, path: string): string {
     throw new GitError(`"${path}" is binary; the git seam serves text diffs only`, 'GIT_NOT_TEXT')
   }
   return text
-}
-
-/** One status row's status relative to HEAD, or undefined when the file matches HEAD exactly. */
-function statusOf(row: readonly [string, number, number, number]): GitFileStatus | undefined {
-  const [, head, workdir, stage] = row
-  if (head === 1 && workdir === 1 && stage === 1) return undefined
-  if (head === 0 && stage === 0) return 'untracked'
-  if (head === 0) return 'added'
-  if (workdir === 0) return 'deleted'
-  if (workdir === 2 || stage === 2 || stage === 3) return 'modified'
-  return 'other'
 }
 
 /** Read-only git provider over the composed filesystem. */
@@ -57,7 +38,13 @@ export class IsomorphicGitProvider {
     private readonly ctx: Context,
     readonly id: string,
     private readonly maxFileBytes: number,
+    private readonly runner: GitWalkRunner = new GitWalkRunner(),
   ) {}
+
+  /** Terminate the off-loop walk worker; the plugin fiber's exit. */
+  dispose(): void {
+    this.runner.dispose()
+  }
 
   /** True while the composed filesystem this provider reads is mounted. */
   available(): boolean {
@@ -88,36 +75,58 @@ export class IsomorphicGitProvider {
    */
   async status(request: GitStatusRequest, signal?: AbortSignal): Promise<GitStatusResult> {
     void signal
+    // The walk hashes every changed worktree file in process; a backend that
+    // speaks host paths gets the worker thread's event loop, others keep the
+    // composed walk.
+    const mirror = this.ctx.fs.processPathFromHostPath(request.workspaceRoot)
+    if (mirror !== undefined) return this.statusOffLoop(mirror)
+    return this.statusThroughAdapter(request.workspaceRoot)
+  }
+
+  /**
+   * Walk one host-pathed repository on the worker thread and map its rows.
+   * @param root - the session root as a host path.
+   * @returns the changed entries with the resolved head oid, null under an unborn HEAD.
+   */
+  private async statusOffLoop(root: string): Promise<GitStatusResult> {
+    const reply = await this.runner.walk(root)
+    if (reply.kind === 'not-repository') {
+      throw new GitError(`"${root}" is not a git repository`, 'GIT_NOT_REPOSITORY')
+    }
+    return { head: reply.head, entries: entriesOf(reply.rows), truncated: false }
+  }
+
+  /**
+   * The composed-filesystem walk for backends the Host disk cannot see.
+   * @param root - the repository root in the execution world's path vocabulary.
+   * @returns the changed entries in matrix order with the resolved head oid, null under an unborn HEAD.
+   */
+  private async statusThroughAdapter(root: string): Promise<GitStatusResult> {
     // The walk reads and hashes changed worktree files; isomorphic-git gives
     // no capped read that survives it, so the byte cap binds diff alone.
     const fs = new FsAdapter(this.ctx)
-    const head = await git.resolveRef({ fs, dir: request.workspaceRoot, ref: 'HEAD' })
+    const head = await git.resolveRef({ fs, dir: root, ref: 'HEAD' })
       .then(oid => oid as string | null)
       .catch(async (error: unknown) => {
         if (isNotFound(error)) {
           // A resolvable HEAD file with no commit yet is a live unborn
           // repository, not the absence of one.
-          if (await this.repoAlive(request.workspaceRoot)) return null
-          throw new GitError(`"${request.workspaceRoot}" is not a git repository`, 'GIT_NOT_REPOSITORY', { cause: error })
+          if (await this.repoAlive(root)) return null
+          throw new GitError(`"${root}" is not a git repository`, 'GIT_NOT_REPOSITORY', { cause: error })
         }
         throw error
       })
     let matrix: [string, number, number, number][]
     try {
-      matrix = await git.statusMatrix({ fs, dir: request.workspaceRoot })
+      matrix = await git.statusMatrix({ fs, dir: root })
     } catch (error: unknown) {
       if (isNotFound(error)) {
-        throw new GitError(`"${request.workspaceRoot}" is not a git repository`, 'GIT_NOT_REPOSITORY', { cause: error })
+        throw new GitError(`"${root}" is not a git repository`, 'GIT_NOT_REPOSITORY', { cause: error })
       }
       /* v8 ignore next 2 -- isomorphic-git wraps non-absent walk faults in its own InternalError, untestable through the provider */
       throw error
     }
-    const entries: GitStatusEntry[] = []
-    for (const row of matrix) {
-      const status = statusOf(row)
-      if (status !== undefined) entries.push({ path: row[FILE], status })
-    }
-    return { head, entries, truncated: false }
+    return { head, entries: entriesOf(matrix), truncated: false }
   }
 
   /**

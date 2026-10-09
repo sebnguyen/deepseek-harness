@@ -10,6 +10,7 @@ const CAPS = {
   maxFileBytes: 1024,
   maxLines: 100,
   maxEntries: 100,
+  scmUpdateDebounceMs: 700,
 }
 
 function header(id: SessionId, cwd?: string): SessionHeader {

@@ -260,10 +260,12 @@ export interface Config {
   readonly maxLines: number
   /** Cap on returned directory entries; the rest is dropped and reported cut. */
   readonly maxEntries: number
+  /** Quiet window after the last observed write before a pushed scm re-walk fires. */
+  readonly scmUpdateDebounceMs: number
 }
 ```
 
-Source: [`packages/api/workspace-files/src/index.ts:70`](../packages/api/workspace-files/src/index.ts)
+Source: [`packages/api/workspace-files/src/index.ts:75`](../packages/api/workspace-files/src/index.ts)
 
 <a id="deepseek-aidsh-attachment-local"></a>
 
@@ -899,6 +901,47 @@ Depends on: [`LocalConfig`](#deepseek-aidsh-fs-local)
 
 Source: [`packages/fs/fs-sandbox/src/index.ts:45`](../packages/fs/fs-sandbox/src/index.ts)
 
+<a id="deepseek-aidsh-git"></a>
+
+## `@deepseek-ai/dsh-git`
+
+```ts config-catalog
+/**
+ * Config for the git seam. `provider` pins which provider wins; omitted, a
+ * single registered usable provider auto-selects. `maxEntries` and
+ * `maxFileBytes` are the deployment caps a request may narrow but never
+ * widen.
+ */
+export interface GitRuntimeConfig {
+  /** Explicit provider id. Omitted = auto-select when exactly one usable. */
+  readonly provider?: string
+  /** Inclusive cap on one status result's entries. */
+  readonly maxEntries?: number
+  /** Inclusive byte cap on one diff side's text. */
+  readonly maxFileBytes?: number
+}
+```
+
+Source: [`packages/git/git/src/index.ts:48`](../packages/git/git/src/index.ts)
+
+<a id="deepseek-aidsh-git-isomorphic"></a>
+
+## `@deepseek-ai/dsh-git-isomorphic`
+
+Requires: `git` · `fs`
+
+```ts config-catalog
+/** Provider identity and the internal read cap. */
+export interface Config {
+  /** Registry key the provider registers under. */
+  readonly id?: string
+  /** Inclusive byte cap on one internal read and one diff side a request does not narrow. */
+  readonly maxFileBytes?: number
+}
+```
+
+Source: [`packages/git/git-isomorphic/src/index.ts:22`](../packages/git/git-isomorphic/src/index.ts)
+
 <a id="deepseek-aidsh-goal"></a>
 
 ## `@deepseek-ai/dsh-goal`
@@ -1371,6 +1414,13 @@ export interface PiAiModelProfile {
   reasoningEfforts?: false | PiAiReasoningEfforts
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
+  /**
+   * Stored per-model tune: sampling knobs a session selection omits pick up
+   * here when the model is chosen, in precedence explicit selection over
+   * tune over the deployment default. Absent — or empty, which schemastery
+   * materializes for an omitted object — states no tune.
+   */
+  tunes?: PiAiModelTune
 }
 
 /**
@@ -1487,6 +1537,19 @@ export type PiAiModality = Model<Api>['input'][number]
  */
 export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | null>>
 
+/**
+ * Stored sampling tune for one model, written by any surface that edits the
+ * route's profile the way the Models page edits capacities. Both knobs are
+ * request defaults, not capabilities: they never size or gate the model,
+ * they only attend requests whose selection omitted the knob.
+ */
+export interface PiAiModelTune {
+  /** Sampling temperature in [0, 1] materialized when the selection omits one. */
+  temperature?: number
+  /** Route reasoning effort materialized when the selection omits one; must be a level the model offers. */
+  reasoningEffort?: ModelThinkingLevel
+}
+
 /** One reasoning-dispatch wire format a profile may name. */
 export type PiAiThinkingFormat = NonNullable<OpenAICompletionsCompat['thinkingFormat']>
 
@@ -1496,7 +1559,7 @@ export type PiAiThinkingTokenBudgetField = NonNullable<OpenAICompletionsCompat['
 
 Depends on: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`)
 
-Source: [`packages/llm/llm-pi-ai/src/config.ts:227`](../packages/llm/llm-pi-ai/src/config.ts)
+Source: [`packages/llm/llm-pi-ai/src/config.ts:235`](../packages/llm/llm-pi-ai/src/config.ts)
 
 <a id="deepseek-aidsh-llm-replay"></a>
 
@@ -2206,7 +2269,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/session/session-stats/src/index.ts:32`](../packages/session/session-stats/src/index.ts)
+Source: [`packages/session/session-stats/src/index.ts:33`](../packages/session/session-stats/src/index.ts)
 
 <a id="deepseek-aidsh-session-telemetry-otel"></a>
 
@@ -3852,6 +3915,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-line-note` ([`packages/client/ui-line-note/src/index.ts`](../packages/client/ui-line-note/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-message-feedback` ([`packages/client/ui-message-feedback/src/index.ts`](../packages/client/ui-message-feedback/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-model-selection` ([`packages/client/ui-model-selection/src/index.ts`](../packages/client/ui-model-selection/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-open-in-app` ([`packages/client/ui-open-in-app/src/index.ts`](../packages/client/ui-open-in-app/src/index.ts))

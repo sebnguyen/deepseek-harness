@@ -14,9 +14,9 @@ import { describe, expect, it, vi } from 'vitest'
 import { RemoteError } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceDirectoryListing } from '@deepseek-ai/dsh-api-workspace-files/types'
-import { childPath, createList, createScm, filesFace } from '../src/client/face.ts'
-import type { LoadWorkspaceScm, ScmResult, WorkspaceFilesListRemote } from '../src/client/face.ts'
-import type { WorkspaceScmStatus } from '@deepseek-ai/dsh-api-workspace-files/types'
+import { childPath, createList, createScm, entriesRecordOf, explorerFace, filesFace } from '../src/client/face.ts'
+import type { LoadWorkspaceScm, ScmPush, ScmResult, WorkspaceFilesListRemote } from '../src/client/face.ts'
+import { createRevealChannel } from '../src/client/reveal.ts'
 import { createFilesStore } from '../src/client/store.ts'
 import type { DirLevel } from '../src/client/store.ts'
 import { scriptedList } from './scripted-list.client.ts'
@@ -87,7 +87,7 @@ describe('filesFace', () => {
     const scm = vi.fn<LoadWorkspaceScm>().mockResolvedValue({
       ok: true,
       notRepository: false,
-      entries: { 'a.txt': 'modified' as WorkspaceScmStatus },
+      entries: { 'a.txt': 'modified' },
     })
     const { face, snapshot } = mount(scm)
     const controller = new AbortController()
@@ -128,6 +128,24 @@ describe('filesFace', () => {
     expect(snapshot()!.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'fresh.txt': 'added' } })
   })
 
+  it('a pushed refresh lands under its tree and retires an in-flight pull', async () => {
+    const resolvers: Array<(value: ScmResult) => void> = []
+    const scm = vi.fn<LoadWorkspaceScm>()
+      .mockImplementation(() => new Promise((resolve) => {
+        resolvers.push(resolve)
+      }))
+    const { face, snapshot } = mount(scm)
+    const controller = new AbortController()
+    face.start(TAB, ROOT, controller.signal)
+    await flush()
+    face.scmArrived(TAB, false, { 'pushed.txt': 'modified' })
+    expect(snapshot()!.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'pushed.txt': 'modified' } })
+    // The predating pull settles after the push and must not repaint over it.
+    resolvers[0]?.({ ok: true, notRepository: false, entries: { 'stale.txt': 'added' } })
+    await flush()
+    expect(snapshot()!.scm).toEqual({ kind: 'ready', notRepository: false, entries: { 'pushed.txt': 'modified' } })
+  })
+
   it('loadScm honors an already-aborted signal', async () => {
     const scm = vi.fn<LoadWorkspaceScm>().mockResolvedValue({ ok: false })
     const { face } = mount(scm)
@@ -136,6 +154,39 @@ describe('filesFace', () => {
     face.reloadScm(TAB, controller.signal)
     await flush()
     expect(scm).not.toHaveBeenCalled()
+  })
+
+  it('the tree face lets no push in and the explorer face forwards its channel', () => {
+    const { face } = mount()
+    const dispose = face.subscribeScmPush(() => {})
+    expect(typeof dispose).toBe('function')
+    dispose()
+    expect(entriesRecordOf([{ path: 'a.txt', status: 'modified' }])).toEqual({ 'a.txt': 'modified' })
+    const delivered: ScmPush[] = []
+    const wired = explorerFace(
+      scriptedList().list,
+      quietScm,
+      () => {},
+      createRevealChannel(),
+      (listener) => {
+        listener({ root: ROOT, notRepository: false, entries: {} })
+        return () => {
+          delivered.length = 0
+        }
+      },
+    )('s-2' as SessionId, createFilesStore().create().actions)
+    const stop = wired.subscribeScmPush(push => delivered.push(push))
+    expect(delivered).toHaveLength(1)
+    stop()
+    expect(delivered).toHaveLength(0)
+    // Without a push channel supplied, the column still mounts and forgets quietly.
+    const unplugged = explorerFace(scriptedList().list, quietScm, () => {}, createRevealChannel())(
+      's-3' as SessionId,
+      createFilesStore().create().actions,
+    )
+    const quiet = unplugged.subscribeScmPush(() => {})
+    expect(typeof quiet).toBe('function')
+    quiet()
   })
 
   it('makes no request for a record that already ended', () => {
@@ -201,7 +252,7 @@ describe('createScm', () => {
       workspaceFiles: {
         list: vi.fn(),
         scmStatus: vi.fn<WorkspaceFilesListRemote['workspaceFiles']['scmStatus']>()
-          .mockResolvedValue({ ok: true, value: { present: true, notRepository: false, head: 'h', entries: [{ path: 'a.txt', status: 'modified' as WorkspaceScmStatus }], truncated: false } }),
+          .mockResolvedValue({ ok: true, value: { present: true, notRepository: false, head: 'h', entries: [{ path: 'a.txt', status: 'modified' }], truncated: false } }),
       },
     }
     const signal = new AbortController().signal

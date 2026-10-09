@@ -7,6 +7,8 @@
  */
 
 import type {} from '@deepseek-ai/dsh-api-session-controller/remote-events'
+// The event key types of the scm push face; see the file head.
+import type {} from '@deepseek-ai/dsh-api-workspace-files/types'
 import type { TypertForwardableEventEntry } from '@deepseek-ai/dsh-typert-protocol'
 
 /**
@@ -33,4 +35,5 @@ export const API_REMOTE_FORWARDED_EVENTS = [
   { event: 'llm/adapters-updated', mode: 'emit' },
   { event: 'settings/document-updated', mode: 'emit' },
   { event: 'user-questions/request', mode: 'waterfall' },
+  { event: 'workspaceFiles/scm-updated', mode: 'emit' },
 ] as const satisfies readonly TypertForwardableEventEntry[]

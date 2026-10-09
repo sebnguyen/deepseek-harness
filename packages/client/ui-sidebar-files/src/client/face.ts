@@ -87,9 +87,11 @@ export function createScm(remote: WorkspaceFilesListRemote): LoadWorkspaceScm {
   return async (sessionId, signal) => {
     const result = await remote.workspaceFiles.scmStatus(sessionId, signal)
     if (!result.ok || !result.value.present) return { ok: false }
-    const entries: Record<string, WorkspaceScmStatus> = {}
-    for (const entry of result.value.entries) entries[entry.path] = entry.status
-    return { ok: true, notRepository: result.value.notRepository, entries }
+    return {
+      ok: true,
+      notRepository: result.value.notRepository,
+      entries: entriesRecordOf(result.value.entries),
+    }
   }
 }
 
@@ -104,6 +106,20 @@ export function createScm(remote: WorkspaceFilesListRemote): LoadWorkspaceScm {
  */
 export function childPath(parent: string, name: string): string {
   return `${parent.replace(/[/\\]+$/, '')}/${name}`
+}
+
+/**
+ * Key the wire's changed rows by repository-relative path, the form the tree
+ * stores; both the pull and the push lane feed the same conversion.
+ * @param entries - the wire's changed rows.
+ * @returns changed status by repository-relative path.
+ */
+export function entriesRecordOf(
+  entries: readonly { readonly path: string; readonly status: WorkspaceScmStatus }[],
+): Record<string, WorkspaceScmStatus> {
+  const record: Record<string, WorkspaceScmStatus> = {}
+  for (const entry of entries) record[entry.path] = entry.status
+  return record
 }
 
 /** The tree's injected business face, as the body receives it. */
@@ -137,6 +153,33 @@ export interface FilesInjected {
    * @param signal - the owner's lifetime.
    */
   readonly reloadScm: (key: TreeKey, signal: AbortSignal) => void
+  /**
+   * Apply one pushed scm refresh to this tree; the generation bump is
+   * loadScm's guard, so a push never fights an in-flight query.
+   * @param key - the tree the push names.
+   * @param notRepository - true when the root carries no repository.
+   * @param entries - changed status by repository-relative path.
+   */
+  readonly scmArrived: (
+    key: TreeKey,
+    notRepository: boolean,
+    entries: Readonly<Record<string, WorkspaceScmStatus>>,
+  ) => void
+  /**
+   * Subscribe to Host-pushed scm refreshes; each tree filters by its root.
+   * @param listener - called with each pushed refresh.
+   * @returns disposer ending the subscription.
+   */
+  readonly subscribeScmPush: (listener: (push: ScmPush) => void) => () => void
+}
+
+/** One Host-pushed scm refresh for one workspace root. */
+export interface ScmPush {
+  /** The session scope root the state was walked for. */
+  readonly root: string
+  readonly notRepository: boolean
+  /** Changed status by repository-relative path, ready for the store. */
+  readonly entries: Readonly<Record<string, WorkspaceScmStatus>>
 }
 
 /** The explorer column's face: the tree's face plus opening a file into the panes. */
@@ -216,6 +259,11 @@ export function filesFace(
       reloadScm(key, signal) {
         loadScm(key, signal)
       },
+      scmArrived(key, notRepository, entries) {
+        nextGeneration(key, '')
+        actions.scmLoaded(key, notRepository, entries)
+      },
+      subscribeScmPush: () => () => {},
     }
   }
 }
@@ -234,6 +282,7 @@ export function explorerFace(
   scm: LoadWorkspaceScm,
   open: (address: string) => void,
   channel: FilesRevealChannel,
+  subscribeScm: (listener: (push: ScmPush) => void) => () => void = () => () => {},
 ): (sessionId: SessionId, actions: BoundActions<ReturnType<typeof createFilesStore>>) => ExplorerInjected {
   return (sessionId, actions) => ({
     ...filesFace(list, scm)(sessionId, actions),
@@ -241,5 +290,6 @@ export function explorerFace(
     subscribeReveals: listener => channel.subscribe((request) => {
       if (request.sessionId === sessionId) listener(request.path)
     }),
+    subscribeScmPush: subscribeScm,
   })
 }

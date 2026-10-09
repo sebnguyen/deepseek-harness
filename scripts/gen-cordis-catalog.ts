@@ -209,6 +209,7 @@ export const EVENT_SCOPE_PAGE: Record<string, string> = {
   'tools': 'tools.md',
   'user-questions': 'user-questions.md',
   'webserver': 'web-server.md',
+  'workspaceFiles': 'sidebar-right.md',
   'workflow': 'workflow.md',
 }
 

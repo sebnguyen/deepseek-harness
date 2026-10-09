@@ -21,7 +21,7 @@ import type { } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type { } from '@deepseek-ai/dsh-client-ui-session/client'
 import type { } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { FILES_ID, filesDefinition } from './definition.tsx'
-import { createList, createScm, explorerFace, filesFace } from './face.ts'
+import { createList, createScm, entriesRecordOf, explorerFace, filesFace } from './face.ts'
 import { FilesBody } from './FilesBody.tsx'
 import { FilesTitle } from './FilesTitle.tsx'
 import { ExplorerBody } from './ExplorerBody.tsx'
@@ -78,6 +78,9 @@ export function apply(ctx: ClientContext): void {
     createScm(ctx.remote),
     (address) => { ctx.sidebarRight.openResource(address) },
     reveals,
+    listener => ctx.remote.$on('workspaceFiles/scm-updated', (root, state) => {
+      if (state.present) listener({ root, notRepository: state.notRepository, entries: entriesRecordOf(state.entries) })
+    }),
   )
   ctx.effect(() => ctx.slots.inject('sidebar.right.explorer', () => ctx.slots.register(
     { name: 'sidebar.right.explorer', locale: NS, store, inject: explorerInject },

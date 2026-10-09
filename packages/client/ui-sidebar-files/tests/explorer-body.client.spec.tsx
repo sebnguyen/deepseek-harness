@@ -7,7 +7,7 @@
  * owner, and forgets the session's tree when its mount ends.
  */
 import { useSyncExternalStore } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type { RenderResult } from '@testing-library/react'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
@@ -15,7 +15,7 @@ import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { fileAddressFor } from '@deepseek-ai/dsh-util-workspace-path'
 import { explorerFace } from '../src/client/face.ts'
-import type { LoadWorkspaceScm } from '../src/client/face.ts'
+import type { LoadWorkspaceScm, ScmPush } from '../src/client/face.ts'
 import { ExplorerBody } from '../src/client/ExplorerBody.tsx'
 import type { ExplorerBodyProps } from '../src/client/ExplorerBody.tsx'
 import { zh } from '../src/client/locales.ts'
@@ -37,6 +37,13 @@ const ROOT_LEVEL: DirLevel = {
 
 afterEach(() => { cleanup() })
 
+// jsdom has no scrollIntoView; the column calls it on the revealed row.
+const scrollIntoView = vi.fn()
+beforeEach(() => {
+  Element.prototype.scrollIntoView = scrollIntoView
+  scrollIntoView.mockClear()
+})
+
 /** Test-local selector hook over a framework-neutral store instance. */
 function hookOf<T>(inst: { subscribe: (fn: () => void) => () => void; getSnapshot: () => T }) {
   return function useSelector<S>(sel: (s: T) => S): S {
@@ -51,6 +58,7 @@ interface Mounted {
   readonly script: ReturnType<typeof scriptedList>
   readonly open: ReturnType<typeof vi.fn>
   readonly channel: ReturnType<typeof createRevealChannel>
+  readonly push: (push: ScmPush) => void
 }
 
 /** Mount the column over one store instance and a scripted listing. */
@@ -59,7 +67,20 @@ function mountExplorer(cwd: string | null = ROOT, scm: LoadWorkspaceScm = async 
   const script = scriptedList()
   const open = vi.fn<(address: string) => void>()
   const channel = createRevealChannel()
-  const face = explorerFace(script.list, scm, open, channel)(SESSION, instance.actions)
+  const pushListeners = new Set<(push: ScmPush) => void>()
+  const face = explorerFace(
+    script.list,
+    scm,
+    open,
+    channel,
+    (listener) => {
+      pushListeners.add(listener)
+      return () => pushListeners.delete(listener)
+    },
+  )(SESSION, instance.actions)
+  const push = (frame: ScmPush): void => {
+    for (const listener of pushListeners) listener(frame)
+  }
   const sessions = { byId: cwd === null ? {} : { [SESSION]: { cwd } } } as unknown as SessionListState
   const view = render(<ExplorerBody
     {...{
@@ -71,7 +92,7 @@ function mountExplorer(cwd: string | null = ROOT, scm: LoadWorkspaceScm = async 
       t: makeTranslate(zh),
     } as unknown as ExplorerBodyProps}
   />)
-  return { view, instance, script, open, channel }
+  return { view, instance, script, open, channel, push }
 }
 
 describe('ExplorerBody', () => {
@@ -194,19 +215,31 @@ describe('ExplorerBody', () => {
     expect(view.container.querySelector(`[data-files-path="${ROOT}/src"] [data-files-scm]`)).toBeNull()
   })
 
+  it('a pushed scm refresh for this root repaints badges without asking the Host', async () => {
+    const { view, script, push } = mountExplorer()
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    expect(view.container.querySelector('[data-files-scm]')).toBeNull()
+    act(() => {
+      push({ root: ROOT, notRepository: false, entries: { 'README.md': 'modified' } })
+    })
+    expect(view.container.querySelector(`[data-files-path="${ROOT}/README.md"] [data-files-scm="modified"]`)).not.toBeNull()
+  })
+
+  it('a push naming another root leaves this tree alone', async () => {
+    const { view, script, push } = mountExplorer()
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    act(() => {
+      push({ root: '/work/elsewhere', notRepository: false, entries: { 'README.md': 'deleted' } })
+    })
+    expect(view.container.querySelector('[data-files-scm]')).toBeNull()
+  })
+
   it('a highlighted row scrolls itself into view', async () => {
-    const original = Element.prototype.scrollIntoView
-    const scroll = vi.fn()
-    Element.prototype.scrollIntoView = scroll
-    try {
-      const { view, script, channel } = mountExplorer()
-      await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
-      act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
-      expect(view.container.querySelector('[data-files-highlighted]')).not.toBeNull()
-      expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
-    } finally {
-      Element.prototype.scrollIntoView = original
-    }
+    const { view, script, channel } = mountExplorer()
+    await act(() => script.settle({ ok: true, value: ROOT_LEVEL }))
+    act(() => { channel.request({ sessionId: SESSION, path: `${ROOT}/README.md` }) })
+    expect(view.container.querySelector('[data-files-highlighted]')).not.toBeNull()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
   })
 
   it('the reveal highlight expires on its own', async () => {

@@ -34,6 +34,7 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { Remote, RemoteError, TypertRemoteService, type TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
 import { WorkspaceChangeFeed } from './changes.ts'
+import { isNotRepository, ScmFeed } from './scm-feed.ts'
 import type {
   WorkspaceByteRange,
   WorkspaceDirectoryEntry,
@@ -86,6 +87,8 @@ export interface Config {
   readonly maxLines: number
   /** Cap on returned directory entries; the rest is dropped and reported cut. */
   readonly maxEntries: number
+  /** Quiet window after the last observed write before a pushed scm re-walk fires. */
+  readonly scmUpdateDebounceMs: number
 }
 
 /** One page cut from a decoded text stream. */
@@ -192,9 +195,11 @@ export class WorkspaceFiles extends TypertRemoteService {
     maxFileBytes: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER - 1).default(32 * 1024 * 1024),
     maxLines: z.number().step(1).min(1).default(5000),
     maxEntries: z.number().step(1).min(1).default(2000),
+    scmUpdateDebounceMs: z.number().step(1).min(0).default(700),
   })
 
   private readonly feed: WorkspaceChangeFeed
+  private readonly scmFeed: ScmFeed
 
   /**
    * @param ctx - Host context carrying the filesystem and the sandbox policy.
@@ -203,6 +208,7 @@ export class WorkspaceFiles extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'workspaceFiles')
     this.feed = new WorkspaceChangeFeed(ctx)
+    this.scmFeed = new ScmFeed(ctx, config.scmUpdateDebounceMs)
     ctx.inject(['sessions', 'typert'], (scope) => {
       scope.typert.lookups.register('workspaceFileScope', {
         parameter: 'workspaceFileScope',
@@ -500,6 +506,8 @@ export class WorkspaceFiles extends TypertRemoteService {
   async scmStatus(workspaceFileScope: WorkspaceFileScope, signal: AbortSignal): Promise<WorkspaceScmState> {
     const git = this.ctx.get('git')
     if (git === undefined) return { present: false }
+    // Observed writes inside this root now schedule pushed refreshes.
+    this.scmFeed.remember(workspaceFileScope.workspaceRoot)
     try {
       const result = await git.status({ workspaceRoot: workspaceFileScope.workspaceRoot }, signal)
       return { present: true, notRepository: false, head: result.head, entries: result.entries, truncated: result.truncated }
@@ -613,10 +621,6 @@ function isNotTextRefusal(error: unknown): boolean {
  * The git seam's not-a-repository refusal, recognized by its code alone: the
  * error class belongs to whichever `dsh-git` instance the provider loaded.
  */
-function isNotRepository(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'GIT_NOT_REPOSITORY'
-}
-
 /**
  * The backend's version-guard refusal, recognized by its code alone: the error
  * class belongs to whichever `dsh-fs` instance the provider loaded, so no class

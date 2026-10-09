@@ -50,16 +50,27 @@ async function boot() {
     }),
   }
   const workspaceFiles = { list: vi.fn(), scmStatus: vi.fn() }
+  const pushListeners = new Set<(root: string, state: unknown) => void>()
+  const remote = {
+    workspaceFiles,
+    $on: vi.fn((_event: string, listener: (root: string, state: unknown) => void) => {
+      pushListeners.add(listener)
+      return () => { pushListeners.delete(listener) }
+    }),
+  }
+  const pushScm = (root: string, state: unknown): void => {
+    for (const listener of pushListeners) listener(root, state)
+  }
   const sidebarRight = { openResource: vi.fn() }
   ctx.provide('sidebarRightTabs', tabs as never)
   ctx.provide('sidebarRight', sidebarRight as never)
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
-  ctx.provide('remote', { workspaceFiles } as never)
+  ctx.provide('remote', remote as never)
   ctx.provide('remote.workspaceFiles', workspaceFiles as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { tabs, registered, dictionaries, fiber, ctx, sidebarRight }
+  return { tabs, registered, dictionaries, fiber, ctx, sidebarRight, remote, pushScm }
 }
 
 describe('ui-sidebar-files apply', () => {
@@ -86,6 +97,26 @@ describe('ui-sidebar-files apply', () => {
     unsubscribe()
     face.open('sidebar://s-x/a.ts')
     expect(sidebarRight.openResource).toHaveBeenCalledWith('sidebar://s-x/a.ts')
+  })
+
+  it('the explorer face forwards Host-pushed scm updates to its subscriber', async () => {
+    const { registered, remote, pushScm } = await boot()
+    const instance = createFilesStore().create()
+    const explorer = registered.find(entry => entry.name === 'sidebar.right.explorer')!
+    const face = (explorer.inject as (sessionId: string, actions: unknown) => {
+      subscribeScmPush: (listener: (push: unknown) => void) => () => void
+    })('s-x', instance.actions)
+    const received: unknown[] = []
+    const stop = face.subscribeScmPush(push => received.push(push))
+    expect(remote.$on).toHaveBeenCalledWith('workspaceFiles/scm-updated', expect.any(Function))
+    pushScm('/r', { present: true, notRepository: false, entries: [{ path: 'a.txt', status: 'modified' }], truncated: false })
+    expect(received).toEqual([{ root: '/r', notRepository: false, entries: { 'a.txt': 'modified' } }])
+    // A seam-less state carries nothing to repaint.
+    pushScm('/r', { present: false })
+    expect(received).toHaveLength(1)
+    stop()
+    pushScm('/r', { present: true, notRepository: false, entries: [], truncated: false })
+    expect(received).toHaveLength(1)
   })
 
   it('registers the type, its dictionaries, and the body, title, and explorer seats', async () => {

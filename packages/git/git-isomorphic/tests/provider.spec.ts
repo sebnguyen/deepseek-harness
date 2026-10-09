@@ -5,7 +5,7 @@
  * text-or-null.
  */
 import nodeFs from 'node:fs'
-import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
@@ -144,8 +144,8 @@ it('a non-absent head refusal crosses untouched and a broken object store reads 
   // error that neither read swallows further, so the provider passes it
   // through both arms untouched.
   const malformed = scriptFs({})
-  await expect(malformed.status({ workspaceRoot: repo })).rejects.toMatchObject({ message: expect.stringContaining('Circular reference') })
-  await expect(malformed.diff({ workspaceRoot: repo, path: 'a.txt' })).rejects.toMatchObject({ message: expect.stringContaining('Circular reference') })
+  await expect(malformed.status({ workspaceRoot: repo })).rejects.toThrow('Circular reference')
+  await expect(malformed.diff({ workspaceRoot: repo, path: 'a.txt' })).rejects.toThrow('Circular reference')
   // An object-store fault under the HEAD side is swallowed by
   // isomorphic-git's blob read, so the file reads as one-sided.
   const brokenStore = scriptFs({
@@ -174,10 +174,66 @@ function scriptFs(overrides: Partial<{
     lstat: async () => ({ type: 'file', size: 23 }),
     readBytes: overrides.readBytes ?? (async () => new Uint8Array([1])),
     listDir: overrides.listDir ?? (async () => [{ name: 'a' }]),
+    processPathFromHostPath: () => undefined,
   } as never)
   return new IsomorphicGitProvider(ctx2, 'iso', 1024 * 1024)
 }
 
+
+// A composed filesystem that reads the real disk but reports no host
+// mirror, like a remote backend: every read crosses the adapter.
+function composedCtx(): Context {
+  const remote = new Context()
+  remote.provide('fs', {
+    resolve: async (path: string) => ({ path }),
+    processPath: (target: { path: string }) => target.path,
+    processPathFromHostPath: () => undefined,
+    stat: async (target: { path: string }) => {
+      const info = await stat(target.path).catch(() => undefined)
+      return info === undefined ? undefined : { type: info.isFile() ? 'file' : 'directory', size: info.size }
+    },
+    lstat: async (path: string) => {
+      const info = await stat(path).catch(() => undefined)
+      return info === undefined ? undefined : { type: info.isFile() ? 'file' : 'directory', size: info.size }
+    },
+    readBytes: async (target: { path: string }) => new Uint8Array(await readFile(target.path)),
+    listDir: async (target: { path: string }) =>
+      (await readdir(target.path, { withFileTypes: true })).map(dirent => ({ name: dirent.name })),
+  } as never)
+  return remote
+}
+
+it('the composed walk serves a clean repository without a host mirror', async () => {
+  await init()
+  await writeFile(join(repo, 'c.txt'), 'c\n')
+  await commitAll('base')
+  const provider = new IsomorphicGitProvider(composedCtx(), 'iso', 1024 * 1024)
+  const status = await provider.status({ workspaceRoot: repo })
+  expect(status.head).not.toBeNull()
+  expect(status.entries).toEqual([])
+})
+
+it('an emptied object store under the composed walk refuses GIT_NOT_REPOSITORY', async () => {
+  await init()
+  await writeFile(join(repo, 'c.txt'), 'c\n')
+  await commitAll('base')
+  await rm(join(repo, '.git/objects'), { recursive: true, force: true })
+  await mkdir(join(repo, '.git/objects'), { recursive: true })
+  const provider = new IsomorphicGitProvider(composedCtx(), 'iso', 1024 * 1024)
+  await expect(provider.status({ workspaceRoot: repo })).rejects.toMatchObject({ code: 'GIT_NOT_REPOSITORY' })
+})
+
+it('a composed statusMatrix fault that is not absence crosses untouched', async () => {
+  const boom = scriptFs({
+    readBytes: async (target: { path: string }) => {
+      if (target.path.endsWith('/HEAD')) return new Uint8Array(Buffer.from('ref: refs/heads/master\n'))
+      if (target.path.includes('refs/')) return new Uint8Array(Buffer.from('a'.repeat(40)))
+      if (target.path.includes('index')) throw new Error('index boom')
+      return new Uint8Array([1])
+    },
+  })
+  await expect(boom.status({ workspaceRoot: repo })).rejects.toThrow(/SHA check failed/)
+})
 
 it('an unborn HEAD resolves null and every file reads as added or untracked', async () => {
   await init()
@@ -271,6 +327,7 @@ it('diff caps each side and reports one-sided absence', async () => {
       throw new Error('rareside')
     },
     listDir: async () => [],
+    processPathFromHostPath: () => undefined,
   } as never)
   const rare = new IsomorphicGitProvider(rareCtx, 'iso', 1024 * 1024)
   await expect(rare.diff({ workspaceRoot: repo, path: 'big.txt' })).rejects.toMatchObject({ message: 'rareside' })

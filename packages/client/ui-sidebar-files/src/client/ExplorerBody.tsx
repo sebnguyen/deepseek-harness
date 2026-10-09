@@ -35,7 +35,8 @@ const REVEAL_HIGHLIGHT_MS = 2500
  * request expands and re-lists the file's ancestors and highlights its row.
  */
 export function ExplorerBody({
-  sessionId, useSessions, useStore, actions, start, load, toggle, reloadScm, open, subscribeReveals, t,
+  sessionId, useSessions, useStore, actions, start, load, toggle, reloadScm, open, subscribeReveals,
+  scmArrived, subscribeScmPush, t,
 }: ExplorerBodyProps): ReactNode {
   const cwd = useSessions(sessions => sessions.byId[sessionId]?.cwd)
   const state = useStore(store => store.byTree[sessionId])
@@ -84,6 +85,12 @@ export function ExplorerBody({
       if (highlightTimer.current !== undefined) clearTimeout(highlightTimer.current)
     }
   }, [subscribeReveals])
+
+  // The Host re-walks a root after observed writes and pushes the result; the
+  // tree whose root the push names applies it without a round trip.
+  useEffect(() => subscribeScmPush((push) => {
+    if (stateRef.current?.root === push.root) scmArrived(sessionId, push.notRepository, push.entries)
+  }), [subscribeScmPush, scmArrived, sessionId])
 
   if (cwd === undefined) {
     return (
