@@ -10,7 +10,8 @@ import * as cmState from '@codemirror/state'
 import * as cmView from '@codemirror/view'
 import { createElement } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { setGutterMarkers } from '@deepseek-ai/dsh-client-ui-editor/client'
+import { annotationGutter, setGutterMarkers } from '@deepseek-ai/dsh-client-ui-editor/client'
+import type { EditorGutterDescriptor } from '@deepseek-ai/dsh-client-ui-editor/client'
 import { LineNoteGutter } from '../src/client/LineNoteGutter.tsx'
 import type { LineNoteGutterProps } from '../src/client/LineNoteGutter.tsx'
 import { en } from '../src/client/locales.ts'
@@ -58,6 +59,17 @@ function Rig({ notes, absent = false }: {
       if (at >= 0) exts.splice(at, 1)
     }
   }
+  // The entry describes its column as data; the owner-side editor is the
+  // sole CodeMirror mint, so the rig stands in with the same factory.
+  const describeColumn = (descriptor: EditorGutterDescriptor): (() => void) => {
+    const extension = annotationGutter(descriptor)
+    exts.push(extension)
+    return () => {
+      disposed.push(descriptor.id)
+      const at = exts.indexOf(extension)
+      if (at >= 0) exts.splice(at, 1)
+    }
+  }
   const publishMarkers = (id: string, markers: readonly unknown[]): void => {
     live?.dispatch({ effects: setGutterMarkers.of({ id, markers: markers as never }) })
   }
@@ -71,7 +83,7 @@ function Rig({ notes, absent = false }: {
     add,
     replace: () => {},
     compartmentOf: () => new cmState.Compartment(),
-    describeColumn: () => () => {},
+    describeColumn,
     publishMarkers,
     lineText,
     useLineNotes: (selector: (snapshot: LineNotesSnapshot) => unknown) =>

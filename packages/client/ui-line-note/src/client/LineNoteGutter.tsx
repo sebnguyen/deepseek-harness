@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { CheckpointSlot } from '@deepseek-ai/dsh-checkpoint/types'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { annotationGutter, type EditorCmEntryInjected } from '@deepseek-ai/dsh-client-ui-editor/client'
+import type { EditorCmEntryInjected } from '@deepseek-ai/dsh-client-ui-editor/client'
 import { mintNoteId } from './source.ts'
 import type { LineNotesSnapshot } from './source.ts'
 import css from './LineNoteGutter.module.css'
@@ -42,7 +42,7 @@ export function noteLines(slots: readonly CheckpointSlot[]): readonly number[] {
  * @returns the popover while open, nothing otherwise.
  */
 export function LineNoteGutter({
-  file, viewVersion, add, publishMarkers, lineText, useLineNotes, putSlot, t,
+  file, viewVersion, describeColumn, publishMarkers, lineText, useLineNotes, putSlot, t,
 }: LineNoteGutterProps): ReactNode {
   const notes = useLineNotes((snapshot: LineNotesSnapshot) => snapshot.byPath.get(file.path) ?? [])
   const [popover, setPopover] = useState<Popover | undefined>(undefined)
@@ -50,14 +50,14 @@ export function LineNoteGutter({
 
   // The doors retain the column and replay it into every generated view;
   // disposal rides the effect's unmount.
-  useEffect(() => add('line-note', annotationGutter({
+  useEffect(() => describeColumn({
     id: 'line-note',
     className: css.gutter as string,
     fillUnmarked: line => ({ line, label: '+', className: css.button as string, ariaLabel: t('addNote') }),
     onLineClick: (line, x, y) => {
       setPopover({ line, x, y, text: '' })
     },
-  })), [add, t])
+  }), [describeColumn, t])
 
   useEffect(() => {
     publishMarkers('line-note', noted.map(line => ({
