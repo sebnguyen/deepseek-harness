@@ -278,6 +278,37 @@ describe('connection node half', () => {
     await dispose()
   })
 
+  it('admits an admitted frame token from loopback only until revoked', async () => {
+    const { connection, dispose } = await mounted({ trustedHosts: ['harness.example'] })
+    const revoke = connection.admitFrameToken('frame-token')
+    const admitted = fakeRequest({ host: '127.0.0.1:3080' }, `${API_PATH}/ide.status?token=frame-token`)
+    expect(connection.requestRejection(admitted)).toBeUndefined()
+    // Same rider on a trusted remote authority stays on the cookie leg.
+    expect(connection.requestRejection(fakeRequest(
+      { host: 'harness.example' }, `${API_PATH}/ide.status?token=frame-token`,
+    ))).toBe(401)
+    // Unadmitted, doubled, and hostless riders are all refused.
+    expect(connection.requestRejection(fakeRequest(
+      { host: '127.0.0.1:3080' }, `${API_PATH}/ide.status?token=other`,
+    ))).toBe(401)
+    expect(connection.requestRejection(fakeRequest(
+      { host: '127.0.0.1:3080' }, `${API_PATH}/ide.status?token=frame-token&token=x`,
+    ))).toBe(401)
+    // A hostless request never reaches the authentication leg: the trust
+    // fence refuses it before the frame token is ever consulted.
+    expect(connection.requestRejection(fakeRequest({}, `${API_PATH}/ide.status?token=frame-token`))).toBe(403)
+    // A host that trust cannot parse never reaches the authentication leg.
+    const unparsable = fakeRequest({}, `${API_PATH}/ide.status?token=frame-token`)
+    Object.assign(unparsable, { headers: { host: 'no host here' } })
+    expect(connection.requestRejection(unparsable)).toBe(403)
+    const viaHeaders = fakeRequest({}, `${API_PATH}/ide.status?token=frame-token`)
+    Object.assign(viaHeaders, { headers: new Headers({ host: '127.0.0.1:3080' }) })
+    expect(connection.requestRejection(viaHeaders)).toBeUndefined()
+    revoke()
+    expect(connection.requestRejection(admitted)).toBe(401)
+    await dispose()
+  })
+
   it('provides a disposable dedicated RPC channel', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []

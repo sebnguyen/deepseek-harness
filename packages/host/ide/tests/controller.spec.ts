@@ -213,6 +213,30 @@ describe('IdeController', () => {
     expect(spec.env?.DSH_IDE_TOKEN).toBe(ctl.launchToken)
   })
 
+  it('admits the launch token through the compose seam and revokes it on dispose', async () => {
+    const sub = new FakeSubprocess()
+    const admitted: string[] = []
+    let revoked = 0
+    const ctl = new IdeController({
+      loadRow: async () => ROW,
+      env: { DSH_IDE_TWIN_DIR: twinDir, DSH_IDE_TWIN_NOVERIFY: '1' },
+      cacheDir: root,
+      subprocess: sub,
+      unpack: fakeUnpack,
+      admit: (token) => {
+        admitted.push(token)
+        return () => {
+          revoked += 1
+        }
+      },
+    })
+    await ctl.ensure()
+    expect(admitted).toEqual([ctl.launchToken])
+    expect(revoked).toBe(0)
+    await ctl.dispose()
+    expect(revoked).toBe(1)
+  })
+
   it('drains the pending open queue one entry at a time', async () => {
     const ctl = controller()
     ctl.open('a.ts')

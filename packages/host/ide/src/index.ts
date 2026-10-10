@@ -79,136 +79,176 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 export default class Ide extends TypertRemoteService {
   static provide = 'ide'
 
-  #controller: IdeController
-  #startupError: IdeArtifactError | undefined
+  /**
+   * The traceable context proxy rebinds method receivers on the wire, which
+   * forbids private-field access there; the namespace bodies therefore live
+   * in constructor closures exposed as plain readonly members.
+   */
+  readonly startWire: () => void
+  readonly statusWire: (signal: AbortSignal) => Promise<IdeStatus>
+  readonly eventsWire: (signal: AbortSignal) => AsyncIterable<IdeStatus>
+  readonly openWire: (path: string, signal: AbortSignal) => Promise<void>
+  readonly openNextWire: (signal: AbortSignal) => Promise<string | null>
+  readonly reportWire: (
+    kind: IdeReport['kind'], path: string | null, detail: string | null,
+  ) => Promise<void>
+  readonly reportsWire: (signal: AbortSignal) => Promise<readonly IdeReport[]>
+  readonly helloWire: (signal: AbortSignal) => Promise<boolean>
 
   constructor(ctx: Context) {
     super(ctx, 'ide')
-    this.#controller = new IdeController({
-      loadRow: async () => parseManifest(await readFile(this.#manifestPath(), 'utf8')),
+    let startupError: IdeArtifactError | undefined
+    const controller = new IdeController({
+      loadRow: async () => parseManifest(await readFile(manifestPathOf(process.env, process.cwd()), 'utf8')),
       env: process.env,
       cacheDir: defaultCacheDir(process.env),
-      subprocess: (ctx as { subprocess?: IdeSubprocessLike }).subprocess,
-      unpack: (ctx as { unpack?: IdeUnpackLike }).unpack,
-      gatewayUrl: () => {
-        const port = (ctx as { webServer?: { readonly port: number } }).webServer?.port
-        return port === undefined ? undefined : `http://127.0.0.1:${port}`
+      // Lazy reads: sibling base-layer entries may still be activating when
+      // this constructor runs; the controller consults them at ensure time.
+      get subprocess() {
+        return ctx.get('subprocess') as IdeSubprocessLike | undefined
       },
+      get unpack() {
+        return ctx.get('unpack') as IdeUnpackLike | undefined
+      },
+      gatewayUrl: () => {
+        const webServer = ctx.get('webServer') as { readonly port: number } | undefined
+        return webServer === undefined ? undefined : `http://127.0.0.1:${webServer.port}`
+      },
+      admit: token => ctx.get('connection')?.admitFrameToken(token),
     })
-  }
-
-  #manifestPath(): string {
-    return manifestPathOf(process.env, process.cwd())
+    const refuse = (error: unknown): never => {
+      if (error instanceof IdeArtifactError) throw new RemoteError(error.code, error.message, { detail: error.message })
+      throw error
+    }
+    this.startWire = () => {
+      void controller.ensure().catch((error: unknown) => {
+        if (error instanceof IdeArtifactError) startupError = error
+      })
+    }
+    this.statusWire = async (signal) => {
+      void signal
+      if (startupError !== undefined) refuse(startupError)
+      try {
+        return await controller.ensure()
+      }
+      catch (error) {
+        return refuse(error)
+      }
+    }
+    this.eventsWire = (signal) => {
+      return {
+        [Symbol.asyncIterator](): AsyncIterator<IdeStatus, undefined> {
+          let wake: ((status: IdeStatus) => void) | undefined
+          let parked: Promise<IdeStatus> | undefined
+          let seen = false
+          const fire = (status: IdeStatus): void => {
+            if (wake === undefined) return
+            const deliver = wake
+            wake = undefined
+            parked = undefined
+            deliver(status)
+          }
+          const off = controller.subscribe(fire)
+          signal.addEventListener('abort', () => {
+            off()
+            fire(controller.status)
+          }, { once: true })
+          return {
+            async next(): Promise<IteratorResult<IdeStatus, undefined>> {
+              if (!seen) {
+                seen = true
+                return { value: controller.status, done: false }
+              }
+              if (signal.aborted) return { value: undefined, done: true }
+              parked ??= new Promise<IdeStatus>((resolve) => {
+                wake = resolve
+              })
+              const status = await parked
+              if (signal.aborted) return { value: undefined, done: true }
+              return { value: status, done: false }
+            },
+            async return(): Promise<IteratorReturnResult<undefined>> {
+              off()
+              return { value: undefined, done: true }
+            },
+          }
+        },
+      }
+    }
+    this.openWire = async (path, signal) => {
+      void signal
+      controller.open(path)
+      try {
+        await controller.ensure()
+      }
+      catch (error) {
+        refuse(error)
+      }
+    }
+    this.openNextWire = (signal) => {
+      void signal
+      return Promise.resolve(controller.takeOpen())
+    }
+    this.reportWire = (kind, path, detail) => {
+      controller.report({ kind, path, detail })
+      return Promise.resolve()
+    }
+    this.reportsWire = (signal) => {
+      void signal
+      return Promise.resolve(controller.reports())
+    }
+    this.helloWire = (signal) => {
+      void signal
+      return Promise.resolve(controller.hello())
+    }
   }
 
   /** Kick one ensure after construction; a startup refusal is re-raised by the verbs. */
   start(): void {
-    void this.#controller.ensure().catch((error: unknown) => {
-      if (error instanceof IdeArtifactError) this.#startupError = error
-    })
-  }
-
-  #refuse(error: unknown): never {
-    if (error instanceof IdeArtifactError) throw new RemoteError(error.code, error.message, { detail: error.message })
-    throw error
+    this.startWire()
   }
 
   /** The readiness snapshot; manifest refusals ride their named RemoteError. */
   @Remote
   async status(signal: AbortSignal): Promise<IdeStatus> {
-    void signal
-    if (this.#startupError !== undefined) this.#refuse(this.#startupError)
-    try {
-      return await this.#controller.ensure()
-    }
-    catch (error) {
-      this.#refuse(error)
-    }
+    return this.statusWire(signal)
   }
 
   /** Live readiness: the current snapshot, then every change until aborted. */
   @Remote({ mode: 'stream' })
   events(signal: AbortSignal): AsyncIterable<IdeStatus> {
-    const controller = this.#controller
-    return {
-      [Symbol.asyncIterator](): AsyncIterator<IdeStatus, undefined> {
-        let wake: ((status: IdeStatus) => void) | undefined
-        let parked: Promise<IdeStatus> | undefined
-        let seen = false
-        const fire = (status: IdeStatus): void => {
-          if (wake === undefined) return
-          const deliver = wake
-          wake = undefined
-          parked = undefined
-          deliver(status)
-        }
-        const off = controller.subscribe(fire)
-        signal.addEventListener('abort', () => {
-          off()
-          fire(controller.status)
-        }, { once: true })
-        return {
-          async next(): Promise<IteratorResult<IdeStatus, undefined>> {
-            if (!seen) {
-              seen = true
-              return { value: controller.status, done: false }
-            }
-            if (signal.aborted) return { value: undefined, done: true }
-            parked ??= new Promise<IdeStatus>((resolve) => {
-              wake = resolve
-            })
-            const status = await parked
-            if (signal.aborted) return { value: undefined, done: true }
-            return { value: status, done: false }
-          },
-          async return(): Promise<IteratorReturnResult<undefined>> {
-            off()
-            return { value: undefined, done: true }
-          },
-        }
-      },
-    }
+    return this.eventsWire(signal)
   }
 
   /** Queue one open into the seat downlink and nudge the spawn. */
   @Remote
-  async open(path: string, signal: AbortSignal): Promise<void> {
-    void signal
-    this.#controller.open(path)
-    try {
-      await this.#controller.ensure()
-    }
-    catch (error) {
-      this.#refuse(error)
-    }
+  open(path: string, signal: AbortSignal): Promise<void> {
+    return this.openWire(path, signal)
   }
 
   /** Drain one queued open; `null` empties the seat's pump loop. */
   @Remote
-  async openNext(signal: AbortSignal): Promise<string | null> {
-    void signal
-    return this.#controller.takeOpen()
+  openNext(signal: AbortSignal): Promise<string | null> {
+    return this.openNextWire(signal)
   }
 
   /** One seat event-uplink frame: save, active editor, diagnostics. */
   @Remote
-  async report(kind: IdeReport['kind'], path: string | null, detail: string | null, signal: AbortSignal): Promise<void> {
+  report(kind: IdeReport['kind'], path: string | null, detail: string | null, signal: AbortSignal): Promise<void> {
     void signal
-    this.#controller.report({ kind, path, detail })
+    return this.reportWire(kind, path, detail)
   }
 
   /** The live event-uplink projection the outer chrome mirrors. */
   @Remote
-  async reports(signal: AbortSignal): Promise<readonly IdeReport[]> {
-    void signal
-    return this.#controller.reports()
+  reports(signal: AbortSignal): Promise<readonly IdeReport[]> {
+    return this.reportsWire(signal)
   }
 
   /** The seat's hello: flips readiness when a child is live. */
   @Remote
-  async hello(signal: AbortSignal): Promise<boolean> {
-    void signal
-    return this.#controller.hello()
+  hello(signal: AbortSignal): Promise<boolean> {
+    return this.helloWire(signal)
   }
 }
 

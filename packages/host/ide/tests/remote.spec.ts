@@ -132,6 +132,32 @@ describe('ide Remote namespace', () => {
     expect(spec?.env?.DSH_GATEWAY_URL).toBe('http://127.0.0.1:7300')
   })
 
+  it('admits the launch token on the connection fence when the carrier is composed', async () => {
+    const twinDir = join(home, 'twin-conn')
+    await writeManifest({})
+    vi.stubEnv('DSH_IDE_MANIFEST', manifestPath)
+    vi.stubEnv('DSH_IDE_TWIN_DIR', twinDir)
+    vi.stubEnv('DSH_IDE_TWIN_NOVERIFY', '1')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(twinDir, { recursive: true })
+    await writeFile(join(twinDir, 'reh-server'), 's')
+    await writeFile(join(twinDir, 'web-client'), 'c')
+    const admitted: string[] = []
+    const sub = new StubSubprocess()
+    const ctx = new Context()
+    ctx.provide('subprocess', sub as never)
+    ctx.provide('unpack', fakeUnpack as never)
+    ctx.provide('connection', {
+      admitFrameToken: (token: string) => {
+        admitted.push(token)
+        return () => {}
+      },
+    } as never)
+    const service = new Ide(ctx)
+    await service.status(unAborting)
+    expect(admitted).toEqual([sub.specs[0]?.env?.DSH_IDE_TOKEN])
+  })
+
   it('streams readiness: first snapshot, then the hello change, then abort', async () => {
     const platform = `${process.platform === 'win32' ? 'win32' : process.platform}-${process.arch}`
     const twinDir = join(home, 'twin')

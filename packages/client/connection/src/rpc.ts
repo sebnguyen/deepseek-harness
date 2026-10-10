@@ -184,6 +184,15 @@ export interface HostConnectionHandle {
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
 
   /**
+   * Admit one spawn-frame token as a `/api` credential for loopback callers;
+   * the embedded REH twin rides it because a Node carrier never holds the
+   * browser's signed session cookie.
+   * @param token - the per-launch frame token.
+   * @returns the revoker to run when the frame child dies.
+   */
+  admitFrameToken(token: string): () => void
+
+  /**
    * Authenticate one frontend index request, owning a token redirect or 401.
    * @param request - root or configured-index HTTP request.
    * @param response - response owned when the result is false.

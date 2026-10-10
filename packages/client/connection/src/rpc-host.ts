@@ -10,6 +10,7 @@ import {
 import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isTrustedApiRequest } from './api-request-trust.ts'
+import { isLoopbackHostname } from './loopback-hostname.ts'
 import { API_PATH } from './api-path.ts'
 import type { BrowserAuth } from './browser-auth.ts'
 import type {
@@ -61,6 +62,12 @@ export class HostConnectionService extends Service implements HostConnectionHand
   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
   private readonly fetchRoutes = new Map<string, RegisteredFetchRoute>()
 
+  /** Admit one spawn-frame token as a `/api` credential for loopback callers only. */
+  readonly admitFrameToken: (token: string) => () => void
+
+  /** Apply the configured Host/Origin fence, then browser or frame-token authentication. */
+  readonly requestRejection: (request: ConnectionTrustRequest) => ConnectionRequestRejection
+
   /**
    * Provide the Host half over the active HTTP server.
    * @param ctx - owning Connection plugin context.
@@ -73,6 +80,33 @@ export class HostConnectionService extends Service implements HostConnectionHand
     private readonly browserAuth: BrowserAuth,
   ) {
     super(ctx, 'connection')
+    // The traceable context proxy rebinds method receivers, which refuses
+    // private-field access; the frame-token leg therefore closes over its
+    // state from constructor scope as arrow properties.
+    const frameTokens = new Set<string>()
+    this.admitFrameToken = (token) => {
+      frameTokens.add(token)
+      return () => {
+        frameTokens.delete(token)
+      }
+    }
+    this.requestRejection = (request) => {
+      if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
+      if (this.browserAuth.isAuthenticated(request)) return undefined
+      if (frameTokens.size === 0) return 401
+      // The trust fence above has already parsed this authority: a string
+      // host that hosts a trusted request cannot fail the WHATWG parse.
+      /* v8 ignore next 4 -- the trust fence above guarantees a parseable Host header */
+      const host = request.headers instanceof Headers
+        ? request.headers.get('host') ?? undefined
+        : request.headers.host
+      if (typeof host !== 'string' || !isLoopbackHostname(new URL(`http://${host}`).hostname)) return 401
+      /* v8 ignore next 1 -- node:http always sets url on server requests */
+      const url = (request as { readonly url?: string }).url ?? '/'
+      const tokens = new URL(url, 'http://frame.invalid').searchParams.getAll('token')
+      const single = tokens.length === 1 ? tokens[0] : undefined
+      return single !== undefined && frameTokens.has(single) ? undefined : 401
+    }
   }
 
   /** Generic channel registry scoped to the Context reading this service. */
@@ -91,12 +125,6 @@ export class HostConnectionService extends Service implements HostConnectionHand
     return {
       register: route => this.registerFetchRoute(owner, route),
     }
-  }
-
-  /** Apply the configured Host/Origin fence, then browser authentication. */
-  requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
-    if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
   /** Authenticate an index request through the process-token exchange or cookie. */

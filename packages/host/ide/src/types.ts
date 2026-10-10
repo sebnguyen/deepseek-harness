@@ -113,6 +113,8 @@ export interface IdeControllerDependencies {
   readonly unpack?: IdeUnpackLike | undefined
   /** The Host's loopback gateway address the twin carrier dials; absent keeps the seat dark. */
   readonly gatewayUrl?: (() => string | undefined) | undefined
+  /** Admits the launch token on the `/api` fence; undefined keeps the seat's carrier unauthorized. */
+  readonly admit?: ((token: string) => (() => void) | undefined) | undefined
 }
 
 /** Named refusal for every manifest and artifact failure. */

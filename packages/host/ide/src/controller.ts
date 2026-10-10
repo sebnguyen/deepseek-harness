@@ -70,6 +70,7 @@ export class IdeController {
   #deps: IdeControllerDependencies
   #status: IdeStatus = ABSENT
   #child: { readonly token: string; readonly child: IdeChildLike } | undefined
+  #revokeAdmit: (() => void) | undefined
   #observers = new Set<(status: IdeStatus) => void>()
   #pendingOpens: string[] = []
   #reports: IdeReport[] = []
@@ -138,6 +139,8 @@ export class IdeController {
     const subprocess = this.#deps.subprocess
     const unpacked = await unpackTwin(twin, this.#deps.unpack)
     const token = randomBytes(24).toString('hex')
+    this.#revokeAdmit?.()
+    this.#revokeAdmit = this.#deps.admit?.(token)
     const gatewayUrl = this.#deps.gatewayUrl?.()
     const sessionId = this.#deps.env.DSH_SESSION_ID
     const child = childOf(subprocess.spawn({
@@ -162,6 +165,8 @@ export class IdeController {
       }).catch(() => {})
     }
     void child.exited.finally(() => {
+      this.#revokeAdmit?.()
+      this.#revokeAdmit = undefined
       if (this.#child?.child === child) {
         this.#child = undefined
         this.#set({ ready: false, twinSha: null, reason: 'no-twin', frameUrl: null })
@@ -212,6 +217,8 @@ export class IdeController {
   async dispose(): Promise<void> {
     const live = this.#child
     this.#child = undefined
+    this.#revokeAdmit?.()
+    this.#revokeAdmit = undefined
     if (live !== undefined) await live.child.kill()
     this.#set({ ready: false, twinSha: null, reason: 'disposed', frameUrl: null })
   }
