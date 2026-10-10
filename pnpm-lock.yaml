@@ -7497,6 +7497,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/host/open-in-app:
     dependencies:
@@ -7567,7 +7570,29 @@ importers:
         specifier: ^0.6.5
         version: 0.6.5
 
-  packages/ide/bridge: {}
+  packages/ide/bridge:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:^
+        version: link:../../api/gateway
+      '@deepseek-ai/dsh-checkpoint':
+        specifier: workspace:^
+        version: link:../../fs/checkpoint
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../../client/connection
+      '@deepseek-ai/dsh-host-ide':
+        specifier: workspace:^
+        version: link:../../host/ide
+      '@deepseek-ai/dsh-typert-registry':
+        specifier: workspace:^
+        version: link:../../typert/registry
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/identity/anonymous-user-id:
     devDependencies:

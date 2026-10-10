@@ -2,7 +2,7 @@
  * Wire glue of the dsh-bridge extension: hello, the open downlink drain, and
  * the one-first-activation chrome posture. Pure over injected faces so the
  * skeleton tests run without a twin and the real entry wires `vscode` plus
- * loopback fetch at activation time.
+ * the seat carrier at activation time.
  */
 
 /** The `ide` namespace as the bridge consumes it from the ext-host. */
@@ -11,7 +11,7 @@ export interface IdeBridgeFace {
   openNext(): Promise<string | null>
 }
 
-/** The slice of the `vscode` API the glue drives. */
+/** The `vscode` API slice the glue drives. */
 export interface VscodeGlueFace {
   executeOpen(path: string): Promise<void>
   updateSetting(key: string, value: unknown): Promise<void>

@@ -214,6 +214,10 @@ export default defineConfig({
         // VS Code extension host; its behavior lives in the tested glue it
         // defers to, so no repository-side suite can import it meaningfully.
         'packages/ide/bridge/src/entry.ts',
+        // The seat assembly boots a third cordis engine over the house client
+        // halves; its live behavior rides the twin's ext-host and the loopback
+        // gateway, so the repository lane covers its pure seams only.
+        'packages/ide/bridge/src/seat.ts',
         // Dynamic Host/Client composition is covered by its focused lifecycle
         // tests and assembled application checks rather than per-file coverage.
         'packages/self-modification/*/src/**/*.{ts,tsx}',

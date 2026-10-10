@@ -1,19 +1,70 @@
 /**
  * The frame's lifecycle owner: one loopback REH child per Host, per-launch
  * token, readiness flipped only by the bridge hello, and a pending-open queue
- * the bridge downlink drains. A missing twin is the frame-absent posture,
+ * the bridge downlink drains. The spawn rides the house `ctx.subprocess`
+ * seam (`@deepseek-ai/dsh-subprocess`): the controller is a plain consumer
+ * owning argv, the env overlay, and the REH listening line parsed off the
+ * managed stdout — protocol framing belongs to consumers by the seam's own
+ * contract. A missing twin or a missing seam is the frame-absent posture,
  * never an error: `ui-vscode`'s `canOpen` reads the snapshot and the registry
  * falls back to the CodeMirror editor exactly as the tab ranking intends.
  */
 import { randomBytes } from 'node:crypto'
+import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import { resolveTwin } from './manifest.ts'
 import { unpackTwin } from './unpack.ts'
-import type { IdeChildLike, IdeControllerDependencies, IdeManifestRow, IdeReport, IdeStatus, ResolvedTwin } from './types.ts'
+import {
+  IdeArtifactError,
+  type IdeChildLike,
+  type IdeControllerDependencies,
+  type IdeManifestRow,
+  type IdeReport,
+  type IdeStatus,
+  type ResolvedTwin,
+} from './types.ts'
 
 const ABSENT: IdeStatus = { ready: false, twinSha: null, reason: null, frameUrl: null }
 
 /** The event uplink keeps only its most recent records; older journal lives in the session stream. */
 export const IDE_REPORT_CAP = 100
+
+/** The readiness line the REH agent prints once its socket is bound. */
+const LISTENING_PATTERN = /Extension host agent listening on (\d+)/u
+
+/** Stdout tail retained once the child preamble overflows the cap. */
+const STDOUT_TAIL_BYTES = 1_024
+const STDOUT_CAP_BYTES = 8_192
+
+/**
+ * Project one managed house handle onto the liveness slice the controller
+ * tracks: the parsing of the listening line lives here because the seam
+ * hands protocol framing to its consumers.
+ * @param handle - the spawned child exactly as `ctx.subprocess` returned it.
+ * @returns exited/port/kill face over the managed range.
+ */
+export function childOf(handle: SubprocessHandle): IdeChildLike {
+  const stream = handle.stdout
+  const port = stream === undefined ? undefined : new Promise<number>((resolve, reject) => {
+    let buffer = ''
+    stream.on('data', (chunk: unknown) => {
+      if (buffer.length > STDOUT_CAP_BYTES) buffer = buffer.slice(-STDOUT_TAIL_BYTES)
+      buffer += String(chunk)
+      const match = LISTENING_PATTERN.exec(buffer)
+      if (match !== null) resolve(Number(match[1]))
+    })
+    void handle.done.then(() => {
+      reject(new IdeArtifactError('ide/twin-layout', 'REH child exited before reporting a listening port'))
+    }, reject)
+  })
+  return {
+    exited: handle.done.then(outcome => outcome.exitCode),
+    ...port === undefined ? {} : { port },
+    kill: async () => {
+      handle.terminate()
+      await handle.waitForExit()
+    },
+  }
+}
 
 export class IdeController {
   #deps: IdeControllerDependencies
@@ -87,22 +138,28 @@ export class IdeController {
     const subprocess = this.#deps.subprocess
     const unpacked = await unpackTwin(twin, this.#deps.unpack)
     const token = randomBytes(24).toString('hex')
-    const env: Record<string, string> = { DSH_IDE_TOKEN: token }
-    for (const [key, value] of Object.entries(this.#deps.env)) {
-      if (value !== undefined) env[key] = value
-    }
-    const child = subprocess.spawn({
-      command: process.execPath,
-      args: [unpacked.serverEntry, '--port', '0', '--connection-token', token],
-      env,
-    })
+    const gatewayUrl = this.#deps.gatewayUrl?.()
+    const sessionId = this.#deps.env.DSH_SESSION_ID
+    const child = childOf(subprocess.spawn({
+      argv: [process.execPath, unpacked.serverEntry, '--port', '0', '--connection-token', token],
+      cwd: unpacked.unpackDir,
+      stdio: { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' },
+      graceMs: 5_000,
+      env: {
+        DSH_IDE_TOKEN: token,
+        ...gatewayUrl === undefined ? {} : { DSH_GATEWAY_URL: gatewayUrl },
+        ...sessionId === undefined ? {} : { DSH_SESSION_ID: sessionId },
+      },
+    }))
     this.#child = { token, child }
     this.#set({ ready: false, twinSha: row.upstreamSha, reason: 'spawning', frameUrl: null })
     if (child.port !== undefined) {
       void child.port.then((port) => {
+        /* v8 ignore next 2 -- a port can only resolve while its child is the live
+           one; a replaced-but-still-reporting child is unreachable by construction. */
         if (this.#child?.child === child)
           this.#set({ ...this.#status, frameUrl: `http://127.0.0.1:${port}/?tkn=${token}` })
-      })
+      }).catch(() => {})
     }
     void child.exited.finally(() => {
       if (this.#child?.child === child) {

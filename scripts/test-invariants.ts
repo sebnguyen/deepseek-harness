@@ -42,6 +42,10 @@ export const testInvariantCompanions: Readonly<Record<string, () => Promise<Test
 /** Manual-topology suites whose names cannot follow the focused invariant convention. */
 const MANUAL_INVARIANT_TEST_EXCEPTIONS = [
   '/packages/runtime-diagnostics/invariants/tests/service.spec.ts',
+  // The seat spec boots a third cordis engine from the house client halves
+  // with its own evidence gating; the invariant host barrier belongs to the
+  // Host-composition topologies, not to a twin-side reflection root.
+  '/packages/ide/bridge/tests/render.spec.ts',
 ] as const
 
 interface InvariantHost {

@@ -5,41 +5,48 @@
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { PassThrough } from 'node:stream'
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { Context } from '@deepseek-ai/cordis'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import Ide, { IdeController } from '../src/index.ts'
-import type { IdeChildLike, IdeSpawnLike, IdeUnpackLike } from '../src/types.ts'
+import type { IdeSubprocessLike, IdeUnpackLike } from '../src/types.ts'
 
 /** The house lib target lacks AbortSignal.none; a controller that is never aborted is the never-ending idiom. */
 const unAborting = new AbortController().signal
 
-class StubChild implements IdeChildLike {
-  exitedResolve!: (code: number | null) => void
-  exited = new Promise<number | null>((resolve) => {
-    this.exitedResolve = resolve
+class StubHandle {
+  readonly stdin = undefined
+  readonly stderr = undefined
+  readonly stdout = new PassThrough()
+  readonly collected = {} as never
+  #waiters: Array<(empty: boolean) => void> = []
+  #done!: (outcome: { exitCode: number | null; signal: null }) => void
+  readonly done = new Promise<{ exitCode: number | null; signal: null }>((resolve) => {
+    this.#done = resolve
   })
 
-  portResolve?: (port: number) => void
-  port?: Promise<number>
-
-  constructor() {
-    this.port = new Promise<number>((resolve) => {
-      this.portResolve = resolve
-    })
+  terminate(): void {
+    this.#done({ exitCode: null, signal: null })
+    for (const waiter of this.#waiters) waiter(true)
   }
 
-  async kill(): Promise<void> {
-    this.exitedResolve(null)
+  waitForExit(): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.#waiters.push(resolve)
+    })
   }
 }
 
-class StubSubprocess implements IdeSpawnLike {
-  children: StubChild[] = []
+class StubSubprocess implements IdeSubprocessLike {
+  children: StubHandle[] = []
+  specs: SubprocessSpawnSpec[] = []
 
-  spawn(): IdeChildLike {
-    const child = new StubChild()
+  spawn(spec: SubprocessSpawnSpec): SubprocessHandle {
+    const child = new StubHandle()
     this.children.push(child)
+    this.specs.push(spec)
     return child
   }
 }
@@ -102,6 +109,27 @@ describe('ide Remote namespace', () => {
     vi.stubEnv('DSH_IDE_MANIFEST', join(home, 'absent.json'))
     const service = boot()
     await expect(service.status(unAborting)).rejects.toThrow('ENOENT')
+  })
+
+  it('forwards the loopback gateway base off the web server key', async () => {
+    const twinDir = join(home, 'twin-gw')
+    const { mkdir } = await import('node:fs/promises')
+    await mkdir(twinDir, { recursive: true })
+    await writeFile(join(twinDir, 'reh-server'), 's')
+    await writeFile(join(twinDir, 'web-client'), 'c')
+    await writeManifest()
+    vi.stubEnv('DSH_IDE_TWIN_DIR', twinDir)
+    vi.stubEnv('DSH_IDE_TWIN_NOVERIFY', '1')
+    const sub = new StubSubprocess()
+    const ctx = new Context()
+    ctx.provide('subprocess', sub as never)
+    ctx.provide('unpack', fakeUnpack as never)
+    ctx.provide('webServer', { port: 7300 } as never)
+    const service = new Ide(ctx)
+    expect(service.name).toBe('ide')
+    await service.status(unAborting)
+    const spec = sub.specs[0]
+    expect(spec?.env?.DSH_GATEWAY_URL).toBe('http://127.0.0.1:7300')
   })
 
   it('streams readiness: first snapshot, then the hello change, then abort', async () => {

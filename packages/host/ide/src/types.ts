@@ -1,8 +1,12 @@
 /**
  * Shape of the IDE lane: the manifest row, the verified twin pair as
- * transported tarballs, the unpacked spawn face, the readiness snapshot, the
- * spawn and unpack seams, and the artifact errors every refusal rides.
+ * transported tarballs, the unpacked spawn face, the readiness snapshot,
+ * the spawn and unpack seams narrowed from the house subprocess service,
+ * and the artifact errors every refusal rides. Session content (notes,
+ * stops, spans) rides the house checkpoint wire; the ide namespace owns
+ * only frame lifecycle verbs.
  */
+import type { SubprocessHandle, SubprocessSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 
 /** One platform's twin pair digests as recorded in the manifest row. */
 export interface IdePlatformTwin {
@@ -75,23 +79,19 @@ export interface IdeReport {
   readonly detail: string | null
 }
 
-/** Spawn handle the controller needs from `ctx.subprocess`. */
+/** The liveness slice of one spawned REH child the controller tracks. */
 export interface IdeChildLike {
   /** Settles with the exit code once the REH child is gone. */
   readonly exited: Promise<number | null>
-  /** The loopback port the REH picked for `--port 0`, once it reports one. */
+  /** The loopback port parsed off the child's stdout, when stdout is piped. */
   readonly port?: Promise<number>
   /** Ask the child to stop; resolves once it is gone. */
   kill(): Promise<void>
 }
 
-/** The `ctx.subprocess` seam narrowed to what the frame spawn needs. */
-export interface IdeSpawnLike {
-  spawn(options: {
-    readonly command: string
-    readonly args: readonly string[]
-    readonly env: Readonly<Record<string, string>>
-  }): IdeChildLike
+/** The `ctx.subprocess` seam narrowed to the one verb the frame spawn needs. */
+export interface IdeSubprocessLike {
+  spawn(spec: SubprocessSpawnSpec): SubprocessHandle
 }
 
 /** The tar executive the unpack needs; the host machine's `tar` when absent. */
@@ -103,14 +103,16 @@ export interface IdeUnpackLike {
 export interface IdeControllerDependencies {
   /** Reads and validates the manifest row; refusals ride their named error. */
   loadRow(): Promise<IdeManifestRow>
-  /** Spawn environment, read for the twin override and noverify latch only. */
+  /** Spawn environment, read for the twin override and session fact only. */
   readonly env: Readonly<Record<string, string | undefined>>
   /** Artifact cache root the lane and the fetch client write. */
   readonly cacheDir: string
   /** The Host's managed child-process seam; absent means never spawn. */
-  readonly subprocess?: IdeSpawnLike | undefined
+  readonly subprocess?: IdeSubprocessLike | undefined
   /** Unpack executive; absent means the real `tar` of the host machine. */
   readonly unpack?: IdeUnpackLike | undefined
+  /** The Host's loopback gateway address the twin carrier dials; absent keeps the seat dark. */
+  readonly gatewayUrl?: (() => string | undefined) | undefined
 }
 
 /** Named refusal for every manifest and artifact failure. */

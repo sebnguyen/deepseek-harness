@@ -110,6 +110,8 @@
     "apps/desktop/tests/**/*.ts",
     "benchmarks/**/*.ts",
     "packages/*/*/tests/**/*.ts",
+    // Ambient.ext-host module face the dsh-bridge tests type against.
+    "packages/ide/bridge/src/vscode.d.ts",
     "scripts/**/*.ts",
     "website/**/*.ts",
     "website/.vitepress/**/*.ts"

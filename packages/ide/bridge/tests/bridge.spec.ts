@@ -53,7 +53,10 @@ describe('activateBridge', () => {
     expect(surface.dshDarkTheme).toBeTypeOf('function')
     expect(surface.syncNotes).toBeTypeOf('function')
     expect(surface.restoreAt).toBeTypeOf('function')
-    expect(surface.presentGutter).toBeTypeOf('function')
+    expect(surface.notesOf).toBeTypeOf('function')
+    expect(surface.stopsOf).toBeTypeOf('function')
+    expect(surface.seatEvidence).toBeTypeOf('function')
+    expect(surface.startSeat).toBeTypeOf('function')
   })
 
   it('stops the drain when the host says so before the queue empties', async () => {

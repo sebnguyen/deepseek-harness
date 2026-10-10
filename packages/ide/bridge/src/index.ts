@@ -4,7 +4,8 @@
  * it boots only inside the twin's extension host.
  */
 export * from './bridge.ts'
-export * from './gutter.ts'
 export * from './notes.ts'
+export * from './projection.ts'
+export * from './seat.ts'
 export * from './theme.ts'
 export * from './timeline.ts'

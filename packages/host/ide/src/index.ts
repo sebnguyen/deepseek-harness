@@ -1,8 +1,11 @@
 /**
  * Host half of the embedded VS Code REH editor frame: owns the manifest row
  * load, the twin artifact resolution, the loopback REH spawn with its
- * per-launch token, and the `ide` Remote namespace the web client's `ui-vscode`
- * tab kind and the dsh-bridge extension share.
+ * per-launch token, and the frame-lifecycle `ide` Remote namespace the web
+ * client's `ui-vscode` tab kind and the seat's frame plugin share. Session
+ * content (notes, stops, turn spans) intentionally rides the house
+ * checkpoint wire; the twin consumes it through the same generated client
+ * halves the web consumes, on its own connection carrier.
  *
  * The spawn rides `ctx.subprocess` when the composition provides it and never
  * errors the product when absent: a frame-less deployment is this namespace
@@ -16,9 +19,9 @@ import { Service } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { IdeController } from './controller.ts'
 import { parseManifest } from './manifest.ts'
-import { IdeArtifactError, type IdeReport, type IdeSpawnLike, type IdeStatus, type IdeUnpackLike } from './types.ts'
+import { IdeArtifactError, type IdeReport, type IdeStatus, type IdeSubprocessLike, type IdeUnpackLike } from './types.ts'
 
-export { IdeController } from './controller.ts'
+export { childOf, IdeController } from './controller.ts'
 export { IDE_PLATFORM, parseManifest, resolveTwin, sha256OfFile } from './manifest.ts'
 export * from './types.ts'
 
@@ -68,10 +71,10 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 /**
- * The `ide` Remote namespace. `status` is the unary the tab kind's `canOpen`
- * rides on cold open, `events` keeps it live, `open` enqueues into the bridge
- * downlink, and `hello` is what the bridge extension calls once its ext-host
- * is up and has scrubbed its env.
+ * The `ide` Remote namespace: frame lifecycle only. `status` is the unary the
+ * tab kind's `canOpen` rides on cold open, `events` keeps it live, `open`
+ * enqueues into the seat downlink, and `hello` is what the seat's frame
+ * plugin calls once its extension host is up and has scrubbed its env.
  */
 export default class Ide extends TypertRemoteService {
   static provide = 'ide'
@@ -85,8 +88,12 @@ export default class Ide extends TypertRemoteService {
       loadRow: async () => parseManifest(await readFile(this.#manifestPath(), 'utf8')),
       env: process.env,
       cacheDir: defaultCacheDir(process.env),
-      subprocess: (ctx as { subprocess?: IdeSpawnLike }).subprocess,
+      subprocess: (ctx as { subprocess?: IdeSubprocessLike }).subprocess,
       unpack: (ctx as { unpack?: IdeUnpackLike }).unpack,
+      gatewayUrl: () => {
+        const port = (ctx as { webServer?: { readonly port: number } }).webServer?.port
+        return port === undefined ? undefined : `http://127.0.0.1:${port}`
+      },
     })
   }
 
@@ -163,7 +170,7 @@ export default class Ide extends TypertRemoteService {
     }
   }
 
-  /** Queue one open into the bridge downlink and nudge the spawn. */
+  /** Queue one open into the seat downlink and nudge the spawn. */
   @Remote
   async open(path: string, signal: AbortSignal): Promise<void> {
     void signal
@@ -176,14 +183,14 @@ export default class Ide extends TypertRemoteService {
     }
   }
 
-  /** Drain one queued open; `undefined` empties the bridge's pump loop. */
+  /** Drain one queued open; `null` empties the seat's pump loop. */
   @Remote
   async openNext(signal: AbortSignal): Promise<string | null> {
     void signal
     return this.#controller.takeOpen()
   }
 
-  /** One bridge event-uplink frame: save, active editor, diagnostics. */
+  /** One seat event-uplink frame: save, active editor, diagnostics. */
   @Remote
   async report(kind: IdeReport['kind'], path: string | null, detail: string | null, signal: AbortSignal): Promise<void> {
     void signal
@@ -197,7 +204,7 @@ export default class Ide extends TypertRemoteService {
     return this.#controller.reports()
   }
 
-  /** The bridge's hello: flips readiness when a child is live. */
+  /** The seat's hello: flips readiness when a child is live. */
   @Remote
   async hello(signal: AbortSignal): Promise<boolean> {
     void signal

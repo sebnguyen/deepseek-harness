@@ -1,11 +1,11 @@
 /**
- * The DSH timeline glue: project the slot register's per-file stops onto the
- * frame's view items and ride the checkpoint restore Remote for a scrubbed
- * stop. The webview holds no credentials; this glue is the only part that
- * touches the wire faces.
+ * The DSH timeline glue: project the checkpoint register's per-file stops
+ * onto the frame's view items and ride the checkpoint restore Remote for a
+ * scrubbed stop. The webview holds no credentials; this glue is the only
+ * part that touches the wire faces.
  */
 
-/** One stop as the register records it. */
+/** One stop as the frame renders it, projected off `CheckpointStop`. */
 export interface StopRecord {
   /** The turn the mutating tool call belonged to. */
   readonly turn: number
@@ -13,13 +13,11 @@ export interface StopRecord {
   readonly tool: string
   /** Content digest written. */
   readonly after: string
-  /** True once a later stop superseded this one. */
-  readonly superseded: boolean
 }
 
 /** The checkpoint faces the timeline rides. */
 export interface TimelineWireFace {
-  stops(): Promise<readonly StopRecord[]>
+  stops(): Promise<readonly { readonly path: string; readonly stops: readonly import('@deepseek-ai/dsh-checkpoint/types').CheckpointStop[] }[]>
   restore(digest: string): Promise<void>
 }
 
@@ -32,8 +30,8 @@ export interface TimelineItem {
 }
 
 /**
- * Project register stops onto view items, oldest first.
- * @param stops - the raw register projection.
+ * Project frame stop records onto view items, oldest first.
+ * @param stops - the projected register stops.
  * @returns the view items with house label copy.
  */
 export function projectStops(stops: readonly StopRecord[]): TimelineItem[] {
