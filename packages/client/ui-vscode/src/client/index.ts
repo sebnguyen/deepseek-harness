@@ -45,7 +45,8 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => {
     void (async () => {
       for await (const status of ide.events(controller.signal)) ready = status.ready
-    })()
+    /* v8 ignore next 1 -- a carrier-open failure degrades to the fallback editor */
+    })().catch(() => {})
     return () => controller.abort()
   }, 'ui-vscode: readiness mirror')
   ctx.effect(() => ctx.locale.register('vscode', { zh, en }), 'ui-vscode: dictionaries')

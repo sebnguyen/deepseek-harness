@@ -5,6 +5,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { SidebarRightTabDefinition } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { describe, expect, it } from 'vitest'
+import { apply as hostApply } from '../src/index.ts'
 import { apply, inject } from '../src/client/index.ts'
 import type { IdeWireStatus } from '../src/client/rpc.ts'
 
@@ -89,5 +90,39 @@ describe('ui-vscode client apply', () => {
 
     await fiber.dispose()
     expect(disposed).toEqual(expect.arrayContaining(['type', 'locale', 'body']))
+  })
+
+  it('degrades to the fallback editor when the events carrier open fails', async () => {
+    const ctx = new Context()
+    const definitions: SidebarRightTabDefinition[] = []
+    ctx.provide('sidebarRightTabs', {
+      register: (definition: SidebarRightTabDefinition) => {
+        definitions.push(definition)
+        return () => {}
+      },
+    } as never)
+    ctx.provide('locale', { register: () => () => {} } as never)
+    ctx.provide('slots', {
+      inject: () => () => {},
+      register: (spec: { key: string }) => spec,
+    } as never)
+    const broken = {
+      status: async () => STATUS,
+      events: (): never => {
+        throw new Error('carrier refused')
+      },
+      open: async () => {},
+    }
+    ctx.provide('remote', { ide: broken } as never)
+    ctx.provide('remote.ide', broken as never)
+    const fiber = ctx.plugin({ inject: [...inject], apply })
+    await fiber.await()
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(definitions[0]!.canOpen?.('dsh-resource://file/session/s1/a.ts')).toBe(false)
+    await fiber.dispose()
+  })
+
+  it('contributes nothing to the host tree', () => {
+    expect(() => hostApply()).not.toThrow()
   })
 })

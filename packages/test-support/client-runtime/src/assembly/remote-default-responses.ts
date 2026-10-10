@@ -30,6 +30,8 @@ export const remoteDefaultResponses: RemoteTable = {
     'dynamicCordisRunner/inventory': ok([]),
     // ui-settings-plugins web-search card `readCredential()` when the settings mirror first publishes.
     'credentials/describe': ok({}),
+    // ui-vscode tab kind `canOpen` cold read when a file address ranks the frame kind.
+    'ide/status': ok({ ready: false, twinSha: null, reason: 'no-twin', frameUrl: null }),
   },
   // Stream endpoints the roster opens later than boot; declared so a spec that forgets the script gets a stream miss.
   streams: [
@@ -41,5 +43,7 @@ export const remoteDefaultResponses: RemoteTable = {
     'session/control': openStream([{ type: 'baseline', value: { queues: {}, jobs: {}, projections: {} } }]),
     // api-workspace-controller client `apply`: the follow stream's opening baseline, then open.
     'workspace/follow': openStream([{ type: 'baseline', value: { items: [], archivedSessionIds: [] } }]),
+    // ui-vscode readiness mirror: one frame-absent frame, then pend.
+    'ide/events': openStream([{ ready: false, twinSha: null, reason: 'no-twin', frameUrl: null }]),
   },
 }

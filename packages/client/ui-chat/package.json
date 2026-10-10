@@ -28,7 +28,6 @@
   "dsh": {
     "client": {
       "inject": [
-        "@deepseek-ai/dsh-checkpoint",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller",
         "@deepseek-ai/dsh-api-workspace-controller",
