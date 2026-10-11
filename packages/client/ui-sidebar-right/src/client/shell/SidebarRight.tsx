@@ -299,6 +299,11 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
   // would double the file traversal, so this column goes away with it and
   // returns the moment the last vscode tab closes.
   const vsMounted = Object.values(surface.layout.tabs).some(tab => tab.kind === 'vscode')
+  // The twin is the pane's entire identity while it occupies it: the tab
+  // strip (chips, add/split controls) yields, and its corner controls drop
+  // down into a floating corner overlay over the workbench itself.
+  const stripHidden = vsMounted
+  const chrome = <PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />
   return (
     <div
       ref={panelRef}
@@ -327,9 +332,15 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
             renderTabTitle={titlesFor(panel)}
             renderTabMenuItems={(tab, dismiss) =>
               renderSlot('sidebar.right.tab.menu.item', { tab, dismiss })}
-            chrome={<PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />}
+            chrome={stripHidden ? undefined : chrome}
+            hideTabStrip={stripHidden}
             onRoom={reportRoom}
           />
+          {stripHidden && (
+            <div className={css.panelChromeFloat}>
+              {chrome}
+            </div>
+          )}
         </div>
         {!vsMounted && (
           <div className={css.explorer} data-sidebar-right-explorer>

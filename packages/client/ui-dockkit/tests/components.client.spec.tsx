@@ -172,6 +172,24 @@ describe('DockSurface', () => {
     expect(screen.getByRole('tab', { name: /a\.txt/u }).getAttribute('aria-selected')).toBe('true')
   })
 
+  it('omits the strips entirely under hideTabStrip, keeping the body alive', () => {
+    const controller = seededController()
+    controller.openContent({ contentId: 'dsh-resource://file/session/s/a.txt', title: 'a.txt', kind: 'file' })
+    render(
+      <DockSurface
+        state={controller.getSnapshot().state}
+        canSplit
+        intents={spyIntents()}
+        labels={TEST_LABELS}
+        renderTab={tab => <p data-testid="body">{tab.contentId}</p>}
+        hideTabStrip
+      />,
+    )
+    expect(document.querySelectorAll('[data-dockkit-strip]')).toHaveLength(0)
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
+    expect(screen.getByTestId('body').textContent).toBe('dsh-resource://file/session/s/a.txt')
+  })
+
   it('shows the empty-pane label when a pane holds nothing', () => {
     const controller = new DockController()
     renderSurface(controller, spyIntents())

@@ -45,4 +45,6 @@ export interface PaneCallbacks {
   readonly chromePaneId: PaneId
   /** Those controls; absent means the strip ends at the kit's own split control. */
   readonly chrome: ReactNode
+  /** Whether the pane's tab strip (and its controls) renders at all. */
+  readonly hideStrip?: boolean
 }

@@ -71,6 +71,13 @@ export interface DockSurfaceProps {
    */
   readonly chrome?: ReactNode
   /**
+   * Omit the tab strips entirely: the surface renders as pure panes, and the
+   * embedder's chrome — which normally rides the strip — is its own to draw.
+   * The kit exports only `PaneTree` below; the layout lands are the
+   * embedder's to make elsewhere.
+   */
+  readonly hideTabStrip?: boolean
+  /**
    * Called with the room rule's latest readings whenever they change, so an
    * embedder driving splits programmatically can honour the same rule the
    * split control does. A pane absent from the map has not been measured.
@@ -162,7 +169,7 @@ function sameSizes(a: readonly number[], b: readonly number[]): boolean {
 
 /** The split tree and the gestures over it. */
 export function DockSurface({
-  state, canSplit, canAddTab, canCloseTab, intents, labels, renderTab, renderTabTitle, renderTabMenuItems, chrome, onRoom,
+  state, canSplit, canAddTab, canCloseTab, intents, labels, renderTab, renderTabTitle, renderTabMenuItems, chrome, hideTabStrip, onRoom,
   dropZones = 'edges', minPaneFraction = MIN_PANE_FRACTION, hideSplitWhenBlocked = false,
 }: DockSurfaceProps): ReactNode {
   const surface = useRef<HTMLDivElement | null>(null)
@@ -285,6 +292,7 @@ export function DockSurface({
     renderTabMenuItems,
     chromePaneId: topRightPaneId(state),
     chrome,
+    hideStrip: hideTabStrip === true,
   }
 
   return (

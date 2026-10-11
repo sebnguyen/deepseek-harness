@@ -28,11 +28,16 @@
   display: flex;
   flex-direction: column;
   min-width: 0;
-  /* The same ground as the conversation: this is a column of the page, not a
-     raised surface. The edge is the weight of the kit's split dividers inside
-     (ui-dockkit `.divider`), so the panel's outline and its inner rules match. */
+  /* The frame's right-hand floating card: the same ground as the
+     conversation, wrapped in the frame's published card radius and ui-theme's
+     elevation pair (hairline stroke + soft shadow) instead of the old 0.5px
+     left rule. The fallback matches ui-layout's --dsh-frame-card-radius when
+     the panel renders away from the frame. Content corners are clipped to the
+     card; dockkit menus portal out, so nothing clips that must escape. */
   background: var(--dsw-alias-bg-base);
-  border-left: 0.5px solid var(--dsw-alias-border-l4);
+  overflow: hidden;
+  border-radius: var(--dsh-frame-card-radius, 14px);
+  box-shadow: var(--dsw-elevation-panel);
   transform: translateX(100%);
   visibility: hidden;
   transition:
@@ -46,11 +51,14 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+/* Fullscreen is no card: it covers the frame, so the float chrome comes off. */
 .panel[data-sidebar-right-panel='fullscreen'] {
   position: fixed;
   inset: 0;
   z-index: 40;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -115,9 +123,26 @@
 }
 
 .dockArea {
+  position: relative;
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* The strip's two controls, floating over the twin's own workbench chrome
+   while the tab strip itself yields (a mounted vscode tab hides it). A card
+   wall is 20; the twin's in-iframe stacking is its own document, so a modest
+   level over the pane content suffices. */
+.panelChromeFloat {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 11;
+  display: flex;
+  gap: 4px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-opaque-translucent-l1, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base)));
 }
 
 .unavailable {
