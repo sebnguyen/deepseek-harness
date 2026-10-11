@@ -497,7 +497,11 @@ let browser: Browser
 
 describe('web e2e: long Chat scroll contract', () => {
   beforeAll(async () => {
-    browser = await chromium.launch()
+    // Same local-runner escape hatch as access-confirmation.e2e.ts: machines
+    // without the downloaded browser's shared libs point this at a system
+    // chromium instead of re-implementing launch flags per file.
+    const executablePath = process.env.DSH_PLAYWRIGHT_EXECUTABLE_PATH
+    browser = await chromium.launch(executablePath === undefined ? {} : { executablePath })
   })
 
   afterAll(async () => {
