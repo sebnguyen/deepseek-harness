@@ -61,21 +61,25 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'editor.lineHighlightBackground': '#f7f8f80a',
   'editor.selectionBackground': '#2e434bcc',
   'editorCursor.foreground': '#7bb4bc',
-  'editorGroup.border': '#f7f8f81f',
+  'editorGroup.border': '#f7f8f80f',
   'editorGroupHeader.background': '#121618',
   'editorLineNumber.foreground': '#738484',
   'editorLineNumber.activeForeground': '#f7f8f8',
   'editorWidget.background': '#25292a',
-  'editorWidget.border': '#f7f8f81f',
+  'editorWidget.border': '#f7f8f80f',
+  'editorStickyScroll.background': '#121618',
+  'breadcrumb.background': '#121618',
+  'peekViewEditor.background': '#202426',
   // Tabs read like the harness tab strip: dark chip, active ink edge.
   'tab.activeBackground': '#171b1d',
   'tab.activeForeground': '#f7f8f8',
-  'tab.activeBorderTop': '#7bb4bc',
+  'tab.activeBorderTop': '#7bb4bc80',
   'tab.inactiveBackground': '#121618',
   'tab.inactiveForeground': '#a0a2a3',
   'tab.border': '#12161800',
-  // Controls: brand accent is #7bb4bc; selections use multi-select slate.
-  'focusBorder': '#7bb4bc',
+  // Controls: brand accent is #7bb4bc — rings ride it at half alpha, closer
+  // to the harness hairline than the stock heavy outline.
+  'focusBorder': '#7bb4bc80',
   'badge.background': '#7bb4bc',
   'badge.foreground': '#121618',
   'button.background': '#2e434b',
@@ -84,16 +88,20 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'button.secondaryBackground': '#25292a',
   'button.secondaryForeground': '#f7f8f8',
   'dropdown.background': '#25292a',
-  'dropdown.border': '#f7f8f81f',
+  'dropdown.border': '#f7f8f80f',
   'input.background': '#1b1f21',
-  'input.border': '#f7f8f81f',
+  'input.border': '#f7f8f80f',
+  'menu.background': '#25292a',
+  'menu.border': '#f7f8f80f',
+  'menu.foreground': '#f7f8f8',
+  'quickInput.background': '#25292a',
   'list.activeSelectionBackground': '#2e434b',
   'list.activeSelectionForeground': '#f7f8f8',
   'list.focusBackground': '#2e434b',
   'list.hoverBackground': '#ffffff14',
   'list.inactiveSelectionBackground': '#2e434b99',
   'notification.background': '#25292a',
-  'notification.border': '#f7f8f81f',
+  'notification.border': '#f7f8f80f',
   'scrollbarSlider.background': '#ffffff1f',
   'scrollbarSlider.hoverBackground': '#ffffff29',
   'scrollbarSlider.activeBackground': '#ffffff38',
@@ -148,6 +156,16 @@ export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   'update.mode': 'none',
   'extensions.autoCheckUpdates': false,
   'extensions.autoUpdate': false,
+  // No chat in the twin: the harness IS the conversation. The master kill
+  // hides the pane + inline hint; the agents pill and the empty auxiliary
+  // bar are their own settings and need these two besides.
+  'chat.disableAIFeatures': true,
+  'chat.agentsControl.enabled': 'hidden',
+  'workbench.secondarySideBar.defaultVisibility': 'hidden',
+  // Tree hugs the frame edge the harness puts us on: sidebar rides right —
+  // position is stored UI state there, so `extension.cjs` fires the
+  // deterministic command once per profile instead of a setting here.
+  'workbench.sideBar.location': 'right', // deprecated to UI state; see TWIN_EXTENSION_BOOT
   // Typography: the harness code stack and size, sober line highlight.
   'editor.fontFamily': "'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
   'editor.fontSize': 13,
@@ -168,6 +186,8 @@ export function twinThemeManifest(): unknown {
     version: TWIN_THEME_EXTENSION_VERSION,
     engines: { vscode: '^1.85.0' },
     categories: ['Themes'],
+    main: './extension.cjs',
+    activationEvents: ['onStartupFinished'],
     contributes: {
       configurationDefaults: TWIN_CONFIGURATION_DEFAULTS,
       themes: [
@@ -201,5 +221,23 @@ export async function stageTwinTheme(extensionsDir: string): Promise<string> {
   await mkdir(join(dir, 'themes'), { recursive: true })
   await writeFile(join(dir, 'package.json'), `${JSON.stringify(twinThemeManifest(), null, 2)}\n`, 'utf8')
   await writeFile(join(dir, 'themes', 'do-harness-dark-color-theme.json'), `${JSON.stringify(twinThemeFile(), null, 2)}\n`, 'utf8')
+  await writeFile(join(dir, 'extension.cjs'), TWIN_EXTENSION_BOOT, 'utf8')
   return dir
 }
+
+/**
+ * The one-once layout nudge: side bar lives as stored UI state (not config),
+ * so configuration defaults cannot put it right — a deterministic command
+ * can. Fires once per user profile; later manual moves are theirs again.
+ */
+export const TWIN_EXTENSION_BOOT = String.raw`'use strict';
+const vscode = require('vscode')
+
+function activate(context) {
+  if (context.globalState.get('dsh.do-harness.sideBarRight') === true) return
+  void vscode.commands.executeCommand('workbench.action.moveSideBarRight')
+  void context.globalState.update('dsh.do-harness.sideBarRight', true)
+}
+
+module.exports = { activate }
+`

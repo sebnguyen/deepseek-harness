@@ -9,7 +9,22 @@ viewport, headless Chromium through `probe/twin-shot.mjs`.
 |---|---|---|
 | Before | `vscode-twin-before.png` | stock twin, fresh `--user-data-dir`/exts
 | After | `vscode-twin-after.png` | same product, `dsh.do-harness` extension staged into `--extensions-dir`, `--disable-workspace-trust --disable-telemetry` |
+| Boot | `vscode-twin-boot.png` | the boot seam inside the pane — DO twinkle mark over the wordmark before the iframe lands |
 | In-situ | `vscode-twin-context.png` | the full harness page with the twin mounted in the vscode sidebar tab |
+
+## Round 2 — the five chrome moves
+
+- **Depth without float**: hairline dividers at 6% white, focus rings at half
+  alpha — the framework's quiet-ink language instead of stock walls.
+- **Chat fully out**: `chat.disableAIFeatures` + hidden agents pill + hidden
+  aux bar — the twin is an editor; the harness is the conversation.
+- **Sidebar right**: its position is stored UI state, not config, so the
+  staged extension fires the deterministic `workbench.action.moveSideBarRight`
+  once per profile and remembers it did (manual moves stay manual).
+- **No double tree**: while a vscode tab is mounted, the harness's own
+  explorer column leaves the right sidebar; it returns when the tab closes.
+- **DO twinkle seam**: the pane's boot interstitial is the DO twinkle pixel
+  mark under the wordmark, in the harness boot page's language.
 
 ## What the identity does
 

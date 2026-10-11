@@ -23,14 +23,22 @@ Each spawn restages the DigitalOcean identity as a small extension
 (`dsh.do-harness`) under the twin's own `--extensions-dir` (`dist/.dsh/exts/`):
 a `configurationDefaults` row the REH-web workbench actually reads (DO default
 theme, harness code-font stack, hushed chrome — no Welcome walkthrough, no
-Restricted Mode banner, no telemetry or update prompts, the `Code - OSS` tail
-off the window title), plus a first-class `DO Harness Dark` theme carrying the
-bluish palette and the harness shiki syntax colors. This channel exists
-because the REH-web workbench keeps user settings in browser IndexedDB, not
-server-side files — seeding `User/settings.json` never reached the workbench.
+Restricted Mode banner, no telemetry or update prompts, no chat surfaces
+(`chat.disableAIFeatures` + hidden agents pill + hidden aux bar — the harness
+is the conversation), the `Code - OSS` tail off the window title), plus a
+first-class `DO Harness Dark` theme carrying the bluish palette and the
+harness shiki syntax colors, with hairline dividers and half-alpha focus
+rings in the harness's quiet-ink language. This channel exists because the
+REH-web workbench keeps user settings in browser IndexedDB, not server-side
+files — seeding `User/settings.json` never reached the workbench.
 The spawn also passes `--disable-workspace-trust` and `--disable-telemetry`
-for the chrome that flags own. Registry defaults stay registry defaults: the
-twin's own Settings UI still wins over every key. See `src/twin-theme.ts`.
+for the chrome that flags own. The side bar rides right: its position is
+stored UI state, not config, so the staged extension runs a one-time boot
+script (`extension.cjs`, `onStartupFinished`) firing the deterministic
+`workbench.action.moveSideBarRight` command and landing it in the profile's
+global state — later manual moves win. Registry defaults otherwise stay
+registry defaults: the twin's own Settings UI still wins over every key. See
+`src/twin-theme.ts`.
 
 The browser-origin persistence story lives next door: the workbench's
 IndexedDB is origin-keyed, so the twin's port is pinned per dist

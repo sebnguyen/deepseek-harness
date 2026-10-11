@@ -295,6 +295,10 @@ function PanelChrome({ sessionId, fullscreen, autoFullscreen, actions, t }: Pick
 function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<HTMLDivElement> }): ReactNode {
   const { sessionId, surface, actions, t, renderSlot, openTab, width, reportRoom, fullscreen, autoFullscreen, panelRef } = panel
   const { expanded } = surface.layout
+  // A mounted vscode tab brings the twin's own Explorer; the harness tree
+  // would double the file traversal, so this column goes away with it and
+  // returns the moment the last vscode tab closes.
+  const vsMounted = Object.values(surface.layout.tabs).some(tab => tab.kind === 'vscode')
   return (
     <div
       ref={panelRef}
@@ -327,9 +331,11 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
             onRoom={reportRoom}
           />
         </div>
-        <div className={css.explorer} data-sidebar-right-explorer>
-          {renderSlot('sidebar.right.explorer', {})}
-        </div>
+        {!vsMounted && (
+          <div className={css.explorer} data-sidebar-right-explorer>
+            {renderSlot('sidebar.right.explorer', {})}
+          </div>
+        )}
       </div>
     </div>
   )

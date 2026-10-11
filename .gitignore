@@ -47,7 +47,7 @@ native/system/test/bin/
 /artifacts/
 .vscode-twin/
 # In-place tsc/tsdown dev artifacts (build outputs belong to lib/).
-packages/*/src/*.js
-packages/*/src/*.js.map
-packages/*/src/*.d.ts
-packages/*/src/*.d.ts.map
+packages/**/src/*.js
+packages/**/src/*.js.map
+packages/**/src/*.d.ts
+packages/**/src/*.d.ts.map

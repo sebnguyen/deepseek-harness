@@ -37,6 +37,8 @@ describe('stageTwinTheme', () => {
       name: string
       publisher: string
       engines: { vscode: string }
+      main?: string
+      activationEvents?: string[]
       contributes: {
         configurationDefaults: Record<string, unknown>
         themes: Array<{ label: string; uiTheme: string; path: string }>
@@ -71,6 +73,28 @@ describe('stageTwinTheme', () => {
     expect(TWIN_CONFIGURATION_DEFAULTS['editor.minimap.enabled']).toBe(false)
     expect(String(TWIN_CONFIGURATION_DEFAULTS['editor.fontFamily'])).toContain('SF Mono')
     expect(String(TWIN_CONFIGURATION_DEFAULTS['window.title'])).not.toContain('${appName}')
+  })
+
+  it('the twin is editor-only: chat surfaces and the aux bar are gone, tree on the right', async () => {
+    expect(TWIN_CONFIGURATION_DEFAULTS['chat.disableAIFeatures']).toBe(true)
+    expect(TWIN_CONFIGURATION_DEFAULTS['chat.agentsControl.enabled']).toBe('hidden')
+    expect(TWIN_CONFIGURATION_DEFAULTS['workbench.secondarySideBar.defaultVisibility']).toBe('hidden')
+    expect(DO_THEME_COLORS['focusBorder']).toBe('#7bb4bc80')
+  })
+
+  it('fires the deterministic side-bar-right command once per profile', async () => {
+    const dir = await extsDir()
+    const staged = await stageTwinTheme(dir)
+    const manifest = JSON.parse(await readFile(join(staged, 'package.json'), 'utf8')) as {
+      main?: string
+      activationEvents?: string[]
+    }
+    expect(manifest.main).toBe('./extension.cjs')
+    expect(manifest.activationEvents).toContain('onStartupFinished')
+    const boot = await readFile(join(staged, 'extension.cjs'), 'utf8')
+    expect(boot).toContain('workbench.action.moveSideBarRight')
+    expect(boot).toContain('dsh.do-harness.sideBarRight')
+    expect(boot).toContain('globalState')
   })
 
   it('workbench colors stay hex so the theme file loads clean', async () => {

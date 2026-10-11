@@ -10,6 +10,7 @@
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
+import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -44,20 +45,51 @@ const FRAME_STYLE = {
   background: 'var(--dsw-alias-bg-base, #121618)',
 } as const
 
-/** State output dressed like the harness quiet-ink placeholder. */
-const STATE_STYLE = {
+/** The boot hero: twinkle mark stacked on the wordmark, state line below. */
+const HERO_STYLE = {
   display: 'flex',
+  flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
+  gap: '14px',
   width: '100%',
   height: '100%',
   padding: '16px',
   boxSizing: 'border-box',
   background: 'var(--dsw-alias-bg-base, #121618)',
-  color: 'var(--dsw-alias-label-secondary, #a0a2a3)',
-  fontSize: '13px',
-  textAlign: 'center',
 } as const
+
+const WORDMARK_STYLE = {
+  color: 'var(--dsw-alias-label-primary, #f7f8f8)',
+  fontSize: '12px',
+  fontWeight: 600,
+  letterSpacing: '0.06em',
+  textTransform: 'uppercase',
+} as const
+
+const DETAIL_STYLE = {
+  color: 'var(--dsw-alias-label-secondary, #a0a2a3)',
+  fontSize: '12px',
+  textAlign: 'center',
+  maxWidth: '32em',
+} as const
+
+/**
+ * The seam the user watches every time the twin spawns: the DO twinkle mark
+ * centered over the wordmark with the state line — the same loading canvas
+ * the harness boot page paints, instead of a bare text line on stock chrome.
+ */
+function BootHero({ line, spinning = false }: { readonly line: string; readonly spinning?: boolean }): ReactNode {
+  return (
+    <div style={HERO_STYLE}>
+      {spinning
+        ? <PixelLoader mode="twinkle" grid={16} size={128} />
+        : <DigitalOceanLogo size={64} />}
+      <div style={WORDMARK_STYLE}>DigitalOcean Harness</div>
+      <output style={DETAIL_STYLE}>{line}</output>
+    </div>
+  )
+}
 
 export function VscodeBody({ useTabInfo, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
@@ -89,10 +121,15 @@ export function VscodeBody({ useTabInfo, status, t }: VscodeBodyProps): ReactNod
     }
   }, [sessionId, status])
 
-  if (state === undefined) return <output style={STATE_STYLE}>{t('state.opening')}</output>
-  if (state.enabled !== true) return <output style={STATE_STYLE}>{t('state.unavailable')}</output>
+  if (state === undefined) return <BootHero line={t('state.opening')} spinning />
+  if (state.enabled !== true) return <BootHero line={t('state.unavailable')} />
   if (state.ready !== true || state.url === null || state.tkn === null) {
-    return <output style={STATE_STYLE}>{t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}</output>
+    return (
+      <BootHero
+        line={t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}
+        spinning={state.detail === null}
+      />
+    )
   }
   const folder = state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`
   return (
