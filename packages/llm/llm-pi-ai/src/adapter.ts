@@ -45,6 +45,7 @@ import {
   LlmError,
   ReasoningEffortId,
 } from '@deepseek-ai/dsh-llm'
+import type { LlmAdapterCapability } from '@deepseek-ai/dsh-llm'
 import type {
   GenerateOptions,
   ImageAttachmentAccess,
@@ -280,13 +281,31 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
  */
 export class PiAiAdapter extends LlmAdapter {
   /**
-   * The OpenAI-compatible pi-ai routes grammar-decode both constraints on the
-   * wire ({@link grammarOptions}): `structuredOutput` becomes a strict
-   * `response_format` json_schema and `toolChoice` reaches the provider's
-   * tool-selection field. Routes on other APIs soft-ignore the injected keys.
+   * Only `openai-completions` routes grammar-decode the injected constraints
+   * where {@link grammarOptions} writes them; every other protocol — the
+   * Responses and anthropic-messages APIs — passes `samplingParams` through
+   * to a wire that ignores the keys, which is pass-through, not support.
+   * Answering per route keeps the runtime strip honest: those routes never
+   * see `structuredOutput`/`toolChoice` on the wire.
    */
-  override readonly structuredOutputOnRequest = true
-  override readonly toolChoiceOnRequest = true
+  override readonly structuredOutputOnRequest: LlmAdapterCapability = (provider, model) =>
+    this.grammarCapable(provider, model)
+  override readonly toolChoiceOnRequest: LlmAdapterCapability = (provider, model) =>
+    this.grammarCapable(provider, model)
+
+  /**
+   * Whether one route's resolved model speaks the wire vocabulary
+   * `grammarOptions` writes (`response_format` / `tool_choice`). Unknown
+   * models report unsupported rather than fail a request at the strip.
+   */
+  private grammarCapable(provider: string, model: string): boolean {
+    try {
+      const resolved = this.current().models.getModel(provider, model)
+      return resolved?.api === 'openai-completions'
+    } catch {
+      return false
+    }
+  }
 
   private snapshot: PiAiSnapshot | undefined
 

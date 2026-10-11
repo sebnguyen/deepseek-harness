@@ -64,6 +64,12 @@
     - id: user-questions
       name: '@deepseek-ai/dsh-user-questions'
 
+    # Turn-shape selector + host shield: quiet/tools shapes suppress assistant
+    # prose per turn — model-facing via the empty-object grammar shield on
+    # capable routes with a one-line per-turn reminder.
+    - id: conversation-mode
+      name: '@deepseek-ai/dsh-client-conversation-mode'
+
     # Model Provider rail window and the harness guide section on top of
     # it: routes, format, endpoint, key, per-model tuning, and rates over
     # the settings mirror. Pure UI plugin — the host apply is empty and

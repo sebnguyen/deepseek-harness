@@ -192,6 +192,43 @@ export interface PreparedAdapterCall {
 }
 
 /**
+ * One grammar-support verdict an adapter declares for a wire field: a static
+ * boolean, or a per-route check evaluated with the request's `provider` +
+ * `model` route. The function form exists for multi-protocol adapters whose
+ * routes do not share one wire vocabulary (pi-ai's OpenAI-compatible gateway
+ * routes versus its anthropic-messages routes, for example). A thrown error
+ * inside the function is a programming bug in the adapter, not a request
+ * failure mode: keep the check read-only and total.
+ */
+export type LlmAdapterCapability = boolean | ((provider: string, model: string) => boolean)
+
+/**
+ * Grammar support the runtime reports for one route to a plugin that is
+ * about to attach request grammar. Both verdicts are exactly what the
+ * dispatch strip will enforce, so a `false` here means an attached field
+ * never reaches the wire.
+ */
+export interface LlmRouteGrammarSupport {
+  readonly structuredOutput: boolean
+  readonly toolChoice: boolean
+}
+
+/** The verdict for a route the runtime cannot even place. */
+export const NO_GRAMMAR_SUPPORT: LlmRouteGrammarSupport = Object.freeze({
+  structuredOutput: false,
+  toolChoice: false,
+})
+
+/** Evaluate one declared capability for one exact route. */
+function grammarCapabilityOf(
+  capability: LlmAdapterCapability | undefined,
+  provider: string,
+  model: string,
+): boolean {
+  return typeof capability === 'function' ? capability(provider, model) : capability === true
+}
+
+/**
  * Provider-wire adapter for the harness message and stream vocabulary. Register implementations
  * with `ctx.llm.registerAdapter(providers, adapter)`. Every provider HTTP request must include
  * `attributionHeaders()`; prove the headers are added in the wire request or library header hook. The direct-fetch
@@ -200,21 +237,26 @@ export interface PreparedAdapterCall {
 export abstract class LlmAdapter {
   /**
    * Whether this adapter feeds `GenerateOptions.structuredOutput` to the
-   * provider's native structured output (`response_format`). Unset adapters
-   * never receive the field: the runtime strips it so `lastOptions`-style
-   * observers and replays cannot mistake a request for a schema-forced one.
-   * @returns false / unset when the provider cannot grammar-decode.
+   * provider's native structured output (`response_format`), optionally per
+   * route: a function answers for one `provider`/`model` pair. Unset — or a
+   * route the function answers `false` for — never receives the field: the
+   * runtime strips it so `lastOptions`-style observers and replays cannot
+   * mistake a request for a schema-forced one. Declare a route capable only
+   * when its protocol is proven to honor the field; pass-through "soft hint"
+   * behavior is not support. Assign as a field (`= true` / `= (p, m) => ...`),
+   * never as a `get` accessor override: class-field semantics give the base
+   * declaration an own instance slot that shadows subclass accessors.
    */
-  structuredOutputOnRequest?: boolean
+  structuredOutputOnRequest?: LlmAdapterCapability
 
   /**
    * Whether this adapter feeds `GenerateOptions.toolChoice` to the provider's
-   * native tool-selection constraint (OpenAI-compat `tool_choice`). Unset
-   * adapters never receive the field: the runtime strips it, mirroring the
+   * native tool-selection constraint (OpenAI-compat `tool_choice`),
+   * optionally per route. Unset — or a route the function answers `false`
+   * for — never receives the field, mirroring the
    * {@link LlmAdapter.structuredOutputOnRequest} gate.
-   * @returns false / unset when the provider cannot enforce tool choice.
    */
-  toolChoiceOnRequest?: boolean
+  toolChoiceOnRequest?: LlmAdapterCapability
 
   /**
    * Describe one provider route owned by this adapter.
@@ -886,6 +928,27 @@ export class LlmRuntime extends TypertRemoteService {
     return (await this.resolveCallFor(this.registration(config.provider), config, signal)).config
   }
 
+  /**
+   * Grammar support one route advertises, evaluated exactly as the dispatch
+   * strip will enforce it. Plugins attaching `structuredOutput` or
+   * `toolChoice` must ask here before writing: a `false` verdict means an
+   * attached field would be stripped before the wire. Unregistered providers
+   * report {@link NO_GRAMMAR_SUPPORT}, matching the strip's conservative
+   * posture rather than failing.
+   * @param provider - the `registerAdapter()` route key.
+   * @param model - the request's model id.
+   * @returns frozen capability verdict for one route; an unregistered
+   * provider yields {@link NO_GRAMMAR_SUPPORT}.
+   */
+  grammarCapability(provider: string, model: string): LlmRouteGrammarSupport {
+    const { adapter } = this.adapters.get(provider) ?? {}
+    if (adapter === undefined) return NO_GRAMMAR_SUPPORT
+    return Object.freeze({
+      structuredOutput: grammarCapabilityOf(adapter.structuredOutputOnRequest, provider, model),
+      toolChoice: grammarCapabilityOf(adapter.toolChoiceOnRequest, provider, model),
+    })
+  }
+
   private async resolveCallFor(
     registration: AdapterRegistration,
     config: LlmCallConfig,
@@ -1011,13 +1074,19 @@ export class LlmRuntime extends TypertRemoteService {
         source: { kind: 'model', provider: source.provider, model: source.model },
       })
     })
-    const stripsStructuredOutput = !adapter.structuredOutputOnRequest && options.structuredOutput !== undefined
-    const stripsToolChoice = !adapter.toolChoiceOnRequest && options.toolChoice !== undefined
+    const allowsStructuredOutput = grammarCapabilityOf(
+      adapter.structuredOutputOnRequest, options.provider, options.model,
+    )
+    const allowsToolChoice = grammarCapabilityOf(
+      adapter.toolChoiceOnRequest, options.provider, options.model,
+    )
+    const stripsStructuredOutput = !allowsStructuredOutput && options.structuredOutput !== undefined
+    const stripsToolChoice = !allowsToolChoice && options.toolChoice !== undefined
     const messagesUnchanged = messages.every((message, index) => message === options.messages[index])
     if (messagesUnchanged && !stripsStructuredOutput && !stripsToolChoice) return options
     const filtered = { ...options, messages }
-    if (!adapter.structuredOutputOnRequest) delete filtered.structuredOutput
-    if (!adapter.toolChoiceOnRequest) delete filtered.toolChoice
+    if (!allowsStructuredOutput) delete filtered.structuredOutput
+    if (!allowsToolChoice) delete filtered.toolChoice
     return Object.isFrozen(options) ? deepFreeze(filtered) : filtered
   }
 

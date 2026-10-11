@@ -15,7 +15,13 @@
       "path": "../../../vendor/schemastery"
     },
     {
+      "path": "../../core/agent"
+    },
+    {
       "path": "../../core/agent-loop"
+    },
+    {
+      "path": "../../core/session"
     },
     {
       "path": "../../settings/settings"

@@ -126,6 +126,22 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Adapters register provider implementations; the loop and compaction call the provider-neutral stream service.',
   },
   {
+    key: 'request-grammar',
+    pkg: 'agent',
+    title: 'Declared-priority request-grammar arbitration',
+    mode: 'core',
+    consumers: ['conversation-mode', 'subagent-in-process-driver'],
+    note: 'One fold listener merges priority-sorted structuredOutput/toolChoice contributions for every agent/request seed, so listener composition order never decides which grammar survives.',
+  },
+  {
+    key: 'ideBridge',
+    pkg: 'api-ide',
+    title: 'VSCode twin bridge service',
+    mode: 'core',
+    consumers: ['client-ui-vscode'],
+    note: 'Routes IDE operations between the web app and the vscode twin composition.',
+  },
+  {
     key: 'deepseekLlmApiExtensions',
     pkg: 'deepseek-llm-api-extensions',
     title: 'Official DeepSeek request extensions',

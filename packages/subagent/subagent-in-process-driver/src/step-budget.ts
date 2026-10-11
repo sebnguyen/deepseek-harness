@@ -3,18 +3,19 @@
  * pre-steps (retries reuse their assembly and must not double-count). When a
  * capped child tries to settle without finishing, the serial
  * `agent/turn-stopping` dispatch keeps the turn alive with exactly one steered
- * consolidation step, and the `agent/request` waterfall attaches the child's
- * `outputSchema` as `GenerateOptions.structuredOutput` on that step and on the
- * step taken at the cap, letting the adapter grammar-decode the handoff on the
- * wire. A second bare settling, or any exploration step past the consolidation
+ * consolidation step, and the declared request-grammar contribution attaches
+ * the child's `outputSchema` as `GenerateOptions.structuredOutput` on that step
+ * and on the step taken at the cap, letting the adapter grammar-decode the
+ * handoff on the wire. The contribution rides the arbitration priority band
+ * above preference writers, so no cost guard can overwrite a capture schema. A second bare settling, or any exploration step past the consolidation
  * step, is denied: the run settles `error`, which the tool layer reports as a
  * failed delegation.
  * @module @deepseek-ai/dsh-subagent-in-process-driver/step-budget
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, type LlmCallConfig, type StructuredOutputSchema } from '@deepseek-ai/dsh-llm'
+import { GRAMMAR_PRIORITY, type Agent, type PreStepDecision } from '@deepseek-ai/dsh-agent'
+import { createUserMessage, type StructuredOutputSchema } from '@deepseek-ai/dsh-llm'
 
 export interface StepBudgetConfig {
   /** Positive accepted-step ceiling; the consolidation step rides one above it. */
@@ -63,13 +64,20 @@ export function attachStepBudget(childCtx: Context, child: Agent, config: StepBu
     }))
   })
 
-  childCtx.on(
-    'agent/request',
-    async (_payload, next): Promise<LlmCallConfig & { structuredOutput?: StructuredOutputSchema }> => {
-      const seed = await next()
-      if (config.schema === undefined || (!requireSchema && accepted < config.maxSteps)) return seed
-      requireSchema = false
-      return { ...seed, structuredOutput: config.schema }
-    },
-  )
+  childCtx.inject(['request-grammar'], (grammarCtx) => {
+    const dispose = grammarCtx['request-grammar'].contribute({
+      id: `subagent-step-budget:${child.id}`,
+      priority: GRAMMAR_PRIORITY.structuredOutputDriver,
+      // Scoped to this child: every agent's request folds every contribution.
+      attach: ({ agent }) => {
+        if (agent.id !== child.id) return undefined
+        if (config.schema === undefined || (!requireSchema && accepted < config.maxSteps)) {
+          return undefined
+        }
+        requireSchema = false
+        return { structuredOutput: config.schema }
+      },
+    })
+    childCtx.effect(() => dispose, 'subagent step-budget grammar contribution teardown')
+  })
 }

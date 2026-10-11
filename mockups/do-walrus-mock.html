@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSH — walrus UI over a DO ocean aurora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,400;0,500;0,700;1,400&family=Ubuntu+Mono:ital,wght@0,400;0,700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Ocean scene: god rays + dot grid behind the walrus UI,
+   painted strictly in the repo's current walrus palette
+   (ui-theme/src/styles/design-platform.css):
+     brand rgb(0,99,248) · blue-500 rgb(38,145,234) ·
+     blue-400 rgb(97,200,249) · deepseek rgb(96,165,175)
+   Typography is Ubuntu — DO's brand face.
+   ============================================================ */
+:root {
+  --ds-ease: cubic-bezier(.4,0,.2,1);
+  --dur: .2s;
+
+  /* ocean gradient phrases */
+  --gradient-ocean: linear-gradient(95deg, rgb(0,99,248), rgb(97,200,249) 55%, rgb(96,165,175));
+  --gradient-ocean-dark: linear-gradient(95deg, rgb(38,145,234), rgb(97,200,249) 55%, rgb(148,198,204));
+
+  /* geometry (repo ConversationRoot / ChatView tokens) */
+  --dsh-chat-content-width: 760px;
+  --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
+  --dsh-composer-side-clearance: 24px;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  /* base canvas under the aurora */
+  --canvas: rgb(255,255,255);                    /* walrus bg-base (light) */
+  /* readability veil over the aurora (stronger in chat view) */
+  --veil: rgba(247,248,248,.28);
+  --veil-chat: rgba(247,248,248,.66);
+  /* ocean scene tokens (light) — walrus scale only */
+  --sea: linear-gradient(180deg, #FFFFFF 0%, rgb(247,248,248) 46%, rgb(239,250,255) 100%);
+  --rayA: rgba(0,99,248,.18); --rayB: rgba(38,145,234,.26); --rayC: rgba(96,165,175,.16);
+  --dot: rgba(31,97,174,.18); --dot-strong: rgba(31,97,174,.24);
+  --bit: rgba(31,97,174,.5);
+  --pong-op: .55;
+  /* walrus aliases */
+  --bg-layer: rgba(255,255,255,.72);
+  --glass: rgba(255,255,255,.58);
+  --glass-strong: rgba(255,255,255,.8);
+  --border-l1: rgba(0,12,42,.04);
+  --border-l2: rgba(0,12,42,.1);
+  --border-l3: rgba(0,12,42,.12);
+  --border-l4: rgba(0,12,42,.16);
+  --brand: rgb(0,99,248);
+  --brand-hover: rgb(0,84,204);
+  --hover: rgba(57,65,65,.06);
+  --ink: rgb(0,12,42);
+  --ink-bluish: rgb(31,83,137);
+  --ink-secondary: rgb(56,65,89);
+  --ink-tertiary: rgb(93,108,108);
+  --ink-caption: rgb(115,132,132);
+  --link: rgb(31,97,174);
+  --shadow-soft: 0 1px 2px rgba(0,12,42,.06), 0 10px 28px -14px rgba(0,12,79,.22);
+  --shadow-panel: 0 1px 2px rgba(0,12,42,.07), 0 16px 44px -16px rgba(0,12,79,.28);
+  --bubble: rgba(249,246,249,.85);
+  --bubble-border: rgba(221,196,216,.55);
+  --sidebar-fill: rgba(249,250,254,.5);
+  --nav-active: rgba(232,239,246,.85);
+  --code-bg: rgba(247,248,248,.92);
+  --code-head: rgba(238,240,240,.9);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: rgb(18,22,24);                       /* walrus neutral-bluish-950 */
+  --veil: rgba(10,12,14,.3);
+  --veil-chat: rgba(10,12,14,.58);
+  /* ocean scene tokens (dark) — walrus scale only */
+  --sea: linear-gradient(180deg, rgb(23,27,29) 0%, rgb(14,18,20) 48%, rgb(7,9,11) 100%);
+  --rayA: rgba(38,145,234,.22); --rayB: rgba(97,200,249,.24); --rayC: rgba(96,165,175,.22);
+  --dot: rgba(145,159,158,.2); --dot-strong: rgba(145,159,158,.3);
+  --bit: rgba(160,162,163,.5);
+  --pong-op: .45;
+  --bg-layer: rgba(24,30,46,.75);
+  --glass: rgba(18,24,40,.55);
+  --glass-strong: rgba(20,26,44,.85);
+  --border-l1: rgba(247,248,248,.07);
+  --border-l2: rgba(247,248,248,.13);
+  --border-l3: rgba(247,248,248,.17);
+  --border-l4: rgba(247,248,248,.22);
+  --brand: rgb(123,180,188);
+  --brand-hover: rgb(148,198,204);
+  --hover: rgba(255,255,255,.08);
+  --ink: rgb(247,248,248);
+  --ink-bluish: rgb(247,248,248);
+  --ink-secondary: rgb(160,162,163);             /* walrus label-secondary */
+  --ink-tertiary: rgb(145,159,158);
+  --ink-caption: rgb(145,159,158);
+  --link: rgb(148,198,204);
+  --shadow-soft: 0 1px 2px rgba(0,4,16,.5), 0 10px 28px -14px rgba(0,12,79,.6);
+  --shadow-panel: 0 1px 2px rgba(0,4,16,.6), 0 18px 48px -16px rgba(0,12,79,.7);
+  --bubble: rgba(55,32,47,.85);
+  --bubble-border: rgba(110,70,96,.5);
+  --sidebar-fill: rgba(10,15,32,.5);
+  --nav-active: rgba(46,67,75,.85);
+  --code-bg: rgba(10,16,34,.92);
+  --code-head: rgba(255,255,255,.05);
+  --gradient-ocean: var(--gradient-ocean-dark);
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  font-family: "Ubuntu", -apple-system, "SF Pro Text", Inter, sans-serif;
+  font-size: 14px; line-height: 22px;
+  color: var(--ink);
+  background: var(--canvas);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: left; }
+code, pre, kbd { font-family: "Ubuntu Mono", ui-monospace, monospace; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-l3); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+
+/* ===== OCEAN SCENE — procedural god rays, dot grid, pong ===== */
+.seascene { position: fixed; inset: 0; z-index: 0; overflow: hidden; }
+.sea { position: absolute; inset: 0; background: var(--sea); }
+
+/* light shafts descending into the depth — generated procedurally
+   by the script below (position, angle, width, blur, rate, phase).
+   Brightness is a single eased "shine": inferencing raises the cap
+   and the breathing slides up to it, never popping the state. */
+.rays {
+  position: absolute; inset: 0;
+  filter: brightness(var(--rayBoost, 1)) saturate(var(--raySat, 1));
+}
+/* every shaft hinges on one off-screen point — the sun */
+.ray {
+  position: absolute; top: 0; height: 190vh; width: 160px; display: block;
+  transform-origin: 50% 0;
+  opacity: .45;
+  animation: raysway var(--sw, 26s) ease-in-out infinite alternate;
+}
+.suncore {
+  position: absolute; width: 260px; height: 260px; margin: -130px 0 0 -130px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--rayB), transparent 70%);
+  filter: blur(38px);
+  opacity: .6;
+}
+@keyframes raysway { from { transform: rotate(calc(var(--r) - 1.4deg)); } to { transform: rotate(calc(var(--r) + 1.4deg)); } }
+
+/* film grain inside the shafts: SVG turbulence, shimmered in steps */
+.rays::after {
+  content: ''; position: absolute; inset: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.15' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  opacity: .3; mix-blend-mode: overlay;
+  animation: grainshift .9s steps(1) infinite;
+}
+html[data-theme="dark"] .rays::after { opacity: .38; }
+@keyframes grainshift {
+  0% { background-position: 0 0; } 12% { background-position: -46px 32px; }
+  25% { background-position: 34px -62px; } 37% { background-position: -68px -18px; }
+  50% { background-position: 22px 54px; } 62% { background-position: -32px -44px; }
+  75% { background-position: 58px 14px; } 87% { background-position: -18px 58px; }
+  100% { background-position: 0 0; }
+}
+.dotgrid { transition: filter 1.4s ease; }
+body[data-engine="infer"] .dotgrid { filter: brightness(1.15); }
+
+/* the dot grid — two pitches, fading with depth */
+.dotgrid {
+  position: absolute; inset: 0;
+  background-image:
+    radial-gradient(circle, var(--dot-strong) 1.6px, transparent 1.7px),
+    radial-gradient(circle, var(--dot) 1.1px, transparent 1.2px);
+  background-size: 130px 130px, 26px 26px;
+  -webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,.95), transparent 88%);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,.95), transparent 88%);
+}
+
+
+/* pong — the retro nod, tucked low in the scene */
+.pong { position: absolute; right: 15vw; bottom: 5.5vh; width: 210px; height: 96px; opacity: var(--pong-op); }
+.pong i { position: absolute; display: block; }
+.pong .pad { width: 4px; height: 30px; background: repeating-linear-gradient(180deg, var(--bit) 0 4px, transparent 4px 8px); }
+.pong .p1 { left: 0; animation: padA 6s ease-in-out infinite; }
+.pong .p2 { right: 0; animation: padB 6s ease-in-out infinite; }
+.pong .ball { width: 5px; height: 5px; background: var(--bit); animation: ballmove 6s linear infinite; }
+@keyframes ballmove { 0% { left: 4px; top: 44px; } 25% { left: 80px; top: 8px; } 50% { left: 196px; top: 40px; } 75% { left: 100px; top: 78px; } 100% { left: 4px; top: 44px; } }
+@keyframes padA { 0%,100% { top: 30px; } 25% { top: 6px; } 50% { top: 34px; } 75% { top: 48px; } }
+@keyframes padB { 0%,50%,100% { top: 32px; } 25% { top: 10px; } 75% { top: 42px; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ray, .pong i, .rays::after { animation: none; }
+}
+
+/* readability veil over the aurora */
+.veil {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: var(--veil); transition: background .3s var(--ds-ease);
+}
+body[data-view="chat"] .veil { background: var(--veil-chat); }
+
+/* ================= shell ================= */
+.shell { position: relative; z-index: 1; display: flex; height: 100vh; }
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(26px) saturate(1.35);
+  -webkit-backdrop-filter: blur(26px) saturate(1.35);
+}
+
+/* ------------- SIDEBAR ------------- */
+.sidebar {
+  width: 264px; flex: 0 0 auto; display: flex; flex-direction: column;
+  padding: 6px 12px;
+  background: var(--sidebar-fill);
+  backdrop-filter: blur(28px) saturate(1.4);
+  -webkit-backdrop-filter: blur(28px) saturate(1.4);
+  border-right: .5px solid var(--border-l2);
+}
+.logoRow { display: flex; align-items: center; height: 60px; padding: 8px 0 8px 4px; gap: 8px; }
+.brand { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.brand .mark { display: grid; place-items: center; }
+.brand .mark svg.emblem { filter: drop-shadow(0 2px 8px rgba(0,99,248,.35)); }
+.localBuild { display: flex; flex-direction: column; gap: 2px; white-space: nowrap; }
+.localBuild .t1 { font-size: 12px; line-height: 13px; font-weight: 500; }
+.buildTag { width: fit-content; font-size: 10px; line-height: 11px; padding: 1px 4px; border-radius: 3px; background: var(--ink); color: var(--canvas); }
+.panelToggle { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-secondary); }
+.panelToggle:hover { background: var(--hover); }
+
+.newSession {
+  display: flex; align-items: center; gap: 8px;
+  margin: 2px 0 10px; padding: 8px 10px; border-radius: 10px;
+  font-weight: 500; color: var(--ink);
+  background: var(--glass-strong);
+  border: .5px solid var(--border-l3);
+  box-shadow: var(--shadow-soft);
+}
+.newSession:hover { border-color: var(--border-l4); }
+.newSession .plus { color: var(--brand); display: grid; place-items: center; }
+.newSession kbd { margin-left: auto; font-size: 11px; color: var(--ink-caption); }
+
+.workspace {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; margin-bottom: 10px; border-radius: 10px;
+  background: var(--glass);
+  border: .5px solid var(--border-l2);
+}
+.workspace:hover { background: var(--hover); }
+.workspace .wsIcon { flex: none; width: 26px; height: 26px; border-radius: 7px; background: var(--gradient-ocean); display: grid; place-items: center; color: #fff; box-shadow: 0 2px 8px rgba(0,99,248,.35); }
+.workspace .meta { flex: 1; min-width: 0; }
+.workspace .nm { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace .rg { font-size: 11px; color: var(--ink-caption); }
+.workspace .chev { color: var(--ink-caption); }
+
+.navLabel { font-size: 11px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-caption); padding: 6px 10px; text-shadow: 0 1px 0 var(--veil); }
+.panelList { display: flex; flex-direction: column; gap: 1px; }
+.navItem { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 8px; color: var(--ink-secondary); font-size: 14px; }
+.navItem:hover { background: var(--hover); }
+.navItem.active { background: var(--nav-active); color: var(--ink-bluish); font-weight: 500; box-shadow: inset 0 0 0 .5px var(--border-l2); }
+.navItem svg { opacity: .85; }
+
+.recentList { flex: 1; min-height: 40px; overflow-y: auto; margin-top: 4px; }
+.recentItem { display: block; width: 100%; padding: 6px 10px; border-radius: 8px; font-size: 13px; color: var(--ink-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recentItem:hover { background: var(--hover); color: var(--ink); }
+
+.sideFooter { display: flex; align-items: center; gap: 6px; padding: 8px 4px 2px; border-top: .5px solid var(--border-l1); }
+.spacerText { flex: 1; font-size: 12px; color: var(--ink-caption); padding-left: 6px; }
+.footBtn { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; color: var(--ink-secondary); }
+.footBtn:hover { background: var(--hover); }
+
+/* ------------- MAIN ------------- */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+
+.sessionHead { display: flex; align-items: center; gap: 10px; height: 52px; padding: 0 16px; flex: none; border-bottom: .5px solid var(--border-l1); }
+.crumb { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 46ch; }
+.crumb span { color: var(--ink-caption); font-weight: 400; }
+.sessionHead .spacer { flex: 1; }
+.sessTag { font-size: 11px; font-family: "Ubuntu Mono", monospace; color: var(--ink-tertiary); border: 1px solid var(--border-l2); border-radius: 99px; padding: 2px 8px; background: var(--glass); }
+.headBtn { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; color: var(--ink-secondary); }
+.headBtn:hover { background: var(--hover); color: var(--ink); }
+
+.scroll { flex: 1; min-height: 0; overflow-y: auto; position: relative; container-type: inline-size; }
+.column { max-width: var(--dsh-chat-content-width); margin: 0 auto; padding: 24px 24px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+/* hero (empty state) */
+.hero { padding: 10vh 4px 6px; }
+.hero .hi { font-size: 34px; line-height: 42px; font-weight: 500; letter-spacing: -.015em; }
+.hero .hi .ocean {
+  font-weight: 700;
+  background: var(--gradient-ocean);
+  background-size: 200% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: oceanflow 9s var(--ds-ease) infinite alternate;
+}
+@keyframes oceanflow { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
+.hero p.sub { margin-top: 10px; font-size: 14.5px; color: var(--ink-tertiary); text-shadow: 0 1px 0 var(--veil); }
+.suggestGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; }
+.sug {
+  text-align: left; padding: 13px 14px; border-radius: 14px;
+  background: var(--glass);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border: .5px solid var(--border-l2);
+  box-shadow: var(--shadow-soft);
+  transition: border-color var(--dur) var(--ds-ease), box-shadow var(--dur) var(--ds-ease), transform var(--dur) var(--ds-ease);
+}
+.sug:hover { border-color: var(--border-l4); box-shadow: var(--shadow-panel); transform: translateY(-1px); }
+.sug .ic { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; margin-bottom: 9px;
+  background: rgba(0,99,248,.1); color: var(--brand); }
+html[data-theme="dark"] .sug .ic { background: rgba(97,200,249,.14); color: rgb(97,200,249); }
+.sug b { display: block; font-size: 13.5px; font-weight: 500; }
+.sug span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 18px; color: var(--ink-caption); }
+
+/* transcript */
+.userCol { display: flex; flex-direction: column; gap: 6px; }
+.userBubble {
+  width: 100%;
+  background: var(--bubble);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border: .5px solid var(--bubble-border);
+  border-radius: 22px;
+  padding: 10px 16px;
+  font-size: 14px; line-height: 22px;
+  white-space: pre-wrap; word-break: break-word;
+}
+.userActs { display: flex; justify-content: flex-end; }
+.userActs span { font-size: 11px; color: var(--ink-caption); }
+
+.modelLine { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.modelLine .orb {
+  width: 17px; height: 17px; border-radius: 50%;
+  background: var(--gradient-ocean);
+  box-shadow: 0 1px 6px rgba(0,99,248,.4);
+}
+.modelLine .nm { font-size: 12px; font-weight: 500; color: var(--ink-secondary); }
+.modelLine .tm { font-size: 11px; color: var(--ink-caption); }
+.assist { font-size: 14px; line-height: 24px; }
+.assist p + p { margin-top: 12px; }
+.assist ul { margin: 10px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; }
+.assist li::marker { color: var(--ink-caption); }
+.assist b { font-weight: 600; }
+.inlineCode { font-family: "Ubuntu Mono", monospace; font-size: .92em; background: var(--hover); border-radius: 5px; padding: 1px 5px; }
+
+.rail { box-shadow: inset 2px 0 0 var(--border-l2); padding-left: 10px; display: flex; flex-direction: column; gap: 4px; margin-top: 4px; }
+.railRow { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 6px; width: fit-content; font-size: 13px; color: var(--ink-secondary); }
+.railRow:hover { background: var(--hover); }
+.railRow .ok { color: var(--brand); font-family: "Ubuntu Mono", monospace; font-size: 12px; }
+.railRow .monoChip { font-family: "Ubuntu Mono", monospace; font-size: 12px; color: var(--ink-tertiary); }
+.railRow .chev { color: var(--ink-caption); }
+
+.status { display: inline-flex; align-items: center; height: 26px; gap: 8px; color: var(--ink-secondary); }
+.status .ring { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--brand); border-top-color: transparent; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .status .ring { animation: none; } }
+
+.code { margin-top: 12px; border-radius: 10px; overflow: hidden; background: var(--code-bg); border: .5px solid var(--border-l2); font-size: 12.5px; line-height: 19px; box-shadow: var(--shadow-soft); }
+.codeHead { display: flex; align-items: center; padding: 6px 6px 6px 12px; background: var(--code-head); border-bottom: .5px solid var(--border-l1); color: var(--ink-tertiary); font-family: "Ubuntu Mono", monospace; font-size: 11.5px; }
+.codeHead .copy { margin-left: auto; display: flex; align-items: center; gap: 5px; padding: 3px 8px; border-radius: 6px; color: var(--ink-tertiary); font-size: 11.5px; }
+.codeHead .copy:hover { background: var(--hover); color: var(--ink); }
+.code pre { padding: 12px 14px; overflow-x: auto; color: var(--ink); }
+html[data-theme="light"] .tk-k { color: rgb(0,84,204); } html[data-theme="light"] .tk-s { color: rgb(19,116,74); }
+html[data-theme="light"] .tk-n { color: rgb(153,77,36); } html[data-theme="light"] .tk-c { color: rgb(115,132,132); font-style: italic; }
+html[data-theme="light"] .tk-p { color: rgb(93,108,108); }
+html[data-theme="dark"] .tk-k { color: rgb(97,200,249); } html[data-theme="dark"] .tk-s { color: rgb(134,200,160); }
+html[data-theme="dark"] .tk-n { color: rgb(218,165,73); } html[data-theme="dark"] .tk-c { color: rgb(115,132,132); font-style: italic; }
+html[data-theme="dark"] .tk-p { color: rgb(145,159,158); }
+
+.acts { display: flex; align-items: center; gap: 2px; margin-top: 10px; }
+.acts button { height: 26px; min-width: 26px; padding: 0 5px; border-radius: 6px; display: inline-grid; place-items: center; color: var(--ink-caption); font-size: 12px; }
+.acts button:hover { background: var(--hover); color: var(--ink); }
+.acts .redo { display: inline-flex; align-items: center; gap: 5px; }
+
+.caret { display: inline-block; width: 7px; height: 15px; margin-left: 2px; vertical-align: -2px; border-radius: 1.5px; background: var(--brand); animation: caretB 1s steps(2) infinite; }
+@keyframes caretB { 50% { opacity: 0; } }
+
+.toBottom {
+  position: absolute; right: max(16px, calc((100% - var(--dsh-chat-content-width)) / 2)); bottom: 12px;
+  width: 34px; height: 34px; border-radius: 100px;
+  background: var(--glass-strong); border: .5px solid var(--border-l3);
+  box-shadow: var(--shadow-panel); color: var(--ink);
+  display: grid; place-items: center;
+}
+
+/* composer */
+.composerSeat { flex: none; padding: 0 var(--dsh-composer-side-clearance) 8px; display: flex; flex-direction: column; align-items: center; }
+.statsRow { display: flex; gap: 6px; width: 100%; max-width: var(--dsh-composer-card-max-width); padding: 4px 2px 8px; }
+.stat { font-size: 11px; color: var(--ink-caption); border: .5px solid var(--border-l2); border-radius: 99px; padding: 2px 9px; font-family: "Ubuntu Mono", monospace; background: var(--glass); }
+.stat.accent { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 35%, transparent); }
+.card {
+  display: flex; flex-direction: column; gap: 12px;
+  width: 100%; max-width: var(--dsh-composer-card-max-width); padding: 8px 0 0;
+  border-radius: 22px;
+  background: var(--glass-strong);
+  backdrop-filter: blur(30px) saturate(1.5); -webkit-backdrop-filter: blur(30px) saturate(1.5);
+  border: .5px solid var(--border-l2);
+  box-shadow: var(--shadow-panel);
+  transition: border-color var(--dur) var(--ds-ease);
+}
+.card:focus-within {
+  border-color: var(--border-l3);
+  box-shadow: var(--shadow-panel), 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent);
+}
+.ph { padding: 4px 8px 0 14px; color: var(--ink-caption); font-size: 14px; }
+.toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px 8px; }
+.tools { display: flex; align-items: center; gap: 6px; }
+.roundTool { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: var(--ink-secondary); }
+.roundTool:hover { background: var(--hover); color: var(--ink); }
+.mode { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--ink-secondary); padding: 5px 11px; border-radius: 99px; border: .5px solid var(--border-l2); }
+.mode:hover { background: var(--hover); }
+.mode.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: color-mix(in srgb, var(--brand) 8%, transparent); }
+.trailing { display: flex; align-items: center; gap: 8px; }
+.modelBtn { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: var(--ink-secondary); padding: 5px 10px; border-radius: 8px; }
+.modelBtn:hover { background: var(--hover); }
+.send {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(140deg, var(--brand), rgb(38,145,234) 60%, rgb(97,200,249));
+  color: #fff; display: grid; place-items: center;
+  box-shadow: 0 2px 10px rgba(0,99,248,.4);
+}
+html[data-theme="dark"] .send { color: rgb(7,12,28); }
+.send:hover { transform: translateY(-1px); }
+.hint { text-align: center; font-size: 11px; color: var(--ink-caption); padding-top: 8px; text-shadow: 0 1px 0 var(--veil); }
+
+/* mock chrome */
+.mockBar { position: fixed; z-index: 50; top: 12px; right: 14px; display: flex; gap: 4px; padding: 4px;
+  background: var(--glass-strong); backdrop-filter: blur(18px); border: .5px solid var(--border-l2); border-radius: 10px; box-shadow: var(--shadow-soft); }
+.mockBar button { font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 7px; color: var(--ink-tertiary); }
+.mockBar button:hover { color: var(--ink); background: var(--hover); }
+.mockBar button.on { background: var(--nav-active); color: var(--ink-bluish); }
+.mockBar .vr { width: .5px; align-self: stretch; background: var(--border-l1); margin: 4px 1px; }
+
+[data-view="empty"] #chatView { display: none; }
+[data-view="chat"] #emptyView { display: none; }
+@media (max-width: 880px) { .sidebar { display: none; } }
+</style>
+</head>
+<body data-view="chat">
+
+<!-- ocean scene: procedural god rays, dot grid, pong -->
+<div class="seascene" aria-hidden="true">
+  <div class="sea"></div>
+  <div class="rays" id="rays"></div>
+  <div class="dotgrid"></div>
+
+  <div class="pong">
+    <i class="pad p1"></i><i class="pad p2"></i><i class="ball"></i>
+  </div>
+</div>
+<div class="veil" aria-hidden="true"></div>
+
+<div class="mockBar">
+  <button id="btnEmpty">Empty state</button>
+  <button id="btnChat" class="on">Conversation</button>
+  <div class="vr"></div>
+  <button id="btnInfer" title="Preview inferencing — rays flare">⚡ infer</button>
+  <button id="btnTheme">◐ theme</button>
+</div>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="logoRow">
+      <div class="brand">
+        <span class="mark" aria-hidden="true">
+          <svg class="emblem" width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="doMark" x1="0" y1="0" x2="24" y2="24">
+                <stop offset="0" stop-color="rgb(0,99,248)"/>
+                <stop offset=".6" stop-color="rgb(97,200,249)"/>
+                <stop offset="1" stop-color="rgb(96,165,175)"/>
+              </linearGradient>
+            </defs>
+            <circle cx="12" cy="12" r="11" fill="url(#doMark)"/>
+            <path d="M12 6.5v5.5h5.5A5.5 5.5 0 1 1 12 6.5z" fill="#fff"/>
+            <path d="M12 6.5A5.5 5.5 0 0 1 17.5 12H12V6.5z" fill="#fff" opacity=".65"/>
+            <rect x="10.5" y="17.5" width="3" height="3" rx=".6" fill="#fff"/>
+          </svg>
+        </span>
+        <span class="localBuild">
+          <span class="t1">DeepSeek Harness</span>
+          <span class="buildTag">local build</span>
+        </span>
+      </div>
+      <button class="panelToggle" title="Collapse sidebar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M9.5 3v18"/></svg>
+      </button>
+    </div>
+
+    <button class="newSession">
+      <span class="plus"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></span>
+      New session
+      <kbd>⌘N</kbd>
+    </button>
+
+    <button class="workspace">
+      <span class="wsIcon"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 12l9 4 9-4"/><path d="M3 17l9 4 9-4"/></svg></span>
+      <span class="meta">
+        <span class="nm">digitalocean/idk</span><br>
+        <span class="rg">NYC3 · connected</span>
+      </span>
+      <span class="chev"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 9l4 4 4-4"/></svg></span>
+    </button>
+
+    <div class="navLabel">Navigate</div>
+    <nav class="panelList">
+      <button class="navItem active">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Sessions
+      </button>
+      <button class="navItem">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        Routines
+      </button>
+      <button class="navItem">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+        Usage
+      </button>
+    </nav>
+
+    <div class="navLabel">Recent sessions</div>
+    <div class="recentList">
+      <button class="recentItem">Alert policy for catalog-db replication</button>
+      <button class="recentItem">Why does pod churn spike at 03:00 UTC?</button>
+      <button class="recentItem">PromQL: p95 per-instance series limit</button>
+      <button class="recentItem">Migrate theme tokens to OKLCH</button>
+      <button class="recentItem">Explain plugin slot injection</button>
+    </div>
+
+    <div class="sideFooter">
+      <span class="spacerText">walrus v2 · 14px</span>
+      <button class="footBtn" title="Docs">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 014 4v13a3 3 0 00-3-3H2V4z"/><path d="M22 4h-6a4 4 0 00-4 4v13a3 3 0 013-3h7V4z"/></svg>
+      </button>
+      <button class="footBtn" title="Settings">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 01-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 019 4.6a1.65 1.65 0 011-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 011 1.51 1.65 1.65 0 011.82.33l.06.06a2 2 0 112.83 2.83l.06.06A1.65 1.65 0 0119.4 9a1.65 1.65 0 011.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 01-1.51 1z"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="sessionHead">
+      <div class="crumb">Alert policy for catalog-db <span>· unsaved changes</span></div>
+      <div class="spacer"></div>
+      <span class="sessTag">session 8f3a…c21d</span>
+      <button class="headBtn" title="Share">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
+      </button>
+      <button class="headBtn" title="More">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+      </button>
+    </header>
+
+    <div class="scroll">
+      <div class="column">
+
+        <!-- EMPTY STATE -->
+        <div id="emptyView">
+          <div class="hero">
+            <h1 class="hi">Good morning, snguyen.<br>What should we <span class="ocean">figure out</span> today?</h1>
+            <p class="sub">DeepSeek Harness is connected to your workspace <b>digitalocean/idk</b> — repo, metrics and dashboards.</p>
+          </div>
+          <div class="suggestGrid">
+            <button class="sug">
+              <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/></svg></span>
+              <b>Investigate a metric</b>
+              <span>Why did p99 on checkout-api double after 14:00 UTC?</span>
+            </button>
+            <button class="sug">
+              <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6L2 12l6 6"/></svg></span>
+              <b>Refactor code</b>
+              <span>Split SessionStore into transport and cache layers.</span>
+            </button>
+            <button class="sug">
+              <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg></span>
+              <b>Draft an RFC</b>
+              <span>Unified theming across host and plugin UI surfaces.</span>
+            </button>
+            <button class="sug">
+              <span class="ic"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-9-9"/><path d="M21 3l-9 9"/></svg></span>
+              <b>Roll out to staging</b>
+              <span>Deploy dsh-web and watch error rates for 15 minutes.</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CONVERSATION -->
+        <div id="chatView" style="display:flex;flex-direction:column;gap:16px">
+          <div class="userCol">
+            <div class="userBubble">Design an alert policy for catalog-db replication lag. Thresholds should reflect the new SLO, and I want the PromQL reviewed before we ship it.</div>
+            <div class="userActs"><span>You · 09:41</span></div>
+          </div>
+
+          <div>
+            <div class="modelLine">
+              <span class="orb"></span>
+              <span class="nm">DeepSeek V4 Reasoner</span>
+              <span class="tm">· 2 min ago</span>
+            </div>
+            <div class="assist">
+              <p>Here's a policy shaped around the new <b>99.5% freshness SLO</b>. I pulled your current replication metrics to size the thresholds, then stress-tested the expression against last week's failovers.</p>
+              <div class="rail">
+                <div class="railRow">
+                  <span class="ok">✓</span>
+                  Queried dos.prom <span class="monoChip">pg_replication_lag_seconds</span> · 14d
+                  <svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                </div>
+                <div class="railRow">
+                  <span class="ok">✓</span>
+                  promql-lint <span class="monoChip">0 errors · 0 conflicts</span>
+                  <svg class="chev" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                </div>
+              </div>
+              <ul>
+                <li><b>Warning</b> — lag &gt; 15s for 10 minutes. Pages nobody; feeds the weekly freshness report.</li>
+                <li><b>Critical</b> — lag &gt; 45s for 5 minutes, or a replica stuck in <span class="inlineCode">restore</span> beyond 2 minutes.</li>
+                <li><b>Guard</b> — auto-silenced during announced <span class="inlineCode">pg_repack</span> windows.</li>
+              </ul>
+              <div class="code">
+                <div class="codeHead">
+                  <span>alert-policy.yaml</span>
+                  <button class="copy">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                    Copy
+                  </button>
+                </div>
+                <pre><span class="tk-p">-</span> <span class="tk-k">alert</span><span class="tk-p">:</span> CatalogDbReplicationLagCritical
+  <span class="tk-k">expr</span><span class="tk-p">:</span> <span class="tk-s">max by (replica) (pg_replication_lag_seconds{db="catalog"}) &gt; 45</span>
+  <span class="tk-k">for</span><span class="tk-p">:</span> <span class="tk-n">5m</span>
+  <span class="tk-k">labels</span><span class="tk-p">:</span>
+    <span class="tk-k">severity</span><span class="tk-p">:</span> critical
+  <span class="tk-c"># silence windows applied via pg_repack guard</span></pre>
+              </div>
+              <div class="acts">
+                <button title="Copy"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+                <button title="Good"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.3a2 2 0 002-1.7l1.2-7a2 2 0 00-2-2.3H14z"/></svg></button>
+                <button title="Bad"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.3a2 2 0 002-1.7l1.2-7a2 2 0 00-2-2.3H14z"/></svg></button>
+                <button class="redo"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.6-6.3"/><path d="M21 3v6h-6"/></svg>Redo</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="userCol">
+            <div class="userBubble">Tighten critical to 30s and add a runbook link.</div>
+            <div class="userActs"><span>You · 09:44</span></div>
+          </div>
+
+          <div>
+            <div class="modelLine">
+              <span class="orb"></span>
+              <span class="nm">DeepSeek V4 Reasoner</span>
+              <span class="tm">· streaming</span>
+            </div>
+            <div class="assist">
+              <div class="status"><span class="ring"></span>Reading runbooks/catalog-replication.md</div>
+              <p style="margin-top:8px">Done — critical now fires at <b>30s for 5 minutes</b> and notifications link to <span class="inlineCode">runbooks/catalog-replication.md</span>. Warning stays at 15s so trend reports don't get noisier.<span class="caret"></span></p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <button class="toBottom" title="Scroll to bottom">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </button>
+    </div>
+
+    <!-- COMPOSER -->
+    <div class="composerSeat">
+      <div class="statsRow">
+        <span class="stat">4 messages</span>
+        <span class="stat">18.2k tokens</span>
+        <span class="stat accent">reasoning on</span>
+      </div>
+      <div class="card">
+        <div class="ph">Message DeepSeek Harness…</div>
+        <div class="toolbar">
+          <div class="tools">
+            <button class="roundTool" title="Attach">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+            <button class="mode on" title="Plan mode">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+              Plan
+            </button>
+            <button class="mode" title="Read-only mode">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg>
+              Read-only
+            </button>
+          </div>
+          <div class="trailing">
+            <button class="modelBtn">
+              V4 Reasoner
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.7"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <button class="send" title="Send">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="hint">DeepSeek Harness can make mistakes — verify before applying. &nbsp;⌘J to focus</div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const body = document.body, html = document.documentElement;
+  const bE = document.getElementById('btnEmpty'), bC = document.getElementById('btnChat');
+  bE.onclick = () => { body.dataset.view = 'empty'; bE.classList.add('on'); bC.classList.remove('on'); };
+  bC.onclick = () => { body.dataset.view = 'chat';  bC.classList.add('on'); bE.classList.remove('on'); };
+  document.getElementById('btnTheme').onclick = () =>
+    html.dataset.theme = html.dataset.theme === 'light' ? 'dark' : 'light';
+  const bI = document.getElementById('btnInfer');
+  bI.onclick = () => {
+    body.dataset.engine = body.dataset.engine === 'infer' ? '' : 'infer';
+    bI.classList.toggle('on');
+  };
+  /* ---- procedural ocean rays: one sun, one fan ----
+     Every shaft hinges on a single source point placed just above the
+     surface; the fan is stratified across ~64° with jitter, and center
+     shafts burn hotter than edge shafts. Deterministic PRNG keeps the
+     composition stable per page load (12 shafts; 7 on narrow screens). */
+  const rayHost = document.getElementById('rays');
+  const RCOLORS = ['var(--rayA)', 'var(--rayB)', 'var(--rayC)'];
+  let seed = (Date.now() % 2147483646) + 1;
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const rays = [];
+  const RAY_N = window.matchMedia('(max-width: 900px)').matches ? 4 : 6;
+  const sunY = -(52 + rand() * 20);     // vh — well above the surface, rays descend steeply
+  const sun = document.createElement('div');
+  sun.className = 'suncore';
+  sun.style.top = sunY + 'vh';
+  rayHost.appendChild(sun);
+  /* the light source is calculated, not placed: the chat column is
+     centered in .main, so the sun hinges on .main's horizontal center
+     and follows the layout (sidebar collapse, resize) */
+  const mainEl = document.querySelector('.main');
+  const sunSource = () => {
+    const r = mainEl.getBoundingClientRect();
+    return r.left + r.width / 2;
+  };
+  const positionSun = () => {
+    const cx = sunSource();
+    sun.style.left = cx.toFixed(0) + 'px';
+    for (const r of rays) r.el.style.left = (cx - r.w / 2).toFixed(0) + 'px';
+  };
+  for (let i = 0; i < RAY_N; i++) {
+    const el = document.createElement('i');
+    el.className = 'ray';
+    const w = 150 + rand() * 220;        // few broad shafts
+    const ang = -32 + (i + 0.5) / RAY_N * 64 + (rand() - .5) * 7;
+    el.style.left = (-9000) + 'px'; // repositioned by positionSun below
+    el.style.top = sunY.toFixed(2) + 'vh';
+    el.style.width = w.toFixed(0) + 'px';
+    el.style.setProperty('--r', ang.toFixed(2) + 'deg');
+    el.style.setProperty('--sw', (22 + rand() * 14).toFixed(2) + 's');
+    el.style.animationDelay = (-rand() * 30).toFixed(2) + 's';
+    el.style.background = 'linear-gradient(180deg, ' + RCOLORS[i % 3] + ', transparent ' + (62 + rand() * 18).toFixed(0) + '%)';
+    el.style.filter = 'blur(' + (9 + rand() * 10).toFixed(0) + 'px)';
+    const EDGE = 'linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%)';
+    el.style.webkitMaskImage = EDGE; el.style.maskImage = EDGE;
+    rayHost.appendChild(el);
+    rays.push({
+      el,
+      w,
+      f: 0.14 + rand() * 0.3,
+      ph: rand() * Math.PI * 2,
+      g: (0.8 + rand() * 0.4) * (1 - Math.abs(ang) / 44 * 0.5),
+    });
+  }
+  positionSun();
+  window.addEventListener('resize', positionSun);
+
+  /* shine: one eased scalar. Inferencing only raises the caps it
+     drives — floor 0.14→0.46, ceiling 0.50→1.0, bloom 1→1.6 — so
+     the brightening is a natural climb, not a state pop. */
+  let shine = 0, prev = performance.now();
+  const floorAt = s => 0.14 + 0.32 * s;
+  const capAt   = s => 0.50 + 0.50 * s;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    const target = body.dataset.engine === 'infer' ? 1 : 0;
+    shine += (target - shine) * Math.min(1, dt * 1.4);
+    const lo = floorAt(shine), cap = capAt(shine), t = now / 1000;
+    for (const r of rays) {
+      const w = 0.5 + 0.5 * Math.sin(t * r.f * Math.PI * 2 + r.ph);
+      r.el.style.opacity = ((lo + (cap - lo) * w) * r.g).toFixed(3);
+    }
+    rayHost.style.setProperty('--rayBoost', (1 + 0.6 * shine).toFixed(3));
+    rayHost.style.setProperty('--raySat', (1 + 0.25 * shine).toFixed(3));
+    sun.style.opacity = (0.6 + 0.4 * shine).toFixed(3);
+    requestAnimationFrame(frame);
+  }
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    rays.forEach(r => { r.el.style.opacity = .55 * r.g; });
+  } else {
+    requestAnimationFrame(frame);
+  }
+
+  const m = location.hash.match(/(light|dark)-(empty|chat)(-infer)?/);
+  if (m) { html.dataset.theme = m[1]; (m[2] === 'empty' ? bE : bC).click(); if (m[3]) bI.click(); }
+</script>
+</body>
+</html>

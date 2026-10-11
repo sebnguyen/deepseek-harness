@@ -1,5 +1,6 @@
-/* Quiet toggle chip: ghost like the model seat; ON is a lit mode tint, not a
-   second saturated control — send stays the only filled element. */
+/* Turn-shape toggle chip: ghost like the model seat; active (non-narrate) is
+   a lit mode tint, not a second saturated control — send stays the only
+   filled element. */
 .toggle {
   display: flex;
   align-items: center;
