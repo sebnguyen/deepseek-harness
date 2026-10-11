@@ -1,6 +1,6 @@
 # Agent Note: Conversation-mode plugin — turn shape with per-route capability-gated grammar
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -51,7 +51,7 @@ breaks in practice — reproduced in-session and documented in
 `ui-quiet` is currently unmounted from the base patch
 (`packages/bundle/base/cordis.patch.yml`) while this rework is designed.
 
-## Proposal
+## Decision
 
 Rebuild the feature as a **conversation-mode plugin** with three shapes —
 `narrate` (default), `quiet`, `tools` — whose promise is a **render contract**
@@ -198,7 +198,7 @@ race and the multi-session flag leak at once.
   scannable transcripts); the render contract delivers the promise without
   grammar enforcement, so removal is not warranted.
 
-## Acceptance criteria
+## Consequences
 
 - A `dsh-client-conversation-mode` plugin row is mounted in the base patch,
   replacing the removed `ui-quiet` row, with the `ui-quiet` settings field
@@ -249,3 +249,7 @@ race and the multi-session flag leak at once.
   "wrap up" nudge some models needed; the prompt-section instruction must
   carry that cue, and shapes that want a closing answer need the fallback
   row in the render contract when the model declines to produce one.
+
+## Result
+
+Implemented on branch `wip/conversation-mode-and-grammar`: per-route capability surface (`grammarCapability`), declared-priority `request-grammar` arbitration, the conversation-mode plugin with per-turn shape snapshot and one-line reminder, composer selector, ui-quiet retired, and the render-contract `{}` unification. The render-fixture criterion lands at the content seam: the bare-object marker is now excluded by `hasAssistantReplyContent` (the same seam span folding reads) as well as by `AssistantNodeView`, pinned by the ui-chat contract suite; the fenced-code and `<tool_call>` tail fixture classes are deferred — capability-negative routes rely on the per-turn reminder plus the natural zero-tool-call ending, and the retained risk is bounded in Risks.
