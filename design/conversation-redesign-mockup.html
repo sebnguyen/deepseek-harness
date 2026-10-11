@@ -1,0 +1,585 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DSH conversation redesign — mockup</title>
+<style>
+  /* Token sheet copied from packages/client/ui-theme/src/styles/*.css (same
+     sheet as composer-redesign-mockup.html) so the mockup renders on the live
+     theme; the toggle flips the same body[data-ds-dark-theme] attribute the
+     ui-layout theme presenter sets. Ships dark-first per review. */
+  :root {
+    --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+      'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  }
+  body {
+    /* statics */
+    --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+    --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+    --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+    --dsw-static-neutral-bluish-100: rgb(235, 238, 242);
+    --dsw-static-neutral-bluish-200: rgb(225, 229, 238);
+    --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+    --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+    --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+    --dsw-static-neutral-bluish-750: rgb(67, 69, 74);
+    --dsw-static-neutral-bluish-800: rgb(37, 41, 42);
+    --dsw-static-neutral-bluish-850: rgb(32, 36, 38);
+    --dsw-static-neutral-bluish-900: rgb(23, 27, 29);
+    --dsw-static-neutral-bluish-950: rgb(18, 22, 24);
+    --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+    --dsw-static-blue-400: rgb(97, 200, 249);
+    --dsw-static-blue-500: rgb(38, 145, 234);
+    --dsw-static-blue-800: rgb(31, 97, 174);
+    --dsw-static-deepseek-300: rgb(148, 198, 204);
+    --dsw-static-deepseek-400: rgb(148, 198, 204);
+    --dsw-static-deepseek-500: rgb(69, 137, 149);
+    --dsw-static-red-500: rgb(220, 68, 68);
+    --dsw-static-amber-500: rgb(245, 158, 11);
+    --dsw-static-green-500: rgb(34, 197, 94);
+
+    /* aliases — light fallbacks */
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-label-secondary: rgb(56, 65, 89);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-700);
+    --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-border-l2: rgba(0, 12, 42, 0.1);
+    --dsw-alias-interactive-bg-hover: rgba(57, 65, 65, 0.06);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-100);
+    --dsw-alias-button-ghost-active-fill: rgba(57, 65, 65, 0.08);
+    --dsw-alias-button-info-fill: var(--dsw-static-blue-500);
+    --dsw-alias-button-info-hover: var(--dsw-static-blue-400);
+    --dsw-alias-state-business-primary: var(--dsw-static-blue-800);
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-60);
+    --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
+    --dsw-specific-bubble: var(--dsw-static-neutral-bluish-100);
+    --dsw-specific-selector: var(--dsw-static-neutral-bluish-60);
+    --dsw-specific-panel: var(--dsw-static-neutral-bluish-50);
+    --dsw-page-bg: var(--dsw-static-neutral-bluish-60);
+    --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
+    --dsw-elevation-soft:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+
+    margin: 0;
+    background: var(--dsw-page-bg);
+    color: var(--dsw-alias-label-primary);
+    font-family: var(--dsw-font-family);
+    font-size: 14px;
+    line-height: 24px;
+  }
+  body[data-ds-dark-theme] {
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-00);
+    --dsw-alias-label-secondary: rgb(196, 201, 206);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-label-caption: rgb(132, 134, 135);
+    --dsw-alias-border-l2: rgba(247, 248, 248, 0.12);
+    --dsw-alias-interactive-bg-hover: rgba(247, 248, 248, 0.06);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-button-ghost-active-fill: rgba(247, 248, 248, 0.08);
+    --dsw-alias-button-info-fill: var(--dsw-static-deepseek-400);
+    --dsw-alias-button-info-hover: var(--dsw-static-deepseek-500);
+    --dsw-alias-state-business-primary: var(--dsw-static-deepseek-300);
+    --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-900);
+    --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+    --dsw-specific-bubble: var(--dsw-static-neutral-bluish-800);
+    --dsw-specific-selector: var(--dsw-static-neutral-bluish-800);
+    --dsw-specific-panel: var(--dsw-static-neutral-bluish-900);
+    --dsw-page-bg: var(--dsw-static-neutral-bluish-950);
+    --dsw-elevation-soft:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 4px 16px 0 rgba(0, 0, 0, 0.35), 0 0 24px 0 rgba(0, 0, 0, 0.3);
+  }
+
+  .page { max-width: 1060px; margin: 0 auto; padding: 40px 24px 96px; }
+  .pageHead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  h1 { font: 700 21px/30px var(--dsw-font-family); margin: 0; }
+  .sub { color: var(--dsw-alias-label-secondary); margin: 0 0 10px; max-width: 820px; }
+  .sub code, .legend code { font-family: var(--ds-font-family-code); font-size: 12px; }
+  .themeToggle {
+    margin-left: auto; border: 0; border-radius: 999px; cursor: pointer;
+    height: 28px; padding: 0 12px; flex: none;
+    background: var(--dsw-specific-selector); color: var(--dsw-alias-label-primary);
+    font: 500 12px/20px var(--dsw-font-family);
+  }
+  .theses { margin: 18px 0 0; padding: 14px 18px; border-radius: 12px;
+    background: var(--dsw-alias-interactive-bg-hover); max-width: 820px; }
+  .theses p { margin: 0; color: var(--dsw-alias-label-secondary); }
+  .theses b { color: var(--dsw-alias-label-primary); }
+  section { margin-top: 44px; }
+  h2 { font: 600 14px/24px var(--dsw-font-family); margin: 0 0 4px; }
+  h2 .badge { font: 500 11px/18px var(--dsw-font-family); color: var(--dsw-alias-state-business-primary);
+    background: var(--dsw-alias-interactive-bg-hover); border-radius: 999px; padding: 1px 8px; vertical-align: 1px; }
+  .legend { color: var(--dsw-alias-label-secondary); margin: 0 0 14px; max-width: 820px; }
+  .legend b { color: var(--dsw-alias-label-primary); }
+  .stage {
+    border-radius: 16px; padding: 24px 20px;
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .duoLabel { font: 600 11px/16px var(--dsw-font-family); letter-spacing: .04em;
+    text-transform: uppercase; color: var(--dsw-alias-label-caption); margin: 0 0 8px 2px; }
+
+  /* ================================================================
+     CURRENT replica geometry — values taken from the live components:
+     TrajectoryTurnHeader.module.css (44px sticky bar, 71px metric columns),
+     ToolRow.module.css (24px rows, 13px secondary titles), MessageItem
+     (full-width 22px-radius bubbles), ChatView lane 880px.
+     ================================================================ */
+  .old { border-radius: 12px; overflow: hidden; background: var(--dsw-alias-bg-base);
+    box-shadow: var(--dsw-elevation-soft); }
+  .oldTurnBar {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 44px; padding: 0 16px;
+    background: var(--dsw-alias-button-ghost-active-fill);
+    font: 600 13px/20px var(--dsw-font-family);
+  }
+  .oldTurnBar .cols { display: flex; gap: 12px; }
+  .oldTurnBar .cols span { width: 71px; font: 400 13px/20px var(--dsw-font-family);
+    color: var(--dsw-alias-label-secondary); }
+  .oldBody { padding: 14px 16px 18px; }
+  .oldBubble { background: var(--dsw-specific-bubble); border-radius: 22px;
+    padding: 10px 16px; margin-bottom: 12px; }
+  .oldRow {
+    display: flex; align-items: center; height: 24px; gap: 6px;
+    font-size: 13px; line-height: 24px; color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap; overflow: hidden;
+  }
+  .oldRow .chev { color: var(--dsw-alias-label-caption); flex: none; }
+  .oldRow .glyph { flex: none; width: 16px; text-align: center; color: var(--dsw-alias-label-secondary); }
+  .oldRow .t { color: var(--dsw-alias-label-secondary); flex: none; }
+  .oldRow .dot { flex: none; width: 2px; height: 2px; border-radius: 1px;
+    background: var(--dsw-alias-label-caption); margin: 0 8px; }
+  .oldRow .s { overflow: hidden; text-overflow: ellipsis; }
+  .oldText { color: var(--dsw-alias-label-primary); margin: 8px 0; }
+  .old .sweep { position: relative; }
+  .old .sweep::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -300px; width: 300px;
+    background: linear-gradient(90deg, transparent 0%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%, transparent 100%);
+    animation: sweep 2.6s ease-out infinite; pointer-events: none;
+  }
+  @keyframes sweep { 0% { left: -300px; } 90%, 100% { left: 100%; } }
+
+  /* ================================================================
+     PROPOSED frame
+     ================================================================ */
+  .frame {
+    display: grid; grid-template-columns: 252px 1fr;
+    height: 660px; border-radius: 14px; overflow: hidden;
+    background: var(--dsw-alias-bg-base); box-shadow: var(--dsw-elevation-soft);
+  }
+
+  /* ---- sidebar ---- */
+  .side { border-right: 1px solid var(--dsw-alias-border-l2);
+    background: var(--dsw-specific-panel); display: flex; flex-direction: column; min-width: 0; }
+  .sideHead { padding: 12px 12px 8px; }
+  .wsRow { display: flex; align-items: center; gap: 8px; padding: 2px 4px 10px; }
+  .wsGlyph { width: 22px; height: 22px; border-radius: 7px; flex: none;
+    background: linear-gradient(135deg, var(--dsw-static-blue-500), var(--dsw-static-deepseek-400));
+    color: #fff; display: grid; place-items: center; font: 700 11px/14px var(--dsw-font-family); }
+  .wsName { font: 600 13px/20px var(--dsw-font-family); }
+  .wsPath { font: 400 11px/14px var(--ds-font-family-code); color: var(--dsw-alias-label-caption);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .search { display: flex; align-items: center; gap: 8px; height: 30px;
+    padding: 0 10px; border-radius: 8px;
+    background: var(--dsw-alias-interactive-bg-hover);
+    color: var(--dsw-alias-label-caption); font-size: 12px; }
+  .search .k { margin-left: auto; font: 500 10px/16px var(--ds-font-family-code);
+    border: 1px solid var(--dsw-alias-border-l2); border-radius: 4px; padding: 0 4px; }
+  .sideScroll { flex: 1; overflow: hidden; padding: 4px 8px 12px; }
+  .grpTitle { display: flex; align-items: center; gap: 6px; padding: 10px 6px 4px;
+    font: 600 11px/16px var(--dsw-font-family); letter-spacing: .04em;
+    text-transform: uppercase; color: var(--dsw-alias-label-caption); }
+  .grpTitle .n { font-weight: 500; }
+  .sess { display: flex; align-items: center; gap: 8px; padding: 5px 8px;
+    border-radius: 8px; cursor: pointer; }
+  .sess:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .sess.on { background: var(--dsw-alias-interactive-bg-hover-solid); }
+  .sess .st { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .st.idle { background: var(--dsw-alias-label-caption); opacity: .55; }
+  .st.run { background: var(--dsw-static-green-500); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-static-green-500) 22%, transparent); }
+  .st.wait { background: var(--dsw-static-amber-500); }
+  .st.err { background: var(--dsw-static-red-500); }
+  .sess .txt { min-width: 0; flex: 1; }
+  .sess .ti { display: block; font: 500 13px/18px var(--dsw-font-family);
+    color: var(--dsw-alias-label-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sess .sn { display: block; font: 400 11px/15px var(--dsw-font-family);
+    color: var(--dsw-alias-label-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sess .meta { flex: none; text-align: right; }
+  .sess .ago { display: block; font: 400 11px/15px var(--dsw-font-family); color: var(--dsw-alias-label-caption); }
+  .sess .chips { display: flex; gap: 4px; justify-content: flex-end; }
+  .mini { font: 500 10px/14px var(--ds-font-family-code); color: var(--dsw-alias-label-tertiary);
+    background: var(--dsw-alias-interactive-bg-hover); border-radius: 4px; padding: 0 4px; }
+  .mini.ctx-warn { color: var(--dsw-static-amber-500); }
+
+  /* ---- conversation column ---- */
+  .conv { display: flex; flex-direction: column; min-width: 0; position: relative; }
+  .convScroll { flex: 1; overflow: hidden; padding: 18px 28px 12px; }
+  .lane { max-width: 760px; margin: 0 auto; }
+
+  /* turn divider — the 44px sticky bar becomes one 24px flow row */
+  .divider { display: flex; align-items: center; gap: 10px; margin: 6px 0 14px; }
+  .divider::before, .divider::after { content: ''; height: 1px; flex: 1;
+    background: var(--dsw-alias-border-l2); }
+  .divider .tno { font: 600 11px/16px var(--dsw-font-family); letter-spacing: .05em;
+    color: var(--dsw-alias-label-caption); }
+  .divider .m { font: 400 11px/16px var(--ds-font-family-code); color: var(--dsw-alias-label-caption); }
+  .divider .m b { color: var(--dsw-alias-label-tertiary); font-weight: 500; }
+
+  .bubbleNew { background: var(--dsw-specific-bubble); border-radius: 4px 18px 18px 18px;
+    padding: 10px 16px; margin: 0 0 16px; }
+
+  /* grouped activity rail */
+  .rail { margin: 0 0 4px 3px; padding: 2px 0 2px 18px;
+    border-left: 2px solid var(--dsw-alias-border-l2); }
+  details.grp { margin: 2px 0; }
+  .grpHead { display: flex; align-items: center; gap: 8px; height: 26px;
+    cursor: pointer; list-style: none; border-radius: 6px; padding: 0 6px; margin-left: -6px;
+    user-select: none; }
+  .grpHead:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  details.grp summary::-webkit-details-marker { display: none; }
+  .grpHead .chev { flex: none; color: var(--dsw-alias-label-caption);
+    transition: transform .15s ease; }
+  details.grp[open] .grpHead .chev { transform: rotate(90deg); }
+  .grpHead .st { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .grpHead .gt { font: 500 13px/20px var(--dsw-font-family); color: var(--dsw-alias-label-secondary); }
+  .grpHead .gs { font: 400 12px/18px var(--dsw-font-family); color: var(--dsw-alias-label-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .grpHead .gm { margin-left: auto; flex: none;
+    font: 400 11px/16px var(--ds-font-family-code); color: var(--dsw-alias-label-caption); }
+  .grpBody { padding: 2px 0 4px 21px; }
+  .subrow { display: flex; align-items: center; gap: 8px; height: 22px;
+    font: 400 12px/18px var(--dsw-font-family); color: var(--dsw-alias-label-tertiary);
+    white-space: nowrap; overflow: hidden; border-radius: 5px; padding: 0 6px; margin-left: -6px; }
+  .subrow:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
+  .subrow .glyph { flex: none; width: 14px; text-align: center; color: var(--dsw-alias-label-caption); }
+  .subrow .p { font-family: var(--ds-font-family-code); font-size: 11px; overflow: hidden; text-overflow: ellipsis; }
+  .subrow .e { margin-left: auto; flex: none; font: 500 10px/14px var(--ds-font-family-code);
+    border-radius: 4px; padding: 0 4px; }
+  .e.ok { color: var(--dsw-static-green-500); }
+  .e.bad { color: var(--dsw-static-red-500); background: color-mix(in srgb, var(--dsw-static-red-500) 12%, transparent); }
+  .subrow .purpose { display: none; }
+  .subrow:hover .purpose { display: inline; color: var(--dsw-alias-label-caption);
+    font-style: italic; overflow: hidden; text-overflow: ellipsis; }
+  .subrow:hover .p.long { max-width: 46%; }
+
+  /* a run that is still working keeps the sweep, on its group head only */
+  .grpHead.running { position: relative; overflow: hidden; }
+  .grpHead.running::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: -300px; width: 300px;
+    background: linear-gradient(90deg, transparent 0%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%, transparent 100%);
+    animation: sweep 2.6s ease-out infinite; pointer-events: none;
+  }
+  .st.run-pulse { background: var(--dsw-static-green-500); animation: pulse 1.6s ease-out infinite; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--dsw-static-green-500) 45%, transparent); }
+    100% { box-shadow: 0 0 0 6px transparent; }
+  }
+
+  /* the answer stands apart from the process */
+  .answer { margin: 14px 0 0; padding: 0 2px; }
+  .answerTag { font: 600 10px/14px var(--dsw-font-family); letter-spacing: .08em;
+    text-transform: uppercase; color: var(--dsw-alias-state-business-primary); margin: 0 0 2px; }
+  .answer p { margin: 0 0 8px; color: var(--dsw-alias-label-primary); }
+  .answer p.dim { color: var(--dsw-alias-label-secondary); }
+
+  /* floated cards: approvals and questions escape the rail */
+  .floatCard { margin: 12px 0 4px; border-radius: 12px; padding: 12px 14px;
+    background: var(--dsw-specific-input-major); box-shadow: var(--dsw-elevation-soft); }
+  .floatCard .q { font: 600 13px/20px var(--dsw-font-family); margin: 0 0 8px; }
+  .optRow { display: flex; gap: 8px; }
+  .opt { border: 1px solid var(--dsw-alias-border-l2); border-radius: 8px;
+    padding: 6px 12px; font: 500 12px/18px var(--dsw-font-family);
+    color: var(--dsw-alias-label-secondary); cursor: pointer; }
+  .opt.sel { border-color: var(--dsw-alias-button-info-fill);
+    color: var(--dsw-alias-state-business-primary);
+    background: color-mix(in srgb, var(--dsw-alias-button-info-fill) 10%, transparent); }
+
+  /* condensed sticky chip — the one header that stays, top-right on scroll */
+  .stickyChip { position: absolute; top: 10px; right: 16px; z-index: 2;
+    display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 10px;
+    border-radius: 999px; background: var(--dsw-specific-input-major);
+    box-shadow: var(--dsw-elevation-soft);
+    font: 500 11px/16px var(--ds-font-family-code); color: var(--dsw-alias-label-tertiary); }
+  .stickyChip .st { width: 6px; height: 6px; border-radius: 50%; }
+
+  /* composer stub, unchanged seats (see composer-redesign-mockup.html) */
+  .composerStub { border-top: 1px solid var(--dsw-alias-border-l2); padding: 12px 28px 14px; }
+  .composerCard { max-width: 760px; margin: 0 auto; border-radius: 18px;
+    background: var(--dsw-specific-input-major); box-shadow: var(--dsw-elevation-soft);
+    padding: 10px 14px 8px; }
+  .composerCard .ph { color: var(--dsw-alias-label-caption); min-height: 22px; }
+  .composerShelf { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .shelfBtn { width: 26px; height: 26px; border-radius: 999px; border: 0;
+    background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary);
+    display: grid; place-items: center; font-size: 12px; }
+  .modelChip { margin-left: auto; font: 500 12px/20px var(--dsw-font-family);
+    color: var(--dsw-alias-label-secondary); background: none; border: 0;
+    padding: 0 8px; border-radius: 8px; }
+  .sendBtn { width: 28px; height: 28px; border-radius: 999px; border: 0;
+    background: var(--dsw-alias-button-info-fill); color: #fff;
+    display: grid; place-items: center; }
+</style>
+</head>
+<body data-ds-dark-theme>
+<div class="page">
+  <div class="pageHead">
+    <h1>Conversation redesign — chat that reads as turns, not rows</h1>
+    <button class="themeToggle" id="theme">light</button>
+  </div>
+  <p class="sub">Static mockup over the live token sheet. Targets <code>ui-chat/ChatView</code>,
+    <code>ui-tool/ToolRow</code> (24px rows), <code>ui-trajectory/TrajectoryTurnHeader</code> (44px sticky bar),
+    <code>ui-sidebar/SidebarRoot</code>. Companion to <code>chat-span-fold-mockup.html</code> and
+    <code>composer-redesign-mockup.html</code>; folds and composer are not re-litigated here.</p>
+  <div class="theses">
+    <p><b>1.</b> A turn is one unit: the 44px sticky bar becomes a 24px divider; metrics ride the divider, and one condensed chip stays sticky.</p>
+    <p><b>2.</b> Process is batched: same-weight tool rows collapse into semantic groups on a shared rail; only failures, questions, and approvals stand.</p>
+    <p><b>3.</b> The answer stands apart from the process that produced it.</p>
+    <p><b>4.</b> The sidebar reports state — running, waiting, failed, context pressure — not just titles.</p>
+  </div>
+
+  <!-- ============ 1 · before ============ -->
+  <section>
+    <h2>1 · Current — a turn is a wall of equal rows</h2>
+    <p class="legend">Replica of the shipped geometry: sticky 44px bar with four 71px metric columns per turn,
+      then full-width bubble and a flat run of 24px rows — every read, every command, every delegation at the
+      same visual weight, each with its own chevron. The running row sweeps. Scanning for “what happened”
+      means reading every line.</p>
+    <div class="stage">
+      <div class="old">
+        <div class="oldTurnBar">Turn 4<span class="cols"><span>42s</span><span>12.4k in</span><span>2.1k out</span><span>$0.032</span></span></div>
+        <div class="oldBody">
+          <div class="oldBubble">Look at the current harness UI for chat and conversation and mock up a better version</div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">⌗</span><span class="t">explore</span><span class="dot"></span><span class="s">Map harness chat/conversation UI</span></div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">▤</span><span class="t">bash</span><span class="dot"></span><span class="s">List workspace structure</span></div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">▤</span><span class="t">bash</span><span class="dot"></span><span class="s">Locate harness web UI packages</span></div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">▤</span><span class="t">bash</span><span class="dot"></span><span class="s">Inspect web UI package structure</span></div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">⌸</span><span class="t">read</span><span class="dot"></span><span class="s">ToolRow.module.css · TrajectoryTurnHeader.module.css · MessageItem.module.css</span></div>
+          <div class="oldRow"><span class="chev">›</span><span class="glyph">⌸</span><span class="t">read</span><span class="dot"></span><span class="s">composer-redesign-mockup.html</span></div>
+          <div class="oldText">I have the current UI's design DNA pinned. Writing the mockup now.</div>
+          <div class="oldRow sweep"><span class="chev">›</span><span class="glyph">✎</span><span class="t">write</span><span class="dot"></span><span class="s">design/conversation-redesign-mockup.html</span></div>
+        </div>
+        <div class="oldTurnBar">Turn 5<span class="cols"><span>1.2s</span><span>13.9k in</span><span>0.4k out</span><span>$0.011</span></span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 2 · after, the frame ============ -->
+  <section>
+    <h2>2 · Proposed — the frame <span class="badge">mock</span></h2>
+    <p class="legend">Left: sessions grouped by workspace with live state and context pressure, search on top.
+      Right: turns divided by a 24px hairline row carrying the metrics the sticky bar used to own; activity
+      batched into groups on a rail; the answer tagged and set apart. One condensed chip stays sticky (top right). Try the fold heads.</p>
+    <div class="stage" style="padding: 12px;">
+      <div class="frame">
+        <!-- ---------- sidebar ---------- -->
+        <div class="side">
+          <div class="sideHead">
+            <div class="wsRow">
+              <span class="wsGlyph">idk</span>
+              <span style="min-width:0">
+                <span class="wsName" style="display:block">idk</span>
+                <span class="wsPath">~/dev/digitalocean/idk</span>
+              </span>
+            </div>
+            <div class="search">⌕&nbsp; Jump to session…<span class="k">⌘K</span></div>
+          </div>
+          <div class="sideScroll">
+            <div class="grpTitle">Pinned</div>
+            <div class="sess on">
+              <span class="st run"></span>
+              <span class="txt"><span class="ti">Mock up a better chat UI</span><span class="sn">conversation redesign — act stage</span></span>
+              <span class="meta"><span class="ago">now</span><span class="chips"><span class="mini">T5</span></span></span>
+            </div>
+            <div class="sess">
+              <span class="st idle"></span>
+              <span class="txt"><span class="ti">Timeline: coalesce burst stops</span><span class="sn">quiet-finish after build notice</span></span>
+              <span class="meta"><span class="ago">2h</span><span class="chips"><span class="mini ctx-warn">82%</span></span></span>
+            </div>
+            <div class="grpTitle">deepseek-harness <span class="n">· 4</span></div>
+            <div class="sess">
+              <span class="st wait"></span>
+              <span class="txt"><span class="ti">Staged escalation: wind-down split</span><span class="sn">waiting on approval prompt</span></span>
+              <span class="meta"><span class="ago">18m</span><span class="chips"><span class="mini">ask</span></span></span>
+            </div>
+            <div class="sess">
+              <span class="st err"></span>
+              <span class="txt"><span class="ti">Web editor m1: composer tabs</span><span class="sn">bash exit 1 · tsc TS2345</span></span>
+              <span class="meta"><span class="ago">1h</span><span class="chips"><span class="mini" style="color:var(--dsw-static-red-500)">exit 1</span></span></span>
+            </div>
+            <div class="sess">
+              <span class="st run"></span>
+              <span class="txt"><span class="ti">Snapshot timeline replay lane</span><span class="sn">2 subagents running</span></span>
+              <span class="meta"><span class="ago">6m</span><span class="chips"><span class="mini">×2</span><span class="mini">T12</span></span></span>
+            </div>
+            <div class="sess">
+              <span class="st idle"></span>
+              <span class="txt"><span class="ti">Docs: English-only tree</span><span class="sn">landed, 4 commits</span></span>
+              <span class="meta"><span class="ago">1d</span></span>
+            </div>
+            <div class="grpTitle">barbican <span class="n">· 1</span></div>
+            <div class="sess">
+              <span class="st idle"></span>
+              <span class="txt"><span class="ti">openbao mtls fix · PR 2366</span><span class="sn">review comments addressed</span></span>
+              <span class="meta"><span class="ago">3d</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ---------- conversation ---------- -->
+        <div class="conv">
+          <div class="stickyChip"><span class="st run-pulse"></span> T5 · 0:14 · working</div>
+          <div class="convScroll">
+            <div class="lane">
+
+              <div class="divider">
+                <span class="tno">TURN 4</span>
+                <span class="m"><b>qwen3.8-max</b> · 42s · 12.4k↑ 2.1k↓ · $0.032</span>
+              </div>
+              <div class="bubbleNew">Look at the current harness UI for chat and conversation and mock up a better version</div>
+
+              <div class="rail">
+                <details class="grp">
+                  <summary class="grpHead"><span class="chev">›</span><span class="st err"></span>
+                    <span class="gt">Explored</span><span class="gs">Map harness chat/conversation UI</span>
+                    <span class="gm">1 child · failed · 3s</span></summary>
+                  <div class="grpBody">
+                    <div class="subrow"><span class="glyph">⌗</span><span class="p">explore · map chat UI structure</span><span class="e bad">run failed</span></div>
+                  </div>
+                </details>
+                <details class="grp">
+                  <summary class="grpHead"><span class="chev">›</span><span class="st idle" style="background:var(--dsw-static-green-500);opacity:1"></span>
+                    <span class="gt">Ran</span><span class="gs">4 shell commands — list, locate, inspect, css files</span>
+                    <span class="gm">all exit 0 · 1.8s</span></summary>
+                  <div class="grpBody">
+                    <div class="subrow"><span class="glyph">▤</span><span class="p long">ls idk && find … -maxdepth 2 -type d</span><span class="purpose">orient on repo layout</span><span class="e ok">0</span></div>
+                    <div class="subrow"><span class="glyph">▤</span><span class="p long">ls apps packages; git log --oneline -5</span><span class="purpose">locate web UI packages</span><span class="e ok">0</span></div>
+                    <div class="subrow"><span class="glyph">▤</span><span class="p long">find apps/web packages/web -maxdepth 3</span><span class="purpose">pin framework and layout</span><span class="e ok">0</span></div>
+                    <div class="subrow"><span class="glyph">▤</span><span class="p long">find ui-chat ui-tool … -name '*.css'</span><span class="purpose">list style files</span><span class="e ok">0</span></div>
+                  </div>
+                </details>
+                <details class="grp">
+                  <summary class="grpHead"><span class="chev">›</span><span class="st idle" style="background:var(--dsw-static-green-500);opacity:1"></span>
+                    <span class="gt">Read</span><span class="gs">5 files — tool rows, turn header, bubbles, tokens</span>
+                    <span class="gm">390 lines</span></summary>
+                  <div class="grpBody">
+                    <div class="subrow"><span class="glyph">⌸</span><span class="p long">ui-tool/…/ToolRow.module.css</span><span class="e ok">130</span></div>
+                    <div class="subrow"><span class="glyph">⌸</span><span class="p long">ui-trajectory/…/TrajectoryTurnHeader.module.css</span><span class="e ok">48</span></div>
+                    <div class="subrow"><span class="glyph">⌸</span><span class="p long">ui-chat/…/MessageItem.module.css</span><span class="e ok">110</span></div>
+                    <div class="subrow"><span class="glyph">⌸</span><span class="p long">design/composer-redesign-mockup.html</span><span class="e ok">90</span></div>
+                  </div>
+                </details>
+              </div>
+
+              <div class="answer">
+                <p class="answerTag">Answer</p>
+                <p>Design DNA pinned: 880px lane, uniform 24px tool rows, 44px sticky turn bars, full-width bubbles.</p>
+                <p class="dim">Writing the redesign as a standalone mockup in <code style="font-family:var(--ds-font-family-code);font-size:12px">design/</code>, house style.</p>
+              </div>
+
+              <div class="rail" style="margin-top:12px">
+                <details class="grp" open>
+                  <summary class="grpHead running"><span class="chev">›</span><span class="st run-pulse"></span>
+                    <span class="gt">Working</span><span class="gs">write · design/conversation-redesign-mockup.html</span>
+                    <span class="gm">0:14</span></summary>
+                  <div class="grpBody">
+                    <div class="subrow"><span class="glyph">✎</span><span class="p long">design/conversation-redesign-mockup.html</span><span class="purpose">this file</span></div>
+                  </div>
+                </details>
+              </div>
+
+            </div>
+          </div>
+          <div class="composerStub">
+            <div class="composerCard">
+              <div class="ph">Reply to turn 5…</div>
+              <div class="composerShelf">
+                <span class="shelfBtn">+</span><span class="shelfBtn">@</span>
+                <span class="modelChip">qwen3.8-max ⌄</span>
+                <span class="sendBtn">↑</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 3 · groups up close ============ -->
+  <section>
+    <h2>3 · The group is the new row <span class="badge">rule</span></h2>
+    <p class="legend">A group answers “what kind of work, what outcome”: verb + object + count, status dot, and a
+      right-aligned metric in the code face. Success collapses by default; the sweep moves from every running
+      row to the one group head that is live. The per-call purpose line — currently shown on every frame —
+      demotes to a hover second voice on the sub-row. Failed calls and open questions never fold: they float.</p>
+    <div class="stage">
+      <div class="lane" style="max-width:760px">
+        <div class="rail" style="margin-left:0">
+          <details class="grp" open>
+            <summary class="grpHead"><span class="chev">›</span><span class="st err"></span>
+              <span class="gt">Ran</span><span class="gs">3 commands — build, test, lint</span>
+              <span class="gm">1 failed · 12.6s</span></summary>
+            <div class="grpBody">
+              <div class="subrow"><span class="glyph">▤</span><span class="p long">pnpm --filter @deepseek-ai/dsh-web-frontend run build</span><span class="e ok">0</span></div>
+              <div class="subrow" style="color:var(--dsw-alias-label-primary)"><span class="glyph" style="color:var(--dsw-static-red-500)">▤</span><span class="p long">vitest run ui-tool</span><span class="purpose">verify row geometry</span><span class="e bad">exit 1 · 2 failed</span></div>
+              <div class="subrow"><span class="glyph">▤</span><span class="p long">oxlint packages/client/ui-tool</span><span class="e ok">0</span></div>
+            </div>
+          </details>
+          <div class="floatCard">
+            <p class="q">Which lane width should the redesign keep?</p>
+            <div class="optRow">
+              <span class="opt sel">880px — parity with trajectory (recommended)</span>
+              <span class="opt">760px — reading width</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 4 · divider vs sticky chip ============ -->
+  <section>
+    <h2>4 · Turn chrome: divider at rest, chip on scroll <span class="badge">rule</span></h2>
+    <p class="legend">At rest the turn opens with a hairline divider: <b>TURN n</b> plus the four metrics the 44px
+      bar used to own, in the caption tier — 24px of chrome instead of 44, and it scrolls away. While a later
+      turn is on screen, one condensed chip (top right, elevation-soft) names the live turn; clicking it is the
+      existing TurnNavigator jump. Sticky space is spent once, not once per turn.</p>
+    <div class="stage">
+      <div class="duo">
+        <div>
+          <p class="duoLabel">At rest — in flow</p>
+          <div style="background:var(--dsw-alias-bg-base);border-radius:10px;padding:18px 16px;box-shadow:var(--dsw-elevation-soft)">
+            <div class="divider" style="margin:0"><span class="tno">TURN 4</span><span class="m"><b>qwen3.8-max</b> · 42s · 12.4k↑ 2.1k↓ · $0.032</span></div>
+          </div>
+        </div>
+        <div>
+          <p class="duoLabel">On scroll — one chip</p>
+          <div style="position:relative;background:var(--dsw-alias-bg-base);border-radius:10px;padding:18px 16px 34px;box-shadow:var(--dsw-elevation-soft);overflow:hidden">
+            <div class="stickyChip" style="position:absolute;top:8px;right:10px"><span class="st run-pulse"></span> T5 · 0:14 · working</div>
+            <div style="color:var(--dsw-alias-label-tertiary);font-size:12px;line-height:20px;padding-top:30px">
+              …answer text from turn 4, scrolled past…<br>…turn 5 process rail…
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+<script>
+  const b = document.body, t = document.getElementById('theme');
+  const sync = () => { t.textContent = b.hasAttribute('data-ds-dark-theme') ? 'light' : 'dark'; };
+  t.addEventListener('click', () => {
+    b.hasAttribute('data-ds-dark-theme') ? b.removeAttribute('data-ds-dark-theme') : b.setAttribute('data-ds-dark-theme', '');
+    sync();
+  });
+  sync();
+</script>
+</body>
+</html>

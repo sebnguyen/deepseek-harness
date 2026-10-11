@@ -1,9 +1,12 @@
 // Single source for the pixelized DigitalOcean loading symbol:
 //   design/pixel-do-loader.svg           standalone 24-grid mark (review asset)
 //   design/pixel-do-loader-16.svg        standalone 16-grid mark (review asset)
+//   design/pixel-do-twinkle.svg         standalone 24-grid twinkle face (review asset)
+//   design/pixel-do-twinkle-16.svg      standalone 16-grid twinkle face (review asset)
 //   design/pixel-do-loader-mockup.html   live review page
 //   packages/client/ui-primitives/src/pixel-loader/generated.ts   shared cells + css
-//   apps/desktop/renderer/spinner.svg  inline SMIL fragment for the desktop splash
+//   apps/desktop/renderer/spinner.svg  inline SMIL twinkle for the desktop splash
+//   apps/desktop/renderer/startup.html splash spinner div rewritten in place
 // Regenerate everything after changing recipe knobs:  node design/pixel-do-loader-gen.mjs
 //
 // The web sweep is a CSS animation: each 22.5-degree bucket of pixels is one
@@ -12,11 +15,12 @@
 // (--dsh-boot-arc / --dsh-pixel-loader-boost), so the ladder runs around the
 // mark instead of blinking in unison. The shared stylesheet ships once per
 // document; bodies carry geometry only. Rendered pitch widens the pixel gap: at
-// a 1:1 cell pitch the gap is the locked 30%, and smaller renderings trade
-// pixel mass for gap until 50% so the mark survives sub-1px cells. The desktop
-// startup splash instead carries the SMIL twin (begin offsets) inside a div
-// because its CSP (style-src 'self') forbids inline style elements/attributes.
-import { mkdirSync, writeFileSync } from 'node:fs'
+// a 1:1-or-better pitch every face renders the chunkier 20% gap, and smaller
+// renderings trade pixel mass for gap until 50% so the mark survives sub-1px
+// cells. The desktop startup splash idles as the chunkier SMIL twinkle
+// (negative begin offsets) inside a div because its CSP (style-src 'self')
+// forbids inline style elements/attributes.
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 const GRID24 = [
@@ -71,8 +75,34 @@ const F = 16
 const PERIOD = 1.2
 const DIM = 0.22
 const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM]
-// Per-cell inset at the locked 30% gap (a 0.7 cell in a 1-unit pitch).
-const INSET = 0.15
+// Per-cell inset at the chunkier 20% gap (a 0.8 cell in a 1-unit pitch): every
+// face (sweep and twinkle) renders the fat pixels at 1:1-or-better pitch.
+const TW_INSET = 0.1
+
+// Twinkle recipe (idle brand mark, starting chat / boot): every pixel runs its
+// own pop-and-fade cycle — duration and negative delay drawn from a seeded
+// PRNG so the field twinkles like an inference engine instead of sweeping
+// the mark, and reruns of this generator stay byte-identical.
+function mulberry32(seed) {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0
+    let t = Math.imul(a ^ (a >>> 15), 1 | a)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+const TW_MIN_DUR = 1.6
+const TW_SPAN_DUR = 1.8
+
+/** Per-pixel [delay s (negative), duration s] twinkle schedule, parallel to the flattened buckets. */
+function twinkleSchedule(cellCount, seed) {
+  const rand = mulberry32(seed)
+  return Array.from({ length: cellCount }, () => {
+    const dur = round2(TW_MIN_DUR + rand() * TW_SPAN_DUR)
+    return [round2(-rand() * dur), dur]
+  })
+}
 
 const ROOT = '/home/snguyen/dev/digitalocean/idk/deepseek-harness'
 const DESIGN = `${ROOT}/design`
@@ -120,13 +150,28 @@ function innerCss(cells, inset, rx) {
   }).join('')
 }
 
-/** SMIL mode: same clockwise order through begin offsets, no styles at all. */
-function innerSmil(cells, inset, rx) {
-  const keyTimes = LADDER.map((_, i) => round2(i / F)).join(';')
-  const values = LADDER.join(';')
-  return cells.map((bucket, k) => {
-    const begin = round2((k / F) * PERIOD)
-    return `<g opacity="${DIM}"><animate attributeName="opacity" calcMode="discrete" values="${values}" keyTimes="${keyTimes}" dur="${PERIOD}s" begin="${begin}s" repeatCount="indefinite"/>${rectsFor(bucket, inset, rx)}</g>`
+/** The twinkle stylesheet shared by every document host that idles the mark. */
+function twinkleStyleBlock() {
+  return `.dsh-pl-tw{animation-name:dsh-pl-twinkle;animation-iteration-count:infinite;animation-timing-function:cubic-bezier(.33,0,.25,1)}
+@keyframes dsh-pl-twinkle{0%,62%,100%{opacity:${DIM}}9%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.dsh-pl-tw{animation:none}}`
+}
+
+/** SMIL twinkle mode: per-pixel pop & fade through negative begin offsets, no styles at all. */
+function innerTwinkleSmil(flat, schedule, inset, rx) {
+  const side = round2(1 - 2 * inset)
+  return flat.map(([c, r], i) => {
+    const [delay, dur] = schedule[i]
+    return `<rect opacity="${DIM}" x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"><animate attributeName="opacity" values="${DIM};1;${DIM};${DIM}" keyTimes="0;0.09;0.62;1" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/></rect>`
+  }).join('')
+}
+
+/** CSS twinkle mode: one self-timed pop/fade rect per pixel; negative delays keep the field alive from first paint. */
+function innerTwinkle(flat, schedule, inset, rx) {
+  const side = round2(1 - 2 * inset)
+  return flat.map(([c, r], i) => {
+    const [delay, dur] = schedule[i]
+    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"/>`
   }).join('')
 }
 
@@ -136,7 +181,7 @@ function svgFor(cells, { rx, width }) {
 <style>
 ${styleBlock()}
 </style>
-${innerCss(cells, INSET, rx)}
+${innerCss(cells, TW_INSET, rx)}
 </svg>
 `
 }
@@ -147,12 +192,33 @@ function cellsWidth(cells) {
 }
 
 const CSS = styleBlock()
+const TW_CSS = twinkleStyleBlock()
 const cells24 = bucketsFor(GRID24)
 const cells16 = bucketsFor(GRID16)
+const flat24 = cells24.flat()
+const flat16 = cells16.flat()
+const sched24 = twinkleSchedule(flat24.length, 0xD0CE24)
+const sched16 = twinkleSchedule(flat16.length, 0xD0CE16)
 const big = svgFor(cells24, { rx: 0.18, width: 48 })
 const small = svgFor(cells16, { rx: 0.12, width: 16 })
+const bigTw = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="96" height="96" fill="currentColor" aria-hidden="true">
+<style>
+${TW_CSS}
+</style>
+${innerTwinkle(flat24, sched24, TW_INSET, 0.18)}
+</svg>
+`
+const smallTw = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="128" height="128" fill="currentColor" aria-hidden="true">
+<style>
+${TW_CSS}
+</style>
+${innerTwinkle(flat16, sched16, TW_INSET, 0.18)}
+</svg>
+`
 writeFileSync(`${DESIGN}/pixel-do-loader.svg`, big)
 writeFileSync(`${DESIGN}/pixel-do-loader-16.svg`, small)
+writeFileSync(`${DESIGN}/pixel-do-twinkle.svg`, bigTw)
+writeFileSync(`${DESIGN}/pixel-do-twinkle-16.svg`, smallTw)
 
 mkdirSync(dirname(MODULE_OUT), { recursive: true })
 writeFileSync(MODULE_OUT, `/**
@@ -174,6 +240,15 @@ export const PIXEL_LOADER_PERIOD_S = ${PERIOD}
 /** Shared sweep stylesheet: discrete opacity ladder + reduced-motion guard. */
 export const PIXEL_LOADER_CSS = \`${CSS}\`
 
+/** Shared twinkle stylesheet: per-pixel pop & fade with a reduced-motion guard (idle brand mark). */
+export const PIXEL_LOADER_TWINKLE_CSS = \`${TW_CSS}\`
+
+/** Per-pixel [delay s, duration s] twinkle schedule, parallel to {@link PIXEL_LOADER_CELLS_24} flattened. */
+export const PIXEL_LOADER_TWINKLE_24: readonly (readonly [number, number])[] = ${JSON.stringify(sched24)}
+
+/** Per-pixel [delay s, duration s] twinkle schedule, parallel to {@link PIXEL_LOADER_CELLS_16} flattened. */
+export const PIXEL_LOADER_TWINKLE_16: readonly (readonly [number, number])[] = ${JSON.stringify(sched16)}
+
 /** 24x24 grid buckets: deep-diving, boot page, and 20px-and-up chrome. */
 export const PIXEL_LOADER_CELLS_24: readonly (readonly (readonly [number, number])[])[] = ${JSON.stringify(cells24)}
 
@@ -183,12 +258,22 @@ export const PIXEL_LOADER_CELLS_16: readonly (readonly (readonly [number, number
 
 `)
 
-// The splash script toggles #spinner via hidden, an HTMLElement-only idiom,
-// so the SMIL svg rides inside a div.
-writeFileSync(DESKTOP_OUT, `<div id="spinner" aria-hidden="true"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-${innerSmil(cells24, INSET, 0.18)}
+// The idle splash logo twinkles (random dot pop & fade, chunkier face); the
+// splash script toggles #spinner via hidden, an HTMLElement-only idiom, so the
+// SMIL svg rides inside a div because the CSP (style-src 'self') forbids
+// inline style elements/attributes.
+writeFileSync(DESKTOP_OUT, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+${innerTwinkleSmil(flat16, sched16, TW_INSET, 0.18)}
 </svg></div>
 `)
+
+// startup.html ships the same splash svg inline; rewrite its spinner div so
+// the hand-maintained copy can never drift from the generated one.
+const STARTUP_OUT = `${ROOT}/apps/desktop/renderer/startup.html`
+const startup = readFileSync(STARTUP_OUT, 'utf8')
+writeFileSync(STARTUP_OUT, startup.replace(/<div id="spinner" aria-hidden="true">[\s\S]*?<\/svg><\/div>/, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+${innerTwinkleSmil(flat16, sched16, TW_INSET, 0.18)}
+</svg></div>`))
 
 // mock page: embed both full svgs as templates, clone at the sizes under review
 function elided(svg) { return svg.trim().replace(' aria-hidden="true"', '').replace(/ width="\d+" height="\d+"/, '') }
@@ -274,6 +359,22 @@ const mock = `<!doctype html>
   </section>
 
   <section>
+    <h2>Twinkle idle — random dot pop &amp; fade, like an inference engine</h2>
+    <div class="row">
+      <div class="panel light"><span data-slot="tw24" data-size="48"></span></div>
+      <div class="panel dark"><span data-slot="tw24" data-size="48"></span></div>
+      <div class="panel light"><span data-slot="tw24" data-size="168"></span></div>
+      <div class="panel dark"><span data-slot="tw24" data-size="168"></span></div>
+    </div>
+    <div class="row">
+      <div class="panel light"><span data-slot="tw16" data-size="128"></span></div>
+      <div class="panel dark"><span data-slot="tw16" data-size="128"></span></div>
+      <div class="panel light"><span data-slot="tw16" data-size="168"></span></div>
+      <div class="panel dark"><span data-slot="tw16" data-size="168"></span></div>
+    </div>
+  </section>
+
+  <section>
     <h2>Magnified, live</h2>
     <div class="row">
       <div class="panel light"><span data-slot="24" data-size="168"></span></div>
@@ -284,14 +385,16 @@ const mock = `<!doctype html>
   <p class="note">
     Each of the 16 bucket groups carries its own clockwise stagger on the
     shared step-end ladder (1.2s), so the light runs around the mark starting
-    at 12 o'clock. Rects are inset 0.15 per cell (30% gaps) at 1:1 pitch;
-    renderers widen the gap toward 50% as the pitch drops below 1px.
+    at 12 o'clock. Rects are inset 0.1 per cell (20% gaps) at 1:1 pitch — the chunkier
+    face; renderers widen the gap toward 50% as the pitch drops below 1px.
     <code>fill="currentColor"</code> themes light/dark from CSS color.
   </p>
 </div>
 
 <template id="tpl-24">${elided(big)}</template>
 <template id="tpl-16">${elided(small)}</template>
+<template id="tpl-tw24">${elided(bigTw)}</template>
+<template id="tpl-tw16">${elided(smallTw)}</template>
 
 <script>
   for (const slot of document.querySelectorAll('[data-slot]')) {
@@ -305,4 +408,4 @@ const mock = `<!doctype html>
 </html>
 `
 writeFileSync(`${DESIGN}/pixel-do-loader-mockup.html`, mock)
-console.log('svg24:', big.length, 'B; svg16:', small.length, 'B; mock:', mock.length, 'B')
+console.log('svg24:', big.length, 'B; svg16:', small.length, 'B; svgTw:', bigTw.length, 'B; mock:', mock.length, 'B')

@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DSH conversation — turn report view mockup</title>
+<style>
+  /* Token sheet aligned with packages/client/ui-theme/src/styles/design-platform.css
+     (same source the other design/ mockups copy). The toggle flips the same
+     body[data-ds-dark-theme] attribute ui-layout sets. Ships dark-first. */
+  :root {
+    --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+      'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+  }
+  body {
+    /* statics (live values) */
+    --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+    --dsw-static-neutral-bluish-50: rgb(247, 248, 248);
+    --dsw-static-neutral-bluish-60: rgb(238, 240, 240);
+    --dsw-static-neutral-bluish-100: rgb(217, 222, 222);
+    --dsw-static-neutral-bluish-200: rgb(197, 205, 205);
+    --dsw-static-neutral-bluish-300: rgb(145, 159, 158);
+    --dsw-static-neutral-bluish-400: rgb(115, 132, 132);
+    --dsw-static-neutral-bluish-500: rgb(93, 108, 108);
+    --dsw-static-neutral-bluish-600: rgb(76, 88, 88);
+    --dsw-static-neutral-bluish-700: rgb(65, 74, 75);
+    --dsw-static-neutral-bluish-750: rgb(46, 50, 52);
+    --dsw-static-neutral-bluish-800: rgb(37, 41, 42);
+    --dsw-static-neutral-bluish-850: rgb(32, 36, 38);
+    --dsw-static-neutral-bluish-875: rgb(27, 31, 33);
+    --dsw-static-neutral-bluish-900: rgb(23, 27, 29);
+    --dsw-static-neutral-bluish-950: rgb(18, 22, 24);
+    --dsw-static-neutral-bluish-1000: rgb(0, 12, 42);
+    --dsw-static-blue-400: rgb(97, 200, 249);
+    --dsw-static-blue-500: rgb(38, 145, 234);
+    --dsw-static-blue-800: rgb(31, 97, 174);
+    --dsw-static-deepseek-300: rgb(148, 198, 204);
+    --dsw-static-deepseek-400: rgb(148, 198, 204);
+    --dsw-static-deepseek-500: rgb(69, 137, 149);
+    --dsw-static-violet-50: rgb(249, 246, 249);
+    --dsw-static-violet-300: rgb(221, 196, 216);
+    --dsw-static-violet-600: rgb(156, 102, 140);
+    --dsw-static-violet-950: rgb(55, 32, 47);
+    --dsw-static-red-400: rgb(252, 165, 165);
+    --dsw-static-red-500: rgb(202, 110, 69);
+    --dsw-static-red-600: rgb(185, 28, 28);
+    --dsw-static-amber-400: rgb(218, 165, 73);
+    --dsw-static-amber-500: rgb(208, 135, 48);
+    --dsw-static-green-400: rgb(113, 183, 121);
+    --dsw-static-green-500: rgb(57, 122, 65);
+
+    /* aliases — light */
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+    --dsw-alias-label-secondary: rgb(56, 65, 89);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-500);
+    --dsw-alias-label-caption: var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-border-l1: rgba(0, 12, 42, 0.04);
+    --dsw-alias-border-l2: rgba(0, 12, 42, 0.1);
+    --dsw-alias-border-l3: rgba(0, 12, 42, 0.12);
+    --dsw-alias-link: var(--dsw-static-blue-800);
+    --dsw-alias-brand-primary: rgb(0, 99, 248);
+    --dsw-alias-interactive-bg-hover: rgba(57, 65, 65, 0.06);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-60);
+    --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
+    --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-state-ok: var(--dsw-static-green-500);
+    --dsw-alias-state-warn: var(--dsw-static-amber-500);
+    --dsw-alias-state-error: var(--dsw-static-red-600);
+    --dsw-specific-bubble: var(--dsw-static-violet-50);
+    --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
+    --dsw-specific-panel: var(--dsw-static-neutral-bluish-50);
+    --dsw-page-bg: var(--dsw-static-neutral-bluish-60);
+    --dsw-elevation-stroke-color: var(--dsw-alias-border-l2);
+    --dsw-elevation-panel:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 2px 8px 0 rgba(0, 0, 0, 0.05), 0 8px 24px 0 rgba(0, 0, 0, 0.05);
+    --dsw-elevation-soft:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+
+    margin: 0;
+    background: var(--dsw-page-bg);
+    color: var(--dsw-alias-label-primary);
+    font-family: var(--dsw-font-family);
+    font-size: 14px;
+    line-height: 22px;
+  }
+  body[data-ds-dark-theme] {
+    --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-label-secondary: rgb(160, 162, 163);
+    --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-300);
+    --dsw-alias-label-caption: rgb(132, 134, 135);
+    --dsw-alias-border-l1: rgba(247, 248, 248, 0.06);
+    --dsw-alias-border-l2: rgba(247, 248, 248, 0.12);
+    --dsw-alias-border-l3: rgba(247, 248, 248, 0.16);
+    --dsw-alias-link: var(--dsw-static-deepseek-300);
+    --dsw-alias-brand-primary: rgb(123, 180, 188);
+    --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+    --dsw-alias-interactive-bg-hover-solid: var(--dsw-static-neutral-bluish-800);
+    --dsw-alias-markdown-code-block: var(--dsw-static-neutral-bluish-900);
+    --dsw-alias-state-ok: rgb(134, 239, 172);
+    --dsw-alias-state-warn: var(--dsw-static-amber-400);
+    --dsw-alias-state-error: var(--dsw-static-red-400);
+    --dsw-specific-bubble: var(--dsw-static-violet-950);
+    --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+    --dsw-specific-panel: var(--dsw-static-neutral-bluish-900);
+    --dsw-page-bg: var(--dsw-static-neutral-bluish-950);
+    /* dark keeps light's soft alphas: separation rides the 0.5px stroke */
+    --dsw-elevation-panel:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 3px 8px 0 rgba(0, 0, 0, 0.04), 0 0 20px 0 rgba(0, 0, 0, 0.05);
+    --dsw-elevation-soft:
+      0 0 0 0.5px var(--dsw-elevation-stroke-color),
+      0 4px 16px 0 rgba(0, 0, 0, 0.03), 0 0 24px 0 rgba(0, 0, 0, 0.03);
+  }
+
+  .page { max-width: 1160px; margin: 0 auto; padding: 40px 24px 96px; }
+  .pageHead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  h1 { font: 700 21px/30px var(--dsw-font-family); margin: 0; }
+  .sub { color: var(--dsw-alias-label-secondary); margin: 0 0 10px; max-width: 860px; }
+  .sub code, .legend code { font-family: var(--ds-font-family-code); font-size: 12px; }
+  .themeToggle {
+    margin-left: auto; border: 0; border-radius: 999px; corner-shape: round;
+    cursor: pointer; height: 28px; padding: 0 12px; flex: none;
+    background: var(--dsw-alias-interactive-bg-hover-solid);
+    color: var(--dsw-alias-label-primary); font: 500 12px/20px var(--dsw-font-family);
+  }
+  .theses { margin: 18px 0 0; padding: 14px 18px; border-radius: 12px;
+    background: var(--dsw-alias-interactive-bg-hover); max-width: 860px; }
+  .theses p { margin: 0 0 6px; color: var(--dsw-alias-label-secondary); }
+  .theses p:last-child { margin-bottom: 0; }
+  .theses b { color: var(--dsw-alias-label-primary); }
+  section { margin-top: 44px; }
+  h2 { font: 600 14px/24px var(--dsw-font-family); margin: 0 0 4px; }
+  h2 .badge { font: 500 11px/18px var(--dsw-font-family); color: var(--dsw-alias-link);
+    background: var(--dsw-alias-interactive-bg-hover); border-radius: 999px;
+    corner-shape: round; padding: 1px 8px; vertical-align: 1px; }
+  .legend { color: var(--dsw-alias-label-secondary); margin: 0 0 14px; max-width: 860px; }
+  .legend b { color: var(--dsw-alias-label-primary); }
+  .stage { border-radius: 16px; padding: 20px; background: var(--dsw-alias-interactive-bg-hover); }
+
+  /* ---------- app frame ---------- */
+  .app {
+    display: grid; grid-template-columns: 232px minmax(0, 1fr);
+    height: 780px; border-radius: 16px; overflow: hidden;
+    background: var(--dsw-specific-panel); box-shadow: var(--dsw-elevation-soft);
+  }
+
+  /* outline rail */
+  .rail { border-right: 0.5px solid var(--dsw-alias-border-l2); display: flex; flex-direction: column; min-height: 0; }
+  .railHead { padding: 14px 14px 10px; }
+  .railWs { font: 600 13px/18px var(--dsw-font-family); }
+  .railMeta { color: var(--dsw-alias-label-caption); font-size: 11px; line-height: 16px; }
+  .railList { flex: 1; min-height: 0; overflow-y: auto; padding: 2px 8px 10px; }
+  .tItem {
+    display: grid; grid-template-columns: 8px 26px minmax(0,1fr) auto; gap: 8px;
+    align-items: baseline; width: 100%; text-align: left; cursor: pointer;
+    border: 0; background: none; border-radius: 8px; padding: 6px 8px;
+    color: var(--dsw-alias-label-secondary); font: 400 12px/18px var(--dsw-font-family);
+  }
+  .tItem:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .tItem[aria-current] { background: var(--dsw-alias-interactive-bg-hover-solid); color: var(--dsw-alias-label-primary); }
+  .tItem .n { font: 500 11px/18px var(--ds-font-family-code); color: var(--dsw-alias-label-caption); }
+  .tItem .intent { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tItem .ms { font: 400 10px/18px var(--ds-font-family-code); color: var(--dsw-alias-label-caption); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; corner-shape: round; align-self: center; }
+  .dot.ok { background: var(--dsw-alias-state-ok); }
+  .dot.warn { background: var(--dsw-alias-state-warn); }
+  .dot.err { background: var(--dsw-alias-state-error); }
+  .dot.run { background: var(--dsw-alias-brand-primary); animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .dot.run { animation: none; } }
+  .railFoot { border-top: 0.5px solid var(--dsw-alias-border-l2); padding: 10px 14px; }
+  .railFoot .k { font: 600 10px/16px var(--dsw-font-family); letter-spacing: 0.06em; text-transform: uppercase; color: var(--dsw-alias-label-caption); }
+  .railFoot .files { color: var(--dsw-alias-label-tertiary); font: 400 11px/17px var(--ds-font-family-code); margin-top: 2px; overflow-wrap: anywhere; }
+
+  /* main column */
+  .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+  .mainHead {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 20px; border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  }
+  .crumb { font: 500 12px/20px var(--dsw-font-family); color: var(--dsw-alias-label-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .seg { margin-left: auto; display: flex; gap: 2px; padding: 2px; border-radius: 999px;
+    corner-shape: round; background: var(--dsw-alias-interactive-bg-hover); }
+  .segBtn { border: 0; border-radius: 999px; corner-shape: round; cursor: pointer;
+    padding: 2px 10px; background: none; color: var(--dsw-alias-label-tertiary);
+    font: 500 12px/18px var(--dsw-font-family); }
+  .segBtn[aria-pressed="true"] { background: var(--dsw-specific-input-major);
+    color: var(--dsw-alias-label-primary); box-shadow: var(--dsw-elevation-panel); }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 24px 8px; }
+  .col { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px; }
+
+  /* ---------- report turn card ---------- */
+  .turn { border-top: 0.5px solid var(--dsw-alias-border-l2); padding-top: 12px; }
+  .turn:first-child { border-top: 0; padding-top: 0; }
+  .tHead { display: flex; align-items: baseline; gap: 10px; }
+  .tLabel { font: 600 11px/18px var(--ds-font-family-code); letter-spacing: 0.08em; color: var(--dsw-alias-label-caption); }
+  .tIntent { font: 600 14px/22px var(--dsw-font-family); min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tMetrics { margin-left: auto; display: flex; gap: 6px; flex: none; }
+  .pill { border-radius: 999px; corner-shape: round; padding: 0 8px;
+    background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-tertiary);
+    font: 400 11px/18px var(--ds-font-family-code); white-space: nowrap; }
+  .pill.warn { color: var(--dsw-alias-state-warn); }
+
+  .answer { margin-top: 8px; color: var(--dsw-alias-label-secondary); }
+  .answer p { margin: 0 0 6px; }
+  .answer code { font-family: var(--ds-font-family-code); font-size: 12px;
+    background: var(--dsw-alias-markdown-code-block); border-radius: 4px; padding: 1px 5px; }
+  .answer .mdcode { display: block; font-family: var(--ds-font-family-code); font-size: 12px;
+    line-height: 19px; background: var(--dsw-alias-markdown-code-block);
+    border-radius: 8px; padding: 8px 12px; margin: 6px 0; white-space: pre; overflow-x: auto; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px;
+    corner-shape: round; padding: 1px 10px 1px 8px; cursor: pointer;
+    background: var(--dsw-alias-interactive-bg-hover); border: 0;
+    color: var(--dsw-alias-link); font: 500 12px/18px var(--dsw-font-family); }
+  .chip:hover { background: var(--dsw-alias-interactive-bg-hover-solid); }
+  .chip .d { font: 400 10px/16px var(--ds-font-family-code); color: var(--dsw-alias-label-tertiary); }
+
+  /* evidence fold */
+  .evFold { margin-top: 8px; }
+  .evSum {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+    list-style: none; border-radius: 6px; padding: 2px 6px 2px 2px;
+    color: var(--dsw-alias-label-tertiary); font: 500 12px/20px var(--dsw-font-family);
+  }
+  .evSum::-webkit-details-marker { display: none; }
+  .evSum:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
+  .evSum::before { content: ''; width: 6px; height: 6px; flex: none;
+    border-right: 1.5px solid currentcolor; border-bottom: 1.5px solid currentcolor;
+    transform: rotate(-45deg); transition: transform 120ms ease; }
+  .evFold[open] > .evSum::before { transform: rotate(45deg); }
+  .evBody { margin: 4px 0 2px; padding-left: 10px;
+    box-shadow: inset 2px 0 0 var(--dsw-alias-border-l2);
+    display: flex; flex-direction: column; gap: 2px; }
+
+  .grp { border-radius: 6px; }
+  .grpSum {
+    display: flex; align-items: baseline; gap: 8px; width: 100%; cursor: pointer; user-select: none;
+    list-style: none; border-radius: 6px; padding: 3px 8px;
+    color: var(--dsw-alias-label-secondary); font: 400 13px/20px var(--dsw-font-family);
+  }
+  .grpSum::-webkit-details-marker { display: none; }
+  .grpSum:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .grpSum .verb { font-weight: 500; color: var(--dsw-alias-label-primary); }
+  .grpSum .cnt { color: var(--dsw-alias-label-caption); }
+  .grpSum .dur { margin-left: auto; font: 400 11px/20px var(--ds-font-family-code); color: var(--dsw-alias-label-caption); }
+  .grp .gicon { flex: none; width: 14px; align-self: center; text-align: center; color: var(--dsw-alias-label-caption); }
+  .frames { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px 8px; }
+
+  /* stock tool frames, re-homed unchanged */
+  .frame { border-radius: 8px; background: var(--dsw-alias-markdown-code-block); overflow: hidden; }
+  .fHead { padding: 4px 10px; font: 500 12px/18px var(--ds-font-family-code);
+    color: var(--dsw-alias-label-tertiary); border-bottom: 0.5px solid var(--dsw-alias-border-l1); }
+  .fHead .x { color: var(--dsw-alias-state-error); }
+  .fHead .okk { color: var(--dsw-alias-state-ok); }
+  .fBody { padding: 6px 10px; font: 400 12px/18px var(--ds-font-family-code);
+    color: var(--dsw-alias-label-secondary); white-space: pre; overflow-x: auto; }
+
+  /* decision cards stand outside the fold */
+  .approval {
+    display: flex; align-items: center; gap: 10px; margin: 8px 0 0;
+    border: 1px solid var(--dsw-alias-state-warn); border-radius: 10px;
+    padding: 8px 12px; background: var(--dsw-alias-interactive-bg-hover);
+  }
+  .approval .aTxt { min-width: 0; font: 400 12px/18px var(--ds-font-family-code);
+    color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .approval .aTag { flex: none; font: 600 10px/16px var(--dsw-font-family); letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--dsw-alias-state-warn); }
+  .approval .aBtn { flex: none; border: 0; border-radius: 999px; corner-shape: round; cursor: pointer;
+    padding: 2px 10px; font: 500 12px/18px var(--dsw-font-family);
+    background: var(--dsw-alias-interactive-bg-hover-solid); color: var(--dsw-alias-label-primary); }
+  .approval .aNote { font: 400 11px/16px var(--dsw-font-family); color: var(--dsw-alias-label-caption); }
+
+  /* live turn */
+  .live .tIntent { color: var(--dsw-alias-label-primary); }
+  .liveRow { display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    color: var(--dsw-alias-label-secondary); font: 400 13px/22px var(--dsw-font-family); }
+  .spinner { width: 14px; height: 14px; flex: none; border-radius: 50%; corner-shape: round;
+    border: 2px solid var(--dsw-alias-border-l2); border-top-color: var(--dsw-alias-brand-primary);
+    animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.5s; } }
+
+  /* composer */
+  .composerWrap { padding: 10px 24px 16px; }
+  .composer {
+    max-width: 780px; margin: 0 auto; border: 0; border-radius: 16px;
+    background: var(--dsw-specific-input-major); box-shadow: var(--dsw-elevation-soft);
+    padding: 10px 12px 8px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .composer .prompt { color: var(--dsw-alias-label-caption); font: 400 13px/20px var(--dsw-font-family); min-height: 20px; }
+  .composerRow { display: flex; align-items: center; gap: 8px; }
+  .cChip { border-radius: 999px; corner-shape: round; padding: 1px 10px;
+    background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-tertiary);
+    font: 500 11px/18px var(--dsw-font-family); }
+  .send { margin-left: auto; border: 0; border-radius: 999px; corner-shape: round; cursor: pointer;
+    width: 28px; height: 28px; background: var(--dsw-alias-button-primary-fill); color: #fff;
+    font: 600 13px/28px var(--dsw-font-family); }
+
+  /* transcript replica (view = transcript) */
+  .tx { display: none; }
+  .stage[data-view="transcript"] .tx { display: flex; }
+  .stage[data-view="transcript"] .report { display: none; }
+  .tx { flex-direction: column; gap: 10px; }
+  .bubble { width: 100%; background: var(--dsw-specific-bubble); border-radius: 22px;
+    padding: 10px 16px; color: var(--dsw-alias-label-primary); }
+  .txRow { color: var(--dsw-alias-label-tertiary); font: 400 13px/20px var(--dsw-font-family); }
+  .txRow .thinkTag { color: var(--dsw-static-violet-600); font-weight: 500; }
+  body[data-ds-dark-theme] .txRow .thinkTag { color: var(--dsw-static-deepseek-300); }
+
+  .ruleList { margin: 10px 0 0; padding-left: 18px; color: var(--dsw-alias-label-secondary); max-width: 860px; }
+  .ruleList li { margin: 4px 0; }
+  .ruleList b { color: var(--dsw-alias-label-primary); }
+</style>
+</head>
+<body data-ds-dark-theme>
+<div class="page">
+  <div class="pageHead">
+    <h1>Turn report view — the session reads as a report, not a tape</h1>
+    <button class="themeToggle" onclick="document.body.toggleAttribute('data-ds-dark-theme')">theme</button>
+  </div>
+  <p class="sub">A redesign of the chat/conversation surface of the DSH web client
+    (<code>packages/client/ui-chat</code>, <code>ui-tool</code>, <code>ui-quiet</code>).
+    Tokens, hairlines, elevation and frame chrome are lifted from the live theme so the
+    mock renders on the shipped design language.</p>
+
+  <div class="theses">
+    <p><b>What the current transcript gets wrong.</b> The column is a tape of
+      equal-weight rows: user bubble, Think fold, tool frames, retry rows, turn tail.
+      Folds (step spans, process rail) <em>hide</em> work but never <em>summarize</em> it;
+      quiet modes hide steps with, in the code's own words, “no summary node anywhere”.
+      The answer lands last, after the evidence for it, so every turn reads
+      investigation-first. Files touched are scattered across write frames, and a long
+      session has no scannable shape — <code>TurnNavigator</code> jumps between turns but
+      never says what a turn <em>was</em>.</p>
+    <p><b>The proposal.</b> Keep the tape (it is the source of truth) but add a default
+      <b>report view</b>: each turn becomes intent → answer → artifacts → evidence, with the
+      stock tool frames re-homed — unmodified — under verb-grouped summary rows, and a
+      session outline rail that makes the whole conversation scannable in one viewport.
+      Verification is one click away at every level.</p>
+  </div>
+
+  <section>
+    <h2>1 · The session as a report <span class="badge">interactive</span></h2>
+    <p class="legend">One real session in the new shell. The <b>outline rail</b> answers
+      “what happened in this session” before you scroll: one row per turn with status and
+      wall time, plus an aggregate of touched files at the foot. The <b>segmented control</b>
+      flips between Report (default) and the stock Transcript — same data, two readings.
+      Try the toggles: view mode, evidence folds, theme.</p>
+    <div class="stage" data-view="report" id="appStage">
+      <div class="app">
+        <aside class="rail">
+          <div class="railHead">
+            <div class="railWs">user-api · session #482</div>
+            <div class="railMeta">workspace idk/api · 3 turns · 41k ctx</div>
+          </div>
+          <div class="railList">
+            <button class="tItem"><span class="dot ok"></span><span class="n">T1</span>
+              <span class="intent">fix 500 on missing token</span><span class="ms">14s</span></button>
+            <button class="tItem" aria-current="true"><span class="dot ok"></span><span class="n">T2</span>
+              <span class="intent">reorder auth middleware</span><span class="ms">52s</span></button>
+            <button class="tItem"><span class="dot run"></span><span class="n">T3</span>
+              <span class="intent">add regression tests</span><span class="ms">…</span></button>
+          </div>
+          <div class="railFoot">
+            <div class="k">Touched this session</div>
+            <div class="files">routes.ts · auth-middleware.ts · user-api.spec.ts</div>
+          </div>
+        </aside>
+
+        <div class="main">
+          <div class="mainHead">
+            <span class="crumb">idk/api — fix auth failures</span>
+            <div class="seg" id="viewSeg">
+              <button class="segBtn" data-view="report" aria-pressed="true">Report</button>
+              <button class="segBtn" data-view="transcript" aria-pressed="false">Transcript</button>
+            </div>
+          </div>
+
+          <div class="scroll">
+            <!-- ============ REPORT VIEW ============ -->
+            <div class="col report">
+
+              <article class="turn" id="t1">
+                <div class="tHead">
+                  <span class="tLabel">TURN 1</span>
+                  <span class="tIntent">user-api returns 500 instead of 401 for missing tokens</span>
+                  <span class="tMetrics"><span class="pill">5 steps</span><span class="pill">14s</span><span class="pill">6.2k tok</span></span>
+                </div>
+                <div class="answer">
+                  <p>The handler catches auth failures as generic errors, so the error
+                    middleware maps them to 500. The 401 path exists in
+                    <code>auth-middleware.ts</code> but it is registered <em>after</em> the
+                    handler in <code>routes.ts</code> — it never runs.</p>
+                </div>
+                <details class="evFold">
+                  <summary class="evSum">Evidence · 5 steps · 14s</summary>
+                  <div class="evBody">
+                    <details class="grp">
+                      <summary class="grpSum"><span class="gicon">⌕</span><span class="verb">Searched</span>
+                        <span class="cnt">2 queries · 12 hits</span><span class="dur">0.6s</span></summary>
+                      <div class="frames">
+                        <div class="frame"><div class="fHead">grep “401” src/ · 9 hits</div>
+<div class="fBody">src/middleware/auth-middleware.ts:41  res.status(401)…
+src/routes/user-api.spec.ts:23        expect(res.status).toBe(401)</div></div>
+                      </div>
+                    </details>
+                    <details class="grp">
+                      <summary class="grpSum"><span class="gicon">≡</span><span class="verb">Read</span>
+                        <span class="cnt">3 files · 412 lines</span><span class="dur">0.4s</span></summary>
+                      <div class="frames">
+                        <div class="frame"><div class="fHead">read src/routes.ts · 88 lines</div>
+<div class="fBody">41  router.use(errorHandler)
+42  router.use(authMiddleware)   // ← registered too late</div></div>
+                      </div>
+                    </details>
+                  </div>
+                </details>
+              </article>
+
+              <article class="turn" id="t2">
+                <div class="tHead">
+                  <span class="tLabel">TURN 2</span>
+                  <span class="tIntent">reorder middleware, keep the happy path green</span>
+                  <span class="tMetrics"><span class="pill warn">1 approval</span><span class="pill">8 steps</span><span class="pill">52s</span></span>
+                </div>
+                <div class="answer">
+                  <p>Moved <code>authMiddleware</code> above the handler in
+                    <code>routes.ts</code> and narrowed its catch clause to re-throw
+                    <code>AuthError</code>. The user-api suite passes 12/12; the happy path
+                    is unchanged.</p>
+                  <span class="mdcode">✓ src/routes/user-api.spec.ts  12 passed, 0 failed  (3.1s)</span>
+                </div>
+                <div class="chips">
+                  <button class="chip">routes.ts <span class="d">+2 −2</span></button>
+                  <button class="chip">auth-middleware.ts <span class="d">+4 −1</span></button>
+                </div>
+                <details class="evFold">
+                  <summary class="evSum">Evidence · 8 steps · 52s · 1 failed run</summary>
+                  <div class="evBody">
+                    <details class="grp">
+                      <summary class="grpSum"><span class="gicon">✎</span><span class="verb">Edited</span>
+                        <span class="cnt">2 files · 3 hunks</span><span class="dur">1.1s</span></summary>
+                      <div class="frames">
+                        <div class="frame"><div class="fHead">write src/routes.ts · 1 hunk committed</div>
+<div class="fBody">- router.use(errorHandler)
+- router.use(authMiddleware)
++ router.use(authMiddleware)
++ router.use(errorHandler)</div></div>
+                      </div>
+                    </details>
+                    <details class="grp">
+                      <summary class="grpSum"><span class="gicon">▸</span><span class="verb">Ran</span>
+                        <span class="cnt">2 commands · 1 failed → 1 passed</span><span class="dur">48s</span></summary>
+                      <div class="frames">
+                        <div class="frame"><div class="fHead">[1/1] $ pnpm test user-api · <span class="x">exit 1</span></div>
+<div class="fBody">✕ returns 401 for missing token — expected 401, received 401…
+  handler threw AuthError before reaching middleware (stale order)</div></div>
+                        <div class="frame"><div class="fHead">[1/1] $ pnpm test user-api · <span class="okk">exit 0</span></div>
+<div class="fBody">✓ 12 passed, 0 failed</div></div>
+                      </div>
+                    </details>
+                  </div>
+                </details>
+                <div class="approval">
+                  <span class="aTag">approved</span>
+                  <span class="aTxt">pnpm test --runInBand user-api</span>
+                  <span class="aNote">decided at step 4 · stays visible in report view</span>
+                </div>
+              </article>
+
+              <article class="turn live" id="t3">
+                <div class="tHead">
+                  <span class="tLabel">TURN 3</span>
+                  <span class="tIntent">add regression tests for missing &amp; malformed tokens</span>
+                  <span class="tMetrics"><span class="pill">live</span></span>
+                </div>
+                <div class="liveRow"><span class="spinner"></span>
+                  Running tests · “Ran pnpm test user-api” — groups assemble as steps settle</div>
+                <details class="evFold" open>
+                  <summary class="evSum">Evidence so far · 3 steps · 11s</summary>
+                  <div class="evBody">
+                    <div class="grp"><span class="grpSum" style="cursor:default">
+                      <span class="gicon">✎</span><span class="verb">Edited</span>
+                      <span class="cnt">user-api.spec.ts · 2 hunks</span><span class="dur">1.4s</span></span></div>
+                    <div class="grp"><span class="grpSum" style="cursor:default">
+                      <span class="gicon">▸</span><span class="verb">Running</span>
+                      <span class="cnt">pnpm test user-api</span><span class="dur">9s…</span></span></div>
+                  </div>
+                </details>
+              </article>
+            </div>
+
+            <!-- ============ STOCK TRANSCRIPT, same data ============ -->
+            <div class="col tx">
+              <div class="bubble">user-api returns 500 instead of 401 for missing tokens — fix it without breaking the happy path</div>
+              <div class="txRow"><span class="thinkTag">Think</span> · folded reasoning (2.1k tok)</div>
+              <div class="frame"><div class="fHead">[1/2] $ grep -rn "401" src/</div>
+<div class="fBody">src/middleware/auth-middleware.ts:41  res.status(401)…
+src/routes/user-api.spec.ts:23        expect(res.status).toBe(401)</div></div>
+              <div class="frame"><div class="fHead">read src/routes.ts</div>
+<div class="fBody">41  router.use(errorHandler)
+42  router.use(authMiddleware)</div></div>
+              <div class="txRow">The handler catches auth failures as generic errors…</div>
+              <div class="bubble">reorder middleware, keep the happy path green</div>
+              <div class="txRow"><span class="thinkTag">Think</span> · folded reasoning (1.4k tok)</div>
+              <div class="frame"><div class="fHead">write src/routes.ts · 1 hunk</div>
+<div class="fBody">- router.use(errorHandler)
++ router.use(authMiddleware)</div></div>
+              <div class="frame"><div class="fHead">[1/1] $ pnpm test user-api · <span class="x">exit 1</span></div>
+<div class="fBody">✕ returns 401 for missing token</div></div>
+              <div class="frame"><div class="fHead">write src/middleware/auth-middleware.ts · 1 hunk</div>
+<div class="fBody">+ if (err instanceof AuthError) throw err</div></div>
+              <div class="frame"><div class="fHead">[1/1] $ pnpm test user-api · <span class="okk">exit 0</span></div>
+<div class="fBody">✓ 12 passed, 0 failed</div></div>
+              <div class="txRow">Moved authMiddleware above the handler…</div>
+              <div class="txRow" style="color:var(--dsw-alias-label-caption)">…and turn 3 streams in here as the same undifferentiated rows — the wall the report view replaces.</div>
+            </div>
+          </div>
+
+          <div class="composerWrap">
+            <div class="composer">
+              <div class="prompt">Ask a follow-up, or queue a message while T3 finishes…</div>
+              <div class="composerRow">
+                <span class="cChip">Report mode</span>
+                <span class="cChip">quiet: normal</span>
+                <span class="cChip">model · deepseek</span>
+                <button class="send">↑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <ul class="ruleList">
+      <li><b>Answer first.</b> The closing answer of a turn is hoisted to the top of its
+        card; the tape still ends with it, report view leads with it.</li>
+      <li><b>Groups answer “what kind of work, what outcome”.</b> Verb + object + count +
+        duration, status folded into the count (<code>1 failed → 1 passed</code>); the
+        step-span fold grammar of <code>design/chat-span-fold-mockup.html</code> supplies
+        the ranges, this view adds the summary node quiet mode never had.</li>
+      <li><b>Frames re-home, never rewrite.</b> Inside a group row the stock labeled frame —
+        <code>[i/N]</code> header, exit-code marker, purpose line — renders byte-identical,
+        so anything verifiable today stays verifiable.</li>
+      <li><b>Decisions stand.</b> Approvals, user questions and escalated permissions are
+        never folded; they card outside the evidence body with their outcome.</li>
+      <li><b>Live turns degrade gracefully.</b> While a turn runs, the card is a skeleton:
+        groups assemble as spans settle, the answer slot fills at finish.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>2 · Why not just quiet mode <span class="badge">rule</span></h2>
+    <p class="legend">Quiet/Silence suppress rows; report view <b>re-describes</b> them.
+      Suppression is a volume knob — the reader who hides the process also loses the
+      outcome counts, the failed-then-passed run, the files touched. The report is
+      derived state over the same event stream (<code>step/start</code>,
+      <code>tool/result</code>, turn tail), so Normal/quiet/report are three projections
+      of one truth, and the outline rail is the projection of the whole session.
+      Ship order: groups + rail behind the segmented control first (additive), then
+      report as the default once groups cover every tool kind.</p>
+  </section>
+</div>
+
+<script>
+  const stage = document.getElementById('appStage');
+  document.getElementById('viewSeg').addEventListener('click', (e) => {
+    const btn = e.target.closest('.segBtn');
+    if (!btn) return;
+    stage.dataset.view = btn.dataset.view;
+    for (const b of stage.querySelectorAll('.segBtn'))
+      b.setAttribute('aria-pressed', String(b === btn));
+  });
+  document.querySelector('.railList').addEventListener('click', (e) => {
+    const item = e.target.closest('.tItem');
+    if (!item) return;
+    const n = item.querySelector('.n').textContent.toLowerCase();
+    const el = document.getElementById(n);
+    if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  });
+</script>
+</body>
+</html>

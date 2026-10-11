@@ -1,0 +1,563 @@
+<!doctype html>
+<!-- Static + scripted visual mock of the shipped Model Provider rail window
+     (companion of the Agent Note
+     .agents/notes/implemented/feature/2026-10-08-digitalocean-provider-and-model-tuning-rail.md),
+     wearing the shipped product UI instead of an invented one. The $/M
+     block is static text here exactly as in the window, where it is
+     backed by the sessionStats describePricing remote.
+
+     REV 7: prefetch is ADDITIVE-ONLY — Fetch specs never overwrites an
+     existing row: rows keep every edited cell byte-for-byte even when the
+     endpoint re-discovers the same id with different numbers, and only
+     ids the route does not yet list are appended (digitalocean's demo
+     discovery carries the same eleven ids with deliberately different
+     numbers plus one new placeholder id to prove both halves). Write-in
+     cells now validate against the model spec: Temp must parse inside
+     [0,1]; Context/Max parse the Models editor's K/M vocabulary into
+     positive whole counts; Max may not exceed its row's Context; Context
+     may not exceed the route's `maxContextWindow` ceiling (the real
+     llm-pi-ai profile field, set to 391168 for the DO budget). A violated
+     rule paints the cell's wrap border in the error color — following
+     the half-typed draft, so a too-large capacity faults mid-keystroke —
+     with the diagnostic in its title, and commits nothing to the
+     in-memory model; a typed value is data, a commit is a rule-passing
+     value; the shipped surface layers the same validated schema writes
+     on top. Discovered
+     rows missing a capacity adopt the adapter's declared defaults
+     (DEFAULT_CONTEXT_WINDOW 262144 = 256K, DEFAULT_MAX_TOKENS 32768 = 32K).
+
+     Carry-over from rev 6: pricing is static text (in/out/cache read/
+     cache write $/Mtok from the session-stats rate table); the route row
+     carries Format (the `supportedProtocols` union: openai-completions,
+     openai-responses, anthropic-messages; llm-deepseek pins its own),
+     Endpoint (the profile `baseURL` write-in), and API Key (credentials
+     seam: stored keys masked behind their reference name, keyless routes
+     get a paste input + Save storing the derived reference).
+
+     Real facts = the digitalocean rows (DO catalog + session-stats
+     pricing + endpoint + protocol, docs verified 2026-10-01) and the
+     deepseek-official public catalog; openai/anthropic rows and the
+     digitalocean re-discovery numbers are hand-rolled placeholders
+     demonstrated in comments. The brand-dotted row is the viewed
+     session's current model, whose Temp and Effort cells are the live
+     selection; the same cells on other rows hold per-model tunes.
+
+     Shipped-component provenance as before (rev 3–6): TokenEfficiency
+     and SettingsRoot entry/overlay/panel CSS; the efficiency window's
+     fixed-column table under a two-row grouped thead whose colored
+     heads carry scope; primitives Input .wrap write-ins (now with an
+     error border state); ModelSelect trigger/menu/option/check chips;
+     ui-primitives icons verbatim. The :root block is the DO dark
+     theme's resolved --dsw-* alias values (same provenance as
+     design/token-efficiency-redesign-mock.html). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Model Provider — interactive rail window mock, rev 8: provider lead + full-width fixed columns</title>
+<style>
+  :root {
+    --dsw-alias-bg-layer-1: rgb(27, 31, 33);
+    --dsw-alias-bg-layer-2: rgb(32, 36, 38);
+    --dsw-specific-menu: rgb(37, 41, 42);
+    --dsw-alias-bg-mask-1: rgba(0, 0, 0, .24);
+    --dsw-mask-blur: blur(12px);
+    --dsw-elevation-prominent: 0 16px 48px rgba(0, 0, 0, .5);
+    --dsw-alias-interactive-bg-hover: rgba(247, 248, 248, .06);
+    --dsw-alias-border-l2: rgba(247, 248, 248, .12);
+    --dsw-alias-border-l4: rgba(247, 248, 248, .2);
+    --dsw-alias-label-primary: rgb(247, 248, 248);
+    --dsw-alias-label-secondary: rgb(160, 162, 163);
+    --dsw-alias-label-tertiary: rgb(145, 159, 158);
+    --dsw-alias-label-caption: rgb(93, 108, 108);
+    --dsw-alias-brand-primary: rgb(123, 180, 188);
+    --dsw-alias-state-warn-label: rgb(252, 211, 77);
+    --dsw-alias-state-warn-bg: rgba(245, 158, 11, .12);
+    --dsw-alias-state-success-primary: rgb(134, 239, 172);
+    --dsw-alias-state-success-bg: rgba(34, 197, 94, .12);
+    --dsw-alias-state-error-primary: rgb(252, 165, 165);
+  }
+  body { margin: 0; background: rgb(18, 22, 24); color: var(--dsw-alias-label-secondary);
+         font: 13px/20px -apple-system, "Segoe UI", sans-serif; }
+  .scene { display: flex; min-height: 100vh; }
+  .sidebar { width: 216px; background: var(--dsw-alias-bg-layer-1);
+             border-right: .5px solid var(--dsw-alias-border-l2);
+             display: flex; flex-direction: column; }
+  .spacer { flex: 1; }
+  .footColumn { display: flex; flex-direction: column; gap: 4px; padding: 8px; }
+  .entry { display: flex; align-items: center; gap: 8px; width: 100%; height: 42px;
+           margin: 0; padding: 0 10px 0 8px; box-sizing: border-box; border: none;
+           border-radius: 12px; background: transparent;
+           color: var(--dsw-alias-label-primary); font: inherit; font-size: 14px;
+           line-height: 22px; cursor: pointer; overflow: hidden; text-align: left; }
+  .entry:hover, .entry.on { background: var(--dsw-alias-interactive-bg-hover); }
+  .entry svg { flex: none; color: var(--dsw-alias-label-secondary); }
+  .entry.on svg { color: var(--dsw-alias-brand-primary); }
+  .entryLabel { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  main { flex: 1; position: relative; }
+  .chat { opacity: .25; padding: 40px; }
+  .overlay { position: fixed; inset: 0; z-index: 1000; display: flex;
+             align-items: center; justify-content: center; }
+  .mask { position: absolute; inset: 0; background: var(--dsw-alias-bg-mask-1);
+          backdrop-filter: var(--dsw-mask-blur); }
+  .panel { position: relative; z-index: 1; box-sizing: border-box;
+           width: min(1120px, calc(100vw - 48px)); max-height: min(800px, calc(100vh - 48px));
+           overflow: auto; padding: 20px 24px; border: 0; border-radius: 32px;
+           background: var(--dsw-alias-bg-layer-2);
+           box-shadow: var(--dsw-elevation-prominent);
+           color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 20px; }
+  .headTitle { display: flex; justify-content: space-between; align-items: baseline;
+               gap: 16px; color: var(--dsw-alias-label-primary);
+               font-size: 14px; font-weight: 500; }
+  .close { display: inline-flex; align-items: center; justify-content: center;
+           width: 28px; height: 28px; border: none; border-radius: 8px;
+           background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+  .close:hover { background: var(--dsw-alias-interactive-bg-hover);
+                 color: var(--dsw-alias-label-secondary); }
+
+  .pickRow { display: flex; align-items: center; gap: 8px; margin-top: 10px; position: relative; }
+  .routeRow { display: flex; align-items: center; gap: 8px; margin-top: 6px; position: relative; flex-wrap: wrap; }
+  .routeRow .lab { color: var(--dsw-alias-label-tertiary); font-size: 11px;
+                  letter-spacing: .04em; text-transform: uppercase; }
+  .select { display: inline-flex; align-items: center; gap: 6px; height: 28px;
+            padding: 0 8px 0 10px; border: none; border-radius: 24px;
+            background: transparent; color: var(--dsw-alias-label-secondary);
+            font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; }
+  .select:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .select:disabled { opacity: .5; cursor: default; }
+  .select .ic { color: var(--dsw-alias-label-caption); display: inline-flex; }
+  .select .ns { color: var(--dsw-alias-label-caption); font-weight: 400; font-size: 12px; }
+  .menuOpen { display: flex; flex-direction: column; padding: 4px; border: 0;
+              border-radius: 20px; background: var(--dsw-specific-menu);
+              box-shadow: var(--dsw-elevation-prominent);
+              color: var(--dsw-alias-label-primary); }
+  .pickRow > .menuOpen { position: absolute; left: 0; top: 32px; z-index: 5; width: 320px; }
+  .routeRow > .menuOpen { position: absolute; left: 52px; top: 30px; z-index: 6; width: 220px; }
+  .groupTitle { padding: 6px 8px 3px; color: var(--dsw-alias-label-tertiary);
+                font-size: 12px; line-height: 18px; font-weight: 500; }
+  .option { box-sizing: border-box; display: flex; align-items: center; gap: 8px;
+            width: auto; min-width: 100%; min-height: 34px; padding: 5px 8px; border: none;
+            border-radius: 10px; background: transparent; color: inherit;
+            font: inherit; text-align: left; cursor: pointer; }
+  .option:hover { background: var(--dsw-alias-interactive-bg-hover); }
+  .option .copy { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+  .option .name { color: var(--dsw-alias-label-primary); font-size: 14px; line-height: 20px;
+                  font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .option .addr { color: var(--dsw-alias-label-caption); font-size: 11px; line-height: 16px;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .keychip { font-size: 10px; line-height: 16px; padding: 0 6px; border-radius: 8px; white-space: nowrap; }
+  .keychip.ok { color: var(--dsw-alias-state-success-primary); background: var(--dsw-alias-state-success-bg); }
+  .keychip.missing { color: var(--dsw-alias-state-warn-label); background: var(--dsw-alias-state-warn-bg); }
+  .keychip.new { color: var(--dsw-alias-brand-primary); background: rgba(123, 180, 188, .12); }
+  .check { display: grid; place-items: center; flex: 0 0 18px;
+           color: var(--dsw-alias-label-primary); }
+  .fetch { margin-left: auto; }
+
+  .wrap { display: inline-flex; align-items: center; gap: 4px; height: 26px;
+          padding: 0 6px; border: .5px solid var(--dsw-alias-border-l4);
+          border-radius: 8px; background: var(--dsw-alias-bg-layer-1); }
+  .wrap:focus-within { border-color: var(--dsw-alias-brand-primary); }
+  .wrap.bad { border-color: var(--dsw-alias-state-error-primary); }
+  .wrap.wide { height: 28px; }
+  .input { width: 40px; border: none; outline: none; background: transparent;
+           font: inherit; font-size: 12px; line-height: 18px;
+           color: var(--dsw-alias-label-primary); text-align: right;
+           font-variant-numeric: tabular-nums; }
+  .input.url { width: 268px; text-align: left; font-size: 12px; }
+  .input.key { width: 160px; text-align: left; font-size: 12px; }
+  .save { height: 20px; padding: 0 8px; border: none; border-radius: 8px;
+          background: var(--dsw-alias-brand-primary); color: rgb(18, 22, 24);
+          font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .save:disabled { opacity: .5; cursor: default; }
+
+  .table { width: 100%; border-collapse: collapse; table-layout: fixed; margin-top: 12px; }
+  .table th { padding: 0 6px 5px; border-bottom: .5px solid var(--dsw-alias-border-l2);
+              color: var(--dsw-alias-label-tertiary); font-size: 11px; font-weight: 500;
+              letter-spacing: .04em; text-transform: uppercase; text-align: left; }
+  .table th .g { display: inline-block; padding: 0 6px; border-radius: 8px; line-height: 16px; font-size: 10px; }
+  .g.sess { color: var(--dsw-alias-brand-primary); background: rgba(123, 180, 188, .12); }
+  .g.cap { color: var(--dsw-alias-label-tertiary); background: var(--dsw-alias-interactive-bg-hover); }
+  .g.money { color: var(--dsw-alias-state-warn-label); background: var(--dsw-alias-state-warn-bg); }
+  .table td { padding: 5px 6px; border-bottom: .5px solid var(--dsw-alias-border-l2);
+              color: var(--dsw-alias-label-secondary); font-variant-numeric: tabular-nums;
+              overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table .num { text-align: right; }
+  .table .money { color: var(--dsw-alias-label-tertiary); }
+  .cModel { width: 22%; } .cTemp { width: 7%; } .cEffort { width: 11%; }
+  .cCtx { width: 18%; } .cMoney { width: 42%; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+         margin-right: 6px; background: var(--dsw-alias-brand-primary); vertical-align: 1px; }
+  .name { color: var(--dsw-alias-label-primary); }
+  .empty { padding: 18px 10px; text-align: center; color: var(--dsw-alias-label-tertiary); }
+
+  td.effort { overflow: visible; position: relative; }
+  .cellSelect { height: 26px; font-size: 12px; padding: 0 6px 0 8px; }
+  td.effort > .menuOpen { position: absolute; left: 6px; top: 28px; z-index: 6; width: 150px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="scene">
+  <aside class="sidebar">
+    <div class="spacer"></div>
+    <div class="footColumn">
+      <button type="button" class="entry on" aria-haspopup="dialog" aria-expanded="true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.9943 1.92389V3.32428H1.00598V1.92389H14.9943Z" fill="currentColor"/><path d="M14.9943 5.50784V6.90823H1.00598V5.50784H14.9943Z" fill="currentColor"/><path d="M14.9943 9.09177V10.4922H1.00598V9.09177H14.9943Z" fill="currentColor"/><path d="M8.93274 12.6757V14.0761H1.00598V12.6757H8.93274Z" fill="currentColor"/></svg>
+        <span class="entryLabel">Model Provider</span>
+      </button>
+      <button type="button" class="entry" aria-haspopup="dialog" aria-expanded="false">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.49 13.26A6.375 6.375 0 1 1 12.51 13.26" stroke="currentColor" stroke-width="1.25"/><path d="M8 8.75L11.4 5.35" stroke="currentColor" stroke-width="1.25"/><circle cx="8" cy="8.75" r="1.55" fill="currentColor"/></svg>
+        <span class="entryLabel">Efficiency</span>
+      </button>
+      <button type="button" class="entry" aria-haspopup="dialog" aria-expanded="false">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M14.0861 5.51366C13.8717 5.0575 13.588 4.58542 13.2889 4.18108C13.208 4.07172 13.1596 4.04373 13.0243 4.03054C12.4277 3.97255 11.8245 4.05527 11.2269 3.9972C10.7224 3.94816 10.3133 3.71661 10.0115 3.30919C9.66986 2.84777 9.43973 2.31343 9.09824 1.85234C9.01771 1.74365 8.96805 1.71589 8.83354 1.70282C8.29432 1.65044 7.70402 1.65061 7.16656 1.70282C7.03205 1.71589 6.98239 1.74365 6.90186 1.85234C6.56067 2.31303 6.33025 2.84774 5.98855 3.30919C5.68681 3.71661 5.27774 3.94816 4.77317 3.9972C4.17564 4.05527 3.57239 3.97255 2.97585 4.03054C2.84046 4.04373 2.79208 4.07172 2.71115 4.18108C2.41212 4.58542 2.12835 5.0575 1.91403 5.51366C1.85299 5.64359 1.85286 5.7018 1.91403 5.8319C2.14865 6.33077 2.49748 6.76892 2.73237 7.26854C2.9594 7.7515 2.96041 8.24717 2.73338 8.73044C2.49837 9.23061 2.14891 9.66837 1.91403 10.1681C1.85291 10.2982 1.85299 10.3564 1.91403 10.4863C2.12856 10.9429 2.41185 11.4142 2.71115 11.8189C2.79208 11.9283 2.84046 11.9563 2.97585 11.9694C3.57239 12.0274 4.17564 11.9447 4.77317 12.0028C5.27774 12.0518 5.68681 12.2834 5.98855 12.6908C6.33024 13.1522 6.56037 13.6866 6.90186 14.1476C6.98239 14.2563 7.03205 14.2841 7.16656 14.2972C7.70402 14.3494 8.29432 14.3495 8.83354 14.2972C8.96805 14.2841 9.01771 14.2563 9.09824 14.1476C9.43944 13.687 9.66985 13.1522 10.0115 12.6908C10.3133 12.2834 10.7224 12.0518 11.2269 12.0028C11.8244 11.9447 12.4271 12.0275 13.0243 11.9694C13.1596 11.9563 13.208 11.9283 13.2889 11.8189C13.5891 11.4131 13.872 10.942 14.0861 10.4863C14.1471 10.3564 14.1472 10.2982 14.0861 10.1681C13.8513 9.66861 13.5017 9.23061 13.2667 8.73044C13.0397 8.24717 13.0407 7.7515 13.2677 7.26854C13.5026 6.7689 13.8513 6.33106 14.0861 5.8319C14.1472 5.7018 14.1471 5.64359 14.0861 5.51366Z" fill="currentColor"/><path d="M9.13764 7.99999C9.13764 7.3715 8.62855 6.8624 8.00005 6.8624C7.37155 6.8624 6.86246 7.3715 6.86246 7.99999C6.86246 8.62849 7.37155 9.13759 8.00005 9.13759C8.62855 9.13759 9.13764 8.62849 9.13764 7.99999ZM10.4834 7.99999C10.4834 9.37126 9.37132 10.4833 8.00005 10.4833C6.62878 10.4833 5.51674 9.37126 5.51674 7.99999C5.51674 6.62873 6.62878 5.51669 8.00005 5.51669C9.37132 5.51669 10.4834 6.62873 10.4834 7.99999Z" fill="currentColor"/></svg>
+        <span class="entryLabel">Settings</span>
+      </button>
+    </div>
+  </aside>
+  <main>
+    <div class="chat">…the active conversation stays behind the window…</div>
+    <div class="overlay">
+      <div class="mask"></div>
+      <div class="panel" role="dialog" aria-label="Model Provider">
+        <div class="headTitle">
+          <span>Model Provider</span>
+          <button type="button" class="close" aria-label="Close">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.1168 13.197L13.197 14.1167L1.8833 2.80303L2.80309 1.88324L14.1168 13.197Z" fill="currentColor"/><path d="M13.197 1.88326L14.1168 2.80305L2.80309 14.1168L1.8833 13.197L13.197 1.88326Z" fill="currentColor"/></svg>
+          </button>
+        </div>
+
+        <div class="pickRow">
+          <button type="button" class="select" id="providerChip" aria-haspopup="menu" aria-expanded="false">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M12.0997 8.54554C12.2905 8.54989 12.3541 8.58056 12.4535 8.74614L12.8849 9.46387C12.9851 9.63071 13.0464 9.66013 13.2388 9.66447H14.1138C14.3417 9.66448 14.3512 9.66937 14.4686 9.86507L14.892 10.5717C14.9942 10.7422 14.9948 10.8247 14.892 10.9961L14.4756 11.6906C14.3741 11.8677 14.3694 11.9379 14.4756 12.115L14.892 12.8096C14.9942 12.9801 14.9947 13.0625 14.892 13.234L14.4686 13.9406C14.3643 14.1028 14.3063 14.1354 14.1138 14.1412H13.2388C13.0465 14.1456 12.985 14.1752 12.8849 14.3418L12.4535 15.0595C12.353 15.2195 12.2895 15.2558 12.0997 15.2601H11.2237C10.9962 15.2601 10.9871 15.2548 10.8699 15.0595L10.4384 14.3418C10.3383 14.175 10.2767 14.1456 10.0846 14.1412H9.2096C9.01854 14.1355 8.95761 14.1006 8.85477 13.9406L8.43139 13.234C8.32562 13.0576 8.33148 12.9862 8.43139 12.8096L8.84771 12.115C8.95165 11.9416 8.94659 11.863 8.84771 11.6906L8.43139 10.9961C8.32767 10.8232 8.33411 10.7437 8.43139 10.5717L8.85477 9.86507C8.95447 9.69891 9.01875 9.67017 9.2096 9.66447H10.0846C10.2741 9.66441 10.3414 9.62547 10.4384 9.46387L10.8699 8.74614C10.987 8.55106 10.9963 8.54554 11.2237 8.54554H12.0997ZM11.6612 10.232C11.3326 10.7798 10.8155 11.0948 10.1743 11.106C10.4443 11.61 10.4425 12.1976 10.1743 12.6987C10.803 12.7096 11.3391 13.0359 11.6612 13.5727C11.9855 13.0323 12.5131 12.7098 13.148 12.6987C12.879 12.196 12.8789 11.6086 13.148 11.106C12.5076 11.0948 11.9894 10.7794 11.6612 10.232Z" fill="currentColor"/><path fill-rule="evenodd" clip-rule="evenodd" d="M7.51205 0.790627C9.19055 0.790649 10.7401 1.0691 11.892 1.54364C12.4664 1.78029 12.9719 2.07885 13.3436 2.4408C13.7171 2.80467 13.9916 3.27253 13.9918 3.82384V7.90442C13.6067 7.69532 13.1907 7.53597 12.7529 7.43366V5.66454C12.4928 5.82898 12.2028 5.97601 11.892 6.10405C10.74 6.57865 9.19071 6.85706 7.51205 6.85706C5.8337 6.85703 4.285 6.57852 3.13309 6.10405C2.82215 5.97593 2.53164 5.8291 2.27121 5.66454V7.4135C2.27134 7.75678 2.6066 8.27106 3.62502 8.73405C4.58641 9.17097 5.95762 9.45591 7.50499 9.45681C7.24582 9.83133 7.03684 10.2434 6.88706 10.6826C5.44388 10.6162 4.12516 10.3216 3.11192 9.86104C2.81708 9.72698 2.53185 9.56866 2.27121 9.38928V11.2542C2.27158 11.5974 2.60697 12.1109 3.62502 12.5737C4.41933 12.9347 5.4937 13.1898 6.71569 13.2693C6.80349 13.7128 6.9513 14.1345 7.14814 14.5273C5.60324 14.4862 4.18593 14.1889 3.11192 13.7007C2.01039 13.1998 1.03366 12.3814 1.03333 11.2542V3.82384C1.03352 3.27273 1.30721 2.80461 1.68049 2.4408C2.05211 2.07893 2.55887 1.78026 3.13309 1.54364C4.28492 1.06926 5.83393 0.790683 7.51205 0.790627Z" fill="currentColor"/></svg></span>
+            <span id="providerName">digitalocean</span>
+            <span class="ns" id="providerNs">llm-pi-ai</span>
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11.8486 5.5L11.4238 5.92383L8.69727 8.65137C8.44157 8.90706 8.21562 9.13382 8.01172 9.29785C7.79912 9.46883 7.55595 9.61756 7.25 9.66602C7.08435 9.69222 6.91565 9.69222 6.75 9.66602C6.44405 9.61756 6.20088 9.46883 5.98828 9.29785C5.78438 9.13382 5.55843 8.90706 5.30273 8.65137L2.57617 5.92383L2.15137 5.5L3 4.65137L3.42383 5.07617L6.15137 7.80273C6.42595 8.07732 6.59876 8.24849 6.74023 8.3623C6.87291 8.46904 6.92272 8.47813 6.9375 8.48047C6.97895 8.48703 7.02105 8.48703 7.0625 8.48047C7.07728 8.47813 7.12709 8.46904 7.25977 8.3623C7.40124 8.24849 7.57405 8.07732 7.84863 7.80273L10.5762 5.07617L11 4.65137L11.8486 5.5Z" fill="currentColor"/></svg>
+          </button>
+          <button type="button" class="select fetch" id="fetchBtn">
+            <span class="ic"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg"><path transform="translate(0.8 0.8) scale(0.9)" d="M7.92136 0.349152C10.3744 0.349234 12.5564 1.5052 13.9557 3.29894L15.1281 2.12759C15.3303 1.92546 15.6767 2.06943 15.6767 2.35538V5.53923C15.6766 5.71626 15.5329 5.85976 15.3559 5.86002H12.171C11.8854 5.8597 11.7426 5.51465 11.9443 5.31249L12.9641 4.29056C11.8237 2.74305 9.98908 1.74106 7.92136 1.74097C4.46436 1.74097 1.66233 4.543 1.66233 8C1.66233 11.457 4.46436 14.259 7.92136 14.259C11.3782 14.2589 14.1804 11.4569 14.1804 8H15.5722C15.5722 12.2251 12.1465 15.6507 7.92136 15.6508C3.69614 15.6508 0.270508 12.2252 0.270508 8C0.270508 3.77478 3.69614 0.349152 7.92136 0.349152Z" fill="currentColor"/></svg></span>
+            <span id="fetchLabel">Fetch specs</span>
+          </button>
+          <div class="menuOpen" id="providerMenu" role="menu" aria-label="Provider" hidden></div>
+        </div>
+
+        <div class="routeRow" id="routeRow"></div>
+
+        <table class="table" aria-label="route tuning">
+          <thead>
+            <tr>
+              <th class="cModel" rowspan="2">Model</th>
+              <th class="cTemp"><span class="g sess">Session</span></th>
+              <th class="cEffort"><span class="g sess">Tune</span></th>
+              <th class="cCtx" colspan="2"><span class="g cap">Capacity</span></th>
+              <th class="cMoney" colspan="4"><span class="g money">$ / Mtok</span></th>
+            </tr>
+            <tr>
+              <th>Temp</th><th>Effort</th><th>Ctx</th><th>Max</th>
+              <th class="num">in</th><th class="num">out</th><th class="num">rd</th><th class="num">wr</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+<script>
+/* Interactive prototype; every commit lands in the in-memory model.
+   Validation mirrors the shipped schema: temps inside [0,1]; capacities
+   positive whole counts over the K/M vocabulary; max <= that row's ctx;
+   ctx <= the route's maxContextWindow when set. Invalid input paints an
+   error border and commits nothing.
+   Real facts: digitalocean rows (DO catalog + session-stats pricing,
+   endpoint, protocol — docs verified 2026-10-01, route ceiling 391168)
+   and the deepseek-official public catalog. Placeholders (commented):
+   the openai/anthropic rows, and digitalocean's demo "re-discovery",
+   which reports all eleven ids with different numbers plus one new id
+   to prove the additive merge keeps every existing cell untouched. */
+const EFF = {
+  do: ['low', 'high', 'xhigh', 'max'],
+  g: ['off', 'low', 'medium', 'high', 'xhigh', 'max'],
+  ds: ['off', 'low', 'high', 'max'],
+  none: [],
+};
+const PI = ['openai-completions', 'openai-responses', 'anthropic-messages'];
+const DEFAULT_CTX = 262144;
+const DEFAULT_MAX = 32768;
+const DO = (id, ctx, max, eff, rates) => [id, ctx, max, eff, rates, '0.20', 'high'];
+const ROUTES = {
+  digitalocean: { ns: 'llm-pi-ai', api: 'openai-completions', protos: PI,
+    baseURL: 'https://inference.do-ai.run/v1', maxCtx: 391168,
+    keyRef: 'DO_INFERENCE_API_KEY', keyStored: true, keyMask: 'dop_v1_••••••••', models: [
+    DO('glm-5.3-flash', 391168, 32768, EFF.g, [0.15, 0.50, 0.03, 0]),
+    DO('glm-5.3', 391168, 32768, EFF.g, [1.40, 4.40, 0.26, 0]),
+    DO('minimax-m2.5', 65536, 32768, EFF.g, [0.30, 1.20, 0.06, 0]),
+    DO('mimo-v2.5-pro', 391168, 32768, EFF.g, [0.80, 3.00, 0.16, 0]),
+    DO('kimi-k2.6', 391168, 32768, EFF.g, [0.95, 4.00, 0.19, 0]),
+    DO('qwen3.8-max', 391168, 32768, EFF.g, [2.00, 6.00, 0.20, 0]),
+    DO('gemma-4-31B-it', 256000, 8192, EFF.none, [0.18, 0.50, 0.036, 0]),
+    DO('deepseek-v4.1-flash', 391168, 32768, EFF.do, [0.30, 1.20, 0.006, 0]),
+    DO('deepseek-v4-flash-0731', 391168, 32768, EFF.do, [0.14, 0.28, 0.028, 0]),
+    DO('deepseek-v4-pro-0813', 391168, 32768, EFF.g, [1.32, 3.96, 0.044, 0]),
+    DO('deepseek-v4-pro', 391168, 32768, EFF.g, [1.74, 3.48, 0.348, 0]),
+  ],
+  /* Placeholder discovery: same eleven ids with WRONG numbers (must be
+     ignored by the additive merge) plus one genuinely new id. */
+  discovered: [
+    DO('glm-5.3-flash', 131072, 16384, EFF.g, [0.15, 0.50, 0.03, 0]),
+    DO('deepseek-v4-flash-0731', 131072, 16384, EFF.do, [0.14, 0.28, 0.028, 0]),
+    DO('deepseek-r2-flash', 391168, 32768, EFF.do, [0.14, 0.28, 0.028, 0]),
+  ] },
+  'deepseek-official': { ns: 'llm-deepseek', api: 'deepseek', protos: ['deepseek'],
+    baseURL: 'https://api.deepseek.com', keyRef: 'DEEPSEEK_API_KEY', keyStored: true, keyMask: 'sk-••••••••', models: [
+    DO('deepseek-v4-flash', 1048576, 262144, EFF.ds, [0.27, 1.10, 0.027, 0.27]),
+    DO('deepseek-v4-pro', 1048576, 262144, EFF.ds, [0.27, 1.10, 0.027, 0.27]),
+  ], discovered: [] },
+  openai: { ns: 'llm-pi-ai', api: 'openai-responses', protos: PI,
+    baseURL: 'https://api.openai.com/v1', keyRef: 'OPENAI_API_KEY', keyStored: false, keyMask: '', models: null,
+    /* Placeholder discovery demonstrating first adoption + defaults for
+       capacities the endpoint does not disclose. */
+    discovered: [
+      ['gpt-4.1', 1048576, 32768, ['low', 'medium', 'high'], [2, 8, 0.50, 2], '0.20', 'high'],
+      ['gpt-4.1-mini', null, null, ['low', 'medium', 'high'], [0.40, 1.60, 0.10, 0.40], '0.20', 'high'],
+    ] },
+  anthropic: { ns: 'llm-pi-ai', api: 'anthropic-messages', protos: PI,
+    baseURL: 'https://api.anthropic.com', keyRef: 'ANTHROPIC_API_KEY', keyStored: false, keyMask: '', models: null,
+    discovered: [
+      ['claude-sonnet-4-5', 204800, 65536, ['low', 'high', 'max'], [3, 15, 0.30, 3.75], '0.20', 'high'],
+    ] },
+};
+const SESSION = { provider: 'digitalocean', model: 'deepseek-v4-flash-0731', temp: '0.20', effort: 'high' };
+let current = 'digitalocean';
+const $ = (s) => document.querySelector(s);
+const tbody = $('#rows');
+const routeRow = $('#routeRow');
+const CHEV = '<svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M11.8486 5.5L11.4238 5.92383L8.69727 8.65137C8.44157 8.90706 8.21562 9.13382 8.01172 9.29785C7.79912 9.46883 7.55595 9.61756 7.25 9.66602C7.08435 9.69222 6.91565 9.69222 6.75 9.66602C6.44405 9.61756 6.20088 9.46883 5.98828 9.29785C5.78438 9.13382 5.55843 8.90706 5.30273 8.65137L2.57617 5.92383L2.15137 5.5L3 4.65137L3.42383 5.07617L6.15137 7.80273C6.42595 8.07732 6.59876 8.24849 6.74023 8.3623C6.87291 8.46904 6.92272 8.47813 6.9375 8.48047C6.97895 8.48703 7.02105 8.48703 7.0625 8.48047C7.07728 8.47813 7.12709 8.46904 7.25977 8.3623C7.40124 8.24849 7.57405 8.07732 7.84863 7.80273L10.5762 5.07617L11 4.65137L11.8486 5.5Z" fill="currentColor"/></svg>';
+const CHECK = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M15.0498 3.92579L8.49512 12.3818C8.25774 12.6881 8.04517 12.9645 7.84668 13.1689C7.63957 13.3823 7.38732 13.5841 7.04492 13.6719C6.86373 13.7183 6.6757 13.7346 6.48926 13.7197C6.13666 13.6915 5.8528 13.5355 5.6123 13.3604C5.38201 13.1926 5.12573 12.9567 4.83984 12.6953L1.03125 9.21289L1.96875 8.1875L5.77734 11.6699C6.08684 11.9529 6.27773 12.1249 6.43066 12.2363C6.50183 12.2882 6.54699 12.3135 6.57324 12.3252C6.58525 12.3305 6.59269 12.3322 6.5957 12.333C6.59802 12.3336 6.59961 12.334 6.59961 12.334C6.63317 12.3367 6.66758 12.3335 6.7002 12.3252C6.7002 12.3252 6.70211 12.3251 6.7041 12.3242C6.70698 12.3229 6.71348 12.319 6.72461 12.3115C6.74849 12.2956 6.78843 12.2642 6.84961 12.2012C6.98138 12.0654 7.13957 11.8628 7.39648 11.5313L13.9502 3.07422L15.0498 3.92579Z" fill="currentColor"/></svg>';
+
+function fmtCap(n) {
+  if (n >= 1048576 && n % 1048576 === 0) return `${n / 1048576}M`;
+  if (n >= 1024 && n % 1024 === 0) return `${n / 1024}K`;
+  return String(n);
+}
+function parseCap(text) {
+  const m = /^\s*(\d+(?:\.\d+)?)\s*([kKmM])?\s*$/.exec(text);
+  if (!m) return undefined;
+  const n = Math.round(Number(m[1]) * (m[2] === 'k' || m[2] === 'K' ? 1024 : m[2] === 'm' || m[2] === 'M' ? 1048576 : 1));
+  return Number.isInteger(n) && n > 0 ? n : undefined;
+}
+function rowErrors(route, model) {
+  const errs = {};
+  const t = Number(model[5]);
+  if (!Number.isFinite(t) || t < 0 || t > 1) errs.temp = 'temperature must parse inside 0–1';
+  const ctx = parseCap(String(model[1]));
+  if (ctx === undefined) errs.ctx = 'capacity needs a whole number, optionally suffixed K or M';
+  else if (route.maxCtx !== undefined && ctx > route.maxCtx) errs.ctx = `exceeds the route ceiling ${fmtCap(route.maxCtx)}`;
+  const max = parseCap(String(model[2]));
+  if (max === undefined) errs.max = 'capacity needs a whole number, optionally suffixed K or M';
+  else if (ctx !== undefined && max > ctx) errs.max = 'max completion cannot exceed this model\'s context window';
+  return errs;
+}
+
+function renderMenu() {
+  const groups = [
+    ['llm-pi-ai · settings ns providers.*', ['digitalocean', 'openai', 'anthropic']],
+    ['llm-deepseek', ['deepseek-official']],
+  ];
+  $('#providerMenu').innerHTML = groups.map(([title, ids]) =>
+    `<div class="groupTitle">${title}</div>` + ids.map(id => {
+      const r = ROUTES[id];
+      return `<button type="button" class="option" role="menuitemradio" aria-checked="${id === current}" data-provider="${id}" data-ns="${r.ns}">
+        <span class="copy"><span class="name">${id}</span><span class="addr">providers.${id} · ${r.keyRef}</span></span>
+        <span class="keychip ${r.keyStored ? 'ok' : 'missing'}">${r.keyStored ? 'key stored' : 'key missing'}</span>
+        <span class="check">${id === current ? CHECK : ''}</span>
+      </button>`;
+    }).join('')).join('');
+}
+
+function renderRouteRow() {
+  const r = ROUTES[current];
+  const formatFixed = r.protos.length <= 1;
+  routeRow.innerHTML = `
+    <span class="lab">Format</span>
+    <button type="button" class="select" id="formatChip" ${formatFixed ? 'disabled' : ''} aria-haspopup="menu" aria-expanded="false">${r.api}${formatFixed ? '' : CHEV}</button>
+    <div class="menuOpen" id="formatMenu" role="menu" aria-label="Wire format" hidden>
+      ${r.protos.map(p => `<button type="button" class="option" role="menuitemradio" aria-checked="${p === r.api}" data-format="${p}"><span class="name">${p}</span><span class="check">${p === r.api ? CHECK : ''}</span></button>`).join('')}
+    </div>
+    <span class="lab">Endpoint</span>
+    <span class="wrap wide"><input class="input url" id="urlInput" value="${r.baseURL}" aria-label="Endpoint" /></span>
+    <span class="lab">API key</span>
+    <span class="wrap wide">${r.keyStored
+      ? `<input class="input key" readonly value="${r.keyMask}" aria-label="Stored API key" /><span class="keychip ok">stored · ${r.keyRef}</span>`
+      : `<input class="input key" id="keyInput" placeholder="paste ${r.keyRef}" aria-label="API key" /><button type="button" class="save" id="keySave">Save</button>`}</span>`;
+}
+
+function renderRows() {
+  const route = ROUTES[current];
+  const models = route.models;
+  if (!models || models.length === 0) {
+    tbody.innerHTML = '<tr><td class="empty" colspan="9">No profile rows for this route yet — Fetch specs to adopt the endpoint catalog.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = models.map((m, i) => {
+    const isSession = current === SESSION.provider && m[0] === SESSION.model;
+    const temp = isSession ? SESSION.temp : m[5];
+    const effort = isSession ? SESSION.effort : m[6];
+    const errs = rowErrors(route, m);
+    const effortCell = m[3].length === 0
+      ? '<span class="select cellSelect" aria-disabled="true">—</span>'
+      : `<button type="button" class="select cellSelect" data-row="${i}" aria-haspopup="menu" aria-expanded="false">${effort}${CHEV}</button>`;
+    const money = m[4].map(v => `<td class="num money">${v === 0 ? '0' : String(v)}</td>`).join('');
+    return `<tr>
+      <td class="name">${isSession ? '<span class="dot"></span>' : ''}${m[0]}</td>
+      <td><span class="wrap${errs.temp ? ' bad' : ''}"${errs.temp ? ` title="${errs.temp}"` : ''}><input class="input" data-row="${i}" data-temp value="${temp}" /></span></td>
+      <td class="effort">${effortCell}</td>
+      <td><span class="wrap${errs.ctx ? ' bad' : ''}"${errs.ctx ? ` title="${errs.ctx}"` : ''}><input class="input" data-row="${i}" data-cap data-field="1" data-captext value="${fmtCap(m[1])}" /></span></td>
+      <td><span class="wrap${errs.max ? ' bad' : ''}"${errs.max ? ` title="${errs.max}"` : ''}><input class="input" data-row="${i}" data-cap data-field="2" data-captext value="${fmtCap(m[2])}" /></span></td>
+      ${money}
+    </tr>`;
+  }).join('');
+}
+
+function paintRowErrors(tr, errs) {
+  const wraps = tr.querySelectorAll(':scope > td .wrap');
+  const setErr = (el, msg) => { el.classList.toggle('bad', Boolean(msg)); if (msg) el.title = msg; else el.removeAttribute('title'); };
+  setErr(wraps[0], errs.temp);
+  setErr(wraps[1], errs.ctx);
+  setErr(wraps[2], errs.max);
+}
+
+function renderAll() { renderMenu(); renderRouteRow(); renderRows(); }
+
+function closeAllMenus() {
+  document.querySelectorAll('.menuOpen[role=menu]').forEach(m => { m.hidden = true; });
+  document.querySelectorAll('[aria-haspopup=menu]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+$('#providerChip').addEventListener('click', () => {
+  const menu = $('#providerMenu');
+  const open = menu.hidden;
+  closeAllMenus();
+  menu.hidden = !open;
+  $('#providerChip').setAttribute('aria-expanded', String(open));
+});
+$('#providerMenu').addEventListener('click', (e) => {
+  const opt = e.target.closest('.option[data-provider]');
+  if (!opt) return;
+  current = opt.dataset.provider;
+  $('#providerName').textContent = current;
+  $('#providerNs').textContent = opt.dataset.ns;
+  closeAllMenus();
+  renderAll();
+});
+
+routeRow.addEventListener('click', (e) => {
+  if (e.target.closest('#formatChip')) {
+    const menu = $('#formatMenu');
+    const open = menu.hidden;
+    closeAllMenus();
+    menu.hidden = !open;
+    $('#formatChip').setAttribute('aria-expanded', String(open));
+    return;
+  }
+  const pick = e.target.closest('[data-format]');
+  if (pick) {
+    ROUTES[current].api = pick.dataset.format;
+    closeAllMenus();
+    renderRouteRow();
+    return;
+  }
+  if (e.target.closest('#keySave')) {
+    const v = $('#keyInput').value.trim();
+    if (!v) return;
+    const r = ROUTES[current];
+    r.keyStored = true;
+    r.keyMask = v.slice(0, 7) + '••••••••';
+    renderRouteRow(); renderMenu();
+  }
+});
+routeRow.addEventListener('input', (e) => {
+  if (e.target.id === 'urlInput') ROUTES[current].baseURL = e.target.value;
+});
+
+tbody.addEventListener('click', (e) => {
+  const chip = e.target.closest('.cellSelect[data-row]');
+  if (!chip) return;
+  const td = chip.closest('td');
+  const open = !td.querySelector('.menuOpen');
+  document.querySelectorAll('td.effort .menuOpen').forEach(m => m.remove());
+  document.querySelectorAll('.cellSelect').forEach(b => b.setAttribute('aria-expanded', 'false'));
+  if (!open) return;
+  const row = Number(chip.dataset.row);
+  const model = ROUTES[current].models[row];
+  const isSession = current === SESSION.provider && model[0] === SESSION.model;
+  const effort = isSession ? SESSION.effort : model[6];
+  const menu = document.createElement('div');
+  menu.className = 'menuOpen'; menu.setAttribute('role', 'menu');
+  menu.innerHTML = model[3].map(lvl =>
+    `<button type="button" class="option" role="menuitemradio" aria-checked="${lvl === effort}" data-effort="${lvl}"><span class="name">${lvl}</span><span class="check">${lvl === effort ? CHECK : ''}</span></button>`).join('');
+  menu.addEventListener('click', (ev) => {
+    const pick = ev.target.closest('[data-effort]');
+    if (!pick) return;
+    if (isSession) SESSION.effort = pick.dataset.effort; else model[6] = pick.dataset.effort;
+    chip.firstChild.textContent = pick.dataset.effort;
+    menu.remove(); chip.setAttribute('aria-expanded', 'false');
+  });
+  td.appendChild(menu);
+  chip.setAttribute('aria-expanded', 'true');
+});
+tbody.addEventListener('input', (e) => {
+  const t = e.target;
+  const route = ROUTES[current];
+  const model = ROUTES[current].models?.[Number(t.dataset.row)];
+  if (!model) return;
+  const isSession = current === SESSION.provider && model[0] === SESSION.model;
+  // Rules judge a scratch copy holding the half-typed value; a passing
+  // draft commits, a failing one commits nothing, and the error border
+  // always follows the draft either way.
+  const scratch = [...model];
+  if (isSession) scratch[5] = SESSION.temp;
+  if (t.hasAttribute('data-temp')) scratch[5] = t.value;
+  if (t.hasAttribute('data-cap')) {
+    scratch[Number(t.dataset.field)] = t.hasAttribute('data-captext')
+      ? t.value : fmtCap(model[Number(t.dataset.field)]);
+  }
+  const errs = rowErrors(route, scratch);
+  if (t.hasAttribute('data-temp') && errs.temp === undefined && t.value.trim() !== '') {
+    if (isSession) SESSION.temp = t.value; else model[5] = t.value;
+  }
+  if (t.hasAttribute('data-cap') && errs[t.dataset.field === '1' ? 'ctx' : 'max'] === undefined) {
+    model[Number(t.dataset.field)] = parseCap(t.value);
+  }
+  paintRowErrors(t.closest('tr'), errs);
+});
+
+$('#fetchBtn').addEventListener('click', () => {
+  const route = ROUTES[current];
+  const btn = $('#fetchBtn');
+  btn.disabled = true;
+  $('#fetchLabel').textContent = 'Fetching…';
+  setTimeout(() => {
+    /* Additive merge: existing rows stay byte-for-byte (the endpoint's
+       numbers for known ids are ignored); only unknown ids append, with
+       schema defaults where the endpoint stayed silent. */
+    const models = route.models ?? [];
+    const known = new Set(models.map(m => m[0]));
+    const fresh = (route.discovered ?? [])
+      .filter(d => !known.has(d[0]))
+      .map(d => [d[0], d[1] ?? DEFAULT_CTX, d[2] ?? DEFAULT_MAX, d[3], d[4], d[5] ?? '0.20', d[6] ?? 'high']);
+    route.models = [...models, ...fresh];
+    $('#fetchLabel').textContent = 'Fetch specs';
+    btn.disabled = false;
+    renderRows();
+  }, 300);
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.pickRow') && !e.target.closest('td.effort') && !e.target.closest('.routeRow')) closeAllMenus();
+});
+
+renderAll();
+</script>
+</body>
+</html>
