@@ -13,6 +13,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Context } from '@deepseek-ai/cordis'
 import { sessionCostProjectionDefinition } from './cost-projection.ts'
 import { sessionStatsProjectionDefinition } from './projection.ts'
+import { SessionStatsPricingController } from './pricing.ts'
 
 export type * from './types.ts'
 
@@ -75,7 +76,11 @@ export function apply(ctx: Context, config: Config = {}): void {
   const pricing = config.pricing
   // Schemastery's object coercion can leave an absent `pricing` as an empty
   // shell; an empty object has no rates and must stay unregistered.
-  if (pricing !== undefined && Object.keys(pricing).length > 0) {
-    ctx.sessionProjections.register(sessionCostProjectionDefinition(pricing))
+  const effective = pricing !== undefined && Object.keys(pricing).length > 0 ? pricing : undefined
+  if (effective !== undefined) {
+    ctx.sessionProjections.register(sessionCostProjectionDefinition(effective))
   }
+  // The configuration read of that same table; an absent table answers
+  // absent rather than fabricated.
+  void new SessionStatsPricingController(ctx, { pricing: effective })
 }
