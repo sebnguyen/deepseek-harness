@@ -1,0 +1,54 @@
+{
+  "extends": "../../../tsconfig.base.client.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/schemastery"
+    },
+    {
+      "path": "../../core/agent-loop"
+    },
+    {
+      "path": "../../settings/settings"
+    },
+    {
+      "path": "../../core/tools"
+    },
+    {
+      "path": "../../llm/llm"
+    },
+    {
+      "path": "../store"
+    },
+    {
+      "path": "../ui-chat"
+    },
+    {
+      "path": "../ui-settings"
+    },
+    {
+      "path": "../ui-primitives"
+    },
+    {
+      "path": "../ui-renderer"
+    },
+    {
+      "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-slots"
+    },
+    {
+      "path": "../ui-tool"
+    }
+  ]
+}

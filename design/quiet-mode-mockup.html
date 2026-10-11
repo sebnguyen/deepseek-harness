@@ -1,0 +1,123 @@
+<!doctype html>
+<!-- Static visual mock v2: QUIET MODE as shipped. Nothing is hidden.
+     Working steps are grammar-forced tool-only (tool_choice required +
+     empty-object response_format); quiet_finish is the stop branch; the
+     step after it is the finish one-shot (tool_choice none, no schema) that
+     generates only thinking and the closing answer. Empty answer content
+     renders no row at all (stock AssistantNodeView guard). Thoughts keep
+     the stock fold. No summary node exists anywhere. Same palette as
+     chat-span-fold-mockup.html so the drafts read as one product. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quiet Mode v2 — transcript draft</title>
+<style>
+  :root {
+    --bg: #ffffff; --page: #f7f8fa; --ink: #1d2129; --ink-2: #4e5969;
+    --ink-3: #86909c; --ink-4: #c9cdd1; --line: #e5e6eb; --accent: #4d6bfe;
+    --hover: #f2f3f5; --green: #00b42a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink);
+         font: 15px/1.75 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 768px; margin: 0 auto; padding: 24px 20px 120px; background: var(--bg); min-height: 100vh; box-shadow: 0 0 0 1px var(--line); }
+  .page-note { color: var(--ink-3); font-size: 13px; margin: 0 0 8px; }
+  h2 { font-size: 14px; color: var(--ink-2); margin: 34px 0 6px; font-weight: 600; }
+  .legend { color: var(--ink-3); font-size: 12.5px; margin: 0 0 14px; }
+  .legend code { background: var(--hover); border-radius: 4px; padding: 0 4px; font-size: 12px; }
+
+  .user { display: flex; justify-content: flex-end; margin: 18px 0; }
+  .user p { margin: 0; max-width: 70%; padding: 10px 14px; background: var(--hover); border-radius: 14px 14px 2px 14px; }
+  .turn { margin: 4px 0 30px; }
+
+  .composer { border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; margin: 14px 0 26px; background: var(--bg); }
+  .composer .area { color: var(--ink-4); font-size: 13px; min-height: 30px; }
+  .composer .row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .btn { border: 0; border-radius: 999px; padding: 2px 12px; font-size: 12px; cursor: pointer; }
+  .btn.on { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--hover); color: var(--ink-2); }
+  .row .grow { flex: 1; }
+
+  .stephead { display: flex; align-items: center; gap: 8px; margin: 14px 0 2px; color: var(--ink-4); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+  .stephead::after { content: ""; flex: 1; border-top: 1px dashed var(--line); }
+
+  .tool { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; color: var(--ink-2); font-size: 13px; }
+  .tool:hover { background: var(--hover); }
+  .tool .glyph { width: 20px; height: 20px; border-radius: 6px; flex: none; display: grid; place-items: center; background: var(--hover); color: var(--ink-3); font-size: 11px; }
+  .tool .sub { color: var(--ink-4); margin-left: auto; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .tool .ok { color: var(--green); font-size: 11px; }
+
+  .thought { padding: 3px 8px; color: var(--ink-3); font-size: 13px; font-style: italic; }
+  .thought::before { content: "◦ "; color: var(--ink-4); font-style: normal; }
+  .fold { display: inline-flex; gap: 6px; align-items: center; color: var(--ink-3); font-size: 13px; }
+  .fold .chev { font-size: 10px; }
+
+  .skip { color: var(--ink-4); font-size: 12px; font-style: italic; padding: 2px 8px; }
+  .skip code { background: var(--hover); border-radius: 4px; padding: 0 4px; }
+
+  .msg { margin: 2px 0 14px; }
+  .msg p { margin: 0; }
+  .msg code { background: var(--hover); border-radius: 4px; padding: 1px 5px; font-size: 13px; }
+
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 10px 0 8px; }
+  .card-title { font-size: 12px; color: var(--ink-3); margin: 0 0 8px; }
+  .code { margin: 0; padding: 10px 12px; background: var(--hover); border-radius: 8px; font: 12px/1.6 ui-monospace, Menlo, monospace; color: var(--ink-2); overflow-x: auto; }
+  .code b { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <p class="page-note"><b>Nothing hidden — enforced.</b> Working steps are tool-only by grammar; the stop is a tool; the turn closes with a tool-free one-shot whose answer is the closing message; empty answer rows render nothing; thoughts ride the stock fold.</p>
+
+  <h2>1 · The toggle: conversation.input.right</h2>
+  <p class="legend">Primitives <code>Button</code> (primary when on, toolbar when off, <code>IconThinkOutline16</code>), rendered on the composer row left of model selection (<code>InputBar.tsx:522-523</code>). Same control family as the model seat.</p>
+  <div class="composer">
+    <div class="area">Ask anything…</div>
+    <div class="row">
+      <button class="btn on">⧠ Quiet</button>
+      <button class="btn ghost">deepseek-chat · high ▾</button>
+      <button class="btn ghost">temp ▾</button>
+      <span class="grow"></span>
+      <button class="btn ghost">send ↑</button>
+    </div>
+  </div>
+
+  <h2>2 · A quiet turn, end to end</h2>
+  <p class="legend">Reasoning rows fold (stock span folds). Tool rows ride their stock cards. An answer row whose text is empty — or the grammar's <code>{}</code> — draws <b>no row at all</b>. The stop and the closing answer are separate steps.</p>
+  <div class="user"><p>Why does the loader page forward and how do I fix it?</p></div>
+  <div class="turn">
+    <div class="stephead">step 1</div>
+    <div class="fold"><span class="chev">▸</span><span class="thought">cursor math first — the query is innocent until proven otherwise</span></div>
+    <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">rg 'offset \\+ limit' apps/web/src · 3 hits</span> <span class="ok">✓</span></div>
+    <div class="skip">content: empty → no row (stock guard, mode-independent)</div>
+
+    <div class="stephead">step 2</div>
+    <div class="fold"><span class="chev">▸</span><span class="thought">tail-anchor fixes the forward-page race</span></div>
+    <div class="tool"><span class="glyph">✎</span> edit <span class="sub">session-loader.ts</span> <span class="ok">✓</span></div>
+    <div class="tool"><span class="glyph">⌘</span> bash <span class="sub">pnpm exec vitest run loader · 21 passed</span> <span class="ok">✓</span></div>
+
+    <div class="stephead">the stop</div>
+    <div class="tool"><span class="glyph">⏹</span> quiet_finish <span class="sub">stock tool card · flips the finish flag</span></div>
+
+    <div class="stephead">finish one-shot · tool_choice: none</div>
+    <div class="fold"><span class="chev">▸</span><span class="thought">wrap it: found, changed, verified</span></div>
+    <div class="msg"><p>The loader pages forward but rows append at the tail, so page 2 raced new rows. The cursor now anchors to the tail in <code>session-loader.ts</code>; 21 loader tests pass.</p></div>
+  </div>
+
+  <h2>3 · The two request shapes</h2>
+  <div class="card">
+    <p class="card-title">working step — straight from reasoning into tool calls</p>
+    <pre class="code">{ <b>"tool_choice"</b>: "required",
+  <b>"response_format"</b>: { "type": "json_schema", "json_schema": { "strict": true,
+      "schema": { "type": "object", "properties": {}, "additionalProperties": false } } },
+  "thinking": { "type": "enabled" } }</pre>
+  </div>
+  <div class="card">
+    <p class="card-title">finish step — no schema, no constraint: only thinking + answer</p>
+    <pre class="code">{ <b>"tool_choice"</b>: "none", "thinking": { "type": "enabled" } }</pre>
+  </div>
+  <p class="legend">Never ship <code>tool_choice: "auto"</code> together with <code>response_format</code> — some OpenAI-compat stacks suppress the tool call and answer JSON instead.</p>
+</main>
+</body>
+</html>

@@ -1,0 +1,159 @@
+/* Sidebar harness guide: a trigger in the column, and a portaled popover
+   for the roster. The session list stays in the column. One card per snap
+   view; manual scroll only. Hairline cards on the l1 layer mirror the
+   settings sections' card treatment. */
+
+.root {
+  flex: none;
+  min-width: 0;
+  width: 100%;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  margin: 0;
+  padding: 0 10px 0 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.trigger:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.trigger.rail {
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.triggerLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(360px, calc(100vw - 48px));
+  max-height: min(640px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 16px;
+  border-radius: 24px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-elevation-prominent);
+  color: var(--dsw-alias-label-primary);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 2px;
+}
+
+.title {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.lede {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Vertical carousel: the strip holds ~two card views and snaps one card
+   per view; the wheel/track scroll is the only control. */
+.strip {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 236px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  padding: 2px;
+}
+
+.card {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  box-sizing: border-box;
+  height: 110px;
+  padding: 10px;
+  border: 0.5px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-layer-1);
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.cardIcon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  color: var(--dsw-alias-brand-primary);
+  background: rgba(123, 180, 188, 0.12);
+}
+
+.cardText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cardTitle {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.cardDescription {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+}
