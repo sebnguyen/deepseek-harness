@@ -168,6 +168,20 @@ describe('Changes display', () => {
     expect(await screen.findByText(t('meta', { turn: 1, tool: 'write', call: 'c1', time: when(1) }))).toBeDefined()
   })
 
+  it('deep-links a mid-burst call id onto the tick that merged it', async () => {
+    const setDrafts: string[] = []
+    const stops: FileStop[] = [
+      { seq: 1, time: 1, callId: 'c1', toolName: 'write', turn: 1, step: 0, after: 'sha256:a' },
+      {
+        seq: 3, time: 3, callId: 'c3', toolName: 'write', turn: 2, step: 0, purpose: 'burst end',
+        before: 'sha256:a', after: 'sha256:b', callIds: ['c2', 'c3'],
+      },
+    ]
+    render(createElement(Harness, { stops, setDrafts, params: { display: 'changes', stop: 'c2' } }))
+    expect(await screen.findByText(t('meta', { turn: 2, tool: 'write', call: 'c3', time: when(3) }))).toBeDefined()
+    expect(screen.getByText('burst end')).toBeDefined()
+  })
+
   it('matches register keys when the tab address carries the absolute path', async () => {
     const setDrafts: string[] = []
     render(createElement(Harness, { stops: stopFixture(), setDrafts, absolute: true }))

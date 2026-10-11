@@ -52,6 +52,13 @@ export interface ModelsOperations {
    */
   removeCredential(ref: string): Promise<string | undefined>
   /**
+   * Reveal one stored credential value at the user's explicit request, so the
+   * card can show the key it would replace.
+   * @param ref - credential reference name.
+   * @returns the stored value, or undefined when unconfigured or refused.
+   */
+  revealCredential(ref: string): Promise<string | undefined>
+  /**
    * Apply path operations to one settings namespace.
    * @param ns - settings namespace identity.
    * @param ops - ordered path operations against the stored section, as the
@@ -92,6 +99,10 @@ export function createModelsOperations(ctx: ClientContext): ModelsOperations {
     removeCredential: async (ref) => {
       const response = await ctx.remote.credentials.unset(ref)
       return response.ok ? undefined : response.error.message
+    },
+    revealCredential: async (ref) => {
+      const response = await ctx.remote.credentials.reveal(ref)
+      return response.ok ? response.value.value : undefined
     },
     writeSettings: async (ns, ops, expectedRevision) => {
       const response = await ctx.remote.settings.mutate(ns, ops, expectedRevision)

@@ -20,6 +20,11 @@ export const AssistantNodeView = memo(function AssistantNodeView({
     () => owner === undefined ? undefined : fileMentions(owner),
     [fileMentions, owner],
   )
+  const replyText = data.blocks
+    .map(block => (block.kind === 'text' ? block.text : ''))
+    .join('')
+    .trim()
+  if ((replyText === '' || replyText === '{}') && owner === undefined) return null
   return (
     <AssistantMarkdown
       blocks={data.blocks}

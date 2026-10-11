@@ -31,6 +31,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      */
     'sidebar.panellist': { kind: 'list'; scope: 'root'; owner: SidebarPanelIconOwnerProps }
     /**
+     * Harness-guide trigger between the browsing region and the foot: the
+     * shell supplies the stack site and column state; the registrant owns
+     * a trigger that opens the capability roster in a popover. The session
+     * list stays in `sidebar.workspaces`.
+     */
+    'sidebar.guide': { kind: 'single'; scope: 'root'; owner: SidebarGuideOwnerProps }
+    /**
      * The workspace/session browsing region: section header, search, the
      * grouped/flat session list, and every workspace dialog. Declared by this
      * package's 'sidebar' entry (declaring is claiming); ui-workspace
@@ -92,6 +99,12 @@ export interface SidebarSectionOwnerProps {
   expandSidebar: () => void
 }
 
+/** Owner share of the sidebar guide seat: the column display state. */
+export interface SidebarGuideOwnerProps {
+  /** Whether the sidebar renders wide content (false = 56px rail). */
+  wide: boolean
+}
+
 /**
  * Owner share of the sidebar settings seat: the column display state the
  * occupant's trigger row must render against (wide row vs rail icon).
@@ -138,6 +151,7 @@ export type SidebarRootComponentProps =
     | 'sidebar.brand.name'
     | 'sidebar.panellist'
     | 'sidebar.workspaces'
+    | 'sidebar.guide'
     | 'sidebar.settings'
     | 'sidebar.footer.action'
   >

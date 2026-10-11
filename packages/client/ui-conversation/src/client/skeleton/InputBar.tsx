@@ -17,7 +17,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChangeEvent, CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
+  IconPaperclipOutline16, IconPlusOutline16, IconWarningOutline16, Toast, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 // Type-only: the `plan` projection key merge (the TodoDock posture — the
 // composer reads a host-computed value; the domain owns the key).
@@ -143,6 +143,31 @@ export const InputBar = memo(function InputBar({
   const steeringAvailable = subagent === null || subagent.address.mode === 'continuable'
   const canSteerQueue = !locked && !machineBusy && !commandMenuOpen && empty && running && steeringAvailable
     && input.queue.some(row => row.placement === 'queued')
+
+  // The tuning popover folds the rarely-changed seats (access, plan,
+  // temperature, step pace) off the shelf; outside click / Escape close, and a
+  // lock dismisses it (the ContextMeter panel's pattern).
+  const tuneRef = useRef<HTMLDivElement | null>(null)
+  const [tuneOpen, setTuneOpen] = useState(false)
+  useEffect(() => {
+    if (locked && tuneOpen) setTuneOpen(false)
+  }, [locked, tuneOpen])
+  useEffect(() => {
+    if (!tuneOpen) return
+    const onPointerDown = (e: PointerEvent): void => {
+      if (e.target instanceof Node && tuneRef.current?.contains(e.target) === true) return
+      setTuneOpen(false)
+    }
+    const onKeyDown = (e: globalThis.KeyboardEvent): void => {
+      if (e.key === 'Escape') setTuneOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [tuneOpen])
 
   useEffect(() => {
     if (input === undefined || inputActions === undefined) return
@@ -486,20 +511,34 @@ export const InputBar = memo(function InputBar({
         </div>
         <div className={css.row}>
           <div className={css.tools}>
-            <Tooltip label={t('input.commands')} side="top" delayMs={500}>
-              <button
-                type="button"
-                className={css.add}
-                aria-label={t('input.commands')}
-                aria-haspopup="listbox"
-                aria-expanded={commandMenuOpen}
-                disabled={locked || toggleCommandMenu === undefined}
-                onMouseDown={keepFocus}
-                onClick={onToggleCommandMenu}
-              >
-                <IconPlusOutline16 size={14} />
-              </button>
-            </Tooltip>
+            <div className={css.tray}>
+              <Tooltip label={t('input.commands')} side="top" delayMs={500}>
+                <button
+                  type="button"
+                  className={css.add}
+                  aria-label={t('input.commands')}
+                  aria-haspopup="listbox"
+                  aria-expanded={commandMenuOpen}
+                  disabled={locked || toggleCommandMenu === undefined}
+                  onMouseDown={keepFocus}
+                  onClick={onToggleCommandMenu}
+                >
+                  <IconPlusOutline16 size={14} />
+                </button>
+              </Tooltip>
+              <Tooltip label={t('input.attach')} side="top" delayMs={500} disabled={!canAcceptDrop}>
+                <button
+                  type="button"
+                  className={css.add}
+                  aria-label={t('input.attach')}
+                  disabled={!canAcceptDrop}
+                  onMouseDown={keepFocus}
+                  onClick={() => { fileInputRef.current?.click() }}
+                >
+                  <IconPaperclipOutline16 size={14} />
+                </button>
+              </Tooltip>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -508,10 +547,6 @@ export const InputBar = memo(function InputBar({
               hidden
               onChange={onPickFiles}
             />
-            <div className={css.modes}>
-              {accessSelect}
-              {sessionId === undefined ? null : renderSlot('conversation.input.plan', { locked })}
-            </div>
             {input === undefined || sessionId === undefined
               ? null
               : renderSlot('conversation.input.left', {})}
@@ -520,10 +555,41 @@ export const InputBar = memo(function InputBar({
             {input === undefined || sessionId === undefined
               ? null
               : renderSlot('conversation.input.right', {})}
-            {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
-            {sessionId === undefined ? null : renderSlot('conversation.input.temperature', { locked })}
-            {sessionId === undefined ? null : renderSlot('conversation.input.stepPace', { locked })}
             <ContextMeter useProjection={useProjection} t={t} />
+            {sessionId === undefined ? null : renderSlot('conversation.input.model', { locked: modelSeatLocked })}
+            {sessionId === undefined ? null : (
+              <div className={css.tuneWrap} ref={tuneRef}>
+                <Tooltip label={t('input.tuning')} side="top" delayMs={500}>
+                  <button
+                    type="button"
+                    className={css.add}
+                    aria-label={t('input.tuning')}
+                    aria-haspopup="dialog"
+                    aria-expanded={tuneOpen}
+                    disabled={locked}
+                    onMouseDown={keepFocus}
+                    onClick={() => { setTuneOpen(open => !open) }}
+                  >
+                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+                      <path d="M3 5h10M3 11h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <circle cx="6" cy="5" r="1.8" fill="var(--dsw-specific-input-major)" stroke="currentColor" strokeWidth="1.5" />
+                      <circle cx="10.5" cy="11" r="1.8" fill="var(--dsw-specific-input-major)" stroke="currentColor" strokeWidth="1.5" />
+                    </svg>
+                  </button>
+                </Tooltip>
+                <div
+                  className={clsx(css.popover, !tuneOpen && css.popoverClosed)}
+                  role="group"
+                  aria-label={t('input.tuning')}
+                  aria-hidden={!tuneOpen || undefined}
+                >
+                  {accessSelect}
+                  {renderSlot('conversation.input.plan', { locked })}
+                  {renderSlot('conversation.input.temperature', { locked })}
+                  {renderSlot('conversation.input.stepPace', { locked })}
+                </div>
+              </div>
+            )}
             {interruptible && (
               <Tooltip label={t('input.stop')} side="top" delayMs={500} disabled={stop === undefined}>
                 <button

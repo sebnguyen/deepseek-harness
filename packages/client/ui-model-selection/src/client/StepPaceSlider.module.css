@@ -6,6 +6,13 @@
   padding: 0 2px;
 }
 
+.name {
+  flex: none;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
 .slider {
   width: 64px;
   height: 16px;

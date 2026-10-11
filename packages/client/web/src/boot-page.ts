@@ -3,7 +3,7 @@
  * client plugin fails because React arrives only with the UI renderer.
  * @module @deepseek-ai/dsh-client-web/src/boot-page
  */
-import { installPixelLoaderStyles, pixelLoaderInner } from '@deepseek-ai/dsh-client-ui-primitives'
+import { installPixelLoaderStyles, pixelLoaderTwinkleInner } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { LoaderEntryState } from './loader-status.ts'
 import css from './boot-page.module.css'
 
@@ -19,12 +19,10 @@ function div(className: string | undefined, text?: string): HTMLDivElement {
 export class BootPage {
   private readonly root: HTMLDivElement
   private readonly card: HTMLDivElement
-  private readonly wordmark: HTMLDivElement
+  private readonly titleRow: HTMLDivElement
   private readonly spinner: HTMLDivElement
   private readonly hint: HTMLDivElement
   private readonly states = new Map<string, LoaderEntryState>()
-  private readonly active = new Set<string>()
-  private total = 0
   private failure: string | undefined
 
   /**
@@ -35,28 +33,26 @@ export class BootPage {
     this.root = div(css.boot)
     this.root.dataset.dshBoot = ''
     this.card = div(css.card)
-    this.wordmark = div(css.wordmark, 'HARNESS')
+    this.titleRow = div(css.titleRow)
+    this.titleRow.append(div(css.wordmark, 'DigitalOcean Harness'))
     this.spinner = div(css.spinner)
     this.spinner.dataset.dshBootSpinner = ''
-    // The shared pixel sweep; the div hosts it so the roster ratio can shift
-    // the sweep window through --dsh-boot-arc without touching the svg markup.
+    // The large pixel mark idles as a random dot pop & fade twinkle; the brand
+    // carries the page, so boot progress no longer rides the sweep window.
     installPixelLoaderStyles()
-    this.spinner.innerHTML = `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">${pixelLoaderInner(24, 24)}</svg>`
+    this.spinner.innerHTML = `<svg viewBox="0 0 16 16" width="128" height="128" fill="currentColor" aria-hidden="true">${pixelLoaderTwinkleInner(16, 128)}</svg>`
     this.hint = div(css.hint, 'Loading plugins…')
-    this.card.append(this.wordmark, this.spinner, this.hint)
+    this.card.append(this.titleRow, this.spinner, this.hint)
     this.root.append(this.card)
     container.append(this.root)
-    this.updateProgress()
   }
 
   /**
-   * Set the number of loader entries represented by the sweep window.
-   * @param total - Complete boot roster size.
+   * Kernel-facing roster size; the twinkle face shows no progress arc, so the
+   * value is accepted and ignored (kept for the loader contract).
+   * @param _total - Complete boot roster size.
    */
-  setTotal(total: number): void {
-    this.total = total
-    this.updateProgress()
-  }
+  setTotal(_total: number): void {}
 
   /**
    * Project one loader entry's fiber state.
@@ -65,8 +61,6 @@ export class BootPage {
    */
   setState(id: string, state: LoaderEntryState): void {
     this.states.set(id, state)
-    if (state === 'active') this.active.add(id)
-    this.updateProgress()
     this.render()
   }
 
@@ -89,7 +83,7 @@ export class BootPage {
     const failed = [...this.states].filter(([, state]) => state === 'failed').map(([id]) => id)
     if (this.failure === undefined && failed.length === 0) {
       if (this.spinner.parentElement !== this.card) {
-        this.card.replaceChildren(this.wordmark, this.spinner, this.hint)
+        this.card.replaceChildren(this.titleRow, this.spinner, this.hint)
       }
       return
     }
@@ -97,12 +91,7 @@ export class BootPage {
     report.append(div(css.failedTitle, 'Failed to load plugins'))
     for (const id of failed) report.append(div(css.failedItem, id))
     if (this.failure !== undefined) report.append(div(css.failedItem, this.failure))
-    this.card.replaceChildren(this.wordmark, report)
+    this.card.replaceChildren(this.titleRow, report)
   }
 
-  /** Shift the sweep window monotonically as loader entries activate. */
-  private updateProgress(): void {
-    const ratio = this.total === 0 ? 0 : Math.min(this.active.size / this.total, 1)
-    this.spinner.style.setProperty('--dsh-boot-arc', `${String(Math.round(72 + ratio * 216))}deg`)
-  }
 }

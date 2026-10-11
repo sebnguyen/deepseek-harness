@@ -1581,8 +1581,8 @@ describe('command launcher chrome and control seats', () => {
     // seat set is the contract).
     expect([...new Set(slotCalls.map(c => c.key))]).toEqual([
       'conversation.input.overlay', 'conversation.input.attachments',
-      'conversation.input.plan', 'conversation.input.left',
-      'conversation.input.right', 'conversation.input.model',
+      'conversation.input.left', 'conversation.input.right',
+      'conversation.input.model', 'conversation.input.plan',
       'conversation.input.temperature', 'conversation.input.stepPace',
       'conversation.composer.dock',
     ])
@@ -1613,6 +1613,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'read-only',
     }
     const { view } = bench({ permissions, command })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     const trigger = view.getByLabelText(/^访问模式/) as HTMLButtonElement
     // Product-label display is presentation only; the menu ids stay machine names.
     expect(trigger.textContent).toBe('仅可查看')
@@ -1643,6 +1644,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'workspace-write',
     }
     const { view } = bench({ permissions })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     const trigger = view.getByLabelText(/^访问模式/) as HTMLButtonElement
     expect(trigger.textContent).toBe('Project Files')
     fireEvent.click(trigger)
@@ -1660,6 +1662,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'workspace-write',
     }
     const { view } = bench({ permissions, command })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     fireEvent.click(view.getByLabelText(/^访问模式/))
     fireEvent.click(view.getByRole('menuitem', { name: '完全权限' }))
 
@@ -1689,6 +1692,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'workspace-write',
     }
     const { view } = bench({ permissions, command })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     const openConfirmation = () => {
       fireEvent.click(view.getByLabelText(/^访问模式/))
       fireEvent.click(view.getByRole('menuitem', { name: '完全权限' }))
@@ -1715,6 +1719,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'workspace-write',
     }
     const { view, session } = bench({ permissions, command })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     fireEvent.click(view.getByLabelText(/^访问模式/))
     fireEvent.click(view.getByRole('menuitem', { name: '完全权限' }))
     fireEvent.click(view.getByRole('checkbox'))
@@ -1733,6 +1738,7 @@ describe('command launcher chrome and control seats', () => {
       currentValue: 'workspace-write',
     }
     const { view, props } = bench({ permissions, command })
+    fireEvent.click(view.getByRole('button', { name: '会话调节' }))
     fireEvent.click(view.getByLabelText(/^访问模式/))
     fireEvent.click(view.getByRole('menuitem', { name: '完全权限' }))
     fireEvent.click(view.getByRole('checkbox'))

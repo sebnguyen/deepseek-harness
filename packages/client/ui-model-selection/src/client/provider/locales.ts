@@ -1,0 +1,81 @@
+/**
+ * `model.provider` namespace dictionaries: the rail entry and the provider
+ * window copy. English is the key-set source of truth; zh mirrors it.
+ */
+
+/** English strings (the key-set source of truth for this pair). */
+export const en = {
+  'entry.label': 'Model Provider',
+  'entry.aria': 'Open Model Provider',
+  'window.title': 'Model Provider',
+  'window.close': 'Close',
+  'route.format': 'Format',
+  'route.endpoint': 'Endpoint',
+  'route.key': 'API key',
+  'route.keySave': 'Save',
+  'route.keyStored': 'stored · {ref}',
+  'route.keyPlaceholder': 'paste {ref}',
+  'fetch.action': 'Fetch specs',
+  'fetch.busy': 'Fetching…',
+  'fetch.conflict': 'The route changed while fetching; reload shows the stored rows.',
+  'provider.aria': 'Provider',
+  'provider.section': 'section',
+  'table.groupSession': 'Session',
+  'table.groupTune': 'Tune',
+  'table.groupCapacity': 'Capacity',
+  'table.groupMoney': '$ / Mtok',
+  'table.model': 'Model',
+  'table.temp': 'Temp',
+  'table.effort': 'Effort',
+  'table.ctx': 'Ctx',
+  'table.max': 'Max',
+  'table.in': 'in',
+  'table.out': 'out',
+  'table.read': 'rd',
+  'table.write': 'wr',
+  'table.empty': 'No profile rows for this route yet — Fetch specs adopts the endpoint catalog.',
+  'effort.none': '—',
+  'effort.aria': 'Reasoning effort for {model}',
+  'write.conflict': 'The stored route moved after this draft opened; reload before writing.',
+  'write.refused': '{message}',
+} satisfies Record<string, string>
+
+/** The provider namespace key union. */
+export type ProviderKey = keyof typeof en
+
+/** Simplified Chinese dictionary, checked complete against the en key set. */
+export const zh: { [Key in ProviderKey]: string } = {
+  'entry.label': '模型提供商',
+  'entry.aria': '打开模型提供商',
+  'window.title': '模型提供商',
+  'window.close': '关闭',
+  'route.format': '协议',
+  'route.endpoint': '端点',
+  'route.key': 'API 密钥',
+  'route.keySave': '保存',
+  'route.keyStored': '已存储 · {ref}',
+  'route.keyPlaceholder': '粘贴 {ref}',
+  'fetch.action': '拉取模型规格',
+  'fetch.busy': '拉取中…',
+  'fetch.conflict': '拉取期间路由已变更；重新加载以查看已存储的行。',
+  'provider.aria': '提供商',
+  'provider.section': '根段',
+  'table.groupSession': '会话',
+  'table.groupTune': '调优',
+  'table.groupCapacity': '容量',
+  'table.groupMoney': '$ / Mtok',
+  'table.model': '模型',
+  'table.temp': '温度',
+  'table.effort': '推理等级',
+  'table.ctx': '上下文',
+  'table.max': '最大',
+  'table.in': '入',
+  'table.out': '出',
+  'table.read': '缓存读',
+  'table.write': '缓存写',
+  'table.empty': '该路由尚无模型行——拉取模型规格以采用端点目录。',
+  'effort.none': '—',
+  'effort.aria': '{model} 的推理等级',
+  'write.conflict': '草稿打开后已存储的路由已被修改；写入前请重新加载。',
+  'write.refused': '{message}',
+}

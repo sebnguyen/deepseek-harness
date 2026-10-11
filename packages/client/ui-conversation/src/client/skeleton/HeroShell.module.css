@@ -23,6 +23,13 @@
   overflow: visible;
 }
 
+/* Twinkling brand mark (the large pixel logo) centered above the headline. */
+.brandMark {
+  display: flex;
+  justify-content: center;
+  color: var(--dsw-alias-brand-primary, #0063f8);
+}
+
 /* Centered title, 26/32 wt500. The preview badge is a product addition
    outside the figma source: a mono superscript pill riding the title's
    top-right. */
@@ -49,21 +56,6 @@
   column-gap: 7px;
   row-gap: 4px;
   min-width: 0;
-}
-
-.previewBadge {
-  align-self: flex-start;
-  margin-top: 2px;
-  padding: 1px 7px 0;
-  border: 0.5px solid var(--dsw-alias-interactive-bg-hover);
-  border-radius: 24px;
-  background: var(--dsw-alias-state-business-tertiary);
-  color: var(--dsw-alias-label-primary-bluish);
-  font-family: var(--ds-font-family-code);
-  font-size: 12px;
-  line-height: 18px;
-  font-weight: 500;
-  white-space: nowrap;
 }
 
 /* Workspace row sits 12px above the input card (figma y80 → y112). */

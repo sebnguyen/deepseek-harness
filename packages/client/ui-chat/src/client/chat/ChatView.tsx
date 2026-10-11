@@ -6,7 +6,7 @@ import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversatio
 import type { SessionSeq } from '@deepseek-ai/dsh-session/types'
 import { Button, IconChevronDownOutline14, Modal, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
-import type { ChatSnapshot } from '../contract/snapshot.ts'
+import type { ChatSnapshot, RunningToolCall } from '../contract/snapshot.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { TurnNavigator } from './TurnNavigator.tsx'
@@ -153,15 +153,60 @@ function observedRpcIds(
   return observed
 }
 
-/** Turn-level model activity label retained across first-token, tool, and streaming phases. */
-function TurnStatus({ t }: {
+/** Matches the harness purpose field inside a tool call's raw arguments. */
+const PURPOSE_RE = /"_dsh_harness_purpose"\s*:\s*"((?:[^"\\]|\\.)*)"/
+
+/**
+ * @param argsRaw - raw tool-call argument text.
+ * @returns the purpose string, when the event carries the field.
+ */
+function extractPurpose(argsRaw: string): string | null {
+  const match = PURPOSE_RE.exec(argsRaw)
+  if (match === null) return null
+  try {
+    return JSON.parse(`"${match[1]}"`) as string
+  } catch {
+    return match[1] ?? null
+  }
+}
+
+/**
+ * Latest tool event purpose, newest call first; sub-calls (dispatched code
+ * runtime) win over their parent when younger.
+ * @param calls - in-flight tool calls from the chat snapshot.
+ * @returns the newest purpose, or null when none carries the field.
+ */
+function latestToolPurpose(calls: readonly RunningToolCall[]): string | null {
+  for (let i = calls.length - 1; i >= 0; i--) {
+    const call = calls[i]
+    if (call === undefined) continue
+    for (let j = call.subCalls.length - 1; j >= 0; j--) {
+      const sub = call.subCalls[j]
+      if (sub !== undefined && 'argsRaw' in sub) {
+        const purpose = extractPurpose(sub.argsRaw)
+        if (purpose !== null) return purpose
+      }
+    }
+    const own = extractPurpose(call.argsRaw)
+    if (own !== null) return own
+  }
+  return null
+}
+
+/** Turn-level activity row: the stock pixel DO loader rides alongside the
+ * latest tool event's purpose, which slides and fades in on every change.
+ * Falls back to the swimming label when the last event carries no purpose. */
+function TurnStatus({ t, purpose }: {
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
+  /** Latest tool-call purpose, or null while nothing carries one. */
+  purpose: string | null
 }) {
   return (
     <div className={css.turnStatus} role="status" aria-live="polite">
       <PixelLoader className={css.turnStatusSpinner} />
-      {t('chat.deepDiving')}
+      {/* Keyed by the text so a change remounts the span and replays the sweep. */}
+      <span key={purpose ?? ''} className={css.turnStatusText}>{purpose ?? t('chat.swimming')}</span>
     </div>
   )
 }
@@ -187,6 +232,7 @@ export function ChatView({
   useProjection, t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
+  const runningCalls = useChat(s => s.legacy.runningCalls)
   const nodeStore = useChat(s => s.nodes)
   // The rail's items are accumulated in the Chat snapshot, so this selector is
   // both the data and its change signal: the array identity moves only when a
@@ -767,7 +813,7 @@ export function ChatView({
               double-render the same wait. */}
           {/* Turn-level loading signal: rides the whole running turn (first-token
               wait, tool execution, streaming) so it never flickers per step. */}
-          {running && <TurnStatus t={t} />}
+          {running && <TurnStatus t={t} purpose={latestToolPurpose(runningCalls)} />}
           {pendingSteering.map(item => (
             <PendingSteeringBubble
               key={item.id}

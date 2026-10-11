@@ -1169,7 +1169,10 @@ function sessionStatsOf(log: readonly SessionEvent[]): {
   recent5DecodeMs: number
   recent5DecodeTokens: number
 } {
-  const value = { turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0, ttftSteps: 0, decodeMs: 0, decodeTokens: 0, recent5DecodeMs: 0, recent5DecodeTokens: 0 }
+  const value = {
+    turns: 0, steps: 0, llmMs: 0, toolMs: 0, ttftMs: 0,
+    ttftSteps: 0, decodeMs: 0, decodeTokens: 0, recent5DecodeMs: 0, recent5DecodeTokens: 0,
+  }
   let lastTurn: number | null = null
   let openStep: { turn: number; step: number; startTime: number; firstTokenTime: number | null } | null = null
   const pendingCalls = new Map<string, number>()
@@ -3963,6 +3966,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             { id: 'deepseek-official', name: 'DeepSeek' },
             { id: 'openai', name: 'openai' },
             { id: 'acme-gateway', name: 'Acme Gateway' },
+            { id: 'digitalocean', name: 'DigitalOcean' },
           ],
         })
         case 'llm/listConfigurableProviders': return Promise.resolve({
@@ -3972,6 +3976,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             { provider: 'openai', displayName: 'openai', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'openai'], declared: false },
             { provider: 'anthropic', displayName: 'anthropic', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'anthropic'], declared: false },
             { provider: 'acme-gateway', displayName: 'Acme Gateway', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'acme-gateway'], declared: true },
+            { provider: 'digitalocean', displayName: 'DigitalOcean', settingsNs: 'llm-pi-ai', settingsPath: ['providers', 'digitalocean'], declared: true },
           ],
         })
         // The fixture endpoint is imaginary, so interrogation answers the

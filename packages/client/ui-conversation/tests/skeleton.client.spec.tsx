@@ -356,8 +356,8 @@ describe('Hero chrome', () => {
   it('renders the plain product headline and preview badge through the hero locale seat', () => {
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
     expect(view.getByText('DigitalOcean Harness')).toBeTruthy()
-    expect(view.getByText('Preview')).toBeTruthy()
-    expect(view.container.querySelector('svg')).toBeNull()
+    // The twinkling brand mark rides its own seat above the headline row.
+    expect(view.container.querySelector('[data-dsh-hero-mark] svg')).not.toBeNull()
   })
 })
 
@@ -495,7 +495,6 @@ describe('ConversationRoot resident composer', () => {
     expect(host).not.toBeNull()
     expect(header?.getAttribute('aria-hidden')).toBe('true')
     expect(b.view.getByText('DigitalOcean Harness')).toBeTruthy()
-    expect(b.view.getByText('预览版')).toBeTruthy()
     expect(b.view.queryByTestId('view-chat')).toBeNull()
     // The same machine-backed textarea is live in the hero, and the
     // persistence mirror stays bound (ConversationSession mounts chrome-hidden

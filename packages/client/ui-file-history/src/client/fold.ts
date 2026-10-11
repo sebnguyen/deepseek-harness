@@ -18,6 +18,8 @@ export interface FileStop {
   readonly time: number
   /** The tool call whose bracket scan observed the change. */
   readonly callId: string
+  /** Every raw write call id this stop coalesced, oldest first; absent when no burst merged. */
+  readonly callIds?: readonly string[]
   /** Name of the tool that ran. */
   readonly toolName: string
   /** Why the call ran, when the caller stated one. */
@@ -124,6 +126,7 @@ export function coalesceStops(stops: readonly FileStop[]): readonly FileStop[] {
         seq: stop.seq,
         time: stop.time,
         callId: stop.callId,
+        callIds: [...head.callIds ?? [head.callId], stop.callId],
         toolName: stop.toolName,
         ...stop.purpose === undefined ? {} : { purpose: stop.purpose },
         ...stop.turn === undefined ? {} : { turn: stop.turn },

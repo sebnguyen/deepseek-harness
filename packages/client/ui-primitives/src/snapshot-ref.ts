@@ -50,6 +50,8 @@ export interface SnapshotStop {
   readonly callId: string
   /** Turn the capturing call logged, absent when it never did. */
   readonly turn?: number
+  /** Why the call ran, when the caller stated one. */
+  readonly purpose?: string
   /** Content digest before the change; absent on first appearance. */
   readonly before?: string
   /** Content digest after the change; absent when the file left. */
@@ -95,6 +97,35 @@ export function serializeSnapshotRef(ref: SnapshotRef): string {
  */
 export function findStop(ref: SnapshotRef, stops: readonly SnapshotStop[]): SnapshotStop | undefined {
   return stops.find(stop => stop.callId === ref.callId)
+}
+
+/**
+ * The maximal run of chained writes containing one stop: neighbours join
+ * while each `before` equals the previous `after`, the same digest chain
+ * the timeline fold coalesces into one tick. A lone ref outside any burst
+ * yields just its stop; an unknown call id yields nothing.
+ * @param stops - one file's stops, oldest first.
+ * @param callId - the call id the address names.
+ * @returns the burst's members, oldest first.
+ */
+export function burstOf(stops: readonly SnapshotStop[], callId: string): readonly SnapshotStop[] {
+  const at = stops.findIndex(stop => stop.callId === callId)
+  if (at < 0) return []
+  let start = at
+  while (start > 0) {
+    const prior = stops[start - 1]
+    const here = stops[start]
+    if (prior === undefined || here === undefined || prior.after === undefined || here.before !== prior.after) break
+    start -= 1
+  }
+  let end = at
+  while (end + 1 < stops.length) {
+    const here = stops[end]
+    const next = stops[end + 1]
+    if (here === undefined || next === undefined || here.after === undefined || next.before !== here.after) break
+    end += 1
+  }
+  return stops.slice(start, end + 1)
 }
 
 /** One turn's snapshot half: the stop visible at that edge. */

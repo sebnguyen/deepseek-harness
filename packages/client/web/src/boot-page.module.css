@@ -30,11 +30,17 @@
   gap: 16px;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
 .wordmark {
   font-size: 16px;
   line-height: 24px;
   font-weight: 600;
-  letter-spacing: 0.08em;
   color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
 }
 
@@ -44,11 +50,10 @@
   color: var(--dsw-alias-label-tertiary, var(--dsh-boot-label-tertiary));
 }
 
-/* Pixel sweep host: bucket groups animate themselves; the roster ratio
-   shifts their delay through --dsh-boot-arc (see boot-page.ts). */
+/* Large pixel mark host: every dot self-times its pop & fade twinkle. */
 .spinner {
-  width: 24px;
-  height: 24px;
+  width: 128px;
+  height: 128px;
   color: var(--dsw-alias-brand-primary, var(--dsh-boot-brand));
 }
 

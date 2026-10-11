@@ -26,7 +26,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
-  findStop, parseNoteRef, parseSnapshotRef, rankByName, relativeTime,
+  burstOf, findStop, GAP_TURN, parseNoteRef, parseSnapshotRef, rankByName, relativeTime, serializeSnapshotRef,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CheckpointSlotTimeline } from '@deepseek-ai/dsh-checkpoint/types'
 import type {
@@ -239,16 +239,39 @@ export function apply(ctx: ClientContext): void {
         if (!timelines.ok) {
           throw new Error(`checkpoint.stops failed: ${timelines.error.code}: ${timelines.error.message}`)
         }
-        const stop = findStop(parsed, timelines.value.find(timeline => timeline.path === parsed.path)?.stops ?? [])
+        const raw = timelines.value.find(timeline => timeline.path === parsed.path)?.stops ?? []
+        const stop = findStop(parsed, raw)
         if (stop === undefined || stop.after === undefined) {
           throw new Error(`snapshot ${ref} has no retained after text`)
         }
-        signal.throwIfAborted()
-        const blob = await ctx.remote.checkpoint.blob(session.sessionId, stop.after)
-        if (!blob.ok || blob.value === null) {
-          throw new Error(`snapshot ${ref} was pruned from the checkpoint store`)
+        // A ref naming one write of a burst names the whole run the Changes
+        // display folds into one tick, so the expansion quotes every raw write
+        // of the burst over its own frozen text.
+        const burst = burstOf(raw, parsed.callId)
+        if (burst.length === 1) {
+          signal.throwIfAborted()
+          const blob = await ctx.remote.checkpoint.blob(session.sessionId, stop.after)
+          if (!blob.ok || blob.value === null) {
+            throw new Error(`snapshot ${ref} was pruned from the checkpoint store`)
+          }
+          return `${ref}\n\`\`\`\n${blob.value}\n\`\`\``
         }
-        return `${ref}\n\`\`\`\n${blob.value}\n\`\`\``
+        const blocks: string[] = []
+        for (const member of burst) {
+          const address = serializeSnapshotRef({ path: parsed.path, turn: member.turn ?? GAP_TURN, callId: member.callId })
+          const head = member.purpose === undefined ? `@${address}` : `@${address} — ${member.purpose}`
+          if (member.after === undefined) {
+            blocks.push(`${head}\n(the file left the workspace at this write)`)
+            continue
+          }
+          signal.throwIfAborted()
+          const blob = await ctx.remote.checkpoint.blob(session.sessionId, member.after)
+          if (!blob.ok || blob.value === null) {
+            throw new Error(`snapshot ${ref} was pruned from the checkpoint store`)
+          }
+          blocks.push(`${head}\n\`\`\`\n${blob.value}\n\`\`\``)
+        }
+        return blocks.join('\n')
       },
     },
   }

@@ -6,7 +6,8 @@
  * configured key renders as its open setup card instead of a row, but only in
  * the first-run posture — no provider on the page can serve requests yet — and
  * only until the user closes that card; the add flow is a card carrying the
- * dormant-provider select. Each card kind owns its own open state, so closing
+ * dormant-provider picker, a Menu popover because the add card can sit inside
+ * a scrolling settings section. Each card kind owns its own open state, so closing
  * one never discards a draft in another. Every mutation writes through the
  * wire, while a provider removal first requires confirmation; the page
  * re-renders from pushed invalidations or the post-apply reload.
@@ -14,7 +15,7 @@
 
 import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconPlusOutline16, Menu, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 // Type-only: pulls this package's SlotMap merge (the two Models child slots).
 import type {} from './slot-contract.ts'
@@ -211,6 +212,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const [deleteFailure, setDeleteFailure] = useState<string | undefined>(undefined)
   const [savedTarget, setSavedTarget] = useState<ProviderIdentity | undefined>(undefined)
   const [declaring, setDeclaring] = useState(false)
+  const [providerMenu, setProviderMenu] = useState(false)
   const [dismissedSetup, setDismissedSetup] = useState<ReadonlySet<string>>(() => new Set())
 
   const announceSaved = (target: ProviderIdentity): void => {
@@ -224,6 +226,7 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
     setEditing(undefined)
     setAdding(false)
     setDeclaring(false)
+    setProviderMenu(false)
     if (changed) announceSaved(target)
   }
 
@@ -448,21 +451,33 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
             <div className={styles['addCard']}>
               <div className={styles['field']}>
                 <span className={styles['fieldLabel']}>{t('provider')}</span>
-                <select
-                  className={`${styles['input']} ${styles['selectInput']}`}
-                  value={addTarget.provider}
-                  aria-label={t('provider')}
-                  onChange={(event) => {
-                    const row = addable.find(candidate => candidate.entry.provider === event.target.value)
-                    /* v8 ignore next -- the select only lists addable rows */
+                <Menu
+                  open={providerMenu}
+                  portal
+                  autoFocus
+                  anchor={(
+                    <button
+                      type="button"
+                      className={`${styles['input']} ${styles['selectInput']}`}
+                      aria-label={t('provider')}
+                      aria-haspopup="menu"
+                      aria-expanded={providerMenu}
+                      onClick={() => { setProviderMenu(open => !open) }}
+                    >
+                      {addRow?.entry.displayName ?? addTarget.provider}
+                    </button>
+                  )}
+                  items={addable.map(row => ({ id: row.entry.provider, label: row.entry.displayName }))}
+                  selectedId={addTarget.provider}
+                  onSelect={(provider) => {
+                    setProviderMenu(false)
+                    const row = addable.find(candidate => candidate.entry.provider === provider)
+                    /* v8 ignore next -- the menu only lists addable rows */
                     if (row === undefined) return
                     setEditing(targetOf(row))
                   }}
-                >
-                  {addable.map(row => (
-                    <option key={row.entry.provider} value={row.entry.provider}>{row.entry.displayName}</option>
-                  ))}
-                </select>
+                  onClose={() => { setProviderMenu(false) }}
+                />
               </div>
               <ProviderEditor
                 key={addTarget.provider}

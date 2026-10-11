@@ -160,6 +160,9 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
   const [draft, setDraft] = useState<Record<string, unknown>>(() => draftAt(schema, namespace, settingsPath))
   const [keyDraft, setKeyDraft] = useState('')
   const [keyState, setKeyState] = useState<CredentialInfo | undefined>(undefined)
+  /** The stored key, shown only while the user holds the reveal toggle open. */
+  const [revealed, setRevealed] = useState<string | undefined>(undefined)
+  const [revealBusy, setRevealBusy] = useState(false)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<string | undefined>(undefined)
   // A settings success advances both retry baselines immediately. Keeping the
@@ -195,6 +198,32 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
     })
     return () => { stale = true }
   }, [operations, keyRef])
+
+  /**
+   * Toggle the stored-key peek. The field is write-only by default — a stored
+   * key never rides the wire unprompted — so showing it is an explicit act:
+   * one Host read the user asked for, of the same secret this card wrote and
+   * can replace. Typing over a revealed key turns it into a replacement
+   * draft and closes the peek.
+   */
+  const toggleReveal = async (): Promise<void> => {
+    if (revealed !== undefined) {
+      setRevealed(undefined)
+      return
+    }
+    setRevealBusy(true)
+    try {
+      const value = await operations.revealCredential(keyRef)
+      if (value === undefined) {
+        setFailure(t('keyRevealFailed'))
+      } else {
+        setFailure(undefined)
+        setRevealed(value)
+      }
+    } finally {
+      setRevealBusy(false)
+    }
+  }
 
   const stringAt = (source: unknown, key: string): string | undefined => {
     const value = schema.getPath(source, [key])
@@ -364,17 +393,35 @@ export function ProviderEditor(props: ProviderEditorProps): ReactNode {
           <span className={styles['fieldLabel']}>{t('keyInput')}</span>
           <input
             className={styles['input']}
-            type="password"
+            type={revealed === undefined ? 'password' : 'text'}
             autoComplete="off"
-            value={keyDraft}
+            value={revealed ?? keyDraft}
             placeholder={keyPlaceholder}
             aria-label={t('keyInput')}
             aria-invalid={shownKeyFailure !== undefined}
             required={props.credentialRequired === true}
             autoFocus={props.autoFocusCredential === true}
             disabled={disabled || keyLocked}
-            onChange={(event) => { setKeyDraft(event.target.value) }}
+            onChange={(event) => {
+              // Typing over a revealed key makes it a replacement draft; the
+              // peek closes so untyped characters never linger hidden.
+              setRevealed(undefined)
+              setKeyDraft(event.target.value)
+            }}
           />
+          {keyState?.configured === true && keyLocked !== true
+            ? (
+              <button
+                type="button"
+                className={styles['secondaryButton']}
+                disabled={disabled || revealBusy}
+                aria-label={revealed === undefined ? t('keyReveal') : t('keyHide')}
+                onClick={() => { void toggleReveal() }}
+              >
+                {revealed === undefined ? t('keyReveal') : t('keyHide')}
+              </button>
+            )
+            : null}
           {shownKeyFailure === undefined ? null : <p className={styles['error']}>{t(shownKeyFailure)}</p>}
         </div>
         {props.credentialOnly === true ? null : <details className={styles['customized']}>

@@ -22,6 +22,10 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+// Type-only: the forwarded Remote invalidations the provider window reloads on,
+// and the carrier's `connection/reset` lifecycle event.
+import type {} from '@deepseek-ai/dsh-api-remotes/types'
+import type {} from '@deepseek-ai/dsh-client-connection/client'
 import { IconDataOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelDirectoryState } from './directory.ts'
 import { ModelDirectoryResolver } from './service.ts'
@@ -30,17 +34,23 @@ import { ModelSelect } from './ModelSelect.tsx'
 import { TemperatureSlider } from './TemperatureSlider.tsx'
 import { StepPaceSlider } from './StepPaceSlider.tsx'
 import { en, zh, type ModelKey } from './locales.ts'
+import { en as providerEn, zh as providerZh, type ProviderKey } from './provider/locales.ts'
+import { ProviderEntry } from './provider/ProviderEntry.tsx'
+import { ProviderWindowStore } from './provider/store.ts'
 
 export { ModelDirectory } from './directory.ts'
 export type { ModelDirectoryState } from './directory.ts'
 export { ModelDirectoryResolver } from './service.ts'
 export type { ModelSelectInjected, StepPaceInjected } from './slots.ts'
 export type { ModelKey } from './locales.ts'
+export type { ProviderKey } from './provider/locales.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface LocaleNamespaceMap {
     /** The model selection surfaces' copy (/model popup + composer seat). */
     model: ModelKey
+    /** The model-provider rail window copy. */
+    'model.provider': ProviderKey
   }
 }
 
@@ -130,6 +140,9 @@ export const inject = ['commandUi', 'locale', 'sessions', 'slots', 'remote', 're
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-model-selection: dictionaries')
+  ctx.effect(() => ctx.locale.register('model.provider', { zh: providerZh, en: providerEn }), 'ui-model-selection: provider dictionaries')
+  const providerT = ctx.locale.bind('model.provider')
+
 
   // Non-slot faces (the command description, the popup option builder) read
   // through the bound translate; the seat component reads the standard seat.
@@ -234,5 +247,57 @@ export function apply(ctx: ClientContext): void {
         }
       },
     }, StepPaceSlider))
+  })
+
+  // Entry 5: the model-provider rail window above the Efficiency entry. It is
+  // the second writer of the Models page's nodes, so its scope names every
+  // face that collection owns: the settings mirror's describe face, the
+  // schema callbacks, and the view session's directory for the dotted row.
+  // Clients without the settings surface simply never grow the entry.
+  ctx.inject([
+    'slots', 'settingsScope', 'settingsSchema', 'modelDirectories',
+    'remote.settings', 'remote.llm', 'remote.credentials', 'remote.sessionStats',
+  ], (scope: ClientContext) => {
+    const providerController = new ProviderWindowStore(
+      scope,
+      scope.settingsScope.describe(),
+      scope.settingsSchema,
+      () => {
+        const sessionId = scope.sessions.list.getSnapshot().current
+        return {
+          sessionId,
+          directory: sessionId === undefined ? undefined : scope.modelDirectories.directoryFor(sessionId),
+        }
+      },
+    )
+    scope.effect(() => scope.slots.inject('settings.trigger-item', () => scope.slots.register({
+      name: 'settings.trigger-item',
+      id: 'model-provider',
+      order: -10,
+      locale: 'model.provider',
+      inject: () => ({
+        t: providerT,
+        provider: () => ({
+          controller: providerController,
+          hooks: { provider: providerController.store },
+          t: providerT,
+        }),
+      }),
+    }, ProviderEntry)), 'ui-model-selection: model-provider rail entry')
+
+    // The same invalidations that refresh the Models page reload the window,
+    // gated on first open.
+    scope.effect(() => {
+      const refresh = (): void => {
+        if (providerController.store.getSnapshot().status !== 'idle') void providerController.load()
+      }
+      const disposers = [
+        scope.remote.$on('settings/document-updated', refresh),
+        scope.remote.$on('credentials/reference-updated', refresh),
+        scope.remote.$on('llm/adapters-updated', refresh),
+        scope.on('connection/reset', refresh),
+      ]
+      return () => { for (const dispose of disposers) dispose() }
+    }, 'ui-model-selection: provider reload')
   })
 }

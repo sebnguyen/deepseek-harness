@@ -103,16 +103,9 @@ export interface ModelsSettingsState {
   namespaces: ReadonlyMap<string, SettingsNamespaceView>
 }
 
-/**
- * Derive the conventional credential reference for a provider route: the v1
- * page never asks for an environment-variable name, so a typed key stores
- * under this derived reference and the profile records it as `apiKeyEnv`.
- * @param provider - provider route id (e.g. `anthropic`, `minimax-cn`).
- * @returns the derived reference name (e.g. `MINIMAX_CN_API_KEY`).
- */
-export function deriveKeyRef(provider: string): string {
-  return `${provider.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}_API_KEY`
-}
+import { deriveKeyRef } from '@deepseek-ai/dsh-client-ui-primitives'
+
+export { deriveKeyRef }
 
 /**
  * The wire protocols a hand-declared route may name, read out of the owning

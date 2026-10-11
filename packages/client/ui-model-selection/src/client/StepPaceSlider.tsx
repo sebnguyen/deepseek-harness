@@ -86,6 +86,7 @@ export function StepPaceSlider(
 
   return (
     <label className={css.root} title={t('stepPace.label')}>
+      <span className={css.name}>{t('stepPace.name')}</span>
       <input
         type="range"
         className={css.slider}

@@ -132,6 +132,32 @@
   color: var(--dsw-alias-brand-primary);
 }
 
+/* The purpose line rides the tool sweep's character: on every header change
+   the keyed span replays a short slide-fade from the loader's dim end-state. */
+.turnStatusText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: turn-status-in 240ms ease-out;
+}
+
+@keyframes turn-status-in {
+  from {
+    opacity: 0.22;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turnStatusText {
+    animation: none;
+  }
+}
+
 .hint {
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsh-content-font-size-secondary, 13px);

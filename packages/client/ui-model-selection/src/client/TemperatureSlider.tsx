@@ -104,6 +104,7 @@ export function TemperatureSlider(
 
   return (
     <label className={css.root} title={t('temperature.label')}>
+      <span className={css.name}>{t('temperature.name')}</span>
       <input
         type="range"
         className={css.slider}

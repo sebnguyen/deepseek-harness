@@ -56,7 +56,7 @@ describe('foldSlotTimelines', () => {
     // No outside write between the two: one stop from no before to the last after.
     expect(history.files).toEqual([{
       path: 'a.txt',
-      stops: [{ seq: 9, time: 9, callId: 'c2', toolName: 'edit', turn: 1, after: 'sha256:two' }],
+      stops: [{ seq: 9, time: 9, callId: 'c2', toolName: 'edit', turn: 1, after: 'sha256:two', callIds: ['c1', 'c2'] }],
     }])
   })
 
@@ -68,7 +68,7 @@ describe('foldSlotTimelines', () => {
     ])])
     expect(history.files).toEqual([{
       path: 'a.txt',
-      stops: [{ seq: 3, time: 3, callId: 'c3', toolName: 'bash', before: 'sha256:b0' }],
+      stops: [{ seq: 3, time: 3, callId: 'c3', toolName: 'bash', before: 'sha256:b0', callIds: ['c1', 'c2', 'c3'] }],
     }])
   })
 
@@ -83,7 +83,7 @@ describe('foldSlotTimelines', () => {
     expect(history.files).toEqual([{
       path: 'a.txt',
       stops: [{
-        seq: 2, time: 2, callId: 'c2', toolName: 'edit', purpose: 'why', turn: 2, after: 'sha256:q',
+        seq: 2, time: 2, callId: 'c2', toolName: 'edit', purpose: 'why', turn: 2, after: 'sha256:q', callIds: ['c1', 'c2'],
       }],
     }])
   })
@@ -164,7 +164,7 @@ describe('coalesceStops', () => {
       full({ callId: 'a', after: 'sha256:x' }),
       full({ callId: 'b', before: 'sha256:x', after: 'sha256:y', turn: 2, step: 4 }),
     ])
-    expect(merged).toEqual([full({ callId: 'b', after: 'sha256:y', turn: 2, step: 4 })])
+    expect(merged).toEqual([full({ callId: 'b', after: 'sha256:y', turn: 2, step: 4, callIds: ['a', 'b'] })])
   })
 })
 

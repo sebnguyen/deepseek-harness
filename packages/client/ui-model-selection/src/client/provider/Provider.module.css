@@ -1,0 +1,378 @@
+/* model-provider rail entry and portaled window. The entry mirrors the
+   Efficiency entry chrome; the window wears the settings overlay tokens
+   and the efficiency window's fixed-column table pattern. */
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 42px;
+  margin: 0;
+  padding: 0 10px 0 8px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.entry:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.entry.rail {
+  flex: none;
+  width: 36px;
+  height: 36px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-radius: 50%;
+  corner-shape: round;
+}
+
+.entryLabel {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mask {
+  position: absolute;
+  inset: 0;
+  background: var(--dsw-alias-bg-mask-1);
+  backdrop-filter: var(--dsw-mask-blur);
+}
+
+.panel {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: min(1080px, calc(100vw - 48px));
+  max-height: min(800px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 20px 24px;
+  border: 0;
+  border-radius: 32px;
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow: var(--dsw-elevation-prominent);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.headTitle {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* Route row: provider select, format select, endpoint, key, fetch. */
+.pickRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  position: relative;
+  flex-wrap: wrap;
+}
+
+.lab {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border: none;
+  border-radius: 24px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.select:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.ns {
+  color: var(--dsw-alias-label-caption);
+  font-weight: 400;
+  font-size: 12px;
+}
+
+.fetch {
+  margin-left: auto;
+}
+
+/* Menu-primitive label: the id and its settings address on one line, because
+ * a Menu cell is a single nowrap row whose overflow is its own ellipsis. */
+.optionLabel {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name {
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addr {
+  color: var(--dsw-alias-label-caption);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.keychip {
+  font-size: 10px;
+  line-height: 16px;
+  padding: 0 6px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.keychip.ok {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-bg);
+}
+
+.keychip.missing {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-bg);
+}
+
+/* Write-in cells over the primitives wrap tokens. */
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 6px;
+  border: 0.5px solid var(--dsw-alias-border-l4);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+.wrap:focus-within {
+  border-color: var(--dsw-alias-brand-primary);
+}
+
+.wrap.bad {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
+.wrap.wide {
+  height: 28px;
+}
+
+.input {
+  width: 40px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-primary);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.input.url {
+  width: 240px;
+  text-align: left;
+}
+
+.input.key {
+  width: 160px;
+  text-align: left;
+}
+
+.save {
+  height: 20px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 8px;
+  background: var(--dsw-alias-brand-primary);
+  color: rgb(18, 22, 24);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* The table wears the efficiency window's fixed-column pattern. */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 12px;
+}
+
+.table th {
+  padding: 0 6px 5px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.table th .g {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 8px;
+  line-height: 16px;
+  font-size: 10px;
+}
+
+.gSess {
+  color: var(--dsw-alias-brand-primary);
+  background: rgba(123, 180, 188, 0.12);
+}
+
+.gCap {
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.gMoney {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-bg);
+}
+
+.table td {
+  padding: 5px 6px;
+  border-bottom: 0.5px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-secondary);
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.num {
+  text-align: right;
+}
+
+.money {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* First-row column widths of the fixed-layout table; colspan groups split
+   these evenly, so the set sums to 100% and no column inherits a sliver. */
+.cModel { width: 22%; }
+
+.cTemp { width: 7%; }
+
+.cEffort { width: 11%; }
+
+/* Capacity group: two 9% columns. */
+.cCtx { width: 18%; }
+
+/* Rate group: four 10.5% columns. */
+.cMoney { width: 42%; }
+
+.dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 6px;
+  background: var(--dsw-alias-brand-primary);
+  vertical-align: 1px;
+}
+
+.rowName {
+  color: var(--dsw-alias-label-primary);
+}
+
+.empty {
+  margin-top: 16px;
+  padding: 28px;
+  border: 1px dashed var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.table td.cellEffort {
+  position: relative;
+  overflow: visible;
+}
+
+.cellSelect {
+  height: 26px;
+  font-size: 12px;
+  padding: 0 6px 0 8px;
+  max-width: 100%;
+}
+
+.cellSelect .name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.failure {
+  margin-top: 8px;
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}

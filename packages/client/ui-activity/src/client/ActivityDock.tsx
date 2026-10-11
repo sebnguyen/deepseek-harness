@@ -1,8 +1,8 @@
 /**
- * The background-activity chip and its drawer, docked in the sticky composer
- * stack directly below the input bar. The drawer grows in normal flow inside
- * the sticky seat, whose pinned bottom lifts the chip and input card above
- * the fixed-height pane in both directions. The chip counts live work; the
+ * The background-activity chip and its drawer, docked in the composer stack
+ * directly above the input card. The chip stays put right above the card;
+ * the drawer reveals upward from its clip wrapper, overlaying the
+ * transcript, so opening never lifts the input card. The chip counts live work; the
  * drawer
  * renders the ownership tree (live rows, then an archive) beside the selected
  * row's detail — a terminal tail for jobs, an opening into the full session
@@ -32,7 +32,7 @@ export interface ActivityDockInjected {
 
 /** Full props for the input-dock activity entry. */
 export type ActivityDockProps =
-  & PropsRuntime<'conversation.composer.dock'>
+  & PropsRuntime<'conversation.input.dock'>
   & InjectFace<ActivityDockInjected>
   & PropsLocale<typeof NS>
 
@@ -60,7 +60,7 @@ function durationText(elapsedMs: number, t: TranslateNS<typeof NS>): string {
 }
 
 /**
- * The chip plus, while open, the drawer beneath it. Renders nothing until the
+ * The chip plus, while open, the drawer above it. Renders nothing until the
  * session owns at least one background item, so an ordinary conversation
  * never grows a control for a capability it is not using.
  * @param props - runtime slot currency, the injected session callbacks, and the namespace translator.
@@ -203,24 +203,6 @@ export function ActivityDock({
 
   return (
     <div className={css.root} data-activity-dock-open={open || undefined} onKeyDown={onKeyDown}>
-      <button
-        ref={chipRef}
-        type="button"
-        className={css.chip}
-        aria-expanded={open}
-        aria-label={t(countKey, { count: liveCount > 0 ? liveCount : total })}
-        onClick={() => {
-          // Sample the clock in the same commit that opens the drawer: the
-          // mount-time value predates every row, so the first painted frame
-          // would otherwise clamp a long-running duration to zero.
-          setNow(Date.now())
-          setOpen(current => !current)
-        }}
-      >
-        {liveCount > 0 ? <StateDot state="ongoing" className={css.chipDot} /> : null}
-        <span className={css.count}>{t(countKey, { count: liveCount > 0 ? liveCount : total })}</span>
-        <IconChevronDownOutline14 className={open ? css.chipOpen : undefined} />
-      </button>
       <div className={css.wrap} data-open={open} aria-hidden={!open}>
         <div className={css.drawer} role="region" aria-label={t('drawer.aria')}>
           <div className={css.tree} ref={treeRef}>
@@ -296,6 +278,24 @@ export function ActivityDock({
           </div>
         </div>
       </div>
+      <button
+        ref={chipRef}
+        type="button"
+        className={css.chip}
+        aria-expanded={open}
+        aria-label={t(countKey, { count: liveCount > 0 ? liveCount : total })}
+        onClick={() => {
+          // Sample the clock in the same commit that opens the drawer: the
+          // mount-time value predates every row, so the first painted frame
+          // would otherwise clamp a long-running duration to zero.
+          setNow(Date.now())
+          setOpen(current => !current)
+        }}
+      >
+        {liveCount > 0 ? <StateDot state="ongoing" className={css.chipDot} /> : null}
+        <span className={css.count}>{t(countKey, { count: liveCount > 0 ? liveCount : total })}</span>
+        <IconChevronDownOutline14 className={open ? undefined : css.chipOpen} />
+      </button>
     </div>
   )
 }

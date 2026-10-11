@@ -29,17 +29,21 @@ export type { ActivityDockInjected, ActivityDockProps } from './ActivityDock.tsx
 export const inject = ['sessions', 'slots', 'locale']
 
 /**
- * Client plugin body: register the dictionaries and the composer-stack dock entry.
+ * Client plugin body: register the dictionaries and the above-card
+ * input-dock entry.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-activity: dictionaries')
   const sessions = ctx.sessions
   ctx.slots.inject(
-    'conversation.composer.dock',
+    'conversation.input.dock',
     () => ctx.slots.register({
-      name: 'conversation.composer.dock',
+      name: 'conversation.input.dock',
       id: 'activity',
+      // Last of the above-card entries so the chip sits closest to the
+      // input card (todo 0, goal 10, queue 20).
+      order: 30,
       locale: NS,
       inject: sessionId => ({
         onRefresh() {

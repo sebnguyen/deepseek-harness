@@ -264,6 +264,12 @@ export function SidebarRoot({
         })}
       </div>
 
+      {/* Harness guide: a trigger above the foot. The roster opens in a
+          popover; the session list stays in the browsing region. */}
+      <div className={css.guideArea}>
+        {renderSlot('sidebar.guide', { wide })}
+      </div>
+
       {/* Footer actions stack above Settings in both sidebar widths. */}
       <div className={css.footArea}>
         <div className={css.footerActions}>

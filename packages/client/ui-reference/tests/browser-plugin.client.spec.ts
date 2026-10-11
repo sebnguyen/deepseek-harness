@@ -55,8 +55,29 @@ function request(
   }
 }
 
+/** One stop shape these doubles accept: the plugin reads `turn`, `after`,
+ * `purpose`, and `before` as optional, so the fixture type must not freeze the
+ * pre-purpose schema by inference.
+ */
+interface StopFixture {
+  seq: number
+  time: number
+  callId: string
+  toolName: string
+  turn?: number
+  step?: number
+  purpose?: string
+  before?: string
+  after?: string
+}
+
+interface TimelineFixture {
+  path: string
+  stops: StopFixture[]
+}
+
 /** One fake checkpoint timeline row set, shared by the bench's Remote doubles. */
-const STOP_TIMELINES = [{
+const STOP_TIMELINES: TimelineFixture[] = [{
   path: 'notes.md',
   stops: [{
     seq: 3,
@@ -640,6 +661,49 @@ describe('snapshot stops', () => {
     const { source } = await bench(undefined, undefined, {}, withStops())
     await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
       .resolves.toBe('@notes.md#2#call-9\n```\nfrozen\n\n```')
+  })
+
+  /** One file's chained burst, the second write carrying a stated purpose. */
+  const BURST_TIMELINES = [{
+    path: 'notes.md',
+    stops: [
+      { seq: 1, time: 1, callId: 'call-9', toolName: 'write', turn: 2, after: 'sha256:pre' },
+      {
+        seq: 2, time: 2, callId: 'call-10', toolName: 'write', turn: 2, purpose: 'fix the x',
+        before: 'sha256:pre', after: 'sha256:post',
+      },
+    ],
+  }]
+  const withBurst = () => ({ stops: vi.fn(() => Promise.resolve({ ok: true as const, value: BURST_TIMELINES })) })
+
+  it('serializes a burst ref as every raw write over its own frozen text', async () => {
+    const { source } = await bench(undefined, undefined, {}, withBurst())
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-10', new AbortController().signal))
+      .resolves.toBe('@notes.md#2#call-9\n```\nfrozen\n\n```\n@notes.md#2#call-10 — fix the x\n```\nfrozen\n\n```')
+  })
+
+  it('names a burst member that deleted the file instead of fencing it', async () => {
+    const timelines = [{
+      path: 'notes.md',
+      stops: [
+        ...BURST_TIMELINES[0]!.stops,
+        { seq: 3, time: 3, callId: 'call-11', toolName: 'bash', turn: 2, before: 'sha256:post' },
+      ],
+    }]
+    const { source } = await bench(undefined, undefined, {}, {
+      stops: vi.fn(() => Promise.resolve({ ok: true as const, value: timelines })),
+    })
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-9', new AbortController().signal))
+      .resolves.toContain('@notes.md#2#call-11\n(the file left the workspace at this write)')
+  })
+
+  it('refuses a burst serialization when any member blob was pruned', async () => {
+    const { source } = await bench(undefined, undefined, {}, {
+      ...withBurst(),
+      blob: vi.fn(() => Promise.resolve({ ok: true as const, value: null })),
+    })
+    await expect(source.codec?.serialize(session, '@notes.md#2#call-10', new AbortController().signal))
+      .rejects.toThrow('pruned')
   })
 
   it('refuses serialization when the address names no retained stop', async () => {

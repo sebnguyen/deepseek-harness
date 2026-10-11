@@ -324,8 +324,9 @@ describe('ModelsSection', () => {
     await mountFace(scripted)
     expect(screen.queryByRole('button', { name: en.customAdd })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: en.add }))
-    expect(screen.queryByRole('option', { name: 'anthropic' })).toBeNull()
-    expect(screen.getByRole('option', { name: 'plain' })).toBeTruthy()
+    fireEvent.click(await screen.findByLabelText(en.provider))
+    expect(screen.queryByRole('menuitem', { name: 'anthropic' })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'plain' })).toBeTruthy()
   })
 
   it('shows a catalog diagnostic while keeping the provider editable', async () => {
@@ -1098,9 +1099,14 @@ describe('ModelsSection', () => {
   it('adds a dormant provider with a derived reference and stores its key', async () => {
     const { mutate, set } = await mountSection()
     fireEvent.click(screen.getByText(en.add))
-    const pick = await screen.findByLabelText<HTMLSelectElement>(en.provider)
-    expect([...pick.options].map(option => option.value)).toEqual(['anthropic', 'broken', 'plain'])
-    expect(pick.value).toBe('anthropic')
+    const pick = await screen.findByLabelText(en.provider)
+    expect(pick.textContent).toBe('anthropic')
+    fireEvent.click(pick)
+    // The picker is a Menu popover: its rows exist only while it is open, and
+    // each row carries the provider's display name.
+    const rows = await screen.findAllByRole('menuitem')
+    expect(rows.map(row => row.textContent)).toEqual(['anthropic', 'broken', 'plain'])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'anthropic' }))
     // A dormant profile has no endpoint anywhere: the pi-ai placeholder
     // falls back to the provider-default wording.
     fireEvent.click(screen.getByText(en.customized))
@@ -1178,10 +1184,12 @@ describe('ModelsSection', () => {
   it('switches the add card target and degrades unknown or broken targets loudly', async () => {
     await mountSection()
     fireEvent.click(screen.getByText(en.add))
-    const pick = await screen.findByLabelText<HTMLSelectElement>(en.provider)
-    fireEvent.change(pick, { target: { value: 'broken' } })
+    const pick = await screen.findByLabelText(en.provider)
+    fireEvent.click(pick)
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'broken' }))
     await screen.findByText(/unresolvable settings path/)
-    fireEvent.change(pick, { target: { value: 'plain' } })
+    fireEvent.click(screen.getByLabelText(en.provider))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'plain' }))
     await waitFor(() => {
       expect(screen.getAllByText(content => content.includes(en.advancedHint)).length).toBeGreaterThan(0)
     })

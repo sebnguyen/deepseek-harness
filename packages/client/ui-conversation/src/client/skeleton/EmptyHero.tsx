@@ -3,7 +3,7 @@
 
 import type { ReactNode, RefObject } from 'react'
 import {
-  IconChevronDownOutline14, IconFolderClose16, IconFolderOpen16,
+  IconChevronDownOutline14, IconFolderClose16, IconFolderOpen16, PixelLoader,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { workspaceTitleOf } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ConversationSlotProps } from '../contract/slots.ts'
@@ -69,8 +69,8 @@ export interface HeroShellProps {
 }
 
 /**
- * Render the hero chrome: the plain product headline with its preview
- * badge (no composer, no workspace row).
+ * Render the hero chrome: the twinkling brand mark above the plain product
+ * headline with its preview badge (no composer, no workspace row).
  * @param props - see {@link HeroShellProps}.
  * @returns the centered hero element tree.
  */
@@ -78,11 +78,15 @@ export function HeroShell({ t, children }: HeroShellProps) {
   return (
     <div className={css.root}>
       <div className={css.stack}>
+        {/* The large pixel logo from the loader mockup, idling as a random
+            dot pop & fade instead of the clockwise sweep. */}
+        <div className={css.brandMark} data-dsh-hero-mark="">
+          <PixelLoader mode="twinkle" grid={16} size={128} />
+        </div>
         <div className={css.headline}>
           <span className={css.titleGroup}>
-            {/* Own element: keeps the headline text addressable apart from the badge. */}
+            {/* Own element: keeps the headline text addressable. */}
             <span>{t('hero.headline')}</span>
-            <span className={css.previewBadge}>{t('hero.preview')}</span>
           </span>
         </div>
         <div className={css.body}>

@@ -45,10 +45,12 @@ describe('web e2e: startup auto-selection', () => {
     // headline is addressed inside the hero phase element.
     const headline = page.locator('div[data-phase="hero"]').getByText('DigitalOcean Harness', { exact: true })
     await headline.waitFor({ timeout: 15_000 })
-    // The debranded hero renders no mark: the headline row is text-only
-    // (the workspace chip below it keeps its folder and chevron icons).
+    // The headline row stays text-only: the twinkling brand mark rides its
+    // own seat above the row (the workspace chip below keeps its folder and
+    // chevron icons).
     const headlineRow = headline.locator('xpath=ancestor::div[contains(@class, "headline")][1]')
     expect(await headlineRow.locator('svg').count()).toBe(0)
+    await page.locator('div[data-phase="hero"] [data-dsh-hero-mark] svg').waitFor({ timeout: 15_000 })
     await page.evaluate(() => {
       const refs = {
         root: document.querySelector('div[data-phase="hero"]'),

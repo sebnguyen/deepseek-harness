@@ -581,8 +581,13 @@ select.input {
 /* Select variant of .input: replaces the OS arrow (which sits flush against
    the right edge) with the shared 12px chevron inset like the composer's
    .select chips; the right pad reserves its cell. */
+/* The dormant-provider picker: a Menu trigger wearing the input chrome. The
+   caret is drawn rather than native so it survives the button element. */
 .selectInput {
-  appearance: none;
+  display: flex;
+  align-items: center;
+  text-align: left;
+  cursor: pointer;
   padding-right: 32px;
   /* Data-URI SVGs cannot resolve CSS variables; #919f9e is the caption gray
      shared by both themes. */

@@ -1,9 +1,14 @@
 .root {
-  /* The composer stack centers its entries: keep the root at the composer
-     card's width whether the drawer is open or closed, so toggling never
-     shifts the chip horizontally. */
+  /* Above-card entry of the composer stack: the stack stretches its
+     children, so center the capped box like the sibling dock cards
+     (margin auto) and pad the shared side clearance outside the card
+     cap — the drawer then lands at exactly the input card's width at
+     every viewport, and toggling never shifts the chip horizontally. */
+  box-sizing: border-box;
   width: 100%;
-  max-width: var(--dsh-composer-card-max-width, 100%);
+  max-width: calc(var(--dsh-composer-card-max-width, 100%) + 2 * var(--dsh-composer-side-clearance, 0px));
+  margin: 0 auto;
+  padding: 0 var(--dsh-composer-side-clearance, 0px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -34,6 +39,8 @@
   transition: transform 120ms ease;
 }
 
+/* The drawer opens upward above the chip: the closed chevron points up
+   toward the reveal; opening restores the drawn down glyph. */
 .chipOpen {
   transform: rotate(180deg);
 }
@@ -46,35 +53,35 @@
   margin: 0 5px;
 }
 
-/* The clip wrapper overlays the transcript from its own layer inside
-   the sticky composer seat, anchored above the chip row (the root's gap
-   keeps the chip-to-drawer breathing room), so opening never reflows the
-   transcript; the input card rides the pane's top edge through a
-   compositor transform (InputBar). The height runs between 0 and the
-   pane's fixed min(60vh, 640px). The visibility leg lands only after the
-   close transition ends (and is instant on open), or the hidden state
-   would swallow the slide-down. Closed rows stay hidden and out of the
-   tab order while mounted. */
+/* The clip wrapper sits above the chip row in this dock root, so the
+   drawer reveals upward over the transcript while the chip and the input
+   card below stay put: opening never reflows the transcript and never
+   lifts the input card. The height runs between 0 and the pane's fixed
+   min(60vh, 640px). The visibility leg lands only after the close
+   transition ends (and is instant on open), or the hidden state would
+   swallow the slide-down. Closed rows stay hidden and out of the tab
+   order while mounted. */
 .wrap {
-  /* Ordinary child of this dock root: the sticky seat's pinned bottom
-     lifts the chip and input card above the pane as it grows, and the
-     width follows the root's card cap rather than the window. The
-     relative box contains the fixed pane so the pane reveals upward as
-     the clip grows. The chip-to-drawer breathing room only exists while
-     open via the margin, so a closed drawer adds no space. The
-     visibility leg lands only after the close transition ends (and is
-     instant on open), or the hidden state would swallow the slide-down. */
+  /* Ordinary child of this dock root, above the chip: the sticky seat's
+     pinned bottom keeps the chip and input card in place while the clip
+     grows upward into the transcript, and the width follows the root's
+     card cap rather than the window. The relative box contains the fixed
+     pane bottom-anchored so the pane reveals upward as the clip grows.
+     The chip-to-drawer breathing room only exists while open via the
+     margin, so a closed drawer adds no space. The visibility leg lands
+     only after the close transition ends (and is instant on open), or
+     the hidden state would swallow the slide-down. */
   position: relative;
   width: 100%;
   height: 0;
   overflow: hidden;
-  transition: height 180ms ease, margin-top 180ms ease, visibility 0s linear 180ms;
+  transition: height 180ms ease, margin-bottom 180ms ease, visibility 0s linear 180ms;
 }
 
 .wrap[data-open='true'] {
   height: calc(min(60vh, 640px));
-  margin-top: 4px;
-  transition: height 180ms ease, margin-top 180ms ease, visibility 0s;
+  margin-bottom: 4px;
+  transition: height 180ms ease, margin-bottom 180ms ease, visibility 0s;
 }
 
 .wrap[aria-hidden='true'] .drawer {
@@ -96,8 +103,11 @@
   gap: 8px;
   box-sizing: border-box;
   /* Review-sized pane: a fixed share of the viewport, not content height,
-     mirrored by the clip wrapper's open height and by the input card's
-     ride distance. */
+     mirrored by the clip wrapper's open height. Bottom-anchored inside the
+     clip so the pane reveals upward as the wrapper grows. */
+  position: absolute;
+  bottom: 0;
+  left: 0;
   height: calc(min(60vh, 640px));
   width: 100%;
   padding: 8px;

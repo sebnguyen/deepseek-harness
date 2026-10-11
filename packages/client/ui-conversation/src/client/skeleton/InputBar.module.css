@@ -233,13 +233,12 @@
    (figma Input_Bottom chrome). */
 .row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  /* 2px moved from the bottom pad to the top: the whole control row sits 2px
-     lower in the card (it read too high against the textarea) while the
-     controls' own centering stays untouched. */
+  gap: 8px;
+  /* Shelf on the capsule floor: no divider, no float; the send circle's old
+     translateY compensation is retired with it. */
   padding: 2px 8px 6px;
   min-width: 0;
   /* Size container so the chips inside can collapse to icon-only when the
@@ -261,7 +260,18 @@
    Read-only; both gaps settled on 12 so the pill chips read as separate
    controls without drifting from the + control. */
 .tools {
-  gap: 12px;
+  gap: 8px;
+}
+
+/* Ghost-circle tray: equal-size controls read as one group instead of a
+   lone filled circle competing with the primary send. */
+.tray {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .modes {
@@ -276,7 +286,7 @@
      model trigger (external:107). The auto margin re-anchors it right on the
      wrapped line; on a single line space-between already pins it right. */
   margin-left: auto;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* Attach circle (figma + control): 28px, selector fill, primary glyph. */
@@ -289,13 +299,14 @@
   border: none;
   border-radius: 999px;
   corner-shape: round;
-  background: var(--dsw-specific-selector);
-  color: var(--dsw-alias-label-primary);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
   cursor: pointer;
 }
 
 .add:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover-solid);
+  color: var(--dsw-alias-label-primary);
 }
 
 .add:disabled {
@@ -335,15 +346,16 @@
   cursor: default;
 }
 
-/* Primary send (figma IconButton 34:10465): 34px circle, #2691ea light /
+/* Primary send (figma IconButton 34:10465): 32px circle, #2691ea light /
    #94c6cc dark — the info-fill pair (500→400), NOT button-primary (ink);
-   white glyph; empty text = 0.4 opacity. */
+   white glyph; empty text = 0.4 opacity. Sits on the shelf baseline — the
+   old translateY(-2px) nudge died with the old row. */
 .primary {
   display: grid;
   place-items: center;
   flex: none;
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border: none;
   border-radius: 999px;
   corner-shape: round;
@@ -353,10 +365,6 @@
   color: #fff;
   cursor: pointer;
   transition: background-color 100ms ease;
-  /* Opts out of the row's 2px downward shift (.row top pad): the send circle
-     keeps its original seat while the smaller chips sit lower. Transform, not
-     margin, so flex centering math is untouched. */
-  transform: translateY(-2px);
 }
 
 .primary:hover:not(:disabled) {
@@ -366,6 +374,89 @@
 .primary:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* Tuning popover: permission / plan / temperature / step pace fold here so
+   the shelf carries only what changes often. */
+.tuneWrap {
+  position: relative;
+  display: flex;
+}
+
+.popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  width: 240px;
+  border-radius: 12px;
+  padding: 6px;
+  background: var(--dsw-specific-input-major);
+  box-shadow: var(--dsw-elevation-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 40;
+}
+
+.popoverClosed {
+  display: none;
+}
+
+/* Row normalization for the sheet's occupants (access / plan / temperature /
+   step pace): the mock's label-left control-right rows. Their classes live in
+   other module sheets, so the selectors ride element structure instead of
+   cross-module names. */
+.popover > * {
+  width: 100%;
+  min-width: 0;
+}
+
+.popover button,
+.popover label {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.popover button:hover:not(:disabled),
+.popover label:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+  color: var(--dsw-alias-label-primary);
+}
+
+/* The Access trigger's chevron (its last child) rides the row's right edge, so
+   the closed value reads where the mock puts it. */
+.popover button > :last-child {
+  margin-left: auto;
+}
+
+/* Sliders fill the value side of their row instead of floating a 64px control. */
+.popover label input[type='range'] {
+  flex: 1;
+  width: auto;
+  margin-left: auto;
+}
+
+.popover label span:last-child {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
 }
 
 .retry {

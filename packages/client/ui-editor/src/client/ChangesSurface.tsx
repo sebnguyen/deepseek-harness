@@ -77,13 +77,25 @@ export interface ChangesSurfaceProps {
 }
 
 /**
+ * True when a folded stop is the one an address names: its own call id, or
+ * any raw call id a burst merged into the stop, so mid-burst addresses from
+ * older drafts still land on the tick that swallowed them.
+ * @param stop - one folded stop of the file.
+ * @param callId - the call id the address carries.
+ * @returns true when the address quotes this stop.
+ */
+function stopMatches(stop: FileStop, callId: string): boolean {
+  return stop.callId === callId || stop.callIds?.includes(callId) === true
+}
+
+/**
  * Render the Changes display for one file's stops.
  * @param props - stops, copy, the blob reader, and the quote and select callbacks.
  * @returns the scrubber, the frozen unified page, and the purpose box.
  */
 export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: ChangesSurfaceProps): ReactNode {
   const [index, setIndex] = useState(() =>
-    selectCallId === undefined ? stops.length - 1 : Math.max(0, stops.findIndex(stop => stop.callId === selectCallId)))
+    selectCallId === undefined ? stops.length - 1 : Math.max(0, stops.findIndex(candidate => stopMatches(candidate, selectCallId))))
   const [frame, setFrame] = useState<{ before?: string; after?: string } | undefined>(undefined)
   const [missing, setMissing] = useState(false)
   const [ghost, setGhost] = useState<number | undefined>(undefined)
@@ -117,7 +129,7 @@ export function ChangesSurface({ stops, t, blob, onQuote, selectCallId }: Change
   // A late navigation onto one stop re-selects it once the rolls carry it.
   useEffect(() => {
     if (selectCallId === undefined) return
-    const next = stops.findIndex(stop => stop.callId === selectCallId)
+    const next = stops.findIndex(candidate => stopMatches(candidate, selectCallId))
     if (next >= 0) setIndex(next)
   }, [selectCallId, stops])
 

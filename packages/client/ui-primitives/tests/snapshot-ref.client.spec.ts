@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import { parseNoteRef } from '../src/snapshot-ref.ts'
 import {
-  GAP_TURN, findStop, frameDiff, frameForTurn, parseSnapshotRef, serializeSnapshotRef,
+  burstOf, GAP_TURN, findStop, frameDiff, frameForTurn, parseSnapshotRef, serializeSnapshotRef,
   type SnapshotStop,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 
@@ -53,6 +53,34 @@ describe('findStop', () => {
     const stops: SnapshotStop[] = [{ callId: 'call-1', turn: 1 }, { callId: 'call-2', turn: 2, after: 'd2' }]
     expect(findStop(parseSnapshotRef('f#2#call-2')!, stops)).toBe(stops[1])
     expect(findStop(parseSnapshotRef('f#9#call-9')!, stops)).toBeUndefined()
+  })
+})
+
+describe('burstOf', () => {
+  /** One stop literal carrying only the digest members the chain reads. */
+  const stop = (callId: string, before?: string, after?: string): SnapshotStop => ({
+    callId,
+    ...before === undefined ? {} : { before },
+    ...after === undefined ? {} : { after },
+  })
+
+  it('returns the maximal chained run containing the named stop', () => {
+    const stops = [stop('a', undefined, 'x'), stop('b', 'x', 'y'), stop('c', 'z', 'w'), stop('d', 'w')]
+    expect(burstOf(stops, 'b').map(member => member.callId)).toEqual(['a', 'b'])
+    expect(burstOf(stops, 'c').map(member => member.callId)).toEqual(['c', 'd'])
+  })
+
+  it('returns a lone stop whose chain breaks on both sides', () => {
+    expect(burstOf([stop('a', undefined, 'x'), stop('b', 'q', 'y')], 'b').map(member => member.callId)).toEqual(['b'])
+  })
+
+  it('stops the backward walk at a member with no prior digest', () => {
+    const stops = [stop('a'), stop('b', 'x', 'y')]
+    expect(burstOf(stops, 'b').map(member => member.callId)).toEqual(['b'])
+  })
+
+  it('returns nothing when no stop carries the call id', () => {
+    expect(burstOf([stop('a', undefined, 'x')], 'missing')).toEqual([])
   })
 })
 
