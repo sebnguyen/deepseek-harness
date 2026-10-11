@@ -112,10 +112,13 @@ describe('conversation-mode host', () => {
     if (decision.kind !== 'enter') throw new Error('expected an enter decision')
     expect(decision.messages).toHaveLength(2)
     const reminder = decision.messages.at(-1)
-    if (reminder?.source?.kind !== 'turn-shape' || reminder.source.turnShape !== 'quiet') {
+    // Client-package module augmentations do not merge into the host
+    // aggregate program, so the spec narrows structurally instead.
+    const quietSource = reminder?.source as { kind: string; turnShape?: string } | undefined
+    if (quietSource?.kind !== 'turn-shape' || quietSource.turnShape !== 'quiet') {
       throw new Error('expected a turn-shape quiet reminder source')
     }
-    const reminderText = reminder.content.map(blockOf => blockOf.type === 'text' ? blockOf.text : '').join('')
+    const reminderText = (reminder?.content ?? []).map(blockOf => blockOf.type === 'text' ? blockOf.text : '').join('')
     expect(reminderText).toContain('[turn-shape]')
     expect(reminderText).toContain('quiet')
 
@@ -190,7 +193,8 @@ describe('conversation-mode host', () => {
     )
     if (decision.kind !== 'enter') throw new Error('expected an enter decision')
     const reminder = decision.messages.at(-1)
-    if (reminder?.source?.kind !== 'turn-shape' || reminder.source.turnShape !== 'tools') {
+    const toolsSource = reminder?.source as { kind: string; turnShape?: string } | undefined
+    if (toolsSource?.kind !== 'turn-shape' || toolsSource.turnShape !== 'tools') {
       throw new Error('expected a turn-shape tools reminder source')
     }
     expect(await agentEvents(ctx, agent).waterfall(

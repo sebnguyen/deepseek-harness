@@ -52,8 +52,8 @@ export interface TurnShapeSettings {
 
 /** Durable shape schema; permissive union so old documents still resolve at registration. */
 export const TurnShapeSettingsSchema: z<TurnShapeSettings> = z.object({
-  [TURN_SHAPE_FIELD]: z.union(['narrate', 'quiet', 'tools', 'normal', 'silence', true, false]).default(undefined),
-  [LEGACY_MODE_FIELD]: z.union(['normal', 'quiet', 'silence', true, false]).default(undefined),
+  [TURN_SHAPE_FIELD]: z.union(['narrate', 'quiet', 'tools', 'normal', 'silence', true, false, undefined]),
+  [LEGACY_MODE_FIELD]: z.union(['normal', 'quiet', 'silence', true, false, undefined]),
 })
 
 /**
