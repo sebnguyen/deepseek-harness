@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { findTwinDist, resolveTwinDist, twinDistCandidates } from '../src/twin-dist.ts'
+import { climbToRepoRoot, findTwinDist, resolveTwinDist, twinDistCandidates } from '../src/twin-dist.ts'
 
 /** Lay out one candidate slot with (or without) the twin launcher. */
 async function stage(root: string, relative: string, armed: boolean): Promise<string> {
@@ -74,6 +74,33 @@ describe('findTwinDist', () => {
     const root = await fakeRepo()
     await stage(root, join('..', '.vscode-twin', 'dist'), false)
     expect(findTwinDist(root)).toBeNull()
+  })
+})
+
+describe('climbToRepoRoot', () => {
+  it('stops at the workspace marker from the built-package depth (lib/types)', async () => {
+    const root = await fakeRepo()
+    await writeFile(join(root, 'pnpm-workspace.yaml'), 'packages: []\n')
+    const deep = join(root, 'packages', 'api', 'ide', 'lib', 'types')
+    await mkdir(deep, { recursive: true })
+    expect(climbToRepoRoot(deep)).toBe(root)
+  })
+
+  it('stops at the workspace marker from the checked-out depth (src)', async () => {
+    const root = await fakeRepo()
+    await writeFile(join(root, 'pnpm-workspace.yaml'), 'packages: []\n')
+    const deep = join(root, 'packages', 'api', 'ide', 'src')
+    await mkdir(deep, { recursive: true })
+    expect(climbToRepoRoot(deep)).toBe(root)
+  })
+
+  it('falls back to the four-climb when no workspace marker exists above', async () => {
+    const root = await fakeRepo()
+    const deep = join(root, 'packages', 'api', 'ide', 'lib')
+    await mkdir(deep, { recursive: true })
+    // Without a marker anywhere, the fallback climbs exactly four levels:
+    // the package's built face dir to the checkout root.
+    expect(climbToRepoRoot(deep)).toBe(root)
   })
 })
 

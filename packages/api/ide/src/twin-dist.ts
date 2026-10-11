@@ -35,15 +35,29 @@ export function twinDistCandidates(repoRoot: string): string[] {
 }
 
 /**
- * The repository root this module ships under. The module always sits at
- * `packages/api/ide/<face>` for the checked-out faces (src/ when loaded from
- * a dev server, lib/ from the built package), so four level climbs land on
- * the root; `realpathSync` undoes the pnpm symlink so the count works from
- * `node_modules` callers too.
+ * Climb from `from` to the workspace root — the directory holding the
+ * pnpm-workspace.yaml that declares the checkout. A fixed climb count cannot
+ * survive the two load shapes (`packages/api/ide/src/*` on tsx,
+ * `packages/api/ide/lib/*` plus `lib/types/twin-dist.js` from the built
+ * package), so the climb stops at the workspace marker instead; without one
+ * the historical four-climb stands, because the module ships at
+ * `packages/api/ide/<face>` in every checkout as well as the consumer's
+ * `node_modules` layout after `realpathSync` undoes the pnpm symlink.
  */
+export function climbToRepoRoot(from: string): string {
+  let dir = resolve(from)
+  for (let depth = 0; depth < 8; depth += 1) {
+    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir
+    const parent = dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return resolve(from, '..', '..', '..', '..')
+}
+
+/** The repository root this module ships under, from its own load URL. */
 function moduleRepoRoot(): string {
-  const here = dirname(realpathSync(fileURLToPath(import.meta.url)))
-  return resolve(here, '..', '..', '..', '..')
+  return climbToRepoRoot(dirname(realpathSync(fileURLToPath(import.meta.url))))
 }
 
 /**

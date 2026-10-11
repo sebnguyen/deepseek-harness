@@ -77,6 +77,7 @@ export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin:
       }
       const adoption: Adoption = { store, unsubscribe: store.subscribe(sync) }
       adopted.set(sessionId, adoption)
+      controller.didAdoptSession(sessionId)
       return () => {
         adoption.unsubscribe()
         if (adopted.get(sessionId) === adoption) adopted.delete(sessionId)
@@ -198,6 +199,14 @@ export interface ISidebarRight {
    * @param paneId - the floating pane; one that is missing or docked is left alone.
    */
   dock(paneId: PaneId): void
+  /**
+   * Subscribe to session-surface adoption: each session's store joins the
+   * controller as its seat mints it, at most once per concurrent adoption.
+   * Listeners named here react to a session becoming open-able before it
+   * draws, e.g. a default tab landing alongside the guide.
+   * @returns an unsubscriber.
+   */
+  onSessionAdopted(listener: (sessionId: SessionId) => void): () => void
 }
 
 /** Cross-plugin right-Sidebar face (ctx.sidebarRight). */
@@ -221,6 +230,23 @@ export class SidebarRightController implements ISidebarRight {
     private readonly adopted = new Map<SessionId, Adoption>(),
   ) {
     this.tabDomain = new TabDomain(this, pin)
+  }
+
+  /** Listeners fired as sessions join; subscribed from {@link onSessionAdopted}. */
+  private readonly adoptListeners = new Set<(sessionId: SessionId) => void>()
+
+  /**
+   * Subscribe to session-surface adoption; unsubscribe on return.
+   * @see ISidebarRight.onSessionAdopted
+   */
+  onSessionAdopted(listener: (sessionId: SessionId) => void): () => void {
+    this.adoptListeners.add(listener)
+    return () => { this.adoptListeners.delete(listener) }
+  }
+
+  /** Service-assembly call: mark one session adopted and tell the listeners. Internal to this module's wiring. */
+  didAdoptSession(sessionId: SessionId): void {
+    for (const listener of this.adoptListeners) listener(sessionId)
   }
 
   /**

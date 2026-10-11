@@ -593,3 +593,36 @@ describe('SidebarRightController — binding lifetime', () => {
     expect(() => { controller.toggleExpanded() }).not.toThrow()
   })
 })
+
+describe('SidebarRightController — adoption events', () => {
+  it('fires onSessionAdopted once per concurrent adoption, with the session id', () => {
+    const { controller, adopt, instance } = harness()
+    const seen: Array<string | undefined> = []
+    const off = controller.onSessionAdopted((sessionId) => { seen.push(sessionId) })
+    const release = adopt(SESSION, instance)
+    expect(seen.map(String)).toEqual([SESSION])
+    release()
+    off()
+  })
+
+  it('stops firing after the listener unsubscribes', () => {
+    const { controller, adopt, instance } = harness()
+    let count = 0
+    const off = controller.onSessionAdopted(() => { count += 1 })
+    adopt(SESSION, instance)
+    off()
+    adopt(SESSION, instance)
+    expect(count).toBe(1)
+  })
+
+  it('a re-adoption re-fires so a listener can re-arm for the session', () => {
+    const { controller, adopt, instance } = harness()
+    let count = 0
+    controller.onSessionAdopted(() => { count += 1 })
+    const first = adopt(SESSION, instance)
+    first()
+    const second = adopt(SESSION, instance)
+    second()
+    expect(count).toBe(2)
+  })
+})

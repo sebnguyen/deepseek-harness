@@ -91,17 +91,20 @@ function BootHero({ line, spinning = false }: { readonly line: string; readonly 
   )
 }
 
-export function VscodeBody({ useTabInfo, status, t }: VscodeBodyProps): ReactNode {
+export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
+  // Resource addresses (file rows) carry their session in the URL; page
+  // tabs (`sidebar://<kind>`) don't — those take the scope's session, which
+  // the seat hands every session-scoped body anyway.
   const sessionId = useMemo(() => {
     const parsed = parseFileAddress(tab.contentId)
-    return parsed?.scope === 'session' ? parsed.sessionId as SessionId : undefined
-  }, [tab.contentId])
+    return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
+  }, [tab.contentId, scopeSessionId])
   const [state, setState] = useState<IdeBridgeStatus | undefined>(undefined)
 
   useEffect(() => {
     if (sessionId === undefined) {
-      setState({ enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: 'address carried no session' })
+      setState({ enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: 'no session is live for this tab' })
       return
     }
     const controller = new AbortController()

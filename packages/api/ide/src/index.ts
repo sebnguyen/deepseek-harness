@@ -245,8 +245,25 @@ export class Ide extends TypertRemoteService {
     ctx.effect(() => () => { this.twins.dispose() })
     ctx.inject(['sessions', 'sandboxPolicy'], (scope) => {
       this.scope = scope
+      // Eager part of the lazy/eager split: per-session twins stay lazy, but
+      // the most recent session's REH spawns at boot so reopening it lands
+      // ready instead of showing the boot hero for the spawn window.
+      if (this.dist !== '') {
+        void this.warmLatest(scope.sessions).catch(() => undefined)
+      }
       return () => { this.scope = undefined }
     })
+  }
+
+  /**
+   * Pre-spawn the freshest session's twin; failures stay quiet because the
+   * first `status()` call surfaces them (and re-tries the spawn) anyway.
+   * @param sessions - the injected session registry.
+   */
+  private async warmLatest(sessions: Context['sessions']): Promise<void> {
+    const [latest] = sessions.list()
+    if (latest === undefined) return
+    await this.twins.ensure(latest.id)
   }
 
   /**
