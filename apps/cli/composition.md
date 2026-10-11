@@ -32,6 +32,8 @@ flowchart LR
   cfg --> plugin_dsh_base_session_title_llm
   plugin_dsh_base_user_questions["user-questions<br/>@deepseek-ai/dsh-user-questions"]
   cfg --> plugin_dsh_base_user_questions
+  plugin_dsh_base_ui_quiet["ui-quiet<br/>@deepseek-ai/dsh-client-ui-quiet"]
+  cfg --> plugin_dsh_base_ui_quiet
   plugin_dsh_base_agent["agent<br/>@deepseek-ai/dsh-agent"]
   cfg --> plugin_dsh_base_agent
   plugin_dsh_base_plugin_package_inventory_deepseek["plugin-package-inventory-deepseek<br/>@deepseek-ai/dsh-plugin-package-inventory-deepseek"]
@@ -162,6 +164,8 @@ flowchart LR
   cfg --> plugin_dsh_base_checkpoint
   plugin_dsh_base_tool_result_pruner["tool-result-pruner<br/>@deepseek-ai/dsh-compaction-tool-result-pruner"]
   cfg --> plugin_dsh_base_tool_result_pruner
+  plugin_dsh_base_reasoning_prefetch["reasoning-prefetch<br/>@deepseek-ai/dsh-experimental-reasoning-prefetch"]
+  cfg --> plugin_dsh_base_reasoning_prefetch
   plugin_dsh_base_tool_todo["tool-todo<br/>@deepseek-ai/dsh-tool-todo"]
   cfg --> plugin_dsh_base_tool_todo
   plugin_dsh_base_tool_goal["tool-goal<br/>@deepseek-ai/dsh-tool-goal"]
@@ -212,6 +216,7 @@ flowchart LR
 | `session-title` | `@deepseek-ai/dsh-session-title` |
 | `session-title-llm` | `@deepseek-ai/dsh-session-title-first-prompt-llm` |
 | `user-questions` | `@deepseek-ai/dsh-user-questions` |
+| `ui-quiet` | `@deepseek-ai/dsh-client-ui-quiet` |
 | `agent` | `@deepseek-ai/dsh-agent` |
 | `plugin-package-inventory-deepseek` | `@deepseek-ai/dsh-plugin-package-inventory-deepseek` |
 | `agent-default-model` | `@deepseek-ai/dsh-agent-default-model` |
@@ -277,6 +282,7 @@ flowchart LR
 | `session-checkpoint-policy` | `@deepseek-ai/dsh-session-checkpoint-policy` |
 | `checkpoint` | `@deepseek-ai/dsh-checkpoint` |
 | `tool-result-pruner` | `@deepseek-ai/dsh-compaction-tool-result-pruner` |
+| `reasoning-prefetch` | `@deepseek-ai/dsh-experimental-reasoning-prefetch` |
 | `tool-todo` | `@deepseek-ai/dsh-tool-todo` |
 | `tool-goal` | `@deepseek-ai/dsh-tool-goal` |
 | `tool-claim` | `@deepseek-ai/dsh-tool-claim` |

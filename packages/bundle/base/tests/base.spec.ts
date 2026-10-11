@@ -81,6 +81,9 @@ describe('dsh-base bundle', () => {
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')
+    // Context prefetch ships with the base: the row and its dependency exist.
+    expect(rows.find(row => row.id === 'reasoning-prefetch')?.name).toBe('@deepseek-ai/dsh-experimental-reasoning-prefetch')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-experimental-reasoning-prefetch')
   })
 
   it('gates each shell stack by platform with a symmetric disabled expression', () => {
