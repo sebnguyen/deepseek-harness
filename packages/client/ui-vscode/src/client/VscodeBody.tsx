@@ -91,6 +91,14 @@ function BootHero({ line, spinning = false }: { readonly line: string; readonly 
   )
 }
 
+/**
+ * Last ready-triple per session id, kept module-level so a session switch —
+ * which remounts this body per the seat's contract — repaints the ready
+ * branch (and therefore a barn-cached frame) immediately instead of
+ * re-showing the boot hero for one poll cycle.
+ */
+const readyCache = new Map<string, IdeBridgeStatus>()
+
 export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
   // Resource addresses (file rows) carry their session in the URL; page
@@ -100,7 +108,9 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
     const parsed = parseFileAddress(tab.contentId)
     return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
   }, [tab.contentId, scopeSessionId])
-  const [state, setState] = useState<IdeBridgeStatus | undefined>(undefined)
+  const [state, setState] = useState<IdeBridgeStatus | undefined>(
+    sessionId === undefined ? undefined : readyCache.get(sessionId),
+  )
 
   useEffect(() => {
     if (sessionId === undefined) {
@@ -113,7 +123,9 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
       const result = await status(sessionId, controller.signal)
       if (!mounted || controller.signal.aborted) return
       const fallback = { enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: '' }
-      setState(result.ok ? result.value : { ...fallback, detail: result.error.message })
+      const next = result.ok ? result.value : { ...fallback, detail: result.error.message }
+      if (next.ready === true) readyCache.set(sessionId, next)
+      setState(next)
     }
     void tick()
     const timer = setInterval(() => { void tick() }, POLL_MS)

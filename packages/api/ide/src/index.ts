@@ -70,10 +70,15 @@ interface IdeTwin {
   readonly tkn: string
 }
 
-/** Spawner-wide state: one twin per session id, owned by the host plugin lifetime. */
+/**
+ * Spawner-wide state: ONE twin per workspace root (the session id stands in
+ * when the header carries no cwd), owned by the host plugin lifetime. This is
+ * what makes a session switch on the same workspace a no-op for the client —
+ * the URL + token it polls back are identical, so the frame needn't navigate.
+ */
 interface IdeTwinManager {
   readonly dispose: () => void
-  readonly ensure: (sessionId: string) => Promise<IdeTwin>
+  readonly ensure: (workspaceKey: string) => Promise<IdeTwin>
 }
 
 /**
@@ -130,7 +135,7 @@ async function waitReady(url: string, timeoutMs: number, pollMs: number, signal?
  *
  * Children are spawned through `ctx.subprocess`, which hands us scrubbed
  * environment semantics and managed-range teardown for free; the module map
- * additionally guarantees one child per session id and a whole-manager
+ * additionally guarantees one child per workspace root and a whole-manager
  * dispose when the host context ends.
  * @param ctx - host plugin context carrying the subprocess service.
  * @param config - deployment config (`dist` plus tuning).
@@ -145,8 +150,8 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
       }
       twins.clear()
     },
-    ensure(sessionId: string): Promise<IdeTwin> {
-      const live = twins.get(sessionId)
+    ensure(workspaceKey: string): Promise<IdeTwin> {
+      const live = twins.get(workspaceKey)
       if (live !== undefined) return live
       const pending = (async (): Promise<IdeTwin> => {
         const token = randomBytes(24).toString('base64url')
@@ -196,7 +201,7 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
             // The child fell over before or during readiness: drop the full
             // collected stderr into the rejection so the client detail line
             // carries substance instead of a bare "spawn failed".
-            if (twins.get(sessionId) === pending) twins.delete(sessionId)
+            if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
             setup.abort()
             const stderr = handle.collected.stderr?.readFrom(0).text.trim() ?? ''
             reject(new Error(
@@ -211,9 +216,9 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
             })
         })
       })()
-      twins.set(sessionId, pending)
+      twins.set(workspaceKey, pending)
       void pending.catch(() => {
-        if (twins.get(sessionId) === pending) twins.delete(sessionId)
+        if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
       })
       return pending
     },
@@ -263,7 +268,7 @@ export class Ide extends TypertRemoteService {
   private async warmLatest(sessions: Context['sessions']): Promise<void> {
     const [latest] = sessions.list()
     if (latest === undefined) return
-    await this.twins.ensure(latest.id)
+    await this.twins.ensure(this.workspaceKey(latest.id, await this.workspaceRootOf(latest.id)))
   }
 
   /**
@@ -300,10 +305,11 @@ export class Ide extends TypertRemoteService {
    * @returns the ready triple the client needs to mount the iframe.
    */
   private async ready(sessionId: string, signal: AbortSignal): Promise<WireReady> {
-    const [root, twin] = await Promise.all([
-      this.workspaceRootOf(sessionId),
-      this.twins.ensure(sessionId),
-    ])
+    // The root must resolve before ensure: it IS the twin's key, so a session
+    // switch onto the same workspace lands on the same URL + token pair and
+    // the frame it feeds needs no reload at all.
+    const root = await this.workspaceRootOf(sessionId)
+    const twin = await this.twins.ensure(this.workspaceKey(sessionId, root))
     // Freshly-spawned children need their readiness window; an existing twin
     // is already up and re-probing costs one cheap round trip at worst.
     await waitReady(twin.url, this.config.readinessTimeoutMs, this.config.readinessPollMs, signal)
@@ -316,6 +322,14 @@ export class Ide extends TypertRemoteService {
    * @returns the header cwd, or the sandbox root when the header names none;
    *   `null` keeps the boundary JSON-safe while the client states it cannot mount.
    */
+  /**
+   * The twin-map key: the workspace root exactly, the session id when the
+   * header names no cwd — unscoped sessions keep the old per-session hosts.
+   */
+  private workspaceKey(sessionId: string, root: string | null): string {
+    return root ?? sessionId
+  }
+
   private async workspaceRootOf(sessionId: string): Promise<string | null> {
     const scope = this.scope
     if (scope === undefined) return null
