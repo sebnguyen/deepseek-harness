@@ -83,12 +83,12 @@ export function apply(ctx: Context): void {
     }
   }
 
-  ctx.inject(['tools'], toolsCtx => {
+  ctx.inject(['tools'], (toolsCtx) => {
     registerTool = (tool: ToolDefinition) => toolsCtx.tools.register(tool)
     syncTool()
   })
 
-  ctx.inject(['settings'], settingsCtx => {
+  ctx.inject(['settings'], (settingsCtx) => {
     settingsCtx.settings.installSection(ctx, QUIET_SETTINGS_NAMESPACE, QuietSettingsSchema, { mode: DEFAULT_MODE }, {
       setSource: (current) => {
         source = current
