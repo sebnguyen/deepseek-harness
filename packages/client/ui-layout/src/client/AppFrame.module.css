@@ -1,9 +1,23 @@
 .frame {
-  position: relative; /* anchors the drag handles, which straddle column borders */
+  position: relative;
+  /* Isolation stacks the ocean scene (z -1) above the frame's opaque base
+     fill but below every content child — the global background layer behind
+     the floating cards. It also anchors the drag handles. */
+  isolation: isolate;
   display: grid;
   grid-template-rows: 100%;
   height: 100%;
   overflow: hidden;
+  box-sizing: border-box;
+  /* Floating-window treatment: the three columns are cards floating on the
+     frame's base fill — an 8px outer inset and an 8px gap leave the ground
+     visible around every region. The card radius is published for window
+     cards outside this package (ui-sidebar-right's panel consumes it). */
+  padding: 8px;
+  gap: 8px;
+  --dsh-frame-card-radius: 14px;
+  /* The scene paints over this fill; it stays as the base the rays, dot grid
+     and veil shade against, and as the corners' seam under the cards. */
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
@@ -22,11 +36,17 @@
   }
 }
 
+/* Every column is a floating card: the old 0.5px inter-column rules are
+   replaced by a rounded card edge — ui-theme's elevation pair (hairline
+   stroke + soft shadow), clipped corners included since each column already
+   claims overflow: hidden. The ground between cards is the frame's base
+   fill; the stack needs no explicit z-levels. */
 .sidebarCol {
   min-width: 0;
   overflow: hidden;
   background: var(--dsw-specific-sidebar-fill);
-  border-right: 0.5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsh-frame-card-radius);
+  box-shadow: var(--dsw-elevation-panel);
 }
 
 .centerCol {
@@ -34,10 +54,13 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  border-radius: var(--dsh-frame-card-radius);
+  box-shadow: var(--dsw-elevation-panel);
 }
 
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
-   centered on the column border via inline left, above column content. No
+   centered on the inter-card gap via an inline left that adds the frame's
+   outer inset and half the gap, above column content. No
    handle draws a visible pill: the details column was the only one that did,
    and the right column never had one. The right handle sits above the right
    panel (which states z-index 10) so it stays grabbable when the panel hangs

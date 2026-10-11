@@ -11,6 +11,10 @@ import { createLayoutStore } from '../src/client/stores.ts'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
+// Geometry specs stub requestAnimationFrame for the drag handles; the ambient
+// ocean scene runs its own rAF shine loop, so the whole component stands out.
+vi.mock('../src/client/OceanScene.tsx', () => ({ OceanScene: (): null => null }))
+
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
 let selectedSession: SessionId | undefined
 let selectedSessionTitle: string | undefined
@@ -388,7 +392,7 @@ describe('AppFrame right panel presentation', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
     expect(tracks(frame)).toEqual([280, 864])
-    expect(handleFor(frame, 'rightbar').style.left).toBe('1056px')
+    expect(handleFor(frame, 'rightbar').style.left).toBe('1044px')
     act(() => { instance.actions.openRightbar(true, true) })
     expect(tracks(frame)).toEqual([280, 864])
     expect(rightOwner().width).toBe(864)
@@ -396,7 +400,7 @@ describe('AppFrame right panel presentation', () => {
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     act(() => { instance.actions.openRightbar(true, false) })
     expect(tracks(frame)).toEqual([280, 864])
-    expect(handleFor(frame, 'rightbar').style.left).toBe('1056px')
+    expect(handleFor(frame, 'rightbar').style.left).toBe('1044px')
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     act(() => { instance.actions.closeRightbar() })
     expect(tracks(frame)).toEqual([280, 0])
@@ -467,12 +471,12 @@ describe('AppFrame pointer resizing', () => {
     const handle = handleFor(frame, 'rightbar')
     expect(rightOwner().width).toBe(420)
     expect(tracks(frame)[1]).toBe(420)
-    expect(handle.style.left).toBe('680px')
+    expect(handle.style.left).toBe('668px')
     drag(handle, 680, 690)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(410)
     expect(rightOwner().width).toBe(410)
     expect(tracks(frame)[1]).toBe(410)
-    expect(handle.style.left).toBe('690px')
+    expect(handle.style.left).toBe('678px')
   })
 
   it('widens to the 70% limit and shrinks to 300px through pointer input', () => {

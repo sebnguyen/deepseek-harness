@@ -1,0 +1,157 @@
+/* Ocean scene: god-ray shafts, a dot grid and a sun core — the app's global
+   background, painted at z-index -1 inside ui-layout's isolated .frame: above
+   the frame's opaque base fill, below every floating card. All palette values
+   come from the ui-theme ocean-scene sheet (--dsh-ocean-*), which flips per
+   theme. */
+
+.scene {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  /* The sea gradient the scene paints on; the rays and dot grid sit in it. */
+  background: var(--dsh-ocean-sea);
+}
+
+/* ray fan host: bloom/saturation are driven by OceanScene's shine loop */
+.rays {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  filter: saturate(var(--raySat, 1));
+}
+
+/* boost layer: an extra DO-blue shaft per ray; the shine loop only writes
+   its collective opacity, so inferencing deepens blue instead of clipping
+   white through a brightness() filter */
+.boost {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+
+/* one shaft: a vertical strip hinged on the sun point (origin 50% 0) */
+.ray,
+.boostRay {
+  position: absolute;
+  top: 0;
+  height: 190vh;
+  display: block;
+  opacity: .45;
+  transform-origin: 50% 0;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
+  animation: raysway var(--sw, 26s) var(--ds-ease-in-out, ease-in-out) infinite alternate;
+}
+.boostRay {
+  background: linear-gradient(180deg,
+    var(--dsh-ocean-ray-boost) 0%,
+    color-mix(in srgb, var(--dsh-ocean-ray-boost) 55%, transparent) 36%,
+    transparent 76%);
+  opacity: .9;
+}
+
+@keyframes raysway {
+  from { transform: rotate(calc(var(--r) - 1.4deg)); }
+  to { transform: rotate(calc(var(--r) + 1.4deg)); }
+}
+
+/* blurred halo at the fan's hinge point */
+.suncore {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  margin: -110px 0 0 -110px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--dsh-ocean-ray-b), transparent 70%);
+  filter: blur(38px);
+  opacity: .45;
+}
+
+/* gridspace does not use perspective — zoom-fading layers stand in for
+   depth so nothing exotic can silently flatten the stacking chain */
+.gs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* one zoom-cycling layer: a viewport-spanning dot tile whose scale loops
+   from small-and-dimming-in to large-and-fading-out */
+.glayer {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 420vmax; height: 420vmax;
+  margin: -210vmax 0 0 -210vmax;
+  transform-origin: center;
+  background-position: center;
+  background-repeat: repeat;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+.glayerA {
+  composes: glayer;
+  background-image: radial-gradient(circle, var(--dsh-ocean-grid-a) 0 2px, transparent 4.2px);
+  background-size: 44px 44px;
+}
+.glayerB {
+  composes: glayer;
+  background-image: radial-gradient(circle, var(--dsh-ocean-grid-b) 0 2.8px, transparent 5.8px);
+  background-size: 62px 62px;
+}
+/* per-layer shafts, riding the layer's scale (parallax for free); the
+   hinge hangs above the tile so the source is always off-screen */
+.gpray {
+  position: absolute;
+  top: -150%; height: 210%;
+  opacity: .8;
+  transform-origin: 50% 0;
+  transform: rotate(var(--r, 0deg));
+  mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
+  filter: blur(4px);
+}
+.glayerA .gpray { background: linear-gradient(180deg, var(--dsh-ocean-grid-b), transparent 72%); }
+.glayerB .gpray { background: linear-gradient(180deg, var(--dsh-ocean-grid-a), transparent 72%); }
+
+/* readability veil; dense variant deepens while a transcript owns the
+   centre — the global scene keeps the light veil in every phase. */
+.veil {
+  position: absolute;
+  inset: 0;
+  background: var(--dsh-ocean-veil);
+  transition: background 1s var(--ds-ease-in-out, ease);
+}
+.veilDense {
+  background: var(--dsh-ocean-veil-strong);
+}
+
+/* depth attenuation: two alpha-curves that dim the scene the way water
+   dims sunlight — a gentle linear sink toward the ocean floor (never fully
+   opaque, so rays which do reach stay visible) and a radial scatter fog
+   centered on the sun's projection, so light fades with distance from its
+   source the way it fades with depth. */
+.fades {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg,
+      transparent 0%,
+      transparent 44%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 24%, transparent) 70%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 52%, transparent) 90%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 68%, transparent) 100%),
+    radial-gradient(ellipse 60% 55% at 50% -18%,
+      transparent 42%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 16%, transparent) 70%,
+      color-mix(in srgb, var(--dsw-alias-bg-base) 32%, transparent) 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ray,
+  .boostRay {
+    animation: none;
+  }
+}

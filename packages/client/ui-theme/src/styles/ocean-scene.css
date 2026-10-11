@@ -1,0 +1,33 @@
+/* Ocean scene token layer — the light-shaft background behind the
+   conversation content column. Values follow the walrus scale in
+   design-platform.css (brand / blue-500→400 / deepseek / neutral-bluish)
+   rather than raw marketing hexes. Consumed by ui-layout's frame-level OceanScene
+   module CSS; both themes re-declare the same names. */
+body {
+  /* depth gradient the scene paints on */
+  --dsh-ocean-sea: linear-gradient(180deg, #FFFFFF 0%, rgb(247,248,248) 46%, rgb(243,249,251) 100%);
+  /* shaft palette: brand / blue-500 / deepseek teal */
+  --dsh-ocean-ray-a: rgba(0,99,248,.18);
+  --dsh-ocean-ray-b: rgba(38,145,234,.26);
+  --dsh-ocean-ray-c: rgba(96,165,175,.16);
+  /* inferencing boost: the send button's own blue, stacked — never luminance */
+  --dsh-ocean-ray-boost: color-mix(in srgb, var(--dsw-alias-button-info-fill) 32%, transparent);
+  /* gridspace planes: alternating dot pitches, drastically visible */
+  --dsh-ocean-grid-a: rgba(31,97,174,.62);
+  --dsh-ocean-grid-b: rgba(38,145,234,.5);
+  /* readability veil: hero lets the scene breathe, transcript deepens it */
+  --dsh-ocean-veil: rgba(247,248,248,.28);
+  --dsh-ocean-veil-strong: rgba(247,248,248,.66);
+}
+body[data-ds-dark-theme] {
+  --dsh-ocean-sea: linear-gradient(180deg, rgb(23,27,29) 0%, rgb(14,18,20) 48%, rgb(7,9,11) 100%);
+  --dsh-ocean-ray-a: rgba(38,145,234,.22);
+  --dsh-ocean-ray-b: rgba(97,200,249,.24);
+  --dsh-ocean-ray-c: rgba(96,165,175,.22);
+  /* inferencing boost: the send button's own blue, stacked — never luminance */
+  --dsh-ocean-ray-boost: color-mix(in srgb, var(--dsw-alias-button-info-fill) 32%, transparent);
+  --dsh-ocean-grid-a: rgba(145,159,158,.7);
+  --dsh-ocean-grid-b: rgba(97,200,249,.6);
+  --dsh-ocean-veil: rgba(10,12,14,.3);
+  --dsh-ocean-veil-strong: rgba(10,12,14,.58);
+}

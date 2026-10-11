@@ -23,6 +23,14 @@ import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
+import { OceanScene } from './OceanScene.tsx'
+
+/* Frame card geometry mirrored from AppFrame.module.css: the outer inset and
+   the inter-card gap. Drag handles center on a gap, so a handle's left gains
+   the inset plus half the gap on each side of the frame. */
+const FRAME_INSET = 8
+const FRAME_GAP = 8
+const GAP_CENTER = FRAME_INSET + FRAME_GAP / 2
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
@@ -130,6 +138,13 @@ export function AppFrame({
   const layoutInfo = useStore(state => state.layoutInfo)
   const frameRef = useRef<HTMLDivElement | null>(null)
   const viewport = layoutInfo.viewportWidth
+  /* Engine state feeding the global ocean scene's inference boost: the current
+     session's list-row running flag (list and selection ride one snapshot, so
+     the selector follows session switches without a second subscription). */
+  const engineRunning = useSessions(s => {
+    const current = s.current
+    return current === undefined ? false : (s.byId[current]?.running ?? false)
+  })
 
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useLayoutEffect(() => {
@@ -214,6 +229,10 @@ export function AppFrame({
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
       data-dragging={dragging || undefined}
     >
+      {/* The ambient DO ocean scene: the app's global background, painted
+          behind the floating cards; its inference boost climbs while the
+          current session's engine runs. */}
+      <OceanScene running={engineRunning} dense={false} />
       <DocumentTitle
         productTitle={productTitle}
         useSessions={useSessions}
@@ -232,9 +251,9 @@ export function AppFrame({
         {overlays}
       </div>
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar + GAP_CENTER} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
-        <DragHandle side="rightbar" left={viewport - normal.rightbar} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
+        <DragHandle side="rightbar" left={viewport - normal.rightbar - GAP_CENTER} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
       )}
     </div>
   )

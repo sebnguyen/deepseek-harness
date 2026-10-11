@@ -4,7 +4,11 @@
   flex-direction: column;
   height: 100%;
   min-width: 0;
-  background: var(--dsw-alias-bg-base);
+  /* The column draws no fill of its own: the frame-level ocean scene
+     (ui-layout .frame) shows through, so the conversation floats in the same
+     water as the rest of the app. Content keeps its own surfaces (composer
+     card, message bubbles, code blocks) against the scene's light veil. */
+  background: transparent;
 
   /* Shared width axis for the whole column: one content width W
      (--dsh-chat-content-width) for the transcript, the dock cards
