@@ -183,6 +183,14 @@
     - id: workspace-files
       name: '@deepseek-ai/dsh-api-workspace-files'
 
+    # VS Code twin spawner and the ideBridge Remote: per-session OSS REH on
+    # loopback with a usable/no-twin status. Empty dist disables cleanly; the
+    # twin keeps its server state and marketplace extensions inside the dist.
+    - id: ide
+      name: '@deepseek-ai/dsh-api-ide'
+      config:
+        dist: !!js process.env.DSH_VSCODE_TWIN_DIST ?? ''
+
     # Configuration-surface reads and writes over Typert Remote. Each method
     # reports an actionable error when its settings-domain provider is absent.
     - id: settings-controller
@@ -308,6 +316,11 @@
     # workspaceFiles read and write endpoints.
     - id: ui-editor
       name: '@deepseek-ai/dsh-client-ui-editor'
+
+    # The right Sidebar's embedded VS Code tab: iframe mount of the session
+    # twin at the extension band, above the builtin text editor.
+    - id: ui-vscode
+      name: '@deepseek-ai/dsh-client-ui-vscode'
 
     # The right Sidebar's workspace file tree tab type.
     - id: ui-sidebar-files
