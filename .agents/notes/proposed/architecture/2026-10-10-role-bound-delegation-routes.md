@@ -159,3 +159,71 @@ operator head; the schema help text must state it is a model-selection role.
 - Does the fork provider (`subagent_fork`, which must inherit the parent's exact
   route for prefix reuse) need a policy error when handed a role reference, or is
   the reference simply ignored there?
+
+## Revision 1: roll the explorer into the generic subagent (2026-10-10)
+
+The explorer is already the generic subagent tool with a fixed config — one
+`dsh-tool-subagent` row carrying persona, `outputSchema`, `maxSteps`,
+`childSandboxMode: read-only`, a `toolFilter` allow-list, `enableBatchTasks`,
+one-shot mode (`packages/preset/agent-presets/presets/standard/agent.cordis.yml:249-297`).
+Nothing in the engine knows what an "explorer" is; only that row does. Rolling it
+into the general subagent family therefore means changing what the row carries,
+not building a new system.
+
+### What the AI can discover about models today
+
+- `list_subagent_models` (`packages/subagent/tool-subagent/src/list-models.ts:86-113`)
+  is the only model-facing discovery: no args → registered providers, `provider`
+  → its advertised models (id, display name, catalog description),
+  `provider`+`model` → that model's reasoning-effort menu with the default
+  marked. Every list is gated by the session's `ModelSelectionPolicy` — a route
+  absent from the allowed list is invisible to the AI.
+- The allowed list itself lives in the `subagent-model-selection` settings
+  section (`model-selection-settings.ts:20-34`): `enabled` plus an exact
+  `{provider, model}` route array, **shipped `enabled: false` with an empty
+  list**; a tool row opts the exposure in per tool via
+  `modelSelectionSettings: true` (the standard preset enables it only on the
+  plain `subagent` row, `agent.cordis.yml:224`).
+- The AI gets **no cost signal anywhere**: providers are listed by display name,
+  models by catalog description. The session-stats pricing table exists in
+  bundle config but renders UI-only (cost chips, tuning window); no
+  model-facing tool can rank routes by spend or name a "flash" model as such.
+
+### The roll-in design
+
+1. **Explore keeps its deployment-owned envelope, loses the pin.** Persona,
+   schema, sandbox, step budget, and the read-only tool allow-list stay exactly
+   where they are (config rows, never model choices); `agentOptions` leaves the
+   row entirely. The explorer child then inherits the parent's route unless the
+   AI selects otherwise.
+2. **Give the row the same model-selection exposure as `subagent`.** Setting
+   `modelSelectionSettings: true` on the explore row (and the allowed-route
+   settings) makes `list_subagent_models` available during exploration
+   delegations, so the AI picks the route per call — `provider`, `model`, and
+   optionally `reasoning_effort`, validated by the existing preflight. The
+   tool's own description already names the intent: "cheap broad reader" stays
+   in the persona, and the selection-schema text teaches "omit to inherit."
+3. **Make "cheap" a first-class, operator-owned fact.** Allowed-route entries
+   grow an optional operator annotation (a label such as `cheap-flash` /
+   `fast` / `thinking` rendered in `list_subagent_models` output, and named in
+   the delegation tool's selection-schema description when routes are
+   annotated). Ranking by price must not come from an endpoint: DO publishes
+   rates in documentation, not at the endpoint, so the operator states cost
+   classes in the allowed list and the AI follows labels, mirroring how the
+   tuning window treats rates as operator data.
+4. **Default exposure stays settings-backed.** The operator curates the allowed
+   list through the existing `subagent-model-selection` settings section
+   (likely per tool row — an explore-scoped allowed list is one config field
+   over the global one); with the section absent or empty, the explorer
+   behaves as today minus the pin: parent inheritance, no selection affordance.
+
+### What this changes from the role sketch above
+
+The role map is unnecessary for the explorer: the per-call selection plus an
+annotated allowed list covers "quick and cheap explorer" without a new named
+default. The role map still earns its cost only for *unattended* children
+(workflow workers, ralph rounds) where no AI turn selects a route at call time.
+Open check: the standard preset's existing `modelSelectionSettings: true` on the
+`subagent` row already requires the settings service; confirm the headless base
+bundle mounts `subagent-model-selection-settings` before enabling the same flag
+on the explore row in every profile.

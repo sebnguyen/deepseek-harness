@@ -247,6 +247,72 @@ describe('LlmRuntime', () => {
     expect(adapter.lastOptions?.structuredOutput).toEqual({ type: 'object' })
   })
 
+  it('evaluates per-route capability with the request route before stripping', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const RouteAdapter = class extends RecordingAdapter {
+      override readonly structuredOutputOnRequest = (_p: string, model: string) => model === 'good-model'
+      override readonly toolChoiceOnRequest = (_p: string, model: string) => model === 'good-model'
+    }
+    const adapter = new RouteAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['test-provider'], adapter)
+
+    for await (const _chunk of ctx.llm.stream({
+      provider: 'test-provider',
+      model: 'good-model',
+      messages: [],
+      structuredOutput: { type: 'object' },
+      toolChoice: 'required',
+    })) { /* drain */ }
+    expect(adapter.lastOptions?.structuredOutput).toEqual({ type: 'object' })
+    expect(adapter.lastOptions?.toolChoice).toBe('required')
+
+    for await (const _chunk of ctx.llm.stream({
+      provider: 'test-provider',
+      model: 'bad-model',
+      messages: [],
+      structuredOutput: { type: 'object' },
+      toolChoice: 'required',
+    })) { /* drain */ }
+    expect(adapter.lastOptions?.structuredOutput).toBeUndefined()
+    expect(adapter.lastOptions?.toolChoice).toBeUndefined()
+    expect(adapter.lastOptions?.provider).toBe('test-provider')
+  })
+
+  it('answers grammarCapability per route exactly as the strip will enforce', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    // Unregistered providers report conservative no-support rather than throw.
+    expect(ctx.llm.grammarCapability('no-provider', 'any-model')).toEqual({
+      structuredOutput: false,
+      toolChoice: false,
+    })
+
+    const StaticAdapter = class extends RecordingAdapter {
+      override readonly toolChoiceOnRequest = true
+    }
+    const FunctionAdapter = class extends RecordingAdapter {
+      override readonly structuredOutputOnRequest = (_p: string, model: string) => model === 'good-model'
+    }
+    const staticAdapter = new StaticAdapter(SCRIPT)
+    const functionAdapter = new FunctionAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['static-provider'], staticAdapter)
+    ctx.llm.registerAdapter(['function-provider'], functionAdapter)
+
+    expect(ctx.llm.grammarCapability('static-provider', 'any-model')).toEqual({
+      structuredOutput: false,
+      toolChoice: true,
+    })
+    expect(ctx.llm.grammarCapability('function-provider', 'good-model')).toEqual({
+      structuredOutput: true,
+      toolChoice: false,
+    })
+    expect(ctx.llm.grammarCapability('function-provider', 'bad-model')).toEqual({
+      structuredOutput: false,
+      toolChoice: false,
+    })
+  })
+
   it('projects file blocks through every host-path availability outcome', async () => {
     const attachment = {
       attachmentId: AttachmentId(`sha256:${'ab'.repeat(32)}`),

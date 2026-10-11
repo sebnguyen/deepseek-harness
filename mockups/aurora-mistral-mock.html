@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSH — Aurora × Mistral mock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300..800;1,14..32,300..800&family=Instrument+Serif:ital@1&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* DESIGN TOKENS — mirrors the repo's three real token layers:
+   static palette → alias layer → component-specific tokens.
+   In production these map onto --dsw-static-*, --dsw-alias-*,
+   --dsw-specific-* in packages/client/ui-theme. */
+:root {
+  /* static palette */
+  --static-blue-500: #3f7fff;
+  --static-violet-500: #8a5cf6;
+  --static-magenta-500: #d44fd4;
+  --static-ember-500: #ff8205;            /* Mistral accent */
+  --static-ember-050: #ffefe0;
+
+  /* aurora gradient */
+  --gradient-aurora: linear-gradient(96deg, #3f7fff 0%, #8a5cf6 45%, #d44fd4 78%, #ff8205 115%);
+  --gradient-aurora-soft: linear-gradient(135deg, rgba(63,127,255,.10), rgba(138,92,246,.10), rgba(212,79,212,.10));
+
+  /* type */
+  --font-ui: "Inter", system-ui, sans-serif;
+  --font-accent: "Instrument Serif", ui-serif, Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* geometry (repo: --dsh-chat-content-width, --dsh-chat-flow-gap) */
+  --chat-content-width: 760px;
+  --chat-flow-gap: 28px;
+  --composer-side-clearance: 24px;
+  --radius-composer: 28px;
+  --radius-bubble: 22px;
+  --sidebar-width: 278px;
+
+  /* motion */
+  --ease: cubic-bezier(.4, 0, .2, 1);
+  --dur: .2s;
+}
+
+html[data-theme="light"] {
+  color-scheme: light;
+  /* alias layer */
+  --alias-bg-base: #f4f6fa;
+  --alias-bg-glass: rgba(255,255,255,.58);
+  --alias-bg-solid: #ffffff;
+  --alias-bg-hover: rgba(23,26,35,.045);
+  --alias-bg-active: rgba(23,26,35,.07);
+  --alias-label-primary: #191b22;
+  --alias-label-secondary: #5d6272;
+  --alias-label-tertiary: #8b90a0;
+  --alias-border-l2: rgba(23,26,35,.09);
+  --alias-border-l3: rgba(23,26,35,.06);
+  --alias-shadow: 0 1px 2px rgba(16,18,28,.05), 0 12px 36px -12px rgba(16,18,28,.14);
+  --alias-shadow-soft: 0 1px 1px rgba(16,18,28,.04), 0 6px 20px -8px rgba(16,18,28,.10);
+
+  /* specific */
+  --specific-bubble: rgba(138,92,246,.08);
+  --specific-bubble-border: rgba(138,92,246,.16);
+  --specific-sidebar: rgba(255,255,255,.44);
+  --specific-chip-ember-bg: rgba(255,130,5,.09);
+  --specific-chip-ember-fg: #b35600;
+  --aura-op: .5;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --alias-bg-base: #0b0d14;
+  --alias-bg-glass: rgba(18,21,30,.55);
+  --alias-bg-solid: #141824;
+  --alias-bg-hover: rgba(255,255,255,.055);
+  --alias-bg-active: rgba(255,255,255,.09);
+  --alias-label-primary: #e9ebf2;
+  --alias-label-secondary: #9aa0b0;
+  --alias-label-tertiary: #6a7182;
+  --alias-border-l2: rgba(255,255,255,.11);
+  --alias-border-l3: rgba(255,255,255,.065);
+  --alias-shadow: 0 1px 2px rgba(0,0,0,.4), 0 16px 44px -12px rgba(0,0,0,.55);
+  --alias-shadow-soft: 0 1px 1px rgba(0,0,0,.3), 0 8px 24px -8px rgba(0,0,0,.5);
+
+  --specific-bubble: rgba(138,92,246,.16);
+  --specific-bubble-border: rgba(170,140,255,.24);
+  --specific-sidebar: rgba(16,18,26,.5);
+  --specific-chip-ember-bg: rgba(255,130,5,.14);
+  --specific-chip-ember-fg: #ffb066;
+  --aura-op: .38;
+}
+
+* { box-sizing: border-box; margin: 0; }
+html, body { height: 100%; }
+body {
+  font-family: var(--font-ui);
+  font-size: 14px; line-height: 24px;            /* repo: --dsh-content-font-size default 14, lh 24 */
+  color: var(--alias-label-primary);
+  background: var(--alias-bg-base);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background .4s var(--ease), color .3s var(--ease);
+}
+::selection { background: rgba(138,92,246,.25); }
+
+/* scrollbars (repo: scrollbar.css) */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--alias-border-l2); border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+kbd, code, pre { font-family: var(--font-mono); }
+
+/* AURORA CANVAS — ambient layer behind everything */
+.aurora {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+  opacity: var(--aura-op);
+  filter: blur(90px) saturate(1.15);
+  transition: opacity .4s var(--ease);
+  pointer-events: none;
+}
+.aurora i { position: absolute; border-radius: 50%; animation: drift 26s var(--ease) infinite alternate; }
+.aurora .b1 { width: 58vw; height: 58vw; left: -12vw; top: -22vh; background: radial-gradient(closest-side, #9cc0ff, transparent 70%); }
+.aurora .b2 { width: 46vw; height: 46vw; right: -10vw; top: 6vh;  background: radial-gradient(closest-side, #d9bcff, transparent 70%); animation-delay: -6s; }
+.aurora .b3 { width: 42vw; height: 42vw; left: 24vw; bottom: -26vh; background: radial-gradient(closest-side, #ffc8e6, transparent 70%); animation-delay: -13s; }
+.aurora .b4 { width: 26vw; height: 26vw; right: 16vw; bottom: 4vh; background: radial-gradient(closest-side, #ffd9b3, transparent 70%); animation-delay: -19s; opacity: .6; }
+@keyframes drift { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(4vw,-3vh,0) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .aurora i { animation: none; } }
+
+/* APP SHELL (repo: AppFrame — sidebar / CenterColumn / rightbar) */
+.shell { position: relative; z-index: 1; display: flex; height: 100vh; }
+
+/* ---- Sidebar ---- */
+.sidebar {
+  width: var(--sidebar-width); flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  padding: 14px 12px 12px;
+  background: var(--specific-sidebar);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border-right: .5px solid var(--alias-border-l3);
+}
+.brandRow { display: flex; align-items: center; gap: 10px; padding: 6px 8px 14px; }
+.brandMark {
+  width: 30px; height: 30px; border-radius: 10px;
+  background: var(--gradient-aurora);
+  box-shadow: 0 4px 14px -4px rgba(110,90,255,.6);
+  display: grid; place-items: center; color: #fff;
+}
+.brandName { font-weight: 600; letter-spacing: -.01em; font-size: 14.5px; }
+.buildTag {
+  margin-left: auto; font-size: 10.5px; font-family: var(--font-mono);
+  color: var(--alias-label-tertiary);
+  border: 1px solid var(--alias-border-l3); border-radius: 99px; padding: 2px 7px;
+}
+
+.newChat {
+  display: flex; align-items: center; gap: 9px;
+  margin: 2px 4px 14px; padding: 10px 14px;
+  border-radius: 14px;
+  background: var(--gradient-aurora);
+  color: #fff; font-weight: 550; font-size: 13.5px;
+  box-shadow: var(--alias-shadow-soft), inset 0 1px 0 rgba(255,255,255,.35);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.newChat:hover { transform: translateY(-1px); box-shadow: var(--alias-shadow), inset 0 1px 0 rgba(255,255,255,.35); }
+.newChat kbd { margin-left: auto; font-size: 11px; opacity: .85; background: rgba(255,255,255,.18); padding: 1px 6px; border-radius: 6px; }
+
+.navLabel { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--alias-label-tertiary); padding: 8px 12px 6px; font-weight: 600; }
+.navList { display: flex; flex-direction: column; gap: 1px; }
+.navItem {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: 11px;
+  color: var(--alias-label-secondary); font-size: 13.5px;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;
+}
+.navItem:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+.navItem.active {
+  background: var(--gradient-aurora-soft);
+  color: var(--alias-label-primary); font-weight: 550;
+  box-shadow: inset 0 0 0 1px rgba(138,92,246,.18);
+}
+.navItem svg { flex: 0 0 auto; opacity: .8; }
+.navItem .dot { margin-left: auto; width: 6px; height: 6px; border-radius: 50%; background: var(--static-violet-500); }
+
+.recentList { overflow-y: auto; flex: 1 1 auto; min-height: 60px; }
+.recentItem {
+  display: block; width: 100%; padding: 7px 12px; border-radius: 10px;
+  color: var(--alias-label-secondary); font-size: 13px; text-align: left;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.recentItem:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+
+.sideFooter { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: .5px solid var(--alias-border-l3); margin-top: 8px; }
+.userChip { display: flex; align-items: center; gap: 9px; padding: 6px 8px; border-radius: 10px; flex: 1; min-width: 0; }
+.userChip:hover { background: var(--alias-bg-hover); }
+.avatar { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg,#3f7fff,#d44fd4); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 600; }
+.userChip .nm { font-size: 13px; font-weight: 550; }
+.userChip .pl { font-size: 11px; color: var(--alias-label-tertiary); }
+.iconBtn {
+  width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center;
+  color: var(--alias-label-secondary);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.iconBtn:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+
+/* ---- Main column ---- */
+.main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.topbar {
+  display: flex; align-items: center; gap: 10px;
+  height: 56px; padding: 0 20px 0 8px; flex: 0 0 auto;
+}
+.collapse { margin-left: 2px; }
+.modelPick {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 13px; border-radius: 12px; font-weight: 550; font-size: 13.5px;
+  transition: background var(--dur) var(--ease);
+}
+.modelPick:hover { background: var(--alias-bg-hover); }
+.modelPick .spark {
+  width: 18px; height: 18px; border-radius: 6px;
+  background: var(--gradient-aurora); display: grid; place-items: center; color: #fff;
+}
+.topbar .spacer { flex: 1; }
+.headChip {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 12.5px; color: var(--alias-label-secondary);
+  padding: 7px 12px; border-radius: 99px;
+  border: 1px solid var(--alias-border-l3); background: var(--alias-bg-glass);
+  backdrop-filter: blur(8px);
+}
+.headChip .live { width: 7px; height: 7px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.2); }
+
+/* ---- Scroll area + centered column (ChatView) ---- */
+.scroll { flex: 1; overflow-y: auto; position: relative; container-type: inline-size; }
+.column { max-width: calc(var(--chat-content-width) + 2 * 24px); padding: 8px 24px 180px; margin: 0 auto; }
+
+/* hero (empty state) — Gemini-style greeting */
+.hero { padding: 7vh 4px 36px; }
+.hero h1 {
+  font-size: 46px; line-height: 1.12; letter-spacing: -.025em; font-weight: 600;
+  background: var(--gradient-aurora);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  padding-bottom: 4px;
+}
+.hero h1 .serif { font-family: var(--font-accent); font-style: italic; letter-spacing: 0; }
+.hero p { margin-top: 10px; font-size: 15px; color: var(--alias-label-secondary); max-width: 52ch; }
+
+.suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 26px; }
+.sugCard {
+  text-align: left; padding: 16px 16px 14px; border-radius: 18px;
+  background: var(--alias-bg-glass);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border: .5px solid var(--alias-border-l3);
+  box-shadow: var(--alias-shadow-soft);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.sugCard:hover { transform: translateY(-2px); box-shadow: var(--alias-shadow); border-color: rgba(138,92,246,.35); }
+.sugCard .ic { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; margin-bottom: 10px; }
+.sugCard .ic.blue   { background: rgba(63,127,255,.12); color: var(--static-blue-500); }
+.sugCard .ic.violet { background: rgba(138,92,246,.12); color: var(--static-violet-500); }
+.sugCard .ic.pink   { background: rgba(212,79,212,.12); color: var(--static-magenta-500); }
+.sugCard .ic.ember  { background: var(--specific-chip-ember-bg); color: var(--specific-chip-ember-fg); }
+.sugCard b { display: block; font-size: 13.5px; font-weight: 600; letter-spacing: -.005em; }
+.sugCard span { display: block; margin-top: 2px; font-size: 12.5px; line-height: 19px; color: var(--alias-label-tertiary); }
+
+/* ---- Transcript ---- */
+.flow { display: flex; flex-direction: column; gap: var(--chat-flow-gap); }
+.turn { display: flex; flex-direction: column; gap: 6px; }
+
+/* user message — right-aligned bubble */
+.userRow { display: flex; justify-content: flex-end; }
+.userBubble {
+  max-width: min(78%, 560px);
+  background: var(--specific-bubble);
+  border: .5px solid var(--specific-bubble-border);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-bubble);
+  padding: 10px 16px;
+  font-size: 14px; line-height: 22px;
+  word-break: break-word; white-space: pre-wrap;
+}
+.userMeta { display: flex; justify-content: flex-end; gap: 8px; padding: 0 4px; }
+.userMeta span { font-size: 11px; color: var(--alias-label-tertiary); }
+
+/* assistant message — no bubble, avatar row */
+.assistantRow { display: flex; gap: 14px; align-items: flex-start; }
+.sparkAvatar {
+  flex: 0 0 auto; width: 30px; height: 30px; margin-top: 2px;
+  border-radius: 50%; display: grid; place-items: center;
+  background: var(--gradient-aurora-soft);
+  box-shadow: inset 0 0 0 1px rgba(138,92,246,.22);
+}
+.sparkAvatar svg { background: var(--gradient-aurora); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.assistantBody { flex: 1; min-width: 0; font-size: 14.5px; line-height: 25px; }
+.assistantBody p + p { margin-top: 14px; }
+.assistantBody ul { margin: 12px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.assistantBody li::marker { color: var(--static-violet-500); }
+.assistantBody b { font-weight: 600; }
+.inlineCode {
+  font-family: var(--font-mono); font-size: 12.5px;
+  background: var(--alias-bg-active); border-radius: 6px; padding: 1px 6px;
+  border: 1px solid var(--alias-border-l3);
+}
+
+/* process rail (repo: data-rail='process' inset border) */
+.rail {
+  margin: 12px 0 2px;
+  padding: 2px 0 2px 12px;
+  box-shadow: inset 2px 0 0 var(--alias-border-l2);
+  display: flex; flex-direction: column; gap: 2px;
+}
+.railItem {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 8px; font-size: 12.5px;
+  color: var(--alias-label-secondary); width: fit-content;
+}
+.railItem:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+.railItem .check { color: #22c55e; }
+.done { font-size: 11.5px; color: var(--alias-label-tertiary); padding: 4px 8px; }
+
+/* code block */
+.codeCard {
+  margin-top: 16px; border-radius: 16px; overflow: hidden;
+  background: #0f1420;
+  border: .5px solid var(--alias-border-l3);
+  box-shadow: var(--alias-shadow-soft);
+  font-size: 12.8px; line-height: 20px;
+}
+.codeHead {
+  display: flex; align-items: center; padding: 8px 8px 8px 14px;
+  color: #8b93a7; font-family: var(--font-mono); font-size: 11.5px;
+  border-bottom: .5px solid rgba(255,255,255,.07);
+}
+.codeHead .lang { display: flex; align-items: center; gap: 7px; }
+.codeHead .fl { width: 8px; height: 8px; border-radius: 2px; background: var(--static-blue-500); }
+.copyBtn { margin-left: auto; display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 8px; color: #8b93a7; font-size: 11.5px; }
+.copyBtn:hover { background: rgba(255,255,255,.08); color: #e5e9f2; }
+.codeCard pre { padding: 14px 16px; overflow-x: auto; color: #dfe5f2; }
+.tk-k { color: #7aa5ff; } .tk-s { color: #8fe3a8; } .tk-n { color: #ffba7a; } .tk-p { color: #93a0b8; } .tk-c { color: #646f85; font-style: italic; }
+
+/* action bar under assistant reply */
+.actBar { display: flex; align-items: center; gap: 2px; margin-top: 14px; }
+.actBar button {
+  width: 29px; height: 29px; border-radius: 8px; display: grid; place-items: center;
+  color: var(--alias-label-tertiary);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.actBar button:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+.actBar .sep { flex: 1; }
+.actBar .regen { width: auto; padding: 0 11px; gap: 6px; font-size: 12px; color: var(--alias-label-secondary); }
+
+/* divider between turns */
+.turnDivider { border: 0; height: .5px; background: var(--alias-border-l3); margin: 4px 0; }
+
+/* scroll-to-bottom */
+.toBottom {
+  position: absolute; left: 50%; transform: translateX(-50%);
+  bottom: 148px; width: 34px; height: 34px; border-radius: 50%;
+  background: var(--alias-bg-solid); color: var(--alias-label-secondary);
+  border: .5px solid var(--alias-border-l3); box-shadow: var(--alias-shadow-soft);
+  display: grid; place-items: center;
+}
+.toBottom:hover { color: var(--alias-label-primary); }
+
+/* COMPOSER — floating rounded input card (InputBar) */
+.composerSeat {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; justify-content: center;
+  padding: 12px var(--composer-side-clearance) 22px;
+  background: linear-gradient(to top, var(--alias-bg-base) 30%, transparent);
+  pointer-events: none;
+}
+.composer {
+  pointer-events: auto;
+  width: min(100%, var(--chat-content-width));
+  margin: 0 auto;
+  background: var(--alias-bg-glass);
+  backdrop-filter: blur(26px) saturate(1.5);
+  -webkit-backdrop-filter: blur(26px) saturate(1.5);
+  border: .5px solid var(--alias-border-l2);
+  border-radius: var(--radius-composer);
+  box-shadow: var(--alias-shadow), inset 0 1px 0 rgba(255,255,255,.25);
+  padding: 14px 16px 10px;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+html[data-theme="dark"] .composer { box-shadow: var(--alias-shadow), inset 0 1px 0 rgba(255,255,255,.06); }
+.composer:focus-within {
+  border-color: rgba(138,92,246,.4);
+  box-shadow: var(--alias-shadow), 0 0 0 4px rgba(138,92,246,.08), inset 0 1px 0 rgba(255,255,255,.25);
+}
+html[data-theme="dark"] .composer:focus-within { box-shadow: var(--alias-shadow), 0 0 0 4px rgba(138,92,246,.12), inset 0 1px 0 rgba(255,255,255,.06); }
+.composer .ph { color: var(--alias-label-tertiary); font-size: 14.5px; padding: 2px 4px 6px; }
+.composerRow { display: flex; align-items: center; gap: 8px; }
+.tray { display: flex; align-items: center; gap: 4px; }
+.toolBtn {
+  width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center;
+  color: var(--alias-label-secondary);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.toolBtn:hover { background: var(--alias-bg-hover); color: var(--alias-label-primary); }
+
+/* Mistral-style capability pills */
+.pill {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px; border-radius: 99px; font-size: 12.5px; font-weight: 550;
+  color: var(--alias-label-secondary);
+  border: 1px solid var(--alias-border-l3); background: var(--alias-bg-glass);
+  transition: all var(--dur) var(--ease);
+}
+.pill:hover { border-color: var(--alias-border-l2); background: var(--alias-bg-hover); }
+.pill.ember { color: var(--specific-chip-ember-fg); background: var(--specific-chip-ember-bg); border-color: rgba(255,130,5,.25); }
+.pill.tuned { color: var(--static-violet-500); background: rgba(138,92,246,.1); border-color: rgba(138,92,246,.3); }
+
+.trailing { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.tune { font-size: 12.5px; color: var(--alias-label-secondary); display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 10px; }
+.tune:hover { background: var(--alias-bg-hover); }
+.send {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--gradient-aurora);
+  color: #fff; display: grid; place-items: center;
+  box-shadow: 0 6px 16px -6px rgba(110,90,255,.7), inset 0 1px 0 rgba(255,255,255,.4);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.send:hover { transform: translateY(-1px) scale(1.04); }
+.composerHint { text-align: center; font-size: 11px; color: var(--alias-label-tertiary); margin-top: 9px; }
+
+/* mock-only chrome: view switcher & theme toggle */
+.mockBar {
+  position: fixed; z-index: 50; top: 14px; right: 16px;
+  display: flex; gap: 6px; padding: 5px;
+  background: var(--alias-bg-glass); backdrop-filter: blur(18px);
+  border: .5px solid var(--alias-border-l2); border-radius: 13px;
+  box-shadow: var(--alias-shadow-soft);
+}
+.mockBar button {
+  font-size: 12px; font-weight: 550; padding: 6px 11px; border-radius: 9px;
+  color: var(--alias-label-secondary);
+  transition: all var(--dur) var(--ease);
+}
+.mockBar button:hover { color: var(--alias-label-primary); background: var(--alias-bg-hover); }
+.mockBar button.on { background: var(--alias-bg-solid); color: var(--alias-label-primary); box-shadow: var(--alias-shadow-soft); }
+.mockBar .vr { width: .5px; align-self: stretch; background: var(--alias-border-l3); margin: 4px 1px; }
+
+/* view switching */
+[data-view="empty"] #chatView { display: none; }
+[data-view="chat"] #emptyView { display: none; }
+
+@media (max-width: 900px) { .sidebar { display: none; } }
+</style>
+</head>
+<body data-view="chat">
+
+<!-- ambient aurora layer -->
+<div class="aurora" aria-hidden="true">
+  <i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i>
+</div>
+
+<!-- mockup controls -->
+<div class="mockBar">
+  <button id="btnEmpty">Empty state</button>
+  <button id="btnChat" class="on">Conversation</button>
+  <div class="vr"></div>
+  <button id="btnTheme" title="Toggle theme">◐ Theme</button>
+</div>
+
+<div class="shell">
+  <!-- ============ SIDEBAR ============ -->
+  <aside class="sidebar">
+    <div class="brandRow">
+      <div class="brandMark">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z" fill="currentColor"/></svg>
+      </div>
+      <span class="brandName">DeepSeek Harness</span>
+      <span class="buildTag">local</span>
+    </div>
+
+    <button class="newChat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      New session
+      <kbd>⌘N</kbd>
+    </button>
+
+    <div class="navLabel">Panels</div>
+    <nav class="navList">
+      <button class="navItem active">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        Conversations
+        <span class="dot"></span>
+      </button>
+      <button class="navItem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg>
+        Routines
+      </button>
+      <button class="navItem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
+        Usage
+      </button>
+    </nav>
+
+    <div class="navLabel">Recent</div>
+    <div class="recentList">
+      <button class="recentItem">Refactor stream parser to incremental AST</button>
+      <button class="recentItem">Why does pod churn spike at 03:00 UTC?</button>
+      <button class="recentItem">PromQL: p95 per-instance series limit</button>
+      <button class="recentItem">Migrate theme tokens to OKLCH</button>
+      <button class="recentItem">Explain DSH plugin slot injection</button>
+      <button class="recentItem">Draft alertpolicy for catalog-db</button>
+    </div>
+
+    <div class="sideFooter">
+      <div class="userChip">
+        <div class="avatar">SN</div>
+        <div><div class="nm">snguyen</div><div class="pl">Pro plan</div></div>
+      </div>
+      <button class="iconBtn" title="Settings">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 8.99a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 008.92 4a1.65 1.65 0 001-1.51V2.4a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9c.14.3.22.63.22.99V10a2 2 0 110 4c0 .36-.08.7-.22 1z"/></svg>
+      </button>
+    </div>
+  </aside>
+
+  <!-- ============ MAIN ============ -->
+  <main class="main">
+    <header class="topbar">
+      <button class="iconBtn collapse" title="Toggle sidebar">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><path d="M9.5 3v18"/></svg>
+      </button>
+      <button class="modelPick">
+        <span class="spark">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+        </span>
+        DeepSeek V4 Reasoner
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:.6"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="spacer"></div>
+      <div class="headChip"><span class="live"></span>gateway-us-east · connected</div>
+    </header>
+
+    <div class="scroll">
+      <div class="column">
+
+        <!-- EMPTY STATE (Gemini-style hero + suggestion cards) -->
+        <div id="emptyView">
+          <div class="hero">
+            <h1>Hello, snguyen.<br>What should we <span class="serif">figure out</span> today?</h1>
+            <p>DeepSeek Harness is wired into your cluster, your repos, and your dashboards. Start anywhere.</p>
+          </div>
+          <div class="suggestions">
+            <button class="sugCard">
+              <div class="ic blue"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/></svg></div>
+              <b>Investigate a metric</b>
+              <span>"Why did p99 latency on cart-api double after 14:00?"</span>
+            </button>
+            <button class="sugCard">
+              <div class="ic violet"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6M8 6L2 12l6 6"/></svg></div>
+              <b>Refactor some code</b>
+              <span>"Split SessionStore into transport and cache layers."</span>
+            </button>
+            <button class="sugCard">
+              <div class="ic ember"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></div>
+              <b>Draft in Canvas</b>
+              <span>"RFC: unified theming across host and plugin UI."</span>
+            </button>
+            <button class="sugCard">
+              <div class="ic pink"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-9-9"/><path d="M21 3l-9 9"/><path d="M15 3h6v6"/></svg></div>
+              <b>Deploy &amp; verify</b>
+              <span>"Roll out dsh-web to staging and watch error rates."</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- CONVERSATION -->
+        <div id="chatView" class="flow">
+          <div class="turn">
+            <div class="userRow">
+              <div class="userBubble">Design an alert policy for catalog-db replication lag. Thresholds should reflect the new SLO, and I want the PromQL reviewed before we ship it.</div>
+            </div>
+            <div class="userMeta"><span>You · 09:41</span></div>
+          </div>
+
+          <div class="turn">
+            <div class="assistantRow">
+              <div class="sparkAvatar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+              </div>
+              <div class="assistantBody">
+                <p class="lede">Here's a policy shaped around the new <b>99.5% freshness SLO</b>. I pulled your current replication metrics to size the thresholds, then stress-tested the expression against last week's failovers.</p>
+                <ul>
+                  <li><b>Warning</b> — lag &gt; 15s for 10 minutes. Pages nobody, feeds the weekly freshness report.</li>
+                  <li><b>Critical</b> — lag &gt; 45s for 5 minutes, or any replica stuck in <span class="inlineCode">restore</span> state beyond 2 minutes.</li>
+                  <li><b>Guard</b> — silenced automatically during announced <span class="inlineCode">pg_repack</span> windows to avoid the false pages we saw in March.</li>
+                </ul>
+                <div class="rail">
+                  <div class="railItem">
+                    <svg class="check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    Queried dos.prom — <span style="font-family:var(--font-mono);font-size:11.5px">pg_replication_lag_seconds</span> · last 14d
+                  </div>
+                  <div class="railItem">
+                    <svg class="check" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+                    Ran promql-lint — expression parses, 0 rule conflicts
+                  </div>
+                  <div class="done">2 tool calls · 4.1s</div>
+                </div>
+                <div class="codeCard">
+                  <div class="codeHead">
+                    <span class="lang"><span class="fl"></span>alert-policy.yaml</span>
+                    <button class="copyBtn">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                      Copy
+                    </button>
+                  </div>
+                  <pre><span class="tk-p">-</span> <span class="tk-k">alert</span><span class="tk-p">:</span> CatalogDbReplicationLagCritical
+  <span class="tk-k">expr</span><span class="tk-p">:</span> <span class="tk-s">max by (replica) (pg_replication_lag_seconds{db="catalog"}) &gt; 45</span>
+  <span class="tk-k">for</span><span class="tk-p">:</span> <span class="tk-n">5m</span>
+  <span class="tk-k">labels</span><span class="tk-p">:</span>
+    <span class="tk-k">severity</span><span class="tk-p">:</span> critical
+    <span class="tk-k">team</span><span class="tk-p">:</span> datastores
+  <span class="tk-k">annotations</span><span class="tk-p">:</span>
+    <span class="tk-k">summary</span><span class="tk-p">:</span> <span class="tk-s">"catalog-db replica {{ $labels.replica }} lagging"</span>
+    <span class="tk-c"># silence windows applied via pg_repack guard</span></pre>
+                </div>
+                <div class="actBar">
+                  <button title="Copy"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></button>
+                  <button title="Good response"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.3a2 2 0 002-1.7l1.2-7a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg></button>
+                  <button title="Bad response"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="transform:rotate(180deg)"><path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.3a2 2 0 002-1.7l1.2-7a2 2 0 00-2-2.3H14z"/><path d="M7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/></svg></button>
+                  <div class="sep"></div>
+                  <button class="regen" title="Regenerate"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-2.6-6.3"/><path d="M21 3v6h-6"/></svg>Redo</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <hr class="turnDivider">
+
+          <div class="turn">
+            <div class="userRow">
+              <div class="userBubble">Tighten critical to 30s and add a runbook link.</div>
+            </div>
+            <div class="userMeta"><span>You · 09:44</span></div>
+          </div>
+
+          <div class="turn">
+            <div class="assistantRow">
+              <div class="sparkAvatar">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+              </div>
+              <div class="assistantBody">
+                <p class="lede">Done — critical now fires at <b>30s for 5 minutes</b> and every notification links to <span class="inlineCode">runbooks/catalog-replication.md</span>. Warning stays at 15s so trend reporting doesn't get noisier.<span id="caret" style="display:inline-block;width:8px;height:16px;margin-left:2px;vertical-align:-2px;background:var(--static-violet-500);border-radius:2px"></span></p>
+              </div>
+            </div>
+          </div>
+          <style>#caret { animation: caretB 1s steps(2) infinite; } @keyframes caretB { 50% { opacity: 0; } }</style>
+        </div>
+
+      </div>
+
+      <button class="toBottom" title="Scroll to latest">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12l7 7 7-7"/></svg>
+      </button>
+    </div>
+
+    <!-- ============ COMPOSER ============ -->
+    <div class="composerSeat">
+      <div style="width:min(100%, calc(var(--chat-content-width) + 0px));">
+        <div class="composer">
+          <div class="ph">Ask anything — query metrics, draft config, review code…</div>
+          <div class="composerRow">
+            <div class="tray">
+              <button class="toolBtn" title="Attach">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button class="pill ember" title="Canvas">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg>
+                Canvas
+              </button>
+              <button class="pill" title="Web search">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20 15.3 15.3 0 010-20z"/></svg>
+                Search
+              </button>
+              <button class="pill tuned" title="Tools enabled">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8L12 2z"/></svg>
+                2 tools on
+              </button>
+            </div>
+            <div class="trailing">
+              <button class="tune" title="Model & inference tuning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/><path d="M1 14h6M9 8h6M17 16h6"/></svg>
+                Reasoning
+              </button>
+              <button class="send" title="Send">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="composerHint">DeepSeek Harness can make mistakes — verify critical config before applying.&nbsp;&nbsp;⌘J to focus</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const body = document.body, html = document.documentElement;
+  const bE = document.getElementById('btnEmpty'), bC = document.getElementById('btnChat');
+  bE.onclick = () => { body.dataset.view = 'empty'; bE.classList.add('on'); bC.classList.remove('on'); };
+  bC.onclick = () => { body.dataset.view = 'chat';  bC.classList.add('on'); bE.classList.remove('on'); };
+  document.getElementById('btnTheme').onclick = () =>
+    html.dataset.theme = html.dataset.theme === 'light' ? 'dark' : 'light';
+  // deep-linkable states, e.g. #dark-empty, #light-chat
+  const m = location.hash.match(/(light|dark)-(empty|chat)/);
+  if (m) { html.dataset.theme = m[1]; (m[2] === 'empty' ? bE : bC).click(); }
+</script>
+</body>
+</html>

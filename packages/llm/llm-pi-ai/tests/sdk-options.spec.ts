@@ -89,10 +89,32 @@ describe('grammar constraint forwarding', () => {
     return streamSimple.mock.calls.at(-1)?.[2] as Record<string, unknown>
   }
 
-  it('declares both grammar capabilities so the runtime forwards the fields', () => {
+  it('declares grammar capability per route: completions yes, other protocols no', () => {
     const adapter = gatewayAdapter()
-    expect(adapter.structuredOutputOnRequest).toBe(true)
-    expect(adapter.toolChoiceOnRequest).toBe(true)
+    expect(typeof adapter.structuredOutputOnRequest).toBe('function')
+    expect(typeof adapter.toolChoiceOnRequest).toBe('function')
+
+    const capability = adapter.structuredOutputOnRequest as (provider: string, model: string) => boolean
+    // The proven OpenAI-compatible completions route is grammar-capable.
+    expect(capability('local-gateway', 'local-model')).toBe(true)
+    // Unknown models report unsupported rather than throw at the strip.
+    expect(capability('local-gateway', 'no-such-model')).toBe(false)
+
+    // An anthropic-messages route passes the injected keys through ignored,
+    // so it must not advertise capability.
+    const anthropicAdapter = new PiAiAdapter({
+      profiles: () => resolveProfiles({
+        'local-anthropic': {
+          api: 'anthropic-messages',
+          baseURL: 'http://127.0.0.1:9/v1',
+          models: [{ id: 'claude-ish', contextWindow: 8192, maxTokens: 1024 }],
+        },
+      }),
+      resolveApiKey: () => Promise.resolve('test-key'),
+      auth: memoryAuth(),
+    })
+    const anthropicCapability = anthropicAdapter.toolChoiceOnRequest as (provider: string, model: string) => boolean
+    expect(anthropicCapability('local-anthropic', 'claude-ish')).toBe(false)
   })
 
   it('maps structuredOutput to a strict json_schema response_format via the verbatim body seam', async () => {
