@@ -45,3 +45,4 @@ worktrees/
 .typert-*/
 native/system/test/bin/
 /artifacts/
+.vscode-twin/

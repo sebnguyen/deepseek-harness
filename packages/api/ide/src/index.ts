@@ -21,16 +21,20 @@ import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
 import type { IdeBridgeStatus } from './types.ts'
+import { resolveTwinDist } from './twin-dist.ts'
 
 export type { IdeBridgeStatus } from './types.ts'
+export { findTwinDist, resolveTwinDist, twinDistCandidates } from './twin-dist.ts'
 
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
   /**
    * Absolute path of the combined VS Code twin dist: the `vscode-reh-linux-x64`
-   * product with `vscode-web/out/*` overlaid onto its own `out/`. Empty
-   * disables the namespace: `status` answers `enabled: false` and the client
-   * tab never leaves the fallback text editor.
+   * product with `vscode-web/out/*` overlaid onto its own `out/`. Empty puts
+   * the namespace on discovery: the sibling then in-repo `.vscode-twin/dist`
+   * candidates (see `twin-dist.ts`) stand in, and only when none exists does
+   * `status` answer `enabled: false` and the client tab stay on the fallback
+   * text editor.
    */
   dist: string
   /** Milliseconds one `status` call waits for a spawn to answer HTTP before reporting not-ready. */
@@ -203,6 +207,9 @@ export class Ide extends TypertRemoteService {
 
   private readonly twins: IdeTwinManager
 
+  /** The resolved twin dist: the config value, else the discovery winner, else ''. */
+  private readonly dist: string
+
   /** Injected session/provider scope, bound during construction for the service lifetime. */
   private scope: { readonly sessions: Context['sessions']; readonly sandboxPolicy: Context['sandboxPolicy'] } | undefined
 
@@ -212,7 +219,8 @@ export class Ide extends TypertRemoteService {
    */
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'ideBridge')
-    this.twins = createTwinManager(ctx, config)
+    this.dist = resolveTwinDist(config.dist)
+    this.twins = createTwinManager(ctx, { ...config, dist: this.dist })
     ctx.effect(() => () => { this.twins.dispose() })
     ctx.inject(['sessions', 'sandboxPolicy'], (scope) => {
       this.scope = scope
@@ -233,7 +241,7 @@ export class Ide extends TypertRemoteService {
   @Remote
   async status(sessionId: string, signal: AbortSignal): Promise<IdeBridgeStatus> {
     const idle = { url: null, tkn: null, workspaceRoot: null }
-    if (this.config.dist === '') return { ...idle, enabled: false, ready: false, detail: 'no twin dist configured' }
+    if (this.dist === '') return { ...idle, enabled: false, ready: false, detail: 'no twin dist configured or discovered' }
     try {
       return { enabled: true, ...(await this.ready(sessionId, signal)), detail: null }
     } catch (error: unknown) {

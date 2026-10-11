@@ -3,11 +3,13 @@
 Host Remote namespace `ideBridge` plus the per-session VS Code twin spawner.
 
 The config `dist` names a **combined VS Code twin directory**: the
-`vscode-reh-linux-x64` product with the `vscode-web/out/*` tree overlaid onto
-its own `out/` (the REH serves its workbench from `out/` — see
-`scripts/prepare-vscode-twin.sh` in the build workspace). With `dist` empty
-the namespace answers `enabled: false` and the client tab renders its
-unavailable line instead of the iframe.
+`vscode-reh-web-linux-x64` product (the lane that serves `out/` — see
+`scripts/prepare-vscode-twin.sh` in this repository). With `dist` empty the
+package discovers the twin itself: the sibling `<repo>/../.vscode-twin/dist`
+then the in-repo `.vscode-twin/dist`, so a plain `dsh web` (no
+`DSH_VSCODE_TWIN_DIST`) mounts the tab whenever a twin was staged. Only when
+discovery also finds nothing does the namespace answer `enabled: false` and
+the client tab render its unavailable line instead of the iframe.
 
 `ideBridge.status(sessionId)` lazily spawns one `bin/code-server-oss` child per
 session bound to loopback on a free port, with a per-spawn connection token,
