@@ -935,6 +935,10 @@ export class LlmRuntime extends TypertRemoteService {
    * attached field would be stripped before the wire. Unregistered providers
    * report {@link NO_GRAMMAR_SUPPORT}, matching the strip's conservative
    * posture rather than failing.
+   * @param provider - the `registerAdapter()` route key.
+   * @param model - the request's model id.
+   * @returns frozen capability verdict for one route; an unregistered
+   * provider yields {@link NO_GRAMMAR_SUPPORT}.
    */
   grammarCapability(provider: string, model: string): LlmRouteGrammarSupport {
     const { adapter } = this.adapters.get(provider) ?? {}

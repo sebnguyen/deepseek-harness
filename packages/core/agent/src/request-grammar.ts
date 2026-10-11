@@ -74,6 +74,13 @@ export interface RequestGrammarContribution {
   attach(draft: RequestGrammarDraft): RequestGrammarPatch | undefined
 }
 
+/**
+ * Declared-priority arbitration over request-grammar writes. Replaces the
+ * last-writer-wins `agent/request` waterfall for grammar fields
+ * (`structuredOutput`, `toolChoice`): every writer contributes a priority
+ * with consistent semantics, and one fold listener merges the results —
+ * composition order no longer decides which grammar survives.
+ */
 export class RequestGrammarService extends Service {
   private readonly contributions = new Map<string, RequestGrammarContribution>()
 
@@ -89,6 +96,8 @@ export class RequestGrammarService extends Service {
    * should hand it to their own `ctx.effect` for fiber lifecycle cleanup.
    * Contributing the same id twice throws, since a duplicate silently
    * re-orders the fold and hides the bug that registered it.
+   * @param contribution - writer declaration; `attach` runs per folded seed.
+   * @returns disposer deregistering the contribution.
    */
   contribute(contribution: RequestGrammarContribution): () => void {
     if (this.contributions.has(contribution.id)) {
