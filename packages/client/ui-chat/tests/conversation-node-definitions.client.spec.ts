@@ -335,6 +335,26 @@ describe('built-in conversation node Definitions', () => {
     expect(hasAssistantReplyContent([{ kind: 'other', block: { type: 'future' } }])).toBe(true)
   })
 
+  it('strips shield markers and leaked tool-call spans out of the reply channel', () => {
+    // Inter-space variants of the shield marker are still the marker.
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '{ }' }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '{\n}' }])).toBe(false)
+    // A ```json fence around the marker does not make it visible.
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '```json\n{}\n```' }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '```\n{ }\n```' }])).toBe(false)
+    // A trailing <tool_call> span leaked as text is wire-grammar, not a reply.
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '<tool_call>{"name":"stop"}' }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '  \n<tool_call>…' }])).toBe(false)
+    // Narrative before the leaked span survives; a literal {} mid-sentence is text.
+    expect(hasAssistantReplyContent([{ kind: 'text', text: 'Done.<tool_call>{"name":"stop"}' }])).toBe(true)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: 'set it to {} for empty' }])).toBe(true)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '{}\nreal answer' }])).toBe(true)
+    // Unknown blocks only count when they carry a payload.
+    expect(hasAssistantReplyContent([{ kind: 'other', block: null }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'other', block: {} }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'other', block: { type: 'x' } }])).toBe(true)
+  })
+
   it('projects one span fold per Step as its boundaries and members materialize', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

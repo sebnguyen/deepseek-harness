@@ -12,25 +12,25 @@
  *   steal each other's shape the way ui-quiet's module-global flag did.
  * - **A one-line reminder** injected into every turn of a non-narrate shape,
  *   stating the transcript promise in one sentence. This is the shape's only
- *   load-bearing model-facing instruction.
- * - **A strict empty-object `structuredOutput` shield** on working steps,
- *   contributed at the arbitration's preference band (`turnShape`) so a
- *   capture driver's schema always overrides it, and attached only when the
- *   route's per-route capability verdict is positive — an adapter that
- *   cannot grammar-decode sees no draft fields from this plugin at all. The
- *   plugin attaches **no `toolChoice` in any form**: turn termination stays
- *   the loop's natural zero-tool-call rule, and the retired `quiet_finish`
- *   stop tool and its `pendingFinish` module state are gone for good.
+ *   model-facing instruction.
+ *
+ * The request itself stays untouched in every shape: the retired strict
+ * empty-object `structuredOutput` shield suppressed the provider's
+ * reasoning channel alongside the leaked prose it guarded against, which
+ * deleted the transcript's thoughts under quiet and tools. Thoughts now
+ * render regardless of the armed shape, and the plugin attaches **no
+ * grammar fields in any form** — no `structuredOutput`, no `toolChoice`.
+ * Turn termination stays the loop's natural zero-tool-call rule.
  *
  * `narrate` performs no injection at all.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { GRAMMAR_PRIORITY, type PreStepDecision } from '@deepseek-ai/dsh-agent'
-import { createUserMessage, NO_GRAMMAR_SUPPORT, type LlmRouteGrammarSupport, type UserMessage } from '@deepseek-ai/dsh-llm'
+import type { PreStepDecision } from '@deepseek-ai/dsh-agent'
+import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-settings'
-import { EMPTY_OBJECT_SCHEMA, turnShapeReminderText, type TurnShapeSource } from './turn-shape.ts'
+import { turnShapeReminderText, type TurnShapeSource } from './turn-shape.ts'
 import {
   TURN_SHAPE_SETTINGS_NAMESPACE,
   TurnShapeSettingsSchema,
@@ -39,7 +39,7 @@ import {
   type TurnShapeSettings,
 } from './turn-shape-settings.ts'
 
-/** Host plugin body: the shape snapshot, the reminder, and the shield contribution. */
+/** Host plugin body: the shape snapshot and the per-turn reminder. */
 export function apply(ctx: Context): void {
   /** Current configuration source: the settings scope while attached, the new default otherwise. */
   let source: () => TurnShapeSettings = () => ({})
@@ -72,16 +72,6 @@ export function apply(ctx: Context): void {
     return shape
   }
 
-  /**
-   * Route grammar support. Queried per request and defaulted conservatively
-   * until the llm service arrives, so this plugin never attaches grammar
-   * ahead of the capability surface mounting.
-   */
-  let capability: (provider: string, model: string) => LlmRouteGrammarSupport = () => NO_GRAMMAR_SUPPORT
-  ctx.inject(['llm'], (llmCtx) => {
-    capability = (provider, model) => llmCtx.llm.grammarCapability(provider, model)
-  })
-
   // The per-turn reminder rides step-1 admission, mirroring the other
   // turn-context reminders (staging ladder, repeat-tool).
   ctx.on('agent/pre-step', async ({ agent, turn, step }, next): Promise<PreStepDecision> => {
@@ -95,22 +85,6 @@ export function apply(ctx: Context): void {
       source: reminderSource,
     })
     return { ...decision, messages: [...decision.messages, reminder] }
-  })
-
-  // The shield joins the declared arbitration registry at the preference
-  // band: structural writers (capture schemas, staging constraints) always
-  // override it, in every composition order.
-  ctx.inject(['request-grammar'], (grammarCtx) => {
-    const dispose = grammarCtx['request-grammar'].contribute({
-      id: 'conversation-turn-shape',
-      priority: GRAMMAR_PRIORITY.turnShape,
-      attach: ({ agent, turn, config }) => {
-        if (shapeForTurn(agent.id, turn) === 'narrate') return undefined
-        if (!capability(config.provider, config.model).structuredOutput) return undefined
-        return { structuredOutput: EMPTY_OBJECT_SCHEMA }
-      },
-    })
-    ctx.effect(() => dispose, 'conversation-mode turn-shape grammar contribution teardown')
   })
 
   ctx.inject(['settings'], (settingsCtx) => {

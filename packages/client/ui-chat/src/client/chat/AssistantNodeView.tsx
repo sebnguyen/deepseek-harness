@@ -1,5 +1,6 @@
 import { memo, useMemo } from 'react'
 import type { ChatNodeViewProps, TurnTailOwnerProps } from '../contract/slots.ts'
+import { hasAssistantReplyContent, visibleAssistantBlocks } from '../contract/assistant-content.ts'
 import { AssistantMarkdown } from './AssistantMarkdown.tsx'
 
 /** Streaming, settled, and interrupted Assistant sections share one keyed renderer instance. */
@@ -20,14 +21,15 @@ export const AssistantNodeView = memo(function AssistantNodeView({
     () => owner === undefined ? undefined : fileMentions(owner),
     [fileMentions, owner],
   )
-  const replyText = data.blocks
-    .map(block => (block.kind === 'text' ? block.text : ''))
-    .join('')
-    .trim()
-  if ((replyText === '' || replyText === '{}') && owner === undefined) return null
+  // Wire-grammar leakage (`{}` shield markers, leaked `<tool_call>` spans)
+  // is stripped before the visibility call — including on the turn-tail
+  // owner row, which is exactly where a tool-only or quiet turn leaks them.
+  const blocks = useMemo(() => visibleAssistantBlocks(data.blocks), [data.blocks])
+  const visible = hasAssistantReplyContent(blocks)
+  if (!visible) return null
   return (
     <AssistantMarkdown
-      blocks={data.blocks}
+      blocks={blocks}
       streaming={data.status === 'running'}
       interrupted={data.status === 'interrupted'}
       renderMessageImages={renderMessageImages}

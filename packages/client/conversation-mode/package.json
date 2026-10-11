@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-client-conversation-mode",
-  "description": "Turn-shape conversation modes (narrate / quiet / tools): a render-contract-driven transcript promise with a per-turn reminder and a strict empty-object working-step shield on grammar-capable routes",
+  "description": "Turn-shape conversation modes (narrate / quiet / tools): a render-contract-driven transcript promise carried by a per-turn reminder, with thoughts shown in every shape",
   "version": "0.1.0",
   "publishConfig": {
     "access": "public"

@@ -98,7 +98,7 @@ describe('conversation-mode host', () => {
     )).toEqual(seed)
   })
 
-  it('quiet shape: one per-turn reminder, shield on capable routes only', async () => {
+  it('quiet shape: one per-turn reminder, no grammar mutation on any route', async () => {
     const doc = { 'ui-quiet': { turnShape: 'quiet' } }
     const capable = await harness({ doc, capable: true })
     const agent = createAgent('cm-quiet')
@@ -121,6 +121,7 @@ describe('conversation-mode host', () => {
     const reminderText = (reminder?.content ?? []).map(blockOf => blockOf.type === 'text' ? blockOf.text : '').join('')
     expect(reminderText).toContain('[turn-shape]')
     expect(reminderText).toContain('quiet')
+    expect(reminderText).toContain('thoughts')
 
     // Second step of the same turn carries no fresh reminder.
     const second = await agentEvents(capable.ctx, agent).waterfall(
@@ -135,15 +136,15 @@ describe('conversation-mode host', () => {
       'agent/request', { turn: 1, step: 2, signal: SIGNAL },
       () => Promise.resolve({ provider: 'test-route', model: 'test-model' }),
     )
-    expect(folded).toEqual({
-      provider: 'test-route',
-      model: 'test-model',
-      structuredOutput: { type: 'object', properties: {}, additionalProperties: false, strict: true },
-    })
+    // The shape mutates no request grammar: the retired `{}` shield
+    // suppressed the provider's reasoning channel with the leaked prose,
+    // so quiet must carry no draft fields on any route.
+    expect(folded).toEqual({ provider: 'test-route', model: 'test-model' })
     // And never a toolChoice from this plugin.
     expect(Object.keys(folded as object)).not.toContain('toolChoice')
 
-    // The same shape on a capability-negative route attaches nothing.
+    // Grammar capability no longer gates anything: a capability-negative
+    // route sees the same untouched request.
     const incapable = await harness({ doc, capable: false })
     const otherAgent = createAgent('cm-quiet-raw')
     await agentEvents(incapable.ctx, otherAgent).waterfall(
@@ -157,7 +158,7 @@ describe('conversation-mode host', () => {
     )).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
-  it('tools shape: summary-free reminder copy, shield attached', async () => {
+  it('tools shape: summary-free reminder copy, no grammar mutation', async () => {
     const doc = { 'ui-quiet': { turnShape: 'tools' } }
     const { ctx } = await harness({ doc, capable: true })
     const agent = createAgent('cm-tools')
@@ -177,10 +178,10 @@ describe('conversation-mode host', () => {
     expect(await agentEvents(ctx, agent).waterfall(
       'agent/request', { turn: 1, step: 2, signal: SIGNAL },
       () => Promise.resolve({ provider: 'test-route', model: 'test-model' }),
-    )).toMatchObject({ structuredOutput: { strict: true } })
+    )).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
-  it('legacy silence maps to tools for both the reminder and the shield', async () => {
+  it('legacy silence maps to tools for the reminder', async () => {
     const doc = { 'ui-quiet': { mode: 'silence' } }
     const { ctx } = await harness({ doc, capable: true })
     const agent = createAgent('cm-legacy-silence')
@@ -200,7 +201,7 @@ describe('conversation-mode host', () => {
     expect(await agentEvents(ctx, agent).waterfall(
       'agent/request', { turn: 1, step: 2, signal: SIGNAL },
       () => Promise.resolve({ provider: 'test-route', model: 'test-model' }),
-    )).toMatchObject({ structuredOutput: { strict: true } })
+    )).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
   it('snapshots the shape per turn: a mid-turn switch applies from the next turn', async () => {
@@ -223,7 +224,7 @@ describe('conversation-mode host', () => {
     expect(await agentEvents(ctx, agent).waterfall(
       'agent/request', { turn: 1, step: 2, signal: SIGNAL },
       () => Promise.resolve({ provider: 'test-route', model: 'test-model' }),
-    )).toMatchObject({ structuredOutput: { strict: true } })
+    )).toEqual({ provider: 'test-route', model: 'test-model' })
 
     // Turn 2 reads the new setting.
     const second = await agentEvents(ctx, agent).waterfall(
@@ -239,7 +240,7 @@ describe('conversation-mode host', () => {
     )).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
-  it('a capture driver at the structural band overrides the shield', async () => {
+  it('a capture driver\'s schema survives a quiet turn: the shape contributes no grammar', async () => {
     const doc = { 'ui-quiet': { turnShape: 'quiet' } }
     const { ctx, service } = await harness({ doc, capable: true })
     const agent = createAgent('cm-arbitration')

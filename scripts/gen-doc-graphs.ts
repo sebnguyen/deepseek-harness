@@ -130,7 +130,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'agent',
     title: 'Declared-priority request-grammar arbitration',
     mode: 'core',
-    consumers: ['conversation-mode', 'subagent-in-process-driver'],
+    consumers: ['subagent-in-process-driver'],
     note: 'One fold listener merges priority-sorted structuredOutput/toolChoice contributions for every agent/request seed, so listener composition order never decides which grammar survives.',
   },
   {

@@ -37,8 +37,8 @@ const SHAPE_ITEMS: MenuItem[] = [
 /** Tooltip copy per shape, stated in transcript terms. */
 const SHAPE_TITLES: Record<TurnShape, string> = {
   narrate: 'Narrate: thoughts, tools, and closing answers as usual',
-  quiet: 'Quiet: tool rows only; closes with one plain answer. Applies to the next turn.',
-  tools: 'Tools only: shut everything but tool rows; the turn ends without a summary. Applies to the next turn.',
+  quiet: 'Quiet: thoughts and tool rows; closes with one plain answer. Applies to the next turn.',
+  tools: 'Tools only: thoughts and tool rows; the turn ends without a summary. Applies to the next turn.',
 }
 
 /** Short labels for the composer pill. */
