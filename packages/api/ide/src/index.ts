@@ -22,9 +22,23 @@ import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
 import type { IdeBridgeStatus } from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
+import { pickStablePort } from './twin-port.ts'
+import { stageTwinTheme } from './twin-theme.ts'
 
 export type { IdeBridgeStatus } from './types.ts'
 export { findTwinDist, resolveTwinDist, twinDistCandidates } from './twin-dist.ts'
+export { pickStablePort } from './twin-port.ts'
+export {
+  DO_THEME_COLORS,
+  DO_TOKEN_COLORS,
+  stageTwinTheme,
+  TWIN_CONFIGURATION_DEFAULTS,
+  TWIN_THEME_DIR_NAME,
+  TWIN_THEME_EXTENSION_ID,
+  TWIN_THEME_EXTENSION_VERSION,
+  twinThemeFile,
+  twinThemeManifest,
+} from './twin-theme.ts'
 
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
@@ -135,7 +149,6 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
       const live = twins.get(sessionId)
       if (live !== undefined) return live
       const pending = (async (): Promise<IdeTwin> => {
-        const port = await freePort()
         const token = randomBytes(24).toString('base64url')
         // Twin-local state dirs keep user settings, server state and installed
         // marketplace extensions inside the twin dist rather than the user's
@@ -144,6 +157,12 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
         await mkdir(join(stateDir, 'server'), { recursive: true })
         await mkdir(join(stateDir, 'user'), { recursive: true })
         await mkdir(join(stateDir, 'exts'), { recursive: true })
+        // A stable port keeps the iframe origin stable, which is what makes
+        // the browser-side IndexedDB user settings survive a harness restart.
+        const port = await pickStablePort(stateDir, config.dist) ?? await freePort()
+        // The DO identity ships as a staged extension: configurationDefaults
+        // the workbench actually reads, plus the DO Harness Dark theme.
+        await stageTwinTheme(join(stateDir, 'exts'))
         return await new Promise<IdeTwin>((resolve, reject) => {
           const setup = new AbortController()
           const handle = ctx.subprocess.spawn({
@@ -153,6 +172,8 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
               '--port', String(port),
               '--connection-token', token,
               '--accept-server-license-terms',
+              '--disable-workspace-trust',
+              '--disable-telemetry',
               '--server-data-dir', join(stateDir, 'server'),
               '--user-data-dir', join(stateDir, 'user'),
               '--extensions-dir', join(stateDir, 'exts'),

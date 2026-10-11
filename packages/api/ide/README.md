@@ -19,6 +19,25 @@ carries the loopback URL, the token, and the session's workspace root so the
 client can form `url/?tkn=<token>&folder=<workspaceRoot>`. All children are
 torn down when the host context disposes.
 
+Each spawn restages the DigitalOcean identity as a small extension
+(`dsh.do-harness`) under the twin's own `--extensions-dir` (`dist/.dsh/exts/`):
+a `configurationDefaults` row the REH-web workbench actually reads (DO default
+theme, harness code-font stack, hushed chrome — no Welcome walkthrough, no
+Restricted Mode banner, no telemetry or update prompts, the `Code - OSS` tail
+off the window title), plus a first-class `DO Harness Dark` theme carrying the
+bluish palette and the harness shiki syntax colors. This channel exists
+because the REH-web workbench keeps user settings in browser IndexedDB, not
+server-side files — seeding `User/settings.json` never reached the workbench.
+The spawn also passes `--disable-workspace-trust` and `--disable-telemetry`
+for the chrome that flags own. Registry defaults stay registry defaults: the
+twin's own Settings UI still wins over every key. See `src/twin-theme.ts`.
+
+The browser-origin persistence story lives next door: the workbench's
+IndexedDB is origin-keyed, so the twin's port is pinned per dist
+(`dist/.dsh/port`, seeded hash inside the harness band 45961+ with collision
+walk) rather than random every boot — user choices in the twin survive
+`dsh web` restarts. See `src/twin-port.ts`.
+
 The harness webserver never proxies the REH: the client iframe points at the
 loopback origin directly, which serves the workbench and the resolver from
 one place (the OpenVSCode posture).

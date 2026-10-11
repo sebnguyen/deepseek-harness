@@ -36,6 +36,29 @@ export type VscodeBodyProps =
  * @param props - composed slot props.
  * @returns the iframe mount, or the state line standing in for it.
  */
+/** The boot seam and state lines ride the harness theme, not a white flash. */
+const FRAME_STYLE = {
+  width: '100%',
+  height: '100%',
+  border: 'none',
+  background: 'var(--dsw-alias-bg-base, #121618)',
+} as const
+
+/** State output dressed like the harness quiet-ink placeholder. */
+const STATE_STYLE = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+  height: '100%',
+  padding: '16px',
+  boxSizing: 'border-box',
+  background: 'var(--dsw-alias-bg-base, #121618)',
+  color: 'var(--dsw-alias-label-secondary, #a0a2a3)',
+  fontSize: '13px',
+  textAlign: 'center',
+} as const
+
 export function VscodeBody({ useTabInfo, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
   const sessionId = useMemo(() => {
@@ -66,17 +89,17 @@ export function VscodeBody({ useTabInfo, status, t }: VscodeBodyProps): ReactNod
     }
   }, [sessionId, status])
 
-  if (state === undefined) return <output>{t('state.opening')}</output>
-  if (state.enabled !== true) return <output>{t('state.unavailable')}</output>
+  if (state === undefined) return <output style={STATE_STYLE}>{t('state.opening')}</output>
+  if (state.enabled !== true) return <output style={STATE_STYLE}>{t('state.unavailable')}</output>
   if (state.ready !== true || state.url === null || state.tkn === null) {
-    return <output>{t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}</output>
+    return <output style={STATE_STYLE}>{t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}</output>
   }
   const folder = state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`
   return (
     <iframe
       title="vscode"
       src={`${state.url}/?tkn=${state.tkn}${folder}`}
-      style={{ width: '100%', height: '100%', border: 'none' }}
+      style={FRAME_STYLE}
     />
   )
 }
