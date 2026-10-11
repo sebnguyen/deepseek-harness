@@ -45,6 +45,27 @@ const FRAME_STYLE = {
   background: 'var(--dsw-alias-bg-base, #121618)',
 } as const
 
+/**
+ * Anti-flash wait: extra settle time after the twin document fires `load`
+ * before the boot hero lifts. The workbench's own scripts paint a few beats
+ * after `load`; revealing at `load` alone exposes one white/unstyled frame.
+ * The iframe still mounts (and therefore loads) while the hero covers it, so
+ * this delay hides precisely that boot window and nothing else.
+ */
+const BOOT_SETTLE_MS = 1_200
+
+/** Overlay container: the ready branch stacks the iframe under the boot hero. */
+const STACK_STYLE = {
+  position: 'relative',
+  width: '100%',
+  height: '100%',
+} as const
+
+const COVER_STYLE = {
+  position: 'absolute',
+  inset: 0,
+} as const
+
 /** The boot hero: twinkle mark stacked on the wordmark, state line below. */
 const HERO_STYLE = {
   display: 'flex',
@@ -147,11 +168,45 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
     )
   }
   const folder = state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`
+  const src = `${state.url}/?tkn=${state.tkn}${folder}`
   return (
-    <iframe
-      title="vscode"
-      src={`${state.url}/?tkn=${state.tkn}${folder}`}
-      style={FRAME_STYLE}
+    <IframeWithBootSeal
+      src={src}
+      spinLine={t('state.opening')}
     />
+  )
+}
+
+/**
+ * The ready branch behind the wait flag: the twin iframe loads under the boot
+ * hero, and the hero lifts only after the document's `load` event plus the
+ * settle margin — no white or half-painted frame ever surfaces in the pane.
+ */
+function IframeWithBootSeal({ src, spinLine }: { readonly src: string; readonly spinLine: string }): ReactNode {
+  const [settled, setSettled] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  useEffect(() => {
+    setLoaded(false)
+    setSettled(false)
+  }, [src])
+  useEffect(() => {
+    if (!loaded) return
+    const timer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
+    return () => { clearTimeout(timer) }
+  }, [loaded, src])
+  return (
+    <div style={STACK_STYLE}>
+      <iframe
+        title="vscode"
+        src={src}
+        style={FRAME_STYLE}
+        onLoad={() => { setLoaded(true) }}
+      />
+      {settled ? null : (
+        <div style={COVER_STYLE}>
+          <BootHero line={spinLine} spinning />
+        </div>
+      )}
+    </div>
   )
 }

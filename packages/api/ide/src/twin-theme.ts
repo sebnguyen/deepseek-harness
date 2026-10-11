@@ -55,6 +55,12 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'titleBar.activeBackground': '#121618',
   'titleBar.activeForeground': '#f7f8f8',
   'titleBar.inactiveForeground': '#a0a2a3',
+  // Floating-window shell: the deep-sea fill under the ambient scene in the
+  // gutters, and the frame's hairline card stroke (the react frame's
+  // elevation pair border-l4 at 0.5px reads as this 1px stroke).
+  'modernUI.shellBackground': '#0e1214',
+  'modernUI.inactiveShellBackground': '#0e1214',
+  'surface.border': '#f7f8f81f',
   // Editor chrome sits on markdown-code-block bluish-900 like harness code.
   'editor.background': '#171b1d',
   'editor.foreground': '#f7f8f8',
@@ -143,6 +149,9 @@ export const DO_TOKEN_COLORS: unknown = [
  */
 export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   'workbench.colorTheme': 'DO Harness Dark',
+  // Floating-window architecture: parts render as cards over the ocean
+  // scene shell, mirroring the harness app frame (upstream modern UI).
+  'workbench.experimental.modernUI': true,
   // Chrome hush: no Welcome walkthrough, no second trust gate (the harness
   // sandbox owns trust), no telemetry or update prompts, calm window title.
   'workbench.startupEditor': 'none',
