@@ -1,0 +1,298 @@
+/**
+ * VS Code twin spawner and the `ideBridge` Remote namespace.
+ *
+ * Scope note: this is the scaffold row for the embedded-editor effort
+ * (deepseek-harness `.agents/notes/proposed/architecture/2026-10-09-embedded-vscode-reh-editor-frame.md`).
+ * It carries exactly one Remote method — `status` — because everything the
+ * client needs to decide "mount the iframe or stay on the fallback" is one
+ * ready/URL/token answer. Downlink events, the `vscode` namespace, and the
+ * packaged bridge extension are later layers in the same note.
+ * @module @deepseek-ai/dsh-api-ide
+ */
+
+import { createServer } from 'node:net'
+import { randomBytes } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
+import type {} from '@deepseek-ai/dsh-sandbox-policy'
+import type {} from '@deepseek-ai/dsh-session'
+import type { IdeBridgeStatus } from './types.ts'
+
+export type { IdeBridgeStatus } from './types.ts'
+
+/** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
+export interface Config {
+  /**
+   * Absolute path of the combined VS Code twin dist: the `vscode-reh-linux-x64`
+   * product with `vscode-web/out/*` overlaid onto its own `out/`. Empty
+   * disables the namespace: `status` answers `enabled: false` and the client
+   * tab never leaves the fallback text editor.
+   */
+  dist: string
+  /** Milliseconds one `status` call waits for a spawn to answer HTTP before reporting not-ready. */
+  readinessTimeoutMs: number
+  /** Milliseconds between two readiness polls inside that window. */
+  readinessPollMs: number
+}
+
+export const Config: z<Config> = z.object({
+  dist: z.string().default(''),
+  readinessTimeoutMs: z.number().step(1).min(1_000).default(45_000),
+  readinessPollMs: z.number().step(1).min(100).default(500),
+})
+
+/** One live twin: the child, its transport, and the URL the iframe mounts. */
+interface IdeTwin {
+  readonly handle: SubprocessHandle
+  readonly url: string
+  readonly tkn: string
+}
+
+/** Spawner-wide state: one twin per session id, owned by the host plugin lifetime. */
+interface IdeTwinManager {
+  readonly dispose: () => void
+  readonly ensure: (sessionId: string) => Promise<IdeTwin>
+}
+
+/**
+ * Ask the kernel for a free loopback port, in the standard listen-zero idiom.
+ * A race exists between release and the REH binding it; the readiness poll is
+ * what makes a (rare) collision visible rather than silent.
+ * @returns an unoccupied loopback TCP port.
+ */
+async function freePort(): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const probe = createServer()
+    probe.once('error', reject)
+    probe.listen(0, '127.0.0.1', () => {
+      const address = probe.address()
+      probe.close(() => {
+        if (address === null || typeof address !== 'object') {
+          reject(new Error('ide: listen(0) answered without a port'))
+          return
+        }
+        resolve(address.port)
+      })
+    })
+  })
+}
+
+/**
+ * Wait for the twin to answer on its loopback URL.
+ * @param url - the loopback base URL to probe.
+ * @param timeoutMs - total wait window.
+ * @param pollMs - spacing between probes.
+ * @param signal - host-supplied cancellation (session teardown or caller abort).
+ */
+async function waitReady(url: string, timeoutMs: number, pollMs: number, signal?: AbortSignal): Promise<void> {
+  const started = Date.now()
+  for (;;) {
+    signal?.throwIfAborted()
+    try {
+      const probe = await fetch(url, signal === undefined ? undefined : { signal })
+      // Any response — even an early error page — means the listener is up.
+      if (probe.status > 0) return
+    } catch (error: unknown) {
+      if (signal?.aborted === true) throw error
+    }
+    if (Date.now() - started >= timeoutMs) {
+      throw new Error(`ide: twin did not answer on ${url} within ${timeoutMs}ms`)
+    }
+    // Polling is inherently sequential.
+    await new Promise(resolve => setTimeout(resolve, pollMs))
+  }
+}
+
+/**
+ * Create the per-session spawn manager bound to one host context.
+ *
+ * Children are spawned through `ctx.subprocess`, which hands us scrubbed
+ * environment semantics and managed-range teardown for free; the module map
+ * additionally guarantees one child per session id and a whole-manager
+ * dispose when the host context ends.
+ * @param ctx - host plugin context carrying the subprocess service.
+ * @param config - deployment config (`dist` plus tuning).
+ * @returns the spawn manager.
+ */
+function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
+  const twins = new Map<string, Promise<IdeTwin>>()
+  return {
+    dispose(): void {
+      for (const pending of twins.values()) {
+        void pending.then((twin) => { twin.handle.terminate() }, () => undefined)
+      }
+      twins.clear()
+    },
+    ensure(sessionId: string): Promise<IdeTwin> {
+      const live = twins.get(sessionId)
+      if (live !== undefined) return live
+      const pending = (async (): Promise<IdeTwin> => {
+        const port = await freePort()
+        const token = randomBytes(24).toString('base64url')
+        // Twin-local state dirs keep user settings, server state and installed
+        // marketplace extensions inside the twin dist rather than the user's
+        // home: the dist stays the pinned, self-owned payload.
+        const stateDir = join(config.dist, '.dsh')
+        await mkdir(join(stateDir, 'server'), { recursive: true })
+        await mkdir(join(stateDir, 'user'), { recursive: true })
+        await mkdir(join(stateDir, 'exts'), { recursive: true })
+        return await new Promise<IdeTwin>((resolve, reject) => {
+          const setup = new AbortController()
+          const handle = ctx.subprocess.spawn({
+            argv: [
+              join(config.dist, 'bin', 'code-server-oss'),
+              '--host', '127.0.0.1',
+              '--port', String(port),
+              '--connection-token', token,
+              '--accept-server-license-terms',
+              '--server-data-dir', join(stateDir, 'server'),
+              '--user-data-dir', join(stateDir, 'user'),
+              '--extensions-dir', join(stateDir, 'exts'),
+            ],
+            cwd: config.dist,
+            stdio: {
+              stdin: 'ignore',
+              stdout: { maxBytes: 64 * 1024 },
+              stderr: { maxBytes: 64 * 1024 },
+            },
+            graceMs: 5_000,
+            signal: setup.signal,
+          })
+          const twin: IdeTwin = {
+            handle,
+            url: `http://127.0.0.1:${port}`,
+            tkn: token,
+          }
+          void handle.done.then((outcome) => {
+            // The child fell over before or during readiness: drop the full
+            // collected stderr into the rejection so the client detail line
+            // carries substance instead of a bare "spawn failed".
+            if (twins.get(sessionId) === pending) twins.delete(sessionId)
+            setup.abort()
+            const stderr = handle.collected.stderr?.readFrom(0).text.trim() ?? ''
+            reject(new Error(
+              `ide: twin exited during startup with code ${String(outcome.exitCode)}: ${stderr.slice(-400)}`,
+            ))
+          })
+          void waitReady(twin.url, config.readinessTimeoutMs, config.readinessPollMs, setup.signal)
+            .then(() => { resolve(twin) })
+            .catch((error: unknown) => {
+              handle.terminate()
+              reject(error instanceof Error ? error : new Error(String(error)))
+            })
+        })
+      })()
+      twins.set(sessionId, pending)
+      void pending.catch(() => {
+        if (twins.get(sessionId) === pending) twins.delete(sessionId)
+      })
+      return pending
+    },
+  }
+}
+
+/** Host Remote namespace serving the client tab's VS Code state reads. */
+export class Ide extends TypertRemoteService {
+  static inject = ['subprocess', 'sessions', 'typert', 'sandboxPolicy']
+
+  static Config: z<Config> = Config
+
+  private readonly twins: IdeTwinManager
+
+  /** Injected session/provider scope, bound during construction for the service lifetime. */
+  private scope: { readonly sessions: Context['sessions']; readonly sandboxPolicy: Context['sandboxPolicy'] } | undefined
+
+  /**
+   * @param ctx - host plugin context.
+   * @param config - deployment config from the bundle row.
+   */
+  constructor(ctx: Context, private readonly config: Config) {
+    super(ctx, 'ideBridge')
+    this.twins = createTwinManager(ctx, config)
+    ctx.effect(() => () => { this.twins.dispose() })
+    ctx.inject(['sessions', 'sandboxPolicy'], (scope) => {
+      this.scope = scope
+      return () => { this.scope = undefined }
+    })
+  }
+
+  /**
+   * Answer the twin state for one session, lazily spawning its REH.
+   *
+   * This is a plain `invoke`, not a stream: the client polls it on a short
+   * interval until `ready`, matching the "fallback until hello" posture from
+   * the design note without a push channel it would have to rebuild.
+   * @param sessionId - the session whose twin to report.
+   * @param signal - caller cancellation.
+   * @returns the twin state; never throws for disabled or failed twins.
+   */
+  @Remote
+  async status(sessionId: string, signal: AbortSignal): Promise<IdeBridgeStatus> {
+    const idle = { url: null, tkn: null, workspaceRoot: null }
+    if (this.config.dist === '') return { ...idle, enabled: false, ready: false, detail: 'no twin dist configured' }
+    try {
+      return { enabled: true, ...(await this.ready(sessionId, signal)), detail: null }
+    } catch (error: unknown) {
+      return {
+        ...idle,
+        enabled: true,
+        ready: false,
+        detail: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  /**
+   * Spawn-and-wait for one session's twin, resolving its workspace root from
+   * the session header with the sandbox root as the static fallback.
+   * @param sessionId - session identity, already beyond the gateway boundary.
+   * @param signal - caller cancellation.
+   * @returns the ready triple the client needs to mount the iframe.
+   */
+  private async ready(sessionId: string, signal: AbortSignal): Promise<WireReady> {
+    const [root, twin] = await Promise.all([
+      this.workspaceRootOf(sessionId),
+      this.twins.ensure(sessionId),
+    ])
+    // Freshly-spawned children need their readiness window; an existing twin
+    // is already up and re-probing costs one cheap round trip at worst.
+    await waitReady(twin.url, this.config.readinessTimeoutMs, this.config.readinessPollMs, signal)
+    return { ready: true, url: twin.url, tkn: twin.tkn, workspaceRoot: root }
+  }
+
+  /**
+   * Resolve the session's workspace root.
+   * @param sessionId - session identity.
+   * @returns the header cwd, or the sandbox root when the header names none;
+   *   `null` keeps the boundary JSON-safe while the client states it cannot mount.
+   */
+  private async workspaceRootOf(sessionId: string): Promise<string | null> {
+    const scope = this.scope
+    if (scope === undefined) return null
+    return Promise.resolve(
+      scope.sessions.get(sessionId as never)?.header?.cwd ?? (scope.sandboxPolicy.workspaceRoot as string | null) ?? null,
+    )
+  }
+}
+
+/** The ready-shaped slice {@link Ide.ready} produces before `enabled` is folded in. */
+interface WireReady {
+  readonly ready: true
+  readonly url: string
+  readonly tkn: string
+  readonly workspaceRoot: string | null
+}
+
+/** Class plugin consumed by the Loader as the roster row's default export. */
+export default Ide
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Host owner of the `ideBridge` Remote namespace. */
+    ideBridge: Ide
+  }
+}

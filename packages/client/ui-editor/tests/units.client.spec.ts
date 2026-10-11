@@ -3,14 +3,18 @@
  * set matches exactly the suffixes it advertises.
  */
 import { describe, expect, it } from 'vitest'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+// The namespace declaration `TranslateNS<'editor'>` resolves against.
+import type {} from '../src/client/index.ts'
 import { createEditorExtensions, languageFor, saveCommand } from '../src/client/editor.ts'
 import { en } from '../src/client/locales.ts'
 import { decodeText, failureLine, sessionFileOf } from '../src/client/rpc.ts'
 
-const t = (key: keyof typeof en, params?: Record<string, string | number>): string => {
-  const line = en[key]
-  if (params === undefined) return line
-  return line.replace(/\{(\w+)\}/g, (match, name: string) =>
+/** Dictionary-backed translate; common-namespace keys fall back to their key name. */
+const t: TranslateNS<'editor'> = (key, params) => {
+  const template = (en as Record<string, string | undefined>)[key] ?? key
+  if (params === undefined) return template
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in params ? String(params[name]) : match)
 }
 

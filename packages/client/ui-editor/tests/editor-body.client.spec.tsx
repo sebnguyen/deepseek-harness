@@ -10,7 +10,10 @@ import { sessionFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { createElement } from 'react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { EditorBody } from '../src/client/EditorBody.tsx'
+// The namespace declaration `TranslateNS<'editor'>` resolves against.
+import type {} from '../src/client/index.ts'
 import { en } from '../src/client/locales.ts'
 import type { SessionFile } from '../src/client/rpc.ts'
 
@@ -72,11 +75,11 @@ function fakeFace(options: { text?: string; failRead?: string } = {}) {
   return { load, save, saves, readAlls, probe }
 }
 
-/** Translate bound to the English dictionary, interpolating `{placeholders}`. */
-function t(key: keyof typeof en, params?: Record<string, string | number>): string {
-  const line = en[key]
-  if (params === undefined) return line
-  return line.replace(/\{(\w+)\}/g, (match, name: string) =>
+/** Translate bound to the English dictionary; common-namespace keys echo their name. */
+const t: TranslateNS<'editor'> = (key, params) => {
+  const template = (en as Record<string, string | undefined>)[key] ?? key
+  if (params === undefined) return template
+  return template.replace(/\{(\w+)\}/g, (match, name: string) =>
     name in params ? String(params[name]) : match)
 }
 
@@ -98,14 +101,13 @@ interface HarnessOptions {
 }
 
 /** The body with a controllable external file version, so meta updates rerender. */
-function Harness(props: HarnessOptions & { load: unknown; save: unknown; onEditor?: (view: EditorView) => void }): ReactNode {
+function Harness(props: HarnessOptions & { load: unknown; save: unknown }): ReactNode {
   const version = props.externalVersion
   return createElement(EditorBody, {
     useTabInfo: tabInfo,
     useResource: () => (version === undefined ? { status: 'none' } : { status: 'live', value: { version } }),
     load: props.load,
     save: props.save,
-    onEditor: props.onEditor,
     t,
   } as never)
 }
@@ -204,7 +206,7 @@ describe('EditorBody', () => {
     let release!: (value: unknown) => void
     const { container } = render(createElement(Harness, {
       load: face.load,
-      save: (file: SessionFile, content: string, expectedVersion: string | undefined) => {
+      save: (_file: SessionFile, content: string, expectedVersion: string | undefined) => {
         face.saves.push({ content, expectedVersion })
         return new Promise((resolve) => { release = resolve })
       },
