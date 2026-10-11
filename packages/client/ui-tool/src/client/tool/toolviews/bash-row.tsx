@@ -296,7 +296,9 @@ export const bashToolview = {
   name: 'bash-toolview',
   inject: ['slots'],
   apply(ctx: Context): void {
-    ctx.slots.inject('tool.call.toolview', () =>
-      ctx.slots.register({ name: 'tool.call.toolview', key: 'bash', locale: NS }, BashRow))
+    ctx.slots.inject('tool.call.toolview', function* () {
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'bash', locale: NS }, BashRow)
+      yield ctx.slots.register({ name: 'tool.call.toolview', key: 'multi_bash', locale: NS }, BashRow)
+    })
   },
 }

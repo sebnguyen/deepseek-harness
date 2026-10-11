@@ -38,7 +38,7 @@ function positiveInteger(value: unknown): value is number {
 
 function validReadCall(block: ToolCallBlock): boolean {
   const call = parsedToolCall(block)
-  if (call?.name !== 'read') return false
+  if (call?.name !== 'read' && call?.name !== 'multi_read') return false
   const { file_path: path, offset, limit } = call.args
   if (typeof path !== 'string' || path.trim() === '') return false
   if (offset !== undefined && !positiveInteger(offset)) return false
@@ -181,7 +181,7 @@ function readFramesMeta(meta: unknown): ReadFrameMeta[] | null {
  */
 export function readCallLine(block: ToolCallBlock): number | undefined {
   const call = parsedToolCall(block)
-  if (call?.name !== 'read') return undefined
+  if (call?.name !== 'read' && call?.name !== 'multi_read') return undefined
   const batch = readBatchFiles(call.args)
   if (batch === null) {
     const { file_path: path, offset } = call.args
@@ -226,7 +226,7 @@ export function readCardModel(
 ): ReadCardModel | null {
   if (block.parentCallId !== undefined || !('kind' in block) || block.isError) return null
   const call = parsedToolCall(block)
-  if (call?.name !== 'read') return null
+  if (call?.name !== 'read' && call?.name !== 'multi_read') return null
   const batch = readBatchFiles(call.args)
   if (batch === null) {
     if (!validReadCall(block)) return null

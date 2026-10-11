@@ -63,7 +63,12 @@ const SECTION_TEXT = 'A source file may carry one durable note — one fact wort
   + 'Read pointers name noted files; use `read_note` to fetch a note and `upsert_note` to write, update, or remove one.'
 
 /** Tools whose successful call changes a file's content and can stale a note. */
-const MUTATING_TOOL_NAMES = new Set(['write', 'str_replace_editor'])
+const MUTATING_TOOL_NAMES = new Set(['write', 'multi_write', 'str_replace_editor'])
+
+/** The registered file-read tool a note path mirrors: `read` in recorded-session compositions, `multi_read` in shipped ones. */
+function readToolName(ctx: Context): string {
+  return ctx.tools.get('multi_read') === undefined ? 'read' : 'multi_read'
+}
 
 /**
  * Extract the source-file path one mutating tool call touched.
@@ -191,7 +196,7 @@ function registerNoteTools(ctx: Context, store: NoteStore): void {
       target: {
         type: 'string',
         required: true,
-        description: 'Path of the source file whose note to read — the same path you would pass to `read`.',
+        description: `Path of the source file whose note to read — the same path you would pass to \`${readToolName(ctx)}\`.`,
       },
     },
     output: {
@@ -226,7 +231,7 @@ function registerNoteTools(ctx: Context, store: NoteStore): void {
       target: {
         type: 'string',
         required: true,
-        description: 'Path of the source file the note describes — the same path you would pass to `read`.',
+        description: `Path of the source file the note describes — the same path you would pass to \`${readToolName(ctx)}\`.`,
       },
       claim: {
         type: 'string',
@@ -282,7 +287,7 @@ export function attachPointer(ctx: Context, store: NoteStore) {
     // additionalContexts rides both decision variants, so a blocked call still
     // gets the pointer.
     const downstream = await next()
-    if (exec.name !== 'read') return downstream
+    if (exec.name !== 'read' && exec.name !== 'multi_read') return downstream
     let pointer: UserMessage | undefined
     try {
       pointer = await pointerMessage(ctx, store, exec)

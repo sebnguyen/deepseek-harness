@@ -275,15 +275,19 @@ describe('ReadRow keyed toolview', () => {
     expect(view.container.querySelector('[data-variant="read"]')?.getAttribute('data-state')).toBe('stopped')
   })
 
-  it('registers under the read key of the keyed toolview slot', () => {
+  it('registers under the read and multi_read keys of the keyed toolview slot', () => {
     const registered: { name: unknown; key?: unknown }[] = []
     const ctx = { slots: {
-      inject: (_name: string, callback: () => () => void) => callback(),
+      // The toolview yields one registration per key; drive the generator.
+      inject: (_name: string, callback: () => Iterable<() => void>) => { Array.from(callback()) },
       register: (options: { name: unknown; key?: unknown }) => { registered.push(options); return () => undefined },
     } } as unknown as Context
     readToolview.apply(ctx)
     // The row composes ToolRow, so it declares its locale namespace at the seat.
-    expect(registered).toEqual([{ name: 'tool.call.toolview', key: 'read', locale: 'conversation' }])
+    expect(registered).toEqual([
+      { name: 'tool.call.toolview', key: 'read', locale: 'conversation' },
+      { name: 'tool.call.toolview', key: 'multi_read', locale: 'conversation' },
+    ])
     expect(readToolview.inject).toEqual(['slots'])
   })
 })

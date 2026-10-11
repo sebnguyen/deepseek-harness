@@ -763,16 +763,16 @@ describe('registration surface', () => {
     const attachmentsFiber = await ctx.plugin(LocalAttachmentStore, { dshHome: home })
     const toolFsFiber = await ctx.plugin(ToolFs)
     const names = () => ctx.tools.schemas().map(schema => schema.name).sort()
-    expect(names()).toEqual(['read', 'read_image', 'write'])
+    expect(names()).toEqual(['multi_read', 'multi_write', 'read_image'])
 
     // Disposing only the attachment store tears down the scoped inject fiber:
     // read_image withdraws while the unconditional tools stay registered.
     await attachmentsFiber.dispose()
-    expect(names()).toEqual(['read', 'write'])
+    expect(names()).toEqual(['multi_read', 'multi_write'])
 
     // Remounting the store restores the conditional registration.
     const remounted = await ctx.plugin(LocalAttachmentStore, { dshHome: home })
-    expect(names()).toEqual(['read', 'read_image', 'write'])
+    expect(names()).toEqual(['multi_read', 'multi_write', 'read_image'])
 
     // Disposing the whole plugin withdraws every tool, read_image included.
     await toolFsFiber.dispose()
@@ -800,12 +800,12 @@ describe('read keeps its text-only contract', () => {
     await writeFile(join(dir, 'note.txt'), 'hello\nworld')
     const ctx = await setup()
 
-    const png = await call(ctx, 'read', { files: [{ file_path: 'red.png' }] }, agentOn('vision-model'))
+    const png = await call(ctx, 'multi_read', { files: [{ file_path: 'red.png' }] }, agentOn('vision-model'))
     expect(png.isError).toBe(false)
     expect(text(png)).toContain('[1/1] red.png')
     expect(text(png)).toContain('binary file')
 
-    const txt = await call(ctx, 'read', { files: [{ file_path: 'note.txt' }] }, agentOn('text-model'))
+    const txt = await call(ctx, 'multi_read', { files: [{ file_path: 'note.txt' }] }, agentOn('text-model'))
     expect(txt.isError).toBe(false)
     expect(text(txt)).toContain('1: hello')
     expect(text(txt)).toContain('<type>file</type>')

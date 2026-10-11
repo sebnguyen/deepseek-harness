@@ -102,7 +102,7 @@ export function readFramesRowModel(
 ): FramesRowModel | null {
   if (block.parentCallId !== undefined) return null
   const call = parsedToolCall(block)
-  if (call?.name !== 'read') return null
+  if (call?.name !== 'read' && call?.name !== 'multi_read') return null
   const batch = readBatchFiles(call.args)
   if (batch === null) return null
   const first = batch[0]
@@ -176,7 +176,7 @@ export function writeFramesRowModel(
 ): FramesRowModel | null {
   if (block.parentCallId !== undefined) return null
   const call = parsedToolCall(block)
-  if (call?.name !== 'write') return null
+  if (call?.name !== 'write' && call?.name !== 'multi_write') return null
   const batch = writeBatchFiles(call.args)
   if (batch === null) return null
   const running = !('kind' in block)

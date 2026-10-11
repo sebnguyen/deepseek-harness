@@ -71,7 +71,8 @@ function sameContextPayload(left: UserMessage, right: UserMessage): boolean {
     && isDeepStrictEqual(left.source, right.source)
 }
 
-const FILE_TOUCH_TOOL_NAMES = new Set(['read', 'write', 'edit'])
+// Legacy names stay: recorded-session replay classifies calls by their recorded name.
+const FILE_TOUCH_TOOL_NAMES = new Set(['read', 'multi_read', 'write', 'multi_write', 'edit'])
 
 function filePathFromExecution(exec: ToolExecution): string | undefined {
   if (!FILE_TOUCH_TOOL_NAMES.has(exec.name)) return undefined

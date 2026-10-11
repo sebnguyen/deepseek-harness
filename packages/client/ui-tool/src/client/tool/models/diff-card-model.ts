@@ -212,7 +212,7 @@ function intendedDiff(block: ToolCallBlock): IntendedDiff | null {
   const { file_path: path } = parsed.args
   if (typeof path !== 'string' || path.trim() === '') return null
   if (!validEscalationFields(parsed.args)) return null
-  if (parsed.name === 'write') {
+  if (parsed.name === 'write' || parsed.name === 'multi_write') {
     const { content } = parsed.args
     return typeof content === 'string'
       ? { tool: 'write', diff: { path, oldText: null, newText: content } }
@@ -258,7 +258,7 @@ function appliedDiffs(meta: unknown): DiffHunk[] | 'empty' | null {
 export function diffCardModel(block: ToolCallBlock): DiffCardModel | null {
   if (block.parentCallId !== undefined) return null
   const parsed = parsedToolCall(block)
-  if (parsed !== null && parsed.name === 'write' && Array.isArray(parsed.args.files)) {
+  if (parsed !== null && (parsed.name === 'write' || parsed.name === 'multi_write') && Array.isArray(parsed.args.files)) {
     if (!validEscalationFields(parsed.args)) return null
     const intended = batchWriteDiffs(parsed.args)
     if (intended === null) return null

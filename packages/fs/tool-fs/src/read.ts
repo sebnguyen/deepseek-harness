@@ -275,15 +275,15 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
     return
   }
   ctx.systemPrompt.section({
-    name: 'tool:read',
+    name: 'tool:multi_read',
     order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
-    text: ({ scope }) => ctx.tools.get('read', scope) === undefined
+    text: ({ scope }) => ctx.tools.get('multi_read', scope) === undefined
       ? ''
       : adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot; pass every file the next step needs as one `files` element — each with its own offset and limit — and every element settles into its own labeled frame, a missing file reported in-frame instead of failing the call. Example: read the handler and its test as two elements before editing the error branch.'),
   })
 
   ctx.tools.register(defineTool({
-    name: 'read',
+    name: 'multi_read',
     description: 'Read UTF-8 text files and return line-numbered content; each element of `files` runs and settles into its own labeled frame, in written order, earlier failures included.',
     parameters: {
       files: {

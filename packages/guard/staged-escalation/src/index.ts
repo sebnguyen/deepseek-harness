@@ -66,7 +66,7 @@ export const Config: z<Config> = z.object({
     {
       name: 'explore',
       description: DEFAULT_DESCRIPTIONS.explore,
-      allow: ['ask_user_question', 'read', 'read_image', 'read_note', 'grep', 'glob', 'lsp', 'explore', 'subagent', 'web_search', 'web_fetch', 'bash', 'pwsh'],
+      allow: ['ask_user_question', 'read', 'multi_read', 'read_image', 'read_note', 'grep', 'glob', 'lsp', 'explore', 'subagent', 'web_search', 'web_fetch', 'bash', 'multi_bash', 'pwsh'],
       sandbox: 'read-only',
     },
     {

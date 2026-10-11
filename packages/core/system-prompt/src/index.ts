@@ -327,10 +327,12 @@ function compareToolNames(a: ToolSchema, b: ToolSchema): number {
  * Every other tool follows lexicographically. `bash` and `pwsh` are ranked as
  * one family, so a composition that mounts either shell — the one-shot and
  * persistent variants share both names — needs no platform branch and holds one
- * position on every supported platform. A configured
+ * position on every supported platform. Shipped `multi_*` batch faces rank
+ * alongside their legacy names so recorded-session compositions whose catalog
+ * carries only the legacy names keep the recorded relative order. A configured
  * {@link Config.toolOrder} replaces this rule wholesale.
  */
-const DEFAULT_TOOL_PRECEDENCE: readonly string[] = ['write', 'edit', 'read', 'bash', 'pwsh']
+const DEFAULT_TOOL_PRECEDENCE: readonly string[] = ['multi_write', 'write', 'edit', 'multi_read', 'read', 'multi_bash', 'bash', 'pwsh']
 
 /**
  * Precedence rank of a tool name; unranked names share one rank, which leaves

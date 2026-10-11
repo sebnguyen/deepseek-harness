@@ -48,6 +48,12 @@
 - id: tool-bash
   name: '@deepseek-ai/dsh-tool-bash-frames'
   disabled: !!js process.platform === 'win32'
+  config:
+    # The shipped name is `multi_bash`; test-lane boots (vitest-hosted suites
+    # and snapshot subprocesses inheriting VITEST) keep the recorded corpus's
+    # `bash` name until the corpus is re-recorded. Live runtime sessions always
+    # see `multi_bash`.
+    legacyName: !!js process.env.VITEST === 'true'
 
 - id: tool-pwsh
   name: '@deepseek-ai/dsh-tool-pwsh'

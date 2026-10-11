@@ -149,7 +149,7 @@ function call(ctx: Context, args: unknown, signal?: AbortSignal) {
   return ctx.tools.execute({
     signal: signal ?? new AbortController().signal,
     callId: ToolCallId(`frames-${Math.random()}`),
-    name: 'bash',
+    name: 'multi_bash',
     arguments: args,
   })
 }
@@ -227,7 +227,7 @@ describe('the commands face', () => {
     // Invoke the tool body directly: the scheduler overlays a bare abort error on
     // any caller-cancelled call, so the frames the loop itself settles are only
     // observable here.
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     const value = await (tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
       { description: 'Batch interrupted after the first element', commands: [{ command: 'echo a' }, { command: 'echo b' }] },
       { signal: controller.signal, callId: ToolCallId('frames-direct') },
@@ -305,7 +305,7 @@ describe('the commands face', () => {
 
   it('presents a pending frames call as a generic execute card listing every command', async () => {
     const ctx = await setup()
-    const view = ctx.tools.get('bash')!.presentCall!({
+    const view = ctx.tools.get('multi_bash')!.presentCall!({
       description: 'Two checks',
       commands: [{ command: 'echo a' }, { command: 'git status' }],
     }) as { card: string; kind?: string; title?: string; content?: { type: string; text?: string }[] }
@@ -350,7 +350,7 @@ describe('the commands face', () => {
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(AbortedResultExecutor)
     await ctx.plugin(ToolBashFrames)
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     await expect((tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
       { description: 'Aborting executor', commands: [{ command: 'echo a' }] },
       { signal: new AbortController().signal, callId: ToolCallId('frames-aborting') },
@@ -366,7 +366,7 @@ describe('the commands face', () => {
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
     await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
-    const schema = ctx.tools.schemas().find(candidate => candidate.name === 'bash')!
+    const schema = ctx.tools.schemas().find(candidate => candidate.name === 'multi_bash')!
     const items = (schema.parameters.properties as { commands: { items: { properties: Record<string, unknown> } } }).commands.items
     expect(items.properties).not.toHaveProperty('run_in_background')
     const result = await call(ctx, {
@@ -379,7 +379,7 @@ describe('the commands face', () => {
 
   it('renders every outcome arm through its output renderer', async () => {
     const ctx = await setup()
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     const render = (tool as unknown as {
       output: { render: (args: unknown, value: unknown) => { type: string; text: string }[] }
     }).output.render
@@ -396,7 +396,7 @@ describe('the commands face', () => {
 
   it('presents empty batches and invalid results as generic cards', async () => {
     const ctx = await setup()
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     const emptyView = tool.presentCall!({ description: 'No commands', commands: [] }) as {
       card: string
       title?: string
@@ -413,7 +413,7 @@ describe('the commands face', () => {
 
   it('presents a settled frames result as fenced output, never a terminal pill', async () => {
     const ctx = await setup()
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     const executed = await call(ctx, {
       description: 'One element',
       commands: [{ command: 'echo one' }],
@@ -430,7 +430,7 @@ describe('the commands face', () => {
 describe('presentation and config edges', () => {
   it('soft-validates presentCall args: a call without the batch yields no view', async () => {
     const ctx = await setup()
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     expect(tool.presentCall!({ description: 'Start later' })).toBeUndefined()
   })
 
@@ -438,7 +438,7 @@ describe('presentation and config edges', () => {
     const ctx = await setup()
     // The core wrapper soft-validates replay args before the presenter runs,
     // so a non-array batch settles to the generic undefined-view fallback.
-    expect(ctx.tools.get('bash')!.presentCall!({
+    expect(ctx.tools.get('multi_bash')!.presentCall!({
       description: 'Guard',
       commands: null,
     } as never)).toBeUndefined()
@@ -446,7 +446,7 @@ describe('presentation and config edges', () => {
 
   it('presents non-object args and multi-block results without a view', async () => {
     const ctx = await setup()
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     const primitiveArgs = tool.presentResult!(7, {
       content: [{ type: 'text', text: 'raw' }],
       isError: false,
@@ -473,7 +473,7 @@ describe('presentation and config edges', () => {
     await ctx.plugin(BashEnvPlugin)
     await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
     await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
-    const tool = ctx.tools.get('bash')!
+    const tool = ctx.tools.get('multi_bash')!
     await expect((tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
       { description: 'd', commands: [{ command: 'echo x', run_in_background: true }] },
       { signal: new AbortController().signal, callId: ToolCallId('frames-bg-off-direct') },

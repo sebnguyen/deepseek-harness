@@ -40,10 +40,14 @@ export const VARIANT_TITLE_KEYS = {
  */
 const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   bash: 'bash',
+  // The shipped multi_* batch faces share their legacy faces' rows; recorded
+  // sessions keep arriving under the legacy names and live calls under multi_*.
+  multi_bash: 'bash',
   // The PowerShell twin is a shell tool: the bash row family (icon, colors)
   // with its own title from TOOL_TITLE_KEYS, not the generic `others` row.
   pwsh: 'bash',
   read: 'read',
+  multi_read: 'read',
   // read_image is a single-file read: the same browse icon and the same openable
   // path summary (FILE_PATH_VARIANTS covers `read`), with its own title key below.
   // Left unclassified it falls to `others`, which titles the row generically and
@@ -54,6 +58,7 @@ const TOOL_VARIANTS: Record<string, ToolRowVariant> = {
   grep: 'search',
   glob: 'search',
   write: 'write',
+  multi_write: 'write',
   edit: 'edit',
   run_code: 'code',
   cordis_package_inspect: 'read',

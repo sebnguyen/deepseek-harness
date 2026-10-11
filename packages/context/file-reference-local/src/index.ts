@@ -9,6 +9,7 @@ import z from '@deepseek-ai/schemastery'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import FileReferenceService, {
   FILE_REFERENCE_PROMPT,
+  fileReferencePrompt,
   type FileReferenceCandidate,
 } from '@deepseek-ai/dsh-file-reference'
 import type {} from '@deepseek-ai/dsh-tools'
@@ -69,7 +70,9 @@ export class LocalFileReferenceService extends FileReferenceService {
         scope.systemPrompt.section({
           name: 'context:file-reference',
           order: scope.systemPrompt.getSectionOrder('FILE_REFERENCE'),
-          text: () => agent.ctx.tools.get('read', agent) === undefined ? '' : FILE_REFERENCE_PROMPT,
+          text: () => agent.ctx.tools.get('multi_read', agent) !== undefined
+            ? fileReferencePrompt('multi_read')
+            : agent.ctx.tools.get('read', agent) === undefined ? '' : FILE_REFERENCE_PROMPT,
         })
       })
       this.promptFibers.set(agent, fiber)

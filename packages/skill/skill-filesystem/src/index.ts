@@ -694,10 +694,10 @@ function containedSegments(root: string, path: string): string[] | undefined {
   return child.split(sep)
 }
 
-function mutationToolName(actor: object | undefined): 'edit' | 'write' | undefined {
+function mutationToolName(actor: object | undefined): 'edit' | 'write' | 'multi_write' | undefined {
   if (actor === undefined || !('name' in actor)) return undefined
   const value = actor.name
-  return value === 'edit' || value === 'write' ? value : undefined
+  return value === 'edit' || value === 'write' || value === 'multi_write' ? value : undefined
 }
 
 function assertPositiveInteger(field: string, value: number): void {

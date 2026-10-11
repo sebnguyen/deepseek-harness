@@ -289,7 +289,8 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     text: ({ scope }) => ctx.tools.get('grep', scope) === undefined
       ? ''
       : adviceLine('Grep searches file contents across the workspace or a path you specify, faster and better scoped than rg in bash. Example: grep for class SessionStore then read the definition file.')
-      + (ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
+      + (ctx.tools.get('multi_read', scope) !== undefined ? ' Use multi_read on a matched file when you need surrounding context.'
+        : ctx.tools.get('read', scope) === undefined ? '' : ' Use read on a matched file when you need surrounding context.'),
   })
 
   const tool = defineTool({
@@ -297,7 +298,9 @@ export function applyGrepTool(ctx: Context, caps: GrepToolCaps): void {
     description: 'Search file contents with a ripgrep regular expression. Returns matching lines with line numbers, grouped by file. '
       + `Returns the first ${caps.maxMatches} matches inline; a capped result reports where the complete match list was saved. `
       + 'Pass an absolute path to search outside the session workspace. '
-      + 'Use read on a matched file for surrounding context.',
+      + (ctx.tools.get('multi_read') !== undefined
+        ? 'Use multi_read on a matched file for surrounding context.'
+        : 'Use read on a matched file for surrounding context.'),
     parameters: {
       pattern: { type: 'string', required: true, description: 'Regular expression to search for (ripgrep syntax).' },
       path: { type: 'string', description: 'File or directory to search. Defaults to the session workspace; a relative path resolves against it. An absolute path is searched as given, including one outside the session workspace.' },

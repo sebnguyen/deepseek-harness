@@ -58,7 +58,7 @@
     provider: spawn
     toolName: explore
     toolFilter:
-      allow: [read, read_image, glob, grep, lsp, symbols, bash, web_fetch, web_search]
+      allow: [read, multi_read, read_image, glob, grep, lsp, symbols, bash, multi_bash, web_fetch, web_search]
     enableRunInBackground: false
     maxDepth: 1
     backgroundMode: one-shot
@@ -110,6 +110,8 @@
 - id: tool-bash
   name: '@deepseek-ai/dsh-tool-bash-frames'
   disabled: !!js process.platform === 'win32'
+  config:
+    legacyName: !!js process.env.VITEST === 'true'
 
 - id: tool-pwsh
   name: '@deepseek-ai/dsh-tool-pwsh'

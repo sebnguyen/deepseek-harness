@@ -278,7 +278,7 @@ function acceptsExampleCommands(schema: JsonSchemaNode | undefined): boolean {
 
 /** Render the bash example only when its literal arguments satisfy the current parameter schema. */
 function renderBashExample(schemas: ToolSdkSchema[]): string {
-  const bash = schemas.find(schema => schema.name === 'bash')
+  const bash = schemas.find(schema => schema.name === 'multi_bash') ?? schemas.find(schema => schema.name === 'bash')
   if (bash === undefined) return ''
   const parameters = bash.parameters as JsonSchemaNode
   if (parameters.type !== 'object') return ''
@@ -295,7 +295,7 @@ function renderBashExample(schemas: ToolSdkSchema[]): string {
   const call = singular
     ? `{ command: 'pwd'${description} }`
     : `{ commands: [{ command: 'pwd' }]${description} }`
-  return ` When no separate \`bash\` schema is supplied, invoke a declared \`bash\` binding inside \`run_code\`:\n\n\`run_code({ code: "return await tools.bash(${call})", description: "Show current directory" })\``
+  return ` When no separate \`${bash.name}\` schema is supplied, invoke a declared \`${bash.name}\` binding inside \`run_code\`:\n\n\`run_code({ code: "return await tools.${bash.name}(${call})", description: "Show current directory" })\``
 }
 
 /**

@@ -182,7 +182,7 @@ interface ShellCall {
 }
 
 function shellCall(name: string, args: Record<string, unknown>): ShellCall | null {
-  if (name !== 'bash' && name !== 'pwsh') return null
+  if (name !== 'bash' && name !== 'multi_bash' && name !== 'pwsh') return null
   const { command, description, timeoutMs, workdir, run_in_background: background } = args
   if (typeof command !== 'string' || command.trim() === '') return null
   if (timeoutMs !== undefined && (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0)) return null

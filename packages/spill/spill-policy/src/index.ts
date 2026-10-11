@@ -187,9 +187,9 @@ export function apply(ctx: Context, config: Config): void {
     // we bound whatever it accepted. A block passes through — spill only shapes
     // accepted plain-text results, never corrective feedback.
     const decision = await next()
-    // Skip `read` to avoid a read → spill → read again loop.
+    // Skip `read`/`multi_read` to avoid a read → spill → read again loop.
     if (decision.kind !== 'accept' || Object.hasOwn(decision, 'value')
-      || exec.parent !== undefined || exec.name === 'read') return decision
+      || exec.parent !== undefined || exec.name === 'read' || exec.name === 'multi_read') return decision
 
     const content = decision.content ?? result.content
     const text = flattenPlainText(content)

@@ -89,7 +89,7 @@ const NOT_RUN_LINE = /^\[not run: ([^\]]*)\]$/
 export function bashFramesModel(block: ToolCallBlock): BashFramesModel | null {
   if (block.parentCallId !== undefined) return null
   const parsed = parsedToolCall(block)
-  if (parsed === null || parsed.name !== 'bash') return null
+  if (parsed === null || (parsed.name !== 'bash' && parsed.name !== 'multi_bash')) return null
   const commands = batchCommands(parsed.args)
   if (commands === null) return null
   if (!('kind' in block)) return { kind: 'pending', commands }

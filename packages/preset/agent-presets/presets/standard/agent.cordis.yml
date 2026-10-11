@@ -61,6 +61,12 @@
 - id: tool-bash
   name: '@deepseek-ai/dsh-tool-bash-frames'
   disabled: !!js process.platform === 'win32'
+  config:
+    # The shipped name is `multi_bash`; test-lane boots (vitest-hosted suites
+    # and snapshot subprocesses inheriting VITEST) keep the recorded corpus's
+    # `bash` name until the corpus is re-recorded. Live runtime sessions always
+    # see `multi_bash`.
+    legacyName: !!js process.env.VITEST === 'true'
 
 - id: tool-pwsh
   name: '@deepseek-ai/dsh-tool-pwsh'
@@ -252,7 +258,9 @@
         provider: spawn
         toolName: explore
         toolFilter:
-          allow: [read, read_image, bash, web_fetch, web_search]
+          # Legacy names stay: test-lane boots register the recorded-corpus
+          # names; live sessions register the multi_* batch faces.
+          allow: [read, multi_read, read_image, bash, multi_bash, web_fetch, web_search]
         enableRunInBackground: false
         enableBatchTasks: true
         maxDepth: 1

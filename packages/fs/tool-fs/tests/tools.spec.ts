@@ -220,8 +220,8 @@ describe('registration', () => {
       'deployment:persona-prefix',
       'deployment:persona-suffix',
       ...sortedCore,
-      'tool:read',
-      'tool:write',
+      'tool:multi_read',
+      'tool:multi_write',
     ])
     await fiber.dispose()
     expect(ctx.tools.schemas()).toHaveLength(0)

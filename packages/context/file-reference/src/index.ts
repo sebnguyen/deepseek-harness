@@ -13,8 +13,15 @@ export { activeAtToken, formatFileMention } from './grammar.ts'
 export type { ActiveAtToken } from './grammar.ts'
 export type { FileReferenceCandidate } from './types.ts'
 
+/**
+ * Model guidance for path-only references selected by a user interface, naming
+ * the registered file-read tool (`read` in recorded-session compositions,
+ * `multi_read` in shipped ones).
+ */
+export const fileReferencePrompt = (reader: string): string => `Tokens prefixed with @ are workspace paths the user explicitly referenced, relative to the workspace root. A trailing slash marks a directory: list it when its contents matter. Anything else is a file: use the ${reader} tool when its contents are needed, and do not claim to have inspected it before reading. @"..." quotes a path containing spaces.`
+
 /** Model guidance for path-only references selected by a user interface. */
-export const FILE_REFERENCE_PROMPT = 'Tokens prefixed with @ are workspace paths the user explicitly referenced, relative to the workspace root. A trailing slash marks a directory: list it when its contents matter. Anything else is a file: use the read tool when its contents are needed, and do not claim to have inspected it before reading. @"..." quotes a path containing spaces.'
+export const FILE_REFERENCE_PROMPT = fileReferencePrompt('read')
 
 declare module '@deepseek-ai/cordis' {
   interface Context {

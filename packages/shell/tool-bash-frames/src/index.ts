@@ -47,12 +47,15 @@ export interface Config {
   enableRunInBackground?: boolean
   /** Maximum elements one `commands` invocation may carry (default 8). */
   maxCommandsPerCall?: number
+  /** Register under the legacy `bash` name for recorded-session replay instead of the shipped `multi_bash` name (default false). */
+  legacyName?: boolean
 }
 
 /** Runtime configuration schema for the frames bash tool plugin. */
 export const Config: z<Config> = z.object({
   enableRunInBackground: z.boolean().default(true),
   maxCommandsPerCall: z.number().step(1).min(1).default(8),
+  legacyName: z.boolean().default(false),
 })
 
 /** Re-read the abort flag; a plain property read would be narrowed away after
@@ -170,6 +173,8 @@ export async function requestBashEscalation(
     agent: Agent | undefined
     callId: ToolCallId
     signal: AbortSignal
+    /** The registered tool name the approval prompt shows; defaults to `bash`. */
+    toolName?: string
   },
   requestedMode: string,
   justification: string,
@@ -185,7 +190,7 @@ export async function requestBashEscalation(
       approver: facts.approver,
       agent: facts.agent,
       callId: facts.callId,
-      toolName: 'bash',
+      toolName: facts.toolName ?? 'bash',
       signal: facts.signal,
     },
   )
@@ -301,6 +306,9 @@ const OUTPUT_STREAM_SCHEMA = {
 export function apply(ctx: Context, config: Config = {}): void {
   const backgroundEnabled = config.enableRunInBackground ?? true
   const maxCommandsPerCall = config.maxCommandsPerCall ?? 8
+  // The shipped name is `multi_bash`; `legacyName` re-registers as `bash` so
+  // recorded-session compositions resolve their recorded calls.
+  const toolName = config.legacyName === true ? 'bash' : 'multi_bash'
   const defaultMode = ctx.shell.sandboxMode
   const escalationModes: readonly SandboxMode[] = defaultMode === undefined ? [] : ESCALATION_TARGETS
   const sandboxPolicy: SandboxPolicyService | undefined = defaultMode === undefined ? undefined : ctx.get('sandboxPolicy')
@@ -330,6 +338,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         agent: exec.agent,
         callId: exec.callId,
         signal: exec.signal,
+        toolName,
       },
       mode,
       justification,
@@ -338,7 +347,7 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   // Cross-call guidance belongs in the prompt rather than one-call schema prose.
   ctx.systemPrompt.section({
-    name: 'tool:bash',
+    name: `tool:${toolName}`,
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
     text: adviceLine('Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests.')
       + ' Batch the independent steps of one thought into one `commands` call — one call running the narrowed test, grepping the symbol, and listing the directory instead of three calls; a step that reads an earlier output belongs in a later call. '
@@ -346,7 +355,7 @@ export function apply(ctx: Context, config: Config = {}): void {
   })
 
   ctx.tools.register(defineTool({
-    name: 'bash',
+    name: toolName,
     description: bashDescription(backgroundEnabled, escalationModes),
     parameters: {
       commands: {

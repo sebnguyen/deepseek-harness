@@ -314,15 +314,15 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
     return
   }
   ctx.systemPrompt.section({
-    name: 'tool:write',
+    name: 'tool:multi_write',
     order: ctx.systemPrompt.getSectionOrder('TOOL_WRITE'),
-    text: ({ scope }) => ctx.tools.get('write', scope) === undefined
+    text: ({ scope }) => ctx.tools.get('multi_write', scope) === undefined
       ? ''
       : adviceLine('Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` element — each element carries its own content or sed-style edits entries (literal old_string, regex pattern, line range, insert after_line) and commits atomically, elements dispatch in written order, and a failing element settles into its frame while later elements still run. Overwriting a file this session never read needs overwrite: true on that element, and dry_run previews one element without committing. Example: write two new fixture files as two elements once their shapes are agreed.'),
   })
 
   ctx.tools.register(defineTool({
-    name: 'write',
+    name: 'multi_write',
     description: 'Create, replace, or patch several UTF-8 text files in one call; each `files` element runs its sed-style program in written order and commits atomically, settling into its own labeled frame — a failed element does not stop later ones.',
     parameters: {
       files: {

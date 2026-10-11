@@ -99,7 +99,7 @@ describe('bash tool through the agent loop', () => {
     const dshHome = join(root, 'dsh-home')
     vi.stubEnv('DSH_STALE_PARENT', 'stale')
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', {
+      toolCallResponse('call-1', 'multi_bash', {
         commands: [{
           command: 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "${DSH_STALE_PARENT-unset}"',
         }],
@@ -124,7 +124,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: model calls bash, sees the result, replies', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', { commands: [{ command: 'echo integration-ok' }], description: 'test command' }, 'Running it.'),
+      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'echo integration-ok' }], description: 'test command' }, 'Running it.'),
       textResponse('The command printed integration-ok.'),
     ])
     const ctx = await harness(adapter)
@@ -135,7 +135,7 @@ describe('bash tool through the agent loop', () => {
 
     const log = events(agent)
     const toolCall = findEvent(log, 'tool/call')
-    expect(toolCall.data.name).toBe('bash')
+    expect(toolCall.data.name).toBe('multi_bash')
 
     const toolResult = findEvent(log, 'tool/result')
     expect(toolResult.data.message.content[0].isError).toBe(false)
@@ -156,7 +156,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: non-zero exit is reported in the result text, not as isError', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', { commands: [{ command: 'exit 9' }], description: 'test command' }),
+      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'exit 9' }], description: 'test command' }),
       textResponse('It failed with code 9.'),
     ])
     const ctx = await harness(adapter)
@@ -183,7 +183,7 @@ describe('bash tool through the agent loop', () => {
     // The job id is deterministic (a fresh LocalJobRegistry counts per kind from 1),
     // so the script can name `bash-1` without threading a generated id.
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'bash', {
+      toolCallResponse('call-1', 'multi_bash', {
         commands: [{
           command: `while [ ! -f ${JSON.stringify(sentinel)} ]; do sleep 0.02; done; echo bg-ok`,
           run_in_background: true,

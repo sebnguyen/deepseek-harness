@@ -201,6 +201,33 @@ export interface Config {
 
 Source: [`packages/api/gateway/src/index.ts:119`](../packages/api/gateway/src/index.ts)
 
+<a id="deepseek-aidsh-api-ide"></a>
+
+## `@deepseek-ai/dsh-api-ide`
+
+Requires: `subprocess` · `sessions` · `typert` · `sandboxPolicy`
+
+```ts config-catalog
+/** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
+export interface Config {
+  /**
+   * Absolute path of the combined VS Code twin dist: the `vscode-reh-linux-x64`
+   * product with `vscode-web/out/*` overlaid onto its own `out/`. Empty puts
+   * the namespace on discovery: the sibling then in-repo `.vscode-twin/dist`
+   * candidates (see `twin-dist.ts`) stand in, and only when none exists does
+   * `status` answer `enabled: false` and the client tab stay on the fallback
+   * text editor.
+   */
+  dist: string
+  /** Milliseconds one `status` call waits for a spawn to answer HTTP before reporting not-ready. */
+  readinessTimeoutMs: number
+  /** Milliseconds between two readiness polls inside that window. */
+  readinessPollMs: number
+}
+```
+
+Source: [`packages/api/ide/src/index.ts:44`](../packages/api/ide/src/index.ts)
+
 <a id="deepseek-aidsh-api-session-controller"></a>
 
 ## `@deepseek-ai/dsh-api-session-controller`
@@ -860,7 +887,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/context/file-reference-local/src/index.ts:34`](../packages/context/file-reference-local/src/index.ts)
+Source: [`packages/context/file-reference-local/src/index.ts:35`](../packages/context/file-reference-local/src/index.ts)
 
 <a id="deepseek-aidsh-fs-local"></a>
 
@@ -1307,6 +1334,13 @@ export interface PiAiProviderProfile {
    */
   modelOverrides?: Record<string, PiAiModelOverride>
   /**
+   * The effort menu an endpoint interrogation stamps onto the `models`
+   * entries it adopts, for routes whose models reason by deployment
+   * knowledge the listing itself cannot carry; a model declaring its own
+   * `reasoningEfforts` keeps that map.
+   */
+  defaultReasoningEfforts?: PiAiReasoningEfforts
+  /**
    * pi-ai wire-compatibility switches defaulting every model on this route
    * whose protocol declares them; each model's own `compat` overrides per
    * field. What neither sets keeps the installed catalog entry's value, then
@@ -1406,10 +1440,12 @@ export interface PiAiModelProfile {
   input?: PiAiModality[]
   /**
    * Selectable reasoning efforts. Absent inherits the installed catalog
-   * entry's capability (a hand-declared model has none and does not reason);
-   * `false` declares a non-reasoning model, which is how a profile strips
-   * reasoning from a catalog model its gateway cannot serve; a non-empty dict
-   * declares the offered levels and their wire spellings.
+   * entry's capability, or the route's effort menu when the catalog has no
+   * entry; `false` declares a non-reasoning model, which is how a profile
+   * strips reasoning from a catalog model its gateway cannot serve; a
+   * non-empty dict declares the offered levels and their wire spellings. An
+   * empty dict is the settings materialization of an omitted menu and takes
+   * the route menu when the route has one.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
@@ -1431,6 +1467,16 @@ export interface PiAiModelProfile {
  * model, keep the other thirty-seven" a three-line edit.
  */
 export type PiAiModelOverride = Omit<PiAiModelProfile, 'id'>
+
+/**
+ * Selectable reasoning efforts for one model: each key is a level the model
+ * offers (and selectors show), and its value is the wire spelling dispatch
+ * sends for it. `off` alone may leave its value empty — "supported, send
+ * nothing" — because for most providers not thinking is the parameter's
+ * absence; every other declared level must name a wire value. A level absent
+ * from the dict is not offered.
+ */
+export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | null>>
 
 /**
  * pi-ai wire-compatibility switches, set on the route (its models' default) or
@@ -1528,16 +1574,6 @@ export interface PiAiCompatProfile {
 export type PiAiModality = Model<Api>['input'][number]
 
 /**
- * Selectable reasoning efforts for one model: each key is a level the model
- * offers (and selectors show), and its value is the wire spelling dispatch
- * sends for it. `off` alone may leave its value empty — "supported, send
- * nothing" — because for most providers not thinking is the parameter's
- * absence; every other declared level must name a wire value. A level absent
- * from the dict is not offered.
- */
-export type PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | null>>
-
-/**
  * Stored sampling tune for one model, written by any surface that edits the
  * route's profile the way the Models page edits capacities. Both knobs are
  * request defaults, not capabilities: they never size or gate the model,
@@ -1559,7 +1595,7 @@ export type PiAiThinkingTokenBudgetField = NonNullable<OpenAICompletionsCompat['
 
 Depends on: `Api` (`@earendil-works/pi-ai`) · `CacheRetention` (`@earendil-works/pi-ai`) · `Model` (`@earendil-works/pi-ai`) · `ModelThinkingLevel` (`@earendil-works/pi-ai`) · `OpenAICompletionsCompat` (`@earendil-works/pi-ai`) · [`RetryPolicyConfig`](../packages/llm/llm/src/index.ts) · `ThinkingBudgets` (`@earendil-works/pi-ai`) · `Transport` (`@earendil-works/pi-ai`)
 
-Source: [`packages/llm/llm-pi-ai/src/config.ts:235`](../packages/llm/llm-pi-ai/src/config.ts)
+Source: [`packages/llm/llm-pi-ai/src/config.ts:251`](../packages/llm/llm-pi-ai/src/config.ts)
 
 <a id="deepseek-aidsh-llm-replay"></a>
 
@@ -2923,7 +2959,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/core/system-prompt/src/index.ts:352`](../packages/core/system-prompt/src/index.ts)
+Source: [`packages/core/system-prompt/src/index.ts:354`](../packages/core/system-prompt/src/index.ts)
 
 <a id="deepseek-aidsh-terminal-bash"></a>
 
@@ -3051,6 +3087,8 @@ export interface Config {
   enableRunInBackground?: boolean
   /** Maximum elements one `commands` invocation may carry (default 8). */
   maxCommandsPerCall?: number
+  /** Register under the legacy `bash` name for recorded-session replay instead of the shipped `multi_bash` name (default false). */
+  legacyName?: boolean
 }
 ```
 
@@ -3893,6 +3931,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-api-workspace-controller` — requires `typert` · `workspaceRegistry` ([`packages/api/workspace-controller/src/index.ts`](../packages/api/workspace-controller/src/index.ts))
 - `@deepseek-ai/dsh-authorization` — requires `credentials` ([`packages/credentials/authorization/src/index.ts`](../packages/credentials/authorization/src/index.ts))
 - `@deepseek-ai/dsh-claim` — requires `agents` · `sessionProjections` ([`packages/claim/claim/src/index.ts`](../packages/claim/claim/src/index.ts))
+- `@deepseek-ai/dsh-client-conversation-mode` ([`packages/client/conversation-mode/src/index.ts`](../packages/client/conversation-mode/src/index.ts))
 - `@deepseek-ai/dsh-client-file-upload` — requires `agents` · `attachments` · `commands` · `connection` ([`packages/client/file-upload/src/index.ts`](../packages/client/file-upload/src/index.ts))
 - `@deepseek-ai/dsh-client-locale` ([`packages/client/locale/src/index.ts`](../packages/client/locale/src/index.ts))
 - `@deepseek-ai/dsh-client-modules` — requires `loader` ([`packages/client/modules/src/index.ts`](../packages/client/modules/src/index.ts))
@@ -3913,6 +3952,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-editor` ([`packages/client/ui-editor/src/index.ts`](../packages/client/ui-editor/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-file-history` ([`packages/client/ui-file-history/src/index.ts`](../packages/client/ui-file-history/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-goal` ([`packages/client/ui-goal/src/index.ts`](../packages/client/ui-goal/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-guide` ([`packages/client/ui-guide/src/index.ts`](../packages/client/ui-guide/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-input-trigger` ([`packages/client/ui-input-trigger/src/index.ts`](../packages/client/ui-input-trigger/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-layout` ([`packages/client/ui-layout/src/index.ts`](../packages/client/ui-layout/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-line-note` ([`packages/client/ui-line-note/src/index.ts`](../packages/client/ui-line-note/src/index.ts))
@@ -3940,6 +3980,7 @@ These load from a `cordis.yml` entry with no `config:` block; they declare no co
 - `@deepseek-ai/dsh-client-ui-tool` ([`packages/client/ui-tool/src/index.ts`](../packages/client/ui-tool/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-trajectory` ([`packages/client/ui-trajectory/src/index.ts`](../packages/client/ui-trajectory/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-user-questions` ([`packages/client/ui-user-questions/src/index.ts`](../packages/client/ui-user-questions/src/index.ts))
+- `@deepseek-ai/dsh-client-ui-vscode` ([`packages/client/ui-vscode/src/index.ts`](../packages/client/ui-vscode/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workflow-run` ([`packages/client/ui-workflow-run/src/index.ts`](../packages/client/ui-workflow-run/src/index.ts))
 - `@deepseek-ai/dsh-client-ui-workspace` ([`packages/client/ui-workspace/src/index.ts`](../packages/client/ui-workspace/src/index.ts))
 - `@deepseek-ai/dsh-command-compact` — requires `commands` · `compaction` ([`packages/compaction/command-compact/src/index.ts`](../packages/compaction/command-compact/src/index.ts))

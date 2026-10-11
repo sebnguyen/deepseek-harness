@@ -118,18 +118,18 @@ describe('frames registration', () => {
   it('registers the batch faces by default', async () => {
     const { ctx } = await setup()
     const names = ctx.tools.schemas().map(s => s.name).sort()
-    expect(names).toEqual(['read', 'write'])
-    const read = ctx.tools.schemas().find(s => s.name === 'read')
+    expect(names).toEqual(['multi_read', 'multi_write'])
+    const read = ctx.tools.schemas().find(s => s.name === 'multi_read')
     expect(JSON.stringify(read?.parameters)).toContain('"files"')
-    const write = ctx.tools.schemas().find(s => s.name === 'write')
+    const write = ctx.tools.schemas().find(s => s.name === 'multi_write')
     expect(JSON.stringify(write?.parameters)).toContain('"files"')
   })
 
   it('declares batched read parallel-safe and batched write exclusive', async () => {
     const { ctx } = await setup()
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-frames'), name: 'read', arguments: { files: [{ file_path: 'a.txt' }] } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-frames'), name: 'multi_read', arguments: { files: [{ file_path: 'a.txt' }] } }))
       .toEqual({ kind: 'parallel' })
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-frames'), name: 'write', arguments: { files: [{ file_path: 'a.txt', content: 'x' }] } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-frames'), name: 'multi_write', arguments: { files: [{ file_path: 'a.txt', content: 'x' }] } }))
       .toEqual({ kind: 'exclusive' })
   })
 
@@ -142,7 +142,7 @@ describe('frames registration', () => {
 
   it('advertises the escalation fields on the batched write under a confining backend', async () => {
     const { ctx } = await setup(true)
-    const write = ctx.tools.schemas().find(s => s.name === 'write')
+    const write = ctx.tools.schemas().find(s => s.name === 'multi_write')
     expect(JSON.stringify(write?.parameters)).toContain('sandbox_permissions')
   })
 
@@ -189,7 +189,7 @@ describe('read frames', () => {
   it('settles every element into its own frame, failures included', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:a.txt', 'one\ntwo')
-    const result = await call(ctx, 'read', { files: [
+    const result = await call(ctx, 'multi_read', { files: [
       { file_path: 'a.txt' },
       { file_path: 'missing.txt' },
       { file_path: 'a.txt', offset: 2 },
@@ -205,7 +205,7 @@ describe('read frames', () => {
 
   it('reports invalid elements as error frames without failing the call', async () => {
     const { ctx } = await setup()
-    const definition = ctx.tools.get('read')
+    const definition = ctx.tools.get('multi_read')
     if (definition === undefined) throw new Error('read not registered')
     const value = await definition.execute({ files: [{ file_path: '  ' }, { file_path: 'a.txt' }] }, { signal: testToolSignal } as never) as {
       frames: { file_path: string; kind: string; message?: string }[]
@@ -215,14 +215,14 @@ describe('read frames', () => {
 
   it('rejects an empty batch as a failed call', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'read', { files: [] })
+    const result = await call(ctx, 'multi_read', { files: [] })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('files must contain at least one element')
   })
 
   it('labels skipped elements not-run when the call is aborted', async () => {
     const { ctx } = await setup()
-    const definition = ctx.tools.get('read')
+    const definition = ctx.tools.get('multi_read')
     if (definition === undefined) throw new Error('read not registered')
     const aborted = new AbortController()
     aborted.abort()
@@ -235,7 +235,7 @@ describe('read frames', () => {
   it('projects successful windows into persisted frame meta', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:a.ts', 'const x = 1')
-    const result = await call(ctx, 'read', { files: [{ file_path: 'a.ts' }, { file_path: 'missing.ts' }] })
+    const result = await call(ctx, 'multi_read', { files: [{ file_path: 'a.ts' }, { file_path: 'missing.ts' }] })
     const meta = (result as { meta?: unknown }).meta as { frames: unknown[] }
     expect(meta.frames).toHaveLength(1)
     const entry = (meta.frames as Record<string, unknown>[])[0]
@@ -246,7 +246,7 @@ describe('read frames', () => {
 
   it('presentCall titles single and multi batches and lists locations', async () => {
     const { ctx } = await setup()
-    const read = ctx.tools.get('read')
+    const read = ctx.tools.get('multi_read')
     const single = read?.presentCall?.({ files: [{ file_path: 'a.txt', offset: 3 }] })
     expect(single).toEqual({ card: 'generic', title: 'Read a.txt', kind: 'read', locations: [{ path: 'a.txt', line: 3 }] })
     const multi = read?.presentCall?.({ files: [{ file_path: 'a.txt' }, { file_path: 'b.txt' }, { file_path: 'c.txt' }] })
@@ -291,7 +291,7 @@ describe('write frames', () => {
   it('commits each element atomically and lets later elements run after a failure', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:existing.txt', 'untouched')
-    const result = await call(ctx, 'write', { files: [
+    const result = await call(ctx, 'multi_write', { files: [
       { file_path: 'new.txt', content: 'fresh\n' },
       { file_path: 'existing.txt', content: 'clobber' },
       { file_path: 'after.txt', content: 'later\n' },
@@ -310,7 +310,7 @@ describe('write frames', () => {
 
   it('applies per-element programs against earlier committed results', async () => {
     const { ctx, fs } = await setup()
-    const result = await call(ctx, 'write', { files: [
+    const result = await call(ctx, 'multi_write', { files: [
       { file_path: 'doc.txt', content: 'alpha\n' },
       { file_path: 'doc.txt', edits: [{ old_string: 'alpha', new_string: 'beta' }] },
     ] })
@@ -321,7 +321,7 @@ describe('write frames', () => {
 
   it('previews one element without committing while siblings commit', async () => {
     const { ctx, fs } = await setup()
-    const result = await call(ctx, 'write', { files: [
+    const result = await call(ctx, 'multi_write', { files: [
       { file_path: 'draft.txt', content: 'draft\n', dry_run: true },
       { file_path: 'real.txt', content: 'real\n' },
     ] })
@@ -333,7 +333,7 @@ describe('write frames', () => {
 
   it('settles invalid elements as error frames', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'write', { files: [{ file_path: 'a' }] })
+    const result = await call(ctx, 'multi_write', { files: [{ file_path: 'a' }] })
     expect(result.isError).toBe(false)
     expect(text(result)).toContain('[1/1] a')
     expect(text(result)).toContain('provide content, edits, or both')
@@ -341,7 +341,7 @@ describe('write frames', () => {
 
   it('labels skipped elements not-run when the call is aborted', async () => {
     const { ctx } = await setup()
-    const definition = ctx.tools.get('write')
+    const definition = ctx.tools.get('multi_write')
     if (definition === undefined) throw new Error('write not registered')
     const aborted = new AbortController()
     aborted.abort()
@@ -354,7 +354,7 @@ describe('write frames', () => {
 
   it('stamps the standing sandbox policy onto batched commits', async () => {
     const { ctx, fs } = await setup(true)
-    const result = await call(ctx, 'write', { files: [{ file_path: 'locked.txt', content: 'x\n' }] })
+    const result = await call(ctx, 'multi_write', { files: [{ file_path: 'locked.txt', content: 'x\n' }] })
     expect(result.isError).toBe(false)
     expect((fs as SandboxingFakeFs).stamped).toEqual([expect.objectContaining({ mode: 'workspace-write' })])
   })
@@ -363,8 +363,8 @@ describe('write frames', () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:known.txt', 'old')
     // observe so the update commits
-    await call(ctx, 'read', { files: [{ file_path: 'known.txt' }] })
-    const result = await call(ctx, 'write', { files: [
+    await call(ctx, 'multi_read', { files: [{ file_path: 'known.txt' }] })
+    const result = await call(ctx, 'multi_write', { files: [
       { file_path: 'known.txt', edits: [{ old_string: 'old', new_string: 'new' }] },
       { file_path: 'fresh.txt', content: 'brand new' },
     ] })
@@ -375,7 +375,7 @@ describe('write frames', () => {
 
   it('presentCall renders single and multi diff cards', async () => {
     const { ctx } = await setup()
-    const write = ctx.tools.get('write')
+    const write = ctx.tools.get('multi_write')
     const single = write?.presentCall?.({ files: [{ file_path: 'a.txt', content: 'x' }] }) as DiffCallView | undefined
     expect(single?.title).toBe('Write a.txt')
     const patch = write?.presentCall?.({ files: [{ file_path: 'a.txt', edits: [{ old_string: 'x', new_string: 'y' }] }] }) as DiffCallView | undefined
@@ -387,7 +387,7 @@ describe('write frames', () => {
 
   it('presentResult falls back to args-derived diffs when meta is absent', async () => {
     const { ctx } = await setup()
-    const write = ctx.tools.get('write')
+    const write = ctx.tools.get('multi_write')
     const view = write?.presentResult?.(
       { files: [{ file_path: 'a.txt', content: 'x' }] },
       { content: [{ type: 'text' as const, text: 'ok' }], isError: false },
