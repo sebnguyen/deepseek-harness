@@ -7,6 +7,7 @@
   },
   "files": [
     "src/index.ts",
+    "src/twin-dist.ts",
     "src/types.ts"
   ],
   "references": [
