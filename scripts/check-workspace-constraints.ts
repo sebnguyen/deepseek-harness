@@ -490,6 +490,9 @@ const runtimeDependencySections = ['dependencies', 'optionalDependencies', 'peer
 export function checkExperimentalDependencyIsolation(manifests: readonly WorkspaceManifest[]): string[] {
   const experimentalNames = new Set(manifests
     .filter(entry => experimentalPackageDirectory.test(entry.dir))
+    // Published exceptions ship in the official runtime, so release members
+    // may depend on them (dsh-base mounts reasoning-prefetch).
+    .filter(entry => !isPublicExperimentalPackageDirectory(entry.dir))
     .map(entry => entry.manifest.name)
     .filter(name => name !== undefined))
   const errors: string[] = []

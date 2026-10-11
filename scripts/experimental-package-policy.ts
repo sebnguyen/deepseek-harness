@@ -4,6 +4,7 @@ export const PUBLIC_EXPERIMENTAL_PACKAGE_DIRECTORIES = [
   'packages/experimental/agent-team-profile',
   'packages/experimental/agent-team-web-profile',
   'packages/experimental/client-ui-agent-team',
+  'packages/experimental/reasoning-prefetch',
   'packages/experimental/tool-agent-team',
 ] as const
 

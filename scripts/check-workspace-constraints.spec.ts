@@ -72,6 +72,16 @@ describe('experimental workspace constraints', () => {
     },
   )
 
+  it('allows release dependencies on published experimental exceptions', () => {
+    expect(checkExperimentalDependencyIsolation([publicExperimental, {
+      dir: 'packages/bundle/base',
+      manifest: {
+        name: '@deepseek-ai/dsh-base',
+        dependencies: { '@deepseek-ai/dsh-experimental-agent-team': 'workspace:^' },
+      },
+    }])).toEqual([])
+  })
+
   it('allows development and experimental consumers but rejects the Python release runtime', () => {
     const manifests: WorkspaceManifest[] = [experimental, {
       dir: 'packages/core/test-only',

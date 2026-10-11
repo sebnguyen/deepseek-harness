@@ -1,5 +1,5 @@
 ---
-description: "Opt-in speculative prefetch that scans sealed reasoning blocks for file and directory mentions and stages grounded content into the model's next step."
+description: "Speculative prefetch that scans sealed reasoning blocks for file and directory mentions and stages grounded content into the model's next step; mounted by dsh-base."
 kind: "package-bundle"
 ---
 
@@ -60,11 +60,14 @@ export interface Config {
 
 ### Profile wiring: where this layer may and may not land
 
-The shipped default (`dsh-base`'s `cordis.patch.yml`) never names this package: release bundles must not depend on experimental packages, and opt-ins stay out of shipped defaults. The layer ships with this package instead (`dsh.bundle.patch: ./cordis.patch.yml`, one insert row `id: reasoning-prefetch`) and lands wherever a deployment stacks it:
+`dsh-base`'s `cordis.patch.yml` inserts the row enabled by default, so every base-backed profile runs it with the package's default budgets. The package stays under `packages/experimental` as a published exception to the private-by-default rule; deployments tune or opt out from later layers — a profile `cordis.patch.yml`, the machine-local home layer `$DSH_HOME/cordis.patch.yml`, or a launcher `--patch` overlay — e.g.:
 
-- a dev profile's `dsh.profile.bundles` / its own `cordis.patch.yml` row (source checkouts, since the package is private),
-- the machine-local home layer `$DSH_HOME/cordis.patch.yml`, e.g. `- insert: [{ id: reasoning-prefetch, name: '@deepseek-ai/dsh-experimental-reasoning-prefetch' }]`,
-- or a launcher `--patch` overlay pointing at `cordis.patch.yml` in this package.
+```yaml
+- id: reasoning-prefetch
+  disabled: true
+```
+
+The package also ships its own layer (`dsh.bundle.patch: ./cordis.patch.yml`, one insert row `id: reasoning-prefetch`) for profiles that do not stack dsh-base.
 
 Layer order is bundle defaults, then the profile's patch, then the home layer, then `--patch` overlays; budgets are set by later rows that address `id: reasoning-prefetch`, because a patch replaces its target row's whole `config`.
 

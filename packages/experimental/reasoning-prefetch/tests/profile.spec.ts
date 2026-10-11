@@ -1,4 +1,4 @@
-/** The private bundle carries one parseable self-mounting layer. */
+/** The published bundle carries one parseable self-mounting layer. */
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -8,13 +8,17 @@ import * as yaml from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 
 describe('reasoning-prefetch profile bundle', () => {
-  it('declares a private parseable layer mounting its own row', () => {
+  it('declares a published parseable layer mounting its own row', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       private?: boolean
+      publishConfig?: { access?: string }
       dsh?: { bundle?: { patch?: string } }
     }
-    expect(manifest.private).toBe(true)
+    // Public exception to the experimental private-by-default rule: joined
+    // the release family so dsh-base can mount it.
+    expect(manifest.private).toBeUndefined()
+    expect(manifest.publishConfig?.access).toBe('public')
     expect(manifest.dsh?.bundle?.patch).toBe('./cordis.patch.yml')
 
     const patchPath = manifest.dsh?.bundle?.patch
