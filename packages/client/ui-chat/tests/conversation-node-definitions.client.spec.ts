@@ -324,6 +324,10 @@ describe('built-in conversation node Definitions', () => {
 
   it('classifies reply content separately from reasoning and Tool protocol blocks', () => {
     expect(hasAssistantReplyContent([{ kind: 'text', text: '  ' }])).toBe(false)
+    // The empty-object shield marker is not a visible reply.
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '{}' }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: ' {} ' }])).toBe(false)
+    expect(hasAssistantReplyContent([{ kind: 'text', text: '{"ok":true}' }])).toBe(true)
     expect(hasAssistantReplyContent([{ kind: 'reasoning', text: 'thinking' }])).toBe(false)
     expect(hasAssistantReplyContent([{ kind: 'tool-call', callId: 'c', name: 'read', argsRaw: '{}' }])).toBe(false)
     expect(hasAssistantReplyContent([{ kind: 'text', text: 'answer' }])).toBe(true)
