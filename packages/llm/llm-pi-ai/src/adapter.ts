@@ -227,6 +227,42 @@ function reasoningInfo(
   }
 }
 
+/**
+ * Project the harness grammar constraints onto pi-ai's option vocabulary.
+ * Scalar tool selection is pi-ai's own option, which its OpenAI-compatible
+ * adapters forward to the wire verbatim; the pinned-call form and the
+ * structured-output envelope ride `samplingParams`, the installed SDK's
+ * verbatim extra-body seam for OpenAI-compatible request bodies (the envelope
+ * mirrors the dsh-llm-deepseek `response_format` mapping, with `strict`
+ * defaulted to false and stripped from the schema it gates). APIs other than
+ * the OpenAI-compatible ones ignore `samplingParams` by contract, where the
+ * constraints degrade to soft hints.
+ * @param options - one harness request.
+ * @returns the option fields carrying its grammar constraints, if any.
+ */
+function grammarOptions(options: GenerateOptions): Partial<SimpleStreamOptions> {
+  const samplingParams: Record<string, unknown> = {}
+  if (options.structuredOutput !== undefined) {
+    const { strict = false, ...schema } = options.structuredOutput
+    samplingParams.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'structured_output', strict, schema },
+    }
+  }
+  if (typeof options.toolChoice === 'object') {
+    samplingParams.tool_choice = { type: 'function', function: { name: options.toolChoice.name } }
+  }
+  return {
+    // pi-ai's declared vocabulary lags the wire vocabulary it forwards
+    // verbatim: `'required'` reaches OpenAI-compatible endpoints through the
+    // pass-through even though the SDK type only names auto and none.
+    ...typeof options.toolChoice === 'string'
+      ? { toolChoice: options.toolChoice as NonNullable<SimpleStreamOptions['toolChoice']> }
+      : {},
+    ...Object.keys(samplingParams).length > 0 ? { samplingParams } : {},
+  }
+}
+
 /** Merge deployment headers while removing case-insensitive attribution collisions. */
 function requestHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
   const attribution = attributionHeaders()
@@ -243,6 +279,15 @@ function requestHeaders(headers: Readonly<Record<string, string>> | undefined): 
  * restart; model descriptors come from the collection those profiles built.
  */
 export class PiAiAdapter extends LlmAdapter {
+  /**
+   * The OpenAI-compatible pi-ai routes grammar-decode both constraints on the
+   * wire ({@link grammarOptions}): `structuredOutput` becomes a strict
+   * `response_format` json_schema and `toolChoice` reaches the provider's
+   * tool-selection field. Routes on other APIs soft-ignore the injected keys.
+   */
+  override readonly structuredOutputOnRequest = true
+  override readonly toolChoiceOnRequest = true
+
   private snapshot: PiAiSnapshot | undefined
 
   constructor(private readonly config: PiAiAdapterOptions) {
@@ -326,7 +371,10 @@ export class PiAiAdapter extends LlmAdapter {
   private modelInfo(snapshot: PiAiSnapshot, provider: string, model: string): LlmResolvedModelInfo {
     const profile = this.profileOf(snapshot, provider)
     const resolvedModel = this.modelOf(snapshot, provider, model)
-    const defaultLevel = describableReasoningLevel(resolvedModel, profile.reasoning)
+    const tune = profile.configuredTunes.get(model)
+    // A stored tune's effort is the model's description-level default ahead
+    // of the route's; the request path still lets a selection win.
+    const defaultLevel = describableReasoningLevel(resolvedModel, tune?.reasoningEffort ?? profile.reasoning)
     // Only a cap the deployment configured is a request default; the
     // catalog's `maxTokens` sizes the model and stops there.
     const configuredMaxTokens = profile.configuredMaxTokens.get(model)
@@ -337,6 +385,7 @@ export class PiAiAdapter extends LlmAdapter {
       inputModalities: [...resolvedModel.input],
       context: { contextWindow: resolvedModel.contextWindow },
       ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
+      ...tune?.temperature === undefined ? {} : { defaultTemperature: tune.temperature },
       ...reasoningInfo(resolvedModel, defaultLevel),
     }
   }
@@ -407,6 +456,7 @@ export class PiAiAdapter extends LlmAdapter {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
+        ...grammarOptions(options),
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
         ...this.config.onWireRequest === undefined ? {} : {
           onPayload: (payload: unknown) => {

@@ -11,6 +11,7 @@ import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { createModels, getSupportedThinkingLevels } from '@earendil-works/pi-ai'
 import type { Api, Model, OpenAICompletionsCompat, Provider } from '@earendil-works/pi-ai'
+import { resolveRouteModels } from '../src/catalog.ts'
 import { resolveProfiles } from '../src/config.ts'
 import { buildProvider, supportedProtocols } from '../src/provider.ts'
 import { assemble } from './assemble.ts'
@@ -150,7 +151,7 @@ describe('hand-declared providers', () => {
     // provider carries a stored profile the moment anyone corrects it.
     expect(directory.filter(entry => entry.declared).map(entry => entry.provider))
       .toEqual(['acme-gateway'])
-    expect(directory.find(entry => entry.provider === 'deepseek')?.declared).toBe(false)
+    expect(directory.find(entry => entry.provider === 'mistral')?.declared).toBe(false)
   })
 
   it('sizes a model the catalog cannot describe from the route\u2019s own fallbacks', () => {
@@ -472,6 +473,54 @@ describe('catalog routes with per-model configuration', () => {
     // Configuring the cap is the deployment choosing one, so it becomes the
     // default the seam materializes into requests that name none.
     expect((await ctx.llm.resolveModelInfo('deepseek', catalogModel.id)).defaultMaxTokens).toBe(4096)
+  })
+
+  it('exposes a stored tune as the model request defaults', async () => {
+    const server = await mockServer([])
+    const [catalogModel] = getBuiltinModels('deepseek')
+    if (catalogModel === undefined) throw new Error('the installed catalog ships no deepseek model')
+    const ctx = await harness({
+      providers: {
+        deepseek: {
+          baseURL: server.url,
+          models: [{ id: catalogModel.id, tunes: { temperature: 0.35 } }],
+        },
+      },
+    })
+
+    // The tune attends requests whose selection omitted the knob; a
+    // selection naming one always wins, exactly like the output cap.
+    expect((await ctx.llm.resolveModelInfo('deepseek', catalogModel.id)).defaultTemperature).toBe(0.35)
+  })
+
+  describe('stored per-model tunes', () => {
+    type RouteRequest = Parameters<typeof resolveRouteModels>[0]
+    const routeWith = (tunes?: Record<string, unknown>): ReturnType<typeof resolveRouteModels> => resolveRouteModels({
+      provider: 'acme',
+      api: 'openai-completions',
+      baseURL: 'https://gw.example/v1',
+      defaultContextWindow: 1024,
+      defaultMaxTokens: 512,
+      defaultInput: ['text'],
+      models: [{
+        id: 'solo',
+        reasoningEfforts: { low: 'low', high: 'high' },
+        ...tunes === undefined ? {} : { tunes },
+      }],
+    } as unknown as RouteRequest)
+
+    it('records only explicitly configured tunes', () => {
+      expect(routeWith().configuredTunes.size).toBe(0)
+      expect(routeWith({ temperature: 0.4 }).configuredTunes.get('solo')).toEqual({ temperature: 0.4 })
+    })
+
+    it('refuses an out-of-bounds tune temperature', () => {
+      expect(() => routeWith({ temperature: 1.5 })).toThrow(/tunes\.temperature must be inside \[0, 1\]/)
+    })
+
+    it('refuses a tune effort the model does not offer', () => {
+      expect(() => routeWith({ reasoningEffort: 'max' })).toThrow(/does not offer/)
+    })
   })
 
   it('adds a model the installed catalog does not describe to a catalog route', async () => {
@@ -849,6 +898,52 @@ describe('compat switches', () => {
     })).toThrow(/no model on the route speaks a protocol that takes it/)
   })
 
+  it('applies the shipped effort menu when a listed model carries an empty reasoningEfforts', () => {
+    const model = resolveProfiles({
+      digitalocean: {
+        apiKeyEnv: 'DO_INFERENCE_API_KEY',
+        models: [{ id: 'all-mini-lm-l6-v2', reasoningEfforts: {} }],
+      },
+    }).get('digitalocean')?.piProvider?.getModels()[0]
+    if (model === undefined) throw new Error('digitalocean resolved no models')
+
+    expect(getSupportedThinkingLevels(model)).toEqual(['off', 'low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('applies the shipped effort menu when a listed model omits reasoningEfforts', () => {
+    const model = resolveProfiles({
+      digitalocean: {
+        apiKeyEnv: 'DO_INFERENCE_API_KEY',
+        models: [{ id: 'all-mini-lm-l6-v2' }],
+      },
+    }).get('digitalocean')?.piProvider?.getModels()[0]
+    if (model === undefined) throw new Error('digitalocean resolved no models')
+
+    expect(model.reasoning).toBe(true)
+    expect(getSupportedThinkingLevels(model)).toEqual(['off', 'low', 'medium', 'high', 'xhigh', 'max'])
+  })
+
+  it('keeps a live route\'s compat while the endpoint has not listed models yet', () => {
+    const resolved = resolveProfiles({
+      digitalocean: { apiKeyEnv: 'DO_INFERENCE_API_KEY' },
+    })
+    const profile = resolved.get('digitalocean')
+    expect(profile?.catalogError).toBeUndefined()
+    expect(profile?.live).toBe(true)
+    expect(profile?.api).toBe('openai-completions')
+    expect(profile?.compat).toMatchObject({ supportsDeveloperRole: false })
+  })
+
+  it('still rejects a live route compat field its declared api does not take', () => {
+    expect(() => resolveProfiles({
+      'acme-live': {
+        api: 'anthropic-messages',
+        baseURL: 'https://acme.test',
+        compat: { supportsDeveloperRole: false },
+      },
+    })).toThrow(/no model on the route speaks a protocol that takes it/)
+  })
+
   it('carries the developer-role switch onto a hand-declared reasoning model', () => {
     // pi-ai reads this switch only for a reasoning model, and detects it from
     // the endpoint URL — which for a private gateway answers as though it were
@@ -1170,8 +1265,9 @@ describe('configurable-provider directory', () => {
     ctx.llm.registerConfigurableProviders([
       { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [] },
     ])
+    // The two shipped routes plus the deepseek-official row registered above.
     const before = ctx.llm.listConfigurableProviders().length
-    expect(before).toBeGreaterThan(30)
+    expect(before).toBe(3)
 
     await ctx.settings.update('llm-pi-ai', {
       providers: {
@@ -1217,25 +1313,22 @@ describe('configurable-provider directory', () => {
     const ctx = await harness({})
     const offered = ctx.llm.listConfigurableProviders().map(entry => entry.provider)
 
-    // `openai-codex` is the one installed provider that authenticates through
-    // OAuth alone. It is offered like any other because the collection now
-    // carries a durable credential store and a login flow writes into it, so
-    // the route has a posture that works rather than only one that fails.
-    expect(offered).toContain('openai-codex')
-    expect(offered).toContain('anthropic')
-    expect(offered).toContain('openai')
+    // The shipped set is what configuration surfaces offer: the two routes
+    // this build ships, each addressed inside the providers dict, rather
+    // than every vendor the installed catalog has heard of.
+    expect(offered).toEqual(['digitalocean', 'mistral'])
   })
 
   it('lists a route a stored profile names as a catalog route, not a declared one', async () => {
-    // `declared` answers catalog membership, so a profile stored against a
-    // route pi-ai ships is not mislabelled as one this deployment invented.
-    const ctx = await harness({ providers: { 'openai-codex': { apiKeyEnv: KEY_ENV } } })
+    // `declared` answers shipped membership, so a profile stored against a
+    // route this build ships is not mislabelled as one this deployment invented.
+    const ctx = await harness({ providers: { mistral: { apiKeyEnv: KEY_ENV } } })
 
     expect(ctx.llm.listConfigurableProviders()).toContainEqual({
-      provider: 'openai-codex',
-      displayName: 'openai-codex',
+      provider: 'mistral',
+      displayName: 'Mistral',
       settingsNs: 'llm-pi-ai',
-      settingsPath: ['providers', 'openai-codex'],
+      settingsPath: ['providers', 'mistral'],
       declared: false,
     })
   })

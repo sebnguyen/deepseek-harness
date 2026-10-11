@@ -67,9 +67,9 @@ import type {} from '@deepseek-ai/dsh-session'
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { PiAiAdapter } from './adapter.ts'
 import { authContextFrom, credentialStoreFrom } from './auth.ts'
-import { catalogProviderIds } from './catalog.ts'
+import { catalogProviderIds, shippedRoute } from './catalog.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
-import type { ResolvedPiAiProviderProfile } from './config.ts'
+import type { PiAiModelProfile, ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
 import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
@@ -94,6 +94,13 @@ export const name = 'llm-pi-ai'
 export const inject = ['llm']
 
 const NS = 'llm-pi-ai'
+
+/**
+ * Interval between live-catalog interrogations of a route whose models come
+ * from its endpoint. The endpoint's listing is the catalog, so a route keeps
+ * serving what the vendor publishes without anyone storing a model list.
+ */
+const LIVE_REFRESH_INTERVAL_MS = 10 * 60_000
 
 /**
  * The registry captures these per route; a change here must re-register.
@@ -139,7 +146,9 @@ function directoryEntries(
       ...error === undefined ? {} : { error },
     })
   }
-  for (const provider of catalog) declare(provider, provider)
+  for (const provider of catalog) {
+    declare(provider, shippedRoute(provider)?.displayName ?? provider)
+  }
   for (const [provider, profile] of profiles) declare(provider, profile.displayName, profile.catalogError)
   return [...entries.values()]
 }
@@ -148,7 +157,11 @@ function directoryEntries(
 export function apply(ctx: Context, config: Config): void {
   let current: () => Config = () => config
   let lastRaw: Config | undefined
+  let lastLiveVersion = -1
   let memoized: ReadonlyMap<string, ResolvedPiAiProviderProfile> | undefined
+  /** The models the last endpoint interrogation fetched, per live route. */
+  const liveModels = new Map<string, readonly PiAiModelProfile[]>()
+  let liveVersion = 0
   /**
    * The resolved profiles for the current configuration, memoized by the raw
    * snapshot's identity — which is also what makes the adapter's own snapshot
@@ -160,9 +173,22 @@ export function apply(ctx: Context, config: Config): void {
    */
   const profiles = (): ReadonlyMap<string, ResolvedPiAiProviderProfile> => {
     const raw = current()
-    if (raw === lastRaw && memoized !== undefined) return memoized
-    const next = resolveProfiles(raw.providers, 'deferred')
+    if (raw === lastRaw && lastLiveVersion === liveVersion && memoized !== undefined) return memoized
+    // A live route's stored profile carries no models; the fetched feed is
+    // merged in here so resolution, registration, and the adapter all see
+    // the endpoint's catalog without anything landing in settings.
+    const providers = liveModels.size === 0
+      ? raw.providers
+      : Object.fromEntries(Object.entries(raw.providers ?? {}).map(([route, profile]) => {
+        const feed = liveModels.get(route)
+        const stored = profile.models?.length ?? 0
+        // A fresh array: `PiAiModelProfile.models` is mutable by schema, and
+        // sharing the feed's would alias resolution's own copy.
+        return [route, feed === undefined || stored > 0 ? profile : { ...profile, models: [...feed] }]
+      }))
+    const next = resolveProfiles(providers, 'deferred')
     lastRaw = raw
+    lastLiveVersion = liveVersion
     memoized = next
     return next
   }
@@ -229,10 +255,10 @@ export function apply(ctx: Context, config: Config): void {
   // composition without it (headless, ACP) simply has no surface to sign in
   // from, while everything else this plugin does still works.
   ctx.inject(['authorization'], (authorized) => { registerPiAiFlows(authorized, auth) })
-  // The full installed catalog is configurable from the moment the plugin
-  // mounts — dormant or not — so configuration surfaces can offer every
-  // pi-ai provider before any route exists. Hand-declared routes join it as
-  // profiles appear, and leave with them.
+  // The shipped catalog is configurable from the moment the plugin mounts —
+  // dormant or not — so configuration surfaces offer the providers this build
+  // ships before any route exists. Hand-declared routes join it as profiles
+  // appear, and leave with them.
   let directory: DirectoryRegistrationHandle | undefined
   let directoryFacts: unknown
   const ensureDirectory = (): void => {
@@ -304,6 +330,60 @@ export function apply(ctx: Context, config: Config): void {
   }
   ensureRegistrationFacts()
 
+  // A live route stores no model catalog: the endpoint's listing is the
+  // catalog, fetched once the credential can probe it and re-fetched on the
+  // interval, so shipped configuration names endpoints and keys alone.
+  let refreshingLive = false
+  const refreshLiveRoutes = async (): Promise<void> => {
+    if (refreshingLive) return
+    refreshingLive = true
+    try {
+      let changed = false
+      await Promise.all([...profiles().entries()].map(async ([route, profile]) => {
+        if (profile.live !== true) return
+        try {
+          const discovered = await discoverModels({
+            provider: route,
+            ...profile.baseURL === undefined ? {} : { baseURL: profile.baseURL },
+            ...profile.api === undefined ? {} : { api: profile.api },
+          }, () => ({
+            headers: profile.headers,
+            resolveApiKey: () => resolveApiKey(route, profile),
+          }))
+          const efforts = profile.defaultReasoningEfforts
+          const feed: readonly PiAiModelProfile[] = discovered.map(model => ({
+            id: model.id,
+            ...model.name === model.id ? {} : { name: model.name },
+            ...model.contextWindow === undefined ? {} : { contextWindow: model.contextWindow },
+            ...model.maxTokens === undefined ? {} : { maxTokens: model.maxTokens },
+            ...efforts === undefined ? {} : { reasoningEfforts: efforts },
+          }))
+          if (!deepEqualJson(liveModels.get(route), feed)) {
+            liveModels.set(route, feed)
+            changed = true
+          }
+        } catch (error) {
+          ctx.logger.warn(
+            `llm-pi-ai: live catalog refresh for route "${route}" failed:`
+            + ` ${error instanceof Error ? error.message : String(error)}`,
+          )
+        }
+      }))
+      if (changed) {
+        liveVersion += 1
+        // The same atomic swap a settings change runs: routes whose feed
+        // arrived register (or re-register) with their fetched catalog.
+        ensureRegistrationFacts()
+        ensureDirectory()
+      }
+    } finally {
+      refreshingLive = false
+    }
+  }
+  void refreshLiveRoutes()
+  const liveRefreshTimer = setInterval(() => { void refreshLiveRoutes() }, LIVE_REFRESH_INTERVAL_MS)
+  liveRefreshTimer.unref?.()
+
   ctx.inject(['settings'], (settingsCtx) => {
     let registering = true
     settingsCtx.settings.installSection(ctx, NS, Config, config, {
@@ -342,6 +422,9 @@ export function apply(ctx: Context, config: Config): void {
           ctx.logger.error('llm-pi-ai: keeping the previous configurable-provider directory after a refused update')
           ctx.logger.error(error)
         }
+        // A settings change may add a live route or supply its credential;
+        // re-interrogate rather than waiting out the refresh interval.
+        void refreshLiveRoutes()
       },
     })
     registering = false

@@ -79,6 +79,38 @@ describe('request/wire capture', () => {
     expect(JSON.parse(captured[0]?.data.payload ?? '')).toEqual(server.requests[0])
   })
 
+  it('sends response_format and tool_choice on the wire for grammar constraints', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+    const session = ctx.sessions.create(SessionId('piai-wire-grammar'))
+
+    await assemble(ctx, {
+      model: 'deepseek-v4-flash',
+      messages: [prompt()],
+      sessionId: session.id,
+      toolChoice: 'required',
+      structuredOutput: { type: 'object', properties: {}, additionalProperties: false, strict: true },
+    })
+
+    // The installed pi-ai OpenAI-compatible adapter forwards both seams to the
+    // request body verbatim: the native tool_choice pass-through and the
+    // samplingParams response_format envelope.
+    const body = server.requests[0] as Record<string, unknown>
+    expect(body.tool_choice).toBe('required')
+    expect(body.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: {
+        name: 'structured_output',
+        strict: true,
+        schema: { type: 'object', properties: {}, additionalProperties: false },
+      },
+    })
+    // The durable capture recorded exactly what the endpoint received.
+    const captured = session.snapshotEvents().filter(event => event.type === 'request/wire')
+    expect(captured).toHaveLength(1)
+    expect(JSON.parse(captured[0]?.data.payload ?? '')).toEqual(body)
+  })
+
   it('streams without capturing when no addressed Session resolves', async () => {
     const server = await mockServer([
       { events: textEvents },

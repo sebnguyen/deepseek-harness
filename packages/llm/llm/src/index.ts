@@ -208,6 +208,15 @@ export abstract class LlmAdapter {
   structuredOutputOnRequest?: boolean
 
   /**
+   * Whether this adapter feeds `GenerateOptions.toolChoice` to the provider's
+   * native tool-selection constraint (OpenAI-compat `tool_choice`). Unset
+   * adapters never receive the field: the runtime strips it, mirroring the
+   * {@link LlmAdapter.structuredOutputOnRequest} gate.
+   * @returns false / unset when the provider cannot enforce tool choice.
+   */
+  toolChoiceOnRequest?: boolean
+
+  /**
    * Describe one provider route owned by this adapter.
    * @param provider - a route passed to `registerAdapter()` for this instance.
    * @returns detached display metadata whose id must equal `provider`.
@@ -799,6 +808,14 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_MAX_TOKENS',
       )
     }
+    const defaultTemperature = resolved.defaultTemperature
+    if (defaultTemperature !== undefined
+      && (!Number.isFinite(defaultTemperature) || defaultTemperature < 0 || defaultTemperature > 1)) {
+      throw new LlmError(
+        `adapter returned invalid default temperature for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_INFO',
+      )
+    }
     const info: LlmResolvedModelInfo = {
       provider,
       id: model,
@@ -807,6 +824,7 @@ export class LlmRuntime extends TypertRemoteService {
       ...inputModalities === undefined ? {} : { inputModalities },
       ...context === undefined ? {} : { context: { contextWindow: context.contextWindow } },
       ...defaultMaxTokens === undefined ? {} : { defaultMaxTokens },
+      ...defaultTemperature === undefined ? {} : { defaultTemperature },
       ...resolved.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: resolved.systemPromptUpdate },
     }
     const reasoning = resolved.reasoning
@@ -882,9 +900,12 @@ export class LlmRuntime extends TypertRemoteService {
     config: LlmCallConfig,
     info: LlmResolvedModelInfo,
   ): { config: LlmCallConfig; context?: LlmModelContext; modelInfo: LlmResolvedModelInfo } {
-    const defaulted = config.maxTokens === undefined && info.defaultMaxTokens !== undefined
+    const capped = config.maxTokens === undefined && info.defaultMaxTokens !== undefined
       ? { ...config, maxTokens: info.defaultMaxTokens }
       : config
+    const defaulted = capped.temperature === undefined && info.defaultTemperature !== undefined
+      ? { ...capped, temperature: info.defaultTemperature }
+      : capped
     const reasoning = info.reasoning
     const requested = defaulted.reasoningEffort
     let resolvedConfig = defaulted
@@ -934,6 +955,9 @@ export class LlmRuntime extends TypertRemoteService {
     const adapterDefaults = deepFreeze<LlmCallConfigAdapterDefaults>({
       ...config.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
         ? { reasoningEffort: true }
+        : {},
+      ...config.temperature === undefined && resolvedConfig.temperature !== undefined
+        ? { temperature: true }
         : {},
       ...config.maxTokens === undefined && resolvedConfig.maxTokens !== undefined
         ? { maxTokens: true }
@@ -988,9 +1012,12 @@ export class LlmRuntime extends TypertRemoteService {
       })
     })
     const stripsStructuredOutput = !adapter.structuredOutputOnRequest && options.structuredOutput !== undefined
-    if (messages.every((message, index) => message === options.messages[index]) && !stripsStructuredOutput) return options
+    const stripsToolChoice = !adapter.toolChoiceOnRequest && options.toolChoice !== undefined
+    const messagesUnchanged = messages.every((message, index) => message === options.messages[index])
+    if (messagesUnchanged && !stripsStructuredOutput && !stripsToolChoice) return options
     const filtered = { ...options, messages }
     if (!adapter.structuredOutputOnRequest) delete filtered.structuredOutput
+    if (!adapter.toolChoiceOnRequest) delete filtered.toolChoice
     return Object.isFrozen(options) ? deepFreeze(filtered) : filtered
   }
 

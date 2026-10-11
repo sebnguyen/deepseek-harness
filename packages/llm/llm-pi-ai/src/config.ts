@@ -23,11 +23,13 @@ import type { ResolvedRetryPolicy, RetryPolicyConfig } from '@deepseek-ai/dsh-ll
 import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import {
   CACHE_CONTROL_FORMATS,
+  catalogModels,
   CHAT_TEMPLATE_VARS,
   MAX_TOKENS_FIELDS,
   MODALITIES,
   PiAiCatalogError,
   resolveRouteModels,
+  shippedRoute,
   SUPPORTED_THINKING_FORMATS,
   THINKING_LEVELS,
   THINKING_TOKEN_BUDGET_FIELDS,
@@ -37,9 +39,11 @@ import type {
   PiAiModality,
   PiAiModelOverride,
   PiAiModelProfile,
+  PiAiModelTune,
   PiAiReasoningEfforts,
   RouteCatalog,
 } from './catalog.ts'
+import { listableProtocol } from './discovery.ts'
 import { buildProvider, supportedProtocols } from './provider.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
@@ -83,6 +87,7 @@ export type {
   PiAiModality,
   PiAiModelOverride,
   PiAiModelProfile,
+  PiAiModelTune,
   PiAiReasoningEfforts,
   PiAiThinkingFormat,
 } from './catalog.ts'
@@ -116,6 +121,13 @@ export interface PiAiProviderProfile {
    * model the catalog does not describe is refused rather than skipped.
    */
   modelOverrides?: Record<string, PiAiModelOverride>
+  /**
+   * The effort menu an endpoint interrogation stamps onto the `models`
+   * entries it adopts, for routes whose models reason by deployment
+   * knowledge the listing itself cannot carry; a model declaring its own
+   * `reasoningEfforts` keeps that map.
+   */
+  defaultReasoningEfforts?: PiAiReasoningEfforts
   /**
    * pi-ai wire-compatibility switches defaulting every model on this route
    * whose protocol declares them; each model's own `compat` overrides per
@@ -211,6 +223,12 @@ export interface ResolvedPiAiProviderProfile
    * a stored route cannot be constructed; its configuration remains editable.
    */
   piProvider?: Provider
+  /**
+   * This route stores no models: its catalog arrives live from the endpoint
+   * interrogation the plugin runs, so an empty model set is the pre-fetch
+   * state, not a misconfiguration.
+   */
+  live: boolean
   /** First model diagnostic, or the route failure when no model diagnostic is available. */
   catalogError?: string
   /** Per-model failures reported before attempting a request. */
@@ -221,6 +239,12 @@ export interface ResolvedPiAiProviderProfile
    * own, so a catalog capability must not appear here.
    */
   configuredMaxTokens: ReadonlyMap<string, number>
+  /**
+   * Stored per-model tunes this profile configured, by model id. The seam
+   * exposes them as the model's request defaults; a selection naming a knob
+   * always wins over its tune.
+   */
+  configuredTunes: ReadonlyMap<string, PiAiModelTune>
 }
 
 /** Plugin configuration: the provider routes this instance owns. */
@@ -301,8 +325,15 @@ const reasoningEfforts = z.dict(
   z.union(THINKING_LEVELS),
 ) as unknown as z<PiAiReasoningEfforts>
 
+/** The stored per-model tune a `models` entry or override may carry. */
+const modelTune: z<PiAiModelTune> = z.object({
+  temperature: z.number().min(0).max(1),
+  reasoningEffort: z.union(THINKING_LEVELS),
+})
+
 /** The fields a `models` entry and a `modelOverrides` value share; only the id's home differs. */
 const modelFields = {
+  tunes: modelTune,
   name: z.string(),
   contextWindow: z.number().step(1).min(1),
   maxTokens: z.number().step(1).min(1),
@@ -332,6 +363,7 @@ const profile = z.object({
   baseURL: z.string(),
   models: z.array(modelProfile),
   modelOverrides: z.dict(modelOverride),
+  defaultReasoningEfforts: reasoningEfforts,
   compat: compatProfile,
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   maxContextWindow: z.number().step(1).min(1),
@@ -458,32 +490,56 @@ export function resolveProfiles(
     if (defaultInput.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" defaultInput must name at least one modality`)
     }
+    // A shipped route bakes in its vendor facts — endpoint, protocol, wire
+    // quirks, effort menu — and the profile wins field by field, so a
+    // deployment names the route and its key and nothing else.
+    const shipped = shippedRoute(provider)
+    const mergedApi = source.api ?? shipped?.api
+    const mergedBaseURL = source.baseURL ?? shipped?.baseURL
+    const mergedCompat = shipped?.compat === undefined
+      ? source.compat
+      : { ...shipped.compat, ...source.compat }
+    // The settings schema materializes an absent effort menu as an empty dict,
+    // and an empty menu offers nothing: both defer to the shipped vendor menu.
+    const declaredEfforts = source.defaultReasoningEfforts !== undefined
+      && Object.keys(source.defaultReasoningEfforts).length > 0
+      ? source.defaultReasoningEfforts
+      : undefined
+    const mergedEfforts = declaredEfforts ?? shipped?.defaultReasoningEfforts
     // The route key, not the installed provider's own name: the directory has
     // always shown route keys, and a catalog route must not silently rename
     // itself on every configuration surface just because it gained a profile.
-    const displayName = source.displayName ?? provider
+    const displayName = source.displayName ?? shipped?.displayName ?? provider
+    // A route whose models arrive live from the endpoint: nothing stored, no
+    // installed catalog, and an interrogable endpoint to ask instead.
+    const live = (source.models === undefined || source.models.length === 0)
+      && catalogModels(provider).size === 0
+      && mergedBaseURL !== undefined
+      && (mergedApi === undefined || listableProtocol(mergedApi))
     let catalog: RouteCatalog | undefined
     let piProvider: Provider | undefined
     let catalogError: string | undefined
     try {
       catalog = resolveRouteModels({
         provider,
-        ...source.api === undefined ? {} : { api: source.api },
-        ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
+        ...mergedApi === undefined ? {} : { api: mergedApi },
+        ...mergedBaseURL === undefined ? {} : { baseURL: mergedBaseURL },
         ...source.models === undefined ? {} : { models: source.models },
         ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
-        ...source.compat === undefined ? {} : { compat: source.compat },
+        ...mergedCompat === undefined ? {} : { compat: mergedCompat },
         defaultInput,
         defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
         ...source.maxContextWindow === undefined ? {} : { maxContextWindow: source.maxContextWindow },
         defaultMaxTokens: source.defaultMaxTokens ?? DEFAULT_MAX_TOKENS,
+        ...live ? { live: true } : {},
+        ...mergedEfforts === undefined ? {} : { defaultReasoningEfforts: mergedEfforts },
       }, validation)
       catalogError = catalog.modelErrors.values().next().value
       piProvider = buildProvider({
         provider,
         displayName,
-        ...source.api === undefined ? {} : { api: source.api },
-        ...source.baseURL === undefined ? {} : { baseURL: source.baseURL },
+        ...mergedApi === undefined ? {} : { api: mergedApi },
+        ...mergedBaseURL === undefined ? {} : { baseURL: mergedBaseURL },
         models: catalog.models,
         namesCredential: source.apiKeyEnv !== undefined,
       })
@@ -494,8 +550,20 @@ export function resolveProfiles(
     const { apiKeyEnv, retryPolicy, models: _models, displayName: _displayName, ...rest } = source
     resolved.set(provider, {
       ...rest,
+      // The merged vendor facts ride the resolved profile, not just the
+      // built provider: the live refresher interrogates `baseURL` and the
+      // configuration surfaces render `api`, so a route whose endpoint the
+      // shipped catalog supplies must read as if the profile stated it.
+      // The profile still wins per field where it stated one.
+      ...mergedApi === undefined ? {} : { api: mergedApi },
+      ...mergedBaseURL === undefined ? {} : { baseURL: mergedBaseURL },
+      ...mergedCompat === undefined || Object.keys(mergedCompat).length === 0
+        ? {}
+        : { compat: mergedCompat },
       provider,
       displayName,
+      live,
+      ...mergedEfforts === undefined ? {} : { defaultReasoningEfforts: mergedEfforts },
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
       streamIdleTimeoutMs,
       maxRequestImageBytes,
@@ -505,6 +573,7 @@ export function resolveProfiles(
       ...rest.headers === undefined ? {} : { headers: { ...rest.headers } },
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
+      configuredTunes: catalog?.configuredTunes ?? new Map(),
       modelErrors: catalog?.modelErrors ?? new Map(),
       ...piProvider === undefined ? {} : { piProvider },
       ...catalogError === undefined ? {} : { catalogError },

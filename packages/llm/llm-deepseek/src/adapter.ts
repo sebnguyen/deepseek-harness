@@ -382,6 +382,8 @@ export function httpErrorCode(status: number, error?: WireError['error']): strin
 export class DeepSeekAdapter extends LlmAdapter {
   /** The DeepSeek gateway grammar-decodes `response_format.json_schema`. */
   override readonly structuredOutputOnRequest = true
+  /** The DeepSeek gateway enforces OpenAI-compat `tool_choice`. */
+  override readonly toolChoiceOnRequest = true
 
   private readonly files: DeepSeekFileStore
 

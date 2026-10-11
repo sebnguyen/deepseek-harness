@@ -47,8 +47,21 @@ describe('the credentials Remote namespace a configuration surface calls', () =>
     expect(remoteMethods(controller)).toEqual([
       { method: 'describe', invocation: { kind: 'direct' } },
       { method: 'set', invocation: { kind: 'direct' } },
+      { method: 'reveal', invocation: { kind: 'direct' } },
       { method: 'unset', invocation: { kind: 'direct' } },
     ])
+  })
+
+  it('reveals a stored value only through the explicit reveal method', async () => {
+    const controller = await boot()
+    await controller.set('DO_INFERENCE_API_KEY', 'dop_v1_secret')
+    // The deliberate peek a configuration surface performs to show the key
+    // it would replace; describing still carries no value.
+    await expect(controller.reveal('DO_INFERENCE_API_KEY'))
+      .resolves.toEqual({ value: 'dop_v1_secret' })
+    await expect(controller.reveal('UNKNOWN_REF')).resolves.toEqual({})
+    await expect(controller.describe(['DO_INFERENCE_API_KEY']))
+      .resolves.toMatchObject({ DO_INFERENCE_API_KEY: { configured: true, writable: true } })
   })
 
   it('reports the actionable configuration error while no credential provider is mounted', async () => {

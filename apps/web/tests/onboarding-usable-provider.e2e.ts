@@ -63,7 +63,8 @@ describe('web e2e: another usable provider ends first-run onboarding', () => {
     await add.click()
     const pick = settings.getByLabel('提供方')
     await pick.waitFor({ timeout: 10_000 })
-    await pick.selectOption('minimax-cn')
+    await pick.click()
+    await page.getByRole('menuitem', { name: 'Mistral', exact: true }).click()
     await expect.poll(
       async () => settings.getByRole('textbox', { name: 'API 密钥', exact: true }).count(),
       { timeout: 10_000 },
@@ -90,13 +91,13 @@ describe('web e2e: another usable provider ends first-run onboarding', () => {
     const settings = page.getByRole('dialog', { name: '设置' })
     await settings.getByRole('textbox', { name: 'API 密钥', exact: true }).fill('sk-e2e-minimax')
     await settings.getByRole('button', { name: '保存', exact: true }).click()
-    await settings.getByText('已保存 minimax-cn。', { exact: true }).waitFor({ timeout: 15_000 })
+    await settings.getByText('已保存 Mistral。', { exact: true }).waitFor({ timeout: 15_000 })
 
-    // Only minimax-cn is reachable; DeepSeek still holds no credential.
+    // Only mistral is reachable; DeepSeek still holds no credential.
     const document = await readFile(join(scaffold.harnessHome, 'settings.yaml'), 'utf8')
-    expect(document).toContain('apiKeyEnv: MINIMAX_CN_API_KEY')
+    expect(document).toContain('apiKeyEnv: MISTRAL_API_KEY')
     const credentials = await readFile(join(scaffold.harnessHome, '.credentials.yaml'), 'utf8')
-    expect(credentials).toContain('MINIMAX_CN_API_KEY: sk-e2e-minimax')
+    expect(credentials).toContain('MISTRAL_API_KEY: sk-e2e-minimax')
     expect(credentials).not.toContain('DEEPSEEK_API_KEY')
 
     const warningsBefore = tripwire.warnings.length

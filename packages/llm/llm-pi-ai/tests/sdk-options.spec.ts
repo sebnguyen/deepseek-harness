@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 
 const streamSimple = vi.hoisted(() => vi.fn())
 
@@ -71,5 +71,79 @@ describe('pi-ai SDK retry boundary', () => {
       contextWindow: 8192,
       maxTokens: 1024,
     })
+  })
+})
+
+describe('grammar constraint forwarding', () => {
+  /** The options argument the adapter handed to the SDK for one request. */
+  async function observedOptions(extra: Partial<GenerateOptions>): Promise<Record<string, unknown>> {
+    streamSimple.mockImplementation(() => { throw new Error('options probe') })
+    const chunks: StreamChunk[] = []
+    for await (const chunk of gatewayAdapter().stream({
+      provider: 'local-gateway',
+      model: 'local-model',
+      messages: [],
+      ...extra,
+    })) chunks.push(chunk)
+    expect(chunks.at(-1)).toMatchObject({ type: 'finish' })
+    return streamSimple.mock.calls.at(-1)?.[2] as Record<string, unknown>
+  }
+
+  it('declares both grammar capabilities so the runtime forwards the fields', () => {
+    const adapter = gatewayAdapter()
+    expect(adapter.structuredOutputOnRequest).toBe(true)
+    expect(adapter.toolChoiceOnRequest).toBe(true)
+  })
+
+  it('maps structuredOutput to a strict json_schema response_format via the verbatim body seam', async () => {
+    const options = await observedOptions({
+      structuredOutput: { type: 'object', properties: {}, additionalProperties: false, strict: true },
+    })
+
+    expect(options.samplingParams).toEqual({
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'structured_output',
+          strict: true,
+          schema: { type: 'object', properties: {}, additionalProperties: false },
+        },
+      },
+    })
+  })
+
+  it('defaults strict to false and strips the hint from the schema it gates', async () => {
+    const options = await observedOptions({
+      structuredOutput: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+    })
+
+    expect(options.samplingParams).toEqual({
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'structured_output',
+          strict: false,
+          schema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+        },
+      },
+    })
+  })
+
+  it('forwards scalar toolChoice through pi-ai and pinned calls through the body seam', async () => {
+    const required = await observedOptions({ toolChoice: 'required' })
+    expect(required.toolChoice).toBe('required')
+    expect(required.samplingParams).toBeUndefined()
+
+    const pinned = await observedOptions({ toolChoice: { name: 'quiet_finish' } })
+    expect(pinned.toolChoice).toBeUndefined()
+    expect(pinned.samplingParams).toEqual({
+      tool_choice: { type: 'function', function: { name: 'quiet_finish' } },
+    })
+  })
+
+  it('sends no grammar options when the request carries none', async () => {
+    const options = await observedOptions({})
+    expect(options.samplingParams).toBeUndefined()
+    expect(options.toolChoice).toBeUndefined()
   })
 })

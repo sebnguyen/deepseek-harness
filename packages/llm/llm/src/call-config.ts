@@ -35,6 +35,7 @@ export interface LlmCallConfig {
  */
 export interface LlmCallConfigAdapterDefaults {
   reasoningEffort?: true
+  temperature?: true
   maxTokens?: true
 }
 

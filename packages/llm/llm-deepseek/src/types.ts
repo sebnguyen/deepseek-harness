@@ -36,8 +36,19 @@ export interface WireRequest {
    */
   response_format?: {
     type: 'json_schema'
-    json_schema: { name: string; schema: StructuredOutputSchema }
+    json_schema: {
+      name: string
+      /** Grammar-decoded sampling; best-effort matching when false. */
+      strict: boolean
+      schema: StructuredOutputSchema
+    }
   }
+  /**
+   * Tool-selection constraint (OpenAI-compat `tool_choice`): a scalar mode or a
+   * pinned call. Mapped from `GenerateOptions.toolChoice`; absent when the
+   * request carried none.
+   */
+  tool_choice?: 'auto' | 'required' | 'none' | { type: 'function'; function: { name: string } }
 }
 
 /** System-role message: a single string of instructions. */

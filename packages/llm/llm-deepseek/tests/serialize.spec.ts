@@ -277,10 +277,32 @@ describe('serializeRequest', () => {
       type: 'json_schema',
       json_schema: {
         name: 'structured_output',
+        strict: false,
         schema: {
           type: 'object',
           properties: { handoff: { type: 'string' } },
           required: ['handoff'],
+          additionalProperties: false,
+        },
+      },
+    })
+  })
+
+  it('binds the grammar when the schema carries the strict hint', () => {
+    const wire = serializeRequest(request({ messages: history, structuredOutput: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+      strict: true,
+    } }))
+    expect(wire.response_format).toEqual({
+      type: 'json_schema',
+      json_schema: {
+        name: 'structured_output',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {},
           additionalProperties: false,
         },
       },

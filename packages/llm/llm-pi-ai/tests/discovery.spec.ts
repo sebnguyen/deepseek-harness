@@ -74,18 +74,58 @@ async function harness(): Promise<Context> {
 }
 
 describe('catalog-route model discovery', () => {
-  it('answers from the installed registry, with capacities and no network call', async () => {
+  it('extends the installed registry with the ids its endpoint serves', async () => {
     const server = await listingServer({ body: JSON.stringify({ data: [{ id: 'from-the-endpoint' }] }) })
     const ctx = await harness()
 
     const models = await ctx.llm.discoverModels('llm-pi-ai', { provider: 'deepseek', baseURL: server.url })
 
-    // pi-ai's own registry is the authority for its own providers, and it
-    // carries what a listing endpoint would not disclose.
-    expect(models.map(model => model.id).sort())
-      .toEqual(getBuiltinModels('deepseek').map(model => model.id).sort())
-    expect(models.every(model => (model.contextWindow ?? 0) > 0 && (model.maxTokens ?? 0) > 0)).toBe(true)
-    expect(server.paths).toEqual([])
+    // The registry still describes every id it ships, with the capacities a
+    // listing endpoint would not disclose, and the endpoint contributes the
+    // model the installed release predates.
+    expect(models.map(model => model.id)).toEqual([
+      ...getBuiltinModels('deepseek').map(model => model.id),
+      'from-the-endpoint',
+    ])
+    const installed = models.filter(model => model.id !== 'from-the-endpoint')
+    expect(installed.every(model => (model.contextWindow ?? 0) > 0 && (model.maxTokens ?? 0) > 0)).toBe(true)
+    expect(server.paths).toEqual(['/models'])
+  })
+
+  it('reads Mistral\'s listing under the API version its catalog endpoint omits', async () => {
+    const server = await listingServer({
+      body: JSON.stringify({ object: 'list', data: [{ id: 'ministral-8b-2512' }] }),
+    })
+    const ctx = await harness()
+
+    const models = await ctx.llm.discoverModels('llm-pi-ai', {
+      provider: 'mistral',
+      baseURL: server.url,
+      api: 'mistral-conversations',
+    })
+
+    // The provider's own models API runs ahead of the installed catalog, so the
+    // id Mistral publishes today is exactly what the fetch exists to adopt.
+    expect(models.at(-1)).toMatchObject({ id: 'ministral-8b-2512' })
+    expect(models.map(model => model.id)).toContain('ministral-8b-latest')
+    expect(server.paths).toEqual(['/v1/models'])
+    // A base that already carries the version segment is not given a second one.
+    await ctx.llm.discoverModels('llm-pi-ai', {
+      provider: 'mistral',
+      baseURL: `${server.url}/v1`,
+      api: 'mistral-conversations',
+    })
+    expect(server.paths).toEqual(['/v1/models', '/v1/models'])
+  })
+
+  it('answers a catalog route from the registry when its protocol has no listing', async () => {
+    const ctx = await harness()
+
+    await expect(ctx.llm.discoverModels('llm-pi-ai', {
+      provider: 'deepseek',
+      baseURL: 'https://endpoint.invalid',
+      api: 'bedrock-converse-stream',
+    })).resolves.not.toHaveLength(0)
   })
 
   it('needs no endpoint for a route the catalog describes', async () => {
@@ -290,9 +330,10 @@ describe('draft-provider model discovery', () => {
   })
 
   it('leaves a catalog route\'s credential unresolved, having never reached the network', async () => {
-    // The catalog answers before any endpoint is asked, so a route whose
-    // profile names a credential that is not set must still answer rather than
-    // failing over a key the interrogation never needed.
+    // With no endpoint named the catalog answers before any endpoint is
+    // asked, so a route whose profile names a credential that is not set must
+    // still answer rather than failing over a key the interrogation never
+    // needed.
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     Reflect.deleteProperty(process.env, 'ABSENT_FOR_DISCOVERY')

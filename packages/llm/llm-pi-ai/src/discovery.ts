@@ -2,22 +2,29 @@
  * Answering "which models can this provider serve?" for the configuration
  * surface's "fetch available models" action.
  *
- * A route the installed pi-ai catalog ships is answered **from that catalog**,
+ * A route that names no endpoint is answered **from the installed catalog**,
  * with no network call at all: pi-ai's registry is the authoritative list for
  * its own providers, and it carries the capacities a listing endpoint would
- * not disclose. Only a route the catalog does not describe — a gateway, a
- * self-hosted server — is interrogated over the wire.
+ * not disclose. A route that does name one — a gateway, a self-hosted server,
+ * or an installed provider whose own models API has published models since
+ * the release this build ships — is interrogated over the wire, and the reply
+ * is the catalog's entries followed by the ids the endpoint serves that the
+ * catalog lacks. The registry stays the authority for the ids it describes,
+ * so a catalog route keeps the capacities its entries carry while gaining the
+ * models its provider has published since.
  *
  * Neither path is a catalog refresh. Nothing here is stored: the request
  * carries a draft the user is still editing, and the reply is candidate
  * metadata the surface offers for adoption. `settings.yaml` remains the only
  * thing that decides what a route serves.
  *
- * OpenAI-compatible and Anthropic Messages protocols are interrogated through
- * their native model-listing endpoints. The parser accepts the standard
- * `data` array and the enriched `models` map some compatible gateways expose.
- * Every other protocol reports that it cannot be interrogated so the surface
- * falls back to hand-entry rather than guessing its response fields.
+ * OpenAI-compatible, Anthropic Messages, and Mistral Conversations protocols
+ * are interrogated through their native model-listing endpoints. The parser
+ * accepts the standard `data` array and the enriched `models` map some
+ * compatible gateways expose. Every other protocol reports that it cannot be
+ * interrogated — unless the installed catalog already answers for the route —
+ * so the surface falls back to the catalog or to hand-entry rather than
+ * guessing an endpoint's response fields.
  *
  * @module dsh-llm-pi-ai/discovery
  */
@@ -25,12 +32,14 @@
 import { INVALID_CREDENTIAL_CODE, LlmError, normalizeApiKey } from '@deepseek-ai/dsh-llm'
 import type { LlmDiscoveredModel, LlmModelDiscoveryOperation } from '@deepseek-ai/dsh-llm'
 import { attributionHeaders } from '@deepseek-ai/dsh-llm'
+import type { Api, Model } from '@earendil-works/pi-ai'
 import { catalogModels } from './catalog.ts'
 
 /**
  * Protocols whose model listing this module can read. OpenAI protocols use
  * bearer auth at `GET {baseURL}/models`; Anthropic Messages uses `x-api-key`
- * and `anthropic-version` at its native `GET /v1/models`. Azure is absent
+ * and `anthropic-version` at its native `GET /v1/models`; Mistral
+ * Conversations uses bearer auth at `GET {baseURL}/v1/models`. Azure is absent
  * despite its OpenAI lineage — it authenticates with an `api-key` header and
  * requires an `api-version` query — and Codex authenticates through OAuth;
  * guessing at either would report an authentication failure as a provider
@@ -38,9 +47,21 @@ import { catalogModels } from './catalog.ts'
  */
 const LISTABLE_PROTOCOLS: ReadonlySet<string> = new Set([
   'anthropic-messages',
+  'mistral-conversations',
   'openai-completions',
   'openai-responses',
 ])
+
+/**
+ * Whether this module can read one wire protocol's model listing. Route
+ * resolution uses it to tell a live route — one whose models arrive from the
+ * endpoint — from a misconfigured one.
+ * @param api - wire protocol identifier.
+ * @returns true when {@link discoverModels} can interrogate the protocol.
+ */
+export function listableProtocol(api: string): boolean {
+  return LISTABLE_PROTOCOLS.has(api)
+}
 
 /** Stable API version required by Anthropic's model-listing endpoint. */
 const ANTHROPIC_VERSION = '2023-06-01'
@@ -110,15 +131,20 @@ function label(...candidates: readonly unknown[]): string | undefined {
  * of losing them to `URL` resolution. OpenAI protocols list at
  * `{baseURL}/models`. Anthropic lists at `{root}/v1/models`, where the root is
  * the base without trailing slashes and without one trailing `/v1` segment:
- * gateway documentation publishes both spellings of the same root. Only this
- * listing URL normalizes that segment; model requests receive the configured
- * `baseURL` unchanged.
+ * gateway documentation publishes both spellings of the same root. Mistral
+ * lists under the API version too, and the endpoint its installed catalog
+ * entry carries is the bare host, so its version segment is added the same
+ * way. Only these listing URLs normalize that segment; model requests receive
+ * the configured `baseURL` unchanged.
  */
 function listingUrl(baseURL: string, api: string): string {
   const base = baseURL.replace(/\/+$/, '')
-  if (api !== 'anthropic-messages') return `${base}/models`
-  const root = base.endsWith('/v1') ? base.slice(0, -3) : base
-  return `${root}/v1/models?limit=${String(ANTHROPIC_MODEL_LIMIT)}`
+  if (api === 'anthropic-messages') {
+    const root = base.endsWith('/v1') ? base.slice(0, -3) : base
+    return `${root}/v1/models?limit=${String(ANTHROPIC_MODEL_LIMIT)}`
+  }
+  if (api === 'mistral-conversations') return base.endsWith('/v1') ? `${base}/models` : `${base}/v1/models`
+  return `${base}/models`
 }
 
 /**
@@ -262,7 +288,9 @@ export interface StoredModelDiscoveryProfile {
  * @param storedProfile - Host-owned headers and lazy credential resolution for
  *   the named route. It is read only on the path that reaches the network; the
  *   credential is resolved only when the draft carries none.
- * @returns the advertised models in endpoint order.
+ * @returns the installed catalog's entries followed by the ids the endpoint
+ *   adds, in endpoint order; the catalog's entries alone when the route names
+ *   no endpoint or its protocol has no listing this build can read.
  * @throws LlmError when the protocol has no readable listing, the endpoint
  *   refuses or fails the request, or the reply is not a model listing.
  */
@@ -270,20 +298,19 @@ export async function discoverModels(
   request: LlmModelDiscoveryOperation,
   storedProfile?: () => StoredModelDiscoveryProfile | undefined,
 ): Promise<readonly LlmDiscoveredModel[]> {
-  // A catalog route already has its answer, and a better one: the installed
+  // The installed catalog answers a route with no endpoint to ask, and its
   // entries carry context windows and output caps no listing endpoint reports.
-  if (request.provider !== undefined) {
-    const installed = catalogModels(request.provider)
-    if (installed.size > 0) {
-      return [...installed.values()].map(model => ({
-        id: model.id,
-        name: model.name,
-        contextWindow: model.contextWindow,
-        maxTokens: model.maxTokens,
-      }))
-    }
-  }
+  const installed: Map<string, Model<Api>> = request.provider === undefined
+    ? new Map()
+    : catalogModels(request.provider)
+  const catalogAnswer = (): LlmDiscoveredModel[] => [...installed.values()].map(model => ({
+    id: model.id,
+    name: model.name,
+    contextWindow: model.contextWindow,
+    maxTokens: model.maxTokens,
+  }))
   if (request.baseURL === undefined || request.baseURL.length === 0) {
+    if (installed.size > 0) return catalogAnswer()
     throw new LlmError(
       `pi-ai ships no catalog for provider "${request.provider ?? ''}", so its models can only come from its`
       + " endpoint; set a baseURL, or enter this provider's models by hand",
@@ -298,6 +325,10 @@ export async function discoverModels(
   // which reads as a credential problem), and hand-entry remains the way out.
   const api = request.api ?? 'openai-completions'
   if (!LISTABLE_PROTOCOLS.has(api)) {
+    // A catalog route answers from its registry even when its protocol has no
+    // listing this build can read; a route the catalog does not describe has
+    // no other source and says so.
+    if (installed.size > 0) return catalogAnswer()
     throw new LlmError(
       `pi-ai protocol "${api}" has no model listing this build can read; enter this provider's models by hand`,
       'DISCOVERY_UNSUPPORTED',
@@ -358,5 +389,17 @@ export async function discoverModels(
   } catch (error: unknown) {
     throw new LlmError(`${url} did not answer with JSON`, 'DISCOVERY_FAILED', { cause: error })
   }
-  return readListing(body)
+  const listed = readListing(body)
+  if (installed.size === 0) return listed
+  // The endpoint extends the registry rather than replacing it: an installed
+  // entry is the authority for the id it describes, and an id the endpoint
+  // serves that the catalog has not caught up with is what a fetch is for.
+  const known = new Set(installed.keys())
+  const additions: LlmDiscoveredModel[] = []
+  for (const model of listed) {
+    if (known.has(model.id)) continue
+    known.add(model.id)
+    additions.push(model)
+  }
+  return [...catalogAnswer(), ...additions]
 }

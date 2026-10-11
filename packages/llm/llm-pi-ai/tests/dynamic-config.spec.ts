@@ -60,8 +60,8 @@ describe('login flows in a real composition', () => {
 
     // Zero routes configured: signing in is what makes a route worth adding,
     // so the offer cannot wait for a profile to name the provider.
-    const codex = ctx.authorization.describe(LlmPiAi.recordKeyFor('openai-codex'))
-    expect(codex?.methods.map(method => method.id)).toEqual(['oauth'])
+    const mistral = ctx.authorization.describe(LlmPiAi.recordKeyFor('mistral'))
+    expect(mistral?.methods.map(method => method.id)).toEqual(['api-key'])
   })
 
   it('mounts without the seam, and simply offers no sign-in', async () => {
@@ -118,7 +118,7 @@ describe('request-level dynamic profiles', () => {
     expect(ctx.llm.listProviders()).toEqual([{ id: 'openrouter', name: 'openrouter' }])
     expect(ctx.llm.listConfigurableProviders()).toContainEqual({
       provider: 'openrouter', displayName: 'openrouter', settingsNs: NS,
-      settingsPath: ['providers', 'openrouter'], declared: false, error: failure,
+      settingsPath: ['providers', 'openrouter'], declared: true, error: failure,
     })
     expect(await readFile(path, 'utf8')).toBe(stored)
     expect((await ctx.llm.listModels('openrouter')).map(model => model.id)).toEqual([known.id])
@@ -184,12 +184,12 @@ describe('request-level dynamic profiles', () => {
     // Dormant ≠ invisible: every installed catalog provider is configurable
     // before any route exists, each addressed inside the providers dict.
     const directory = ctx.llm.listConfigurableProviders()
-    expect(directory.length).toBeGreaterThan(30)
+    expect(directory.map(entry => entry.provider)).toEqual(['digitalocean', 'mistral'])
     expect(directory).toContainEqual({
-      provider: 'openai',
-      displayName: 'openai',
+      provider: 'digitalocean',
+      displayName: 'DigitalOcean',
       settingsNs: 'llm-pi-ai',
-      settingsPath: ['providers', 'openai'],
+      settingsPath: ['providers', 'digitalocean'],
       declared: false,
     })
     await ctx.settings.update(NS, {

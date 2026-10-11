@@ -25,6 +25,7 @@ const describeRequestSchema = z.object({
 })
 const setRequestSchema = z.object({ ref: credentialRefSchema, value: z.string().min(1) })
 const unsetRequestSchema = z.object({ ref: credentialRefSchema })
+const revealRequestSchema = z.object({ ref: credentialRefSchema })
 
 /** Parse the domain constraints that are more specific than generated TypeScript codecs. */
 function parseRequest<T>(method: string, schema: z.ZodType<T>, value: unknown): T {
@@ -61,8 +62,9 @@ declare module '@deepseek-ai/cordis' {
  * Host service backing the generated `ctx.remote.credentials` namespace. It
  * carries every wire obligation the credential seam itself does not: the batch
  * fan-out bound, the field-by-field view projection, the reference-grammar
- * guard, and the refusal mapping. Secret values cross in one direction only —
- * no method here returns one.
+ * guard, and the refusal mapping. Secrets cross the wire in one direction
+ * on `set`; the single read exception is `reveal`, the user-initiated peek a
+ * configuration surface performs to show the stored key it would replace.
  */
 export class CredentialsController extends TypertRemoteService {
   /** @param ctx - Host context where a credential provider may be mounted. */
@@ -102,6 +104,24 @@ export class CredentialsController extends TypertRemoteService {
     const branded = credentialRef(request.ref)
     const credentials = this.provider()
     await this.write(request.ref, () => credentials.set(branded, request.value))
+  }
+
+  /**
+   * Return one stored value at the user's explicit request, so a
+   * configuration surface can show the key it already trusts the user with —
+   * the same secret the page wrote through `set` and re-enters to replace.
+   * Describing and listing never carry values; only this deliberate reveal
+   * does, and only the resolved value, never its source.
+   * @param ref - reference name to read.
+   * @returns the stored value, or no `value` when the reference is unconfigured.
+   * @throws RemoteError when the request is invalid or no credential provider is mounted.
+   */
+  @Remote
+  async reveal(ref: string): Promise<{ value?: string }> {
+    const request = parseRequest('credentials.reveal', revealRequestSchema, { ref })
+    const credentials = this.provider()
+    const resolved = await credentials.resolve(credentialRef(request.ref))
+    return resolved === undefined ? {} : { value: resolved.value }
   }
 
   /**

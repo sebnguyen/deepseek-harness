@@ -919,6 +919,81 @@ describe('mutate (path-addressed writes)', () => {
     await expect(ctx.settings.mutate(KEYED, [{ op: 'set', path: ['baseURL'], value: new Date() }]))
       .rejects.toThrow(/must contain only JSON-compatible data/)
   })
+
+  interface CatalogConfig {
+    models: { id: string; contextWindow?: number }[]
+  }
+
+  const CatalogSchema = z.object({
+    models: z.array(z.object({ id: z.string(), contextWindow: z.number() })),
+  }) as unknown as z<CatalogConfig>
+
+  const CATALOG = 'catalog'
+
+  async function catalogMounted(doc: Record<string, unknown>) {
+    const ctx = new Context()
+    await ctx.plugin(BareProvider, { doc })
+    ctx.settings.register(CATALOG, CatalogSchema)
+    ctx.settings.register(NESTED, NestedSchema)
+    return ctx
+  }
+
+  const CATALOG_DOC = { catalog: { models: [{ id: 'a', contextWindow: 1000 }, { id: 'b' }] } }
+
+  it('descends into an array element and edits one leaf without demoting the array', async () => {
+    const ctx = await catalogMounted(CATALOG_DOC)
+    await ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '1', 'contextWindow'], value: 2000 }])
+    expect(ctx.settings.describe().find(d => d.ns === CATALOG)!.user)
+      .toEqual({ models: [{ id: 'a', contextWindow: 1000 }, { id: 'b', contextWindow: 2000 }] })
+    await ctx.settings.mutate(CATALOG, [{ op: 'unset', path: ['models', '0', 'contextWindow'] }])
+    expect(ctx.settings.describe().find(d => d.ns === CATALOG)!.user)
+      .toEqual({ models: [{ id: 'a' }, { id: 'b', contextWindow: 2000 }] })
+  })
+
+  it('replaces an element at a terminal index and appends at exactly the array end', async () => {
+    const ctx = await catalogMounted(CATALOG_DOC)
+    await ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '0'], value: { id: 'alpha' } }])
+    await ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '2'], value: { id: 'c' } }])
+    expect(ctx.settings.describe().find(d => d.ns === CATALOG)!.user)
+      .toEqual({ models: [{ id: 'alpha' }, { id: 'b' }, { id: 'c' }] })
+  })
+
+  it('leaves unsets through absent-tail and scalar array elements satisfied', async () => {
+    const ctx = await catalogMounted({ catalog: CATALOG_DOC.catalog, workspace: { tags: ['plain'] } })
+    await ctx.settings.mutate(CATALOG, [{ op: 'unset', path: ['models', '2', 'gone'] }])
+    await ctx.settings.mutate(NESTED, [{ op: 'unset', path: ['tags', '0', 'deep'] }])
+    expect(ctx.settings.describe().find(d => d.ns === CATALOG)!.user).toEqual(CATALOG_DOC.catalog)
+    expect(ctx.settings.describe().find(d => d.ns === NESTED)!.user).toEqual({ tags: ['plain'] })
+  })
+
+  it('leaves an unset through a non-object array element satisfied', async () => {
+    const ctx = await catalogMounted({})
+    await ctx.settings.mutate(NESTED, [{ op: 'unset', path: ['tags', '0', 'deep'] }])
+    // Nothing was written: the user layer stays empty and tags keep the schema default.
+    expect(ctx.settings.describe().find(d => d.ns === NESTED)!.user).toEqual({})
+  })
+
+  it('refuses array addressing the array semantics cannot mean', async () => {
+    const ctx = await catalogMounted({
+      catalog: CATALOG_DOC.catalog,
+      workspace: { tags: ['plain'] },
+    })
+    await expect(ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', 'lead', 'id'], value: 'x' }]))
+      .rejects.toThrow(/addressed by decimal index/)
+    await expect(ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '99999999999999999999'], value: { id: 'x' } }]))
+      .rejects.toThrow(/addressed by decimal index/)
+    await expect(ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '5'], value: { id: 'x' } }]))
+      .rejects.toThrow(/skips past the end/)
+    await expect(ctx.settings.mutate(CATALOG, [{ op: 'unset', path: ['models', '0'] }]))
+      .rejects.toThrow(/cannot remove an array element/)
+    await expect(ctx.settings.mutate(CATALOG, [{ op: 'set', path: ['models', '2', 'id'], value: 'x' }]))
+      .rejects.toThrow(/cannot descend into absent index/)
+    await expect(ctx.settings.mutate(NESTED, [{ op: 'set', path: ['tags', '0', 'deep'], value: 'x' }]))
+      .rejects.toThrow(/is not an object a path can descend into/)
+    // Every refusal left both namespaces' user layers untouched.
+    expect(ctx.settings.describe().find(d => d.ns === CATALOG)!.user).toEqual(CATALOG_DOC.catalog)
+    expect(ctx.settings.describe().find(d => d.ns === NESTED)!.user).toEqual({ tags: ['plain'] })
+  })
 })
 
 describe('revision and conflict detection', () => {

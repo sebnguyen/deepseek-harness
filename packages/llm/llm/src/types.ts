@@ -352,6 +352,8 @@ export interface LlmResolvedModelInfo extends LlmModelInfo {
   context?: LlmModelContext
   /** Adapter-configured per-request output cap materialized when callers omit one. */
   defaultMaxTokens?: number
+  /** Adapter-configured sampling temperature materialized when callers omit one. */
+  defaultTemperature?: number
   /** Adapter-owned selectable reasoning levels when exposed. */
   reasoning?: LlmModelReasoningInfo
   /** Declared mid-conversation system prompt handling; absent means only a leading system message is read. */
@@ -444,6 +446,15 @@ export interface StructuredOutputSchema {
   description?: string
   /** Annotation, ignored for validation. */
   title?: string
+  /**
+   * Provider hint, not a constraint: request grammar-decoded decoding on
+   * wires that support it (OpenAI-compat `json_schema.strict`). Absent leaves
+   * the envelope best-effort — the provider then samples *against* the
+   * schema and may still emit free text, so callers whose whole design is
+   * "the answer channel stays empty" must opt in. Validation here ignores
+   * it, and serialization strips it from the schema it gates.
+   */
+  strict?: boolean
 }
 
 /** A single model request, fully assembled. */
@@ -495,4 +506,20 @@ export interface GenerateOptions {
    * caller's own capture validation remains authoritative either way.
    */
   structuredOutput?: StructuredOutputSchema
+  /**
+   * Tool-selection constraint the adapter SHOULD grammar-decode on the wire
+   * (OpenAI-compat `tool_choice`; other providers map it in their adapter).
+   * `'required'` forbids the model from ending its turn without a tool call;
+   * `{ name }` pins the call to one named tool. Adapters without
+   * `toolChoiceOnRequest` never even see it, because the runtime strips the
+   * field for them — same gate as {@link GenerateOptions.structuredOutput}.
+   */
+  toolChoice?: ToolChoice
 }
+
+/**
+ * One tool-selection constraint for {@link GenerateOptions.toolChoice}. Scalar
+ * forms mirror the OpenAI wire vocabulary; the object form names one tool and
+ * adapters emit their provider's pinned-call shape.
+ */
+export type ToolChoice = 'auto' | 'required' | 'none' | { name: string }

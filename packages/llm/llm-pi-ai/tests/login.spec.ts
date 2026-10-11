@@ -22,7 +22,7 @@ vi.mock('@earendil-works/pi-ai', async importOriginal => ({
 const { credentialStoreFrom, authContextFrom, recordKeyFor } = await import('../src/auth.ts')
 const { registerPiAiFlows } = await import('../src/login.ts')
 
-const CODEX = recordKeyFor('openai-codex')
+const MISTRAL = recordKeyFor('mistral')
 const dirs: string[] = []
 
 /** A context with the record store, the seam, and every pi-ai login flow. */
@@ -68,7 +68,7 @@ async function attempt(
     return granted
   })
   await expect(ctx.authorization.begin({
-    key: request.key ?? CODEX,
+    key: request.key ?? MISTRAL,
     interaction: ui,
     ...request.method === undefined ? {} : { method: request.method },
   })).resolves.toEqual({ status: 'authorized' })
@@ -85,16 +85,11 @@ describe('pi-ai login flows', () => {
     const ctx = await harness()
     const offered = ctx.authorization.list()
 
-    // The OAuth-only provider is exactly the case this exists for: nothing
-    // else could ever configure it.
-    expect(offered.find(entry => entry.key === CODEX)?.methods)
-      .toEqual([{ id: 'oauth', label: expect.stringContaining('ChatGPT') as string }])
-    // A provider offering both keeps both, the subscription login first.
-    expect(offered.find(entry => entry.key === recordKeyFor('anthropic'))?.methods.map(one => one.id))
-      .toEqual(['oauth', 'api-key'])
-    // A key-only provider still gets a flow, because pi-ai collects the key
-    // through its own prompt rather than leaving it to the settings form.
-    expect(offered.find(entry => entry.key === recordKeyFor('deepseek'))?.methods.map(one => one.id))
+    // The shipped set narrows the flows to the providers this build offers:
+    // mistral's key-only login still gets a flow because pi-ai collects the
+    // key through its own prompt rather than leaving it to the settings form.
+    expect(offered.map(entry => entry.key)).toEqual([MISTRAL])
+    expect(offered.find(entry => entry.key === MISTRAL)?.methods.map(one => one.id))
       .toEqual(['api-key'])
   })
 
@@ -102,10 +97,10 @@ describe('pi-ai login flows', () => {
     const ctx = await harness()
 
     await attempt(ctx, () => Promise.resolve())
-    expect(login).toHaveBeenLastCalledWith('openai-codex', 'oauth', expect.anything())
+    expect(login).toHaveBeenLastCalledWith('mistral', 'api_key', expect.anything())
 
-    await attempt(ctx, () => Promise.resolve(), { key: recordKeyFor('anthropic'), method: 'api-key' })
-    expect(login).toHaveBeenLastCalledWith('anthropic', 'api_key', expect.anything())
+    await attempt(ctx, () => Promise.resolve(), { key: MISTRAL, method: 'api-key' })
+    expect(login).toHaveBeenLastCalledWith('mistral', 'api_key', expect.anything())
   })
 
   it('commits what the login produced, where the adapter reads it back', async () => {
@@ -113,7 +108,7 @@ describe('pi-ai login flows', () => {
 
     await attempt(ctx, () => Promise.resolve())
 
-    await expect(ctx.credentials.readRecord(CODEX)).resolves.toEqual({
+    await expect(ctx.credentials.readRecord(MISTRAL)).resolves.toEqual({
       kind: 'grant',
       payload: { type: 'oauth', access: 'at', refresh: 'rt', expires: 1 },
     })
@@ -189,7 +184,7 @@ describe('pi-ai login flows', () => {
     })
 
     await expect(ctx.authorization.begin({
-      key: CODEX,
+      key: MISTRAL,
       interaction: surface(),
       signal: controller.signal,
     })).resolves.toEqual({ status: 'cancelled' })

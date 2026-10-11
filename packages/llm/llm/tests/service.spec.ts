@@ -62,6 +62,7 @@ class CatalogAdapter extends ScriptedAdapter {
     private readonly reasoning: Readonly<Record<string, LlmModelReasoningInfo>> = {},
     private readonly defaultMaxTokens: Readonly<Record<string, number>> = {},
     private readonly systemPromptUpdate: Readonly<Record<string, string>> = {},
+    private readonly defaultTemperatures: Readonly<Record<string, number>> = {},
   ) {
     super(SCRIPT)
   }
@@ -85,6 +86,7 @@ class CatalogAdapter extends ScriptedAdapter {
       ...this.contexts[model] === undefined ? {} : { context: this.contexts[model] },
       ...this.reasoning[model] === undefined ? {} : { reasoning: this.reasoning[model] },
       ...this.defaultMaxTokens[model] === undefined ? {} : { defaultMaxTokens: this.defaultMaxTokens[model] },
+      ...this.defaultTemperatures[model] === undefined ? {} : { defaultTemperature: this.defaultTemperatures[model] },
       ...this.systemPromptUpdate[model] === undefined
         ? {}
         : { systemPromptUpdate: this.systemPromptUpdate[model] as SystemPromptUpdate },
@@ -491,7 +493,6 @@ describe('LlmRuntime', () => {
           [Symbol.asyncIterator](): AsyncIterator<StreamChunk> {
             return {
               // Third-party adapters can reject with arbitrary values.
-              // oxlint-disable-next-line typescript/prefer-promise-reject-errors
               next: () => Promise.reject('plain provider failure'),
             }
           },
@@ -794,6 +795,44 @@ describe('LlmRuntime', () => {
     await expect(ctx.llm.resolveCallConfig(explicit)).resolves.toBe(explicit)
     const preparedExplicit = await ctx.llm.prepareCall(explicit)
     expect(preparedExplicit.adapterDefaults).toEqual({})
+  })
+
+  it('materializes an adapter-owned temperature default while preserving an explicit temperature', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['route'], new CatalogAdapter(
+      { id: 'route', name: 'Route' },
+      [],
+      {},
+      {},
+      {},
+      {},
+      { model: 0.35 },
+    ))
+
+    await expect(ctx.llm.resolveCallConfig({ provider: 'route', model: 'model' })).resolves.toEqual({
+      provider: 'route',
+      model: 'model',
+      temperature: 0.35,
+    })
+    const preparedDefault = await ctx.llm.prepareCall({ provider: 'route', model: 'model' })
+    expect(preparedDefault.adapterDefaults).toEqual({ temperature: true })
+    const explicit = { provider: 'route', model: 'model', temperature: 0.9 }
+    await expect(ctx.llm.resolveCallConfig(explicit)).resolves.toBe(explicit)
+    const preparedExplicit = await ctx.llm.prepareCall(explicit)
+    expect(preparedExplicit.adapterDefaults).toEqual({})
+  })
+
+  it.each([-0.5, 1.5, Number.NaN])('rejects an invalid adapter-owned default temperature %s', async (defaultTemperature) => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new class extends ScriptedAdapter {
+      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+        return Promise.resolve({ provider, id: model, name: model, defaultTemperature })
+      }
+    }(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    await expect(ctx.llm.resolveModelInfo('route', 'model')).rejects.toMatchObject({ code: 'INVALID_MODEL_INFO' })
   })
 
   it.each([0, 1.5, Number.MAX_SAFE_INTEGER + 1])(

@@ -7,7 +7,7 @@
  */
 
 import { contentHasImage, LlmError, offloadedImageText, offloadRequestImagesWithPolicy, requestImageHandleText } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, StructuredOutputSchema } from '@deepseek-ai/dsh-llm'
 import type { ImageAttachmentRef, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
 import type {
   WireImageContentPart,
@@ -339,6 +339,17 @@ export async function serializeMessagesWithImages(
   return wire
 }
 
+/**
+ * The schema the wire carries under `json_schema.schema`: the provider hint
+ * that gates grammar decoding never rides inside the schema it gates.
+ * @param schema - the harness-side structured-output schema.
+ * @returns the schema sans the `strict` hint.
+ */
+function wireSchemaOf(schema: StructuredOutputSchema): StructuredOutputSchema {
+  const { strict: _hint, ...wire } = schema
+  return wire
+}
+
 /** Assemble request fields shared by text-only and image-capable conversion. */
 function requestWithMessages(
   options: GenerateOptions,
@@ -368,7 +379,27 @@ function requestWithMessages(
     ...options.maxTokens === undefined ? {} : { max_tokens: options.maxTokens },
     ...options.stop !== undefined ? { stop: options.stop } : {},
     ...options.structuredOutput !== undefined
-      ? { response_format: { type: 'json_schema' as const, json_schema: { name: 'structured_output', schema: options.structuredOutput } } }
+      ? {
+        response_format: {
+          type: 'json_schema' as const,
+          json_schema: {
+            name: 'structured_output',
+            // Without strict the provider samples *against* the schema and
+            // can still leak free text — a hole a leak shield cannot
+            // afford; strict binds sampling to the grammar. The hint never
+            // rides inside the schema it gates.
+            strict: options.structuredOutput.strict ?? false,
+            schema: wireSchemaOf(options.structuredOutput),
+          },
+        },
+      }
+      : {},
+    ...options.toolChoice !== undefined
+      ? {
+        tool_choice: typeof options.toolChoice === 'string'
+          ? options.toolChoice
+          : { type: 'function' as const, function: { name: options.toolChoice.name } },
+      }
       : {},
   }
 }

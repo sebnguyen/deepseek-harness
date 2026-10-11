@@ -12,7 +12,7 @@
  * @module dsh-llm-pi-ai/catalog
  */
 
-import { builtinProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
+import { builtinProviders, getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   AnthropicMessagesCompat,
@@ -162,6 +162,72 @@ const CHAT_TEMPLATE_VAR_GATE: Record<PiAiChatTemplateVar, true> = {
 /** The request-state placeholders a profile may name. */
 export const CHAT_TEMPLATE_VARS = Object.keys(CHAT_TEMPLATE_VAR_GATE) as readonly PiAiChatTemplateVar[]
 
+/**
+ * Route-level defaults one shipped provider bakes in, merged under the
+ * profile's own fields. Endpoints, protocols, and wire quirks are facts about
+ * the vendor, not deployment choices, so they live with the shipped catalog
+ * rather than in every composition that names the route; a profile still wins
+ * field by field.
+ */
+export interface ShippedRouteDefaults {
+  /** Selector label; absent keeps the route key. */
+  displayName?: string
+  /** Wire protocol the vendor's endpoint speaks. */
+  api?: string
+  /** The vendor's inference endpoint. */
+  baseURL?: string
+  /** Compat switches the endpoint needs; profile fields win per field. */
+  compat?: PiAiCompatProfile
+  /** Effort menu stamped onto models the endpoint listing cannot carry. */
+  defaultReasoningEfforts?: PiAiReasoningEfforts
+}
+
+/**
+ * The provider routes this build ships. The installed pi-ai catalog offers
+ * dozens of vendors, which dilutes configuration surfaces past the providers
+ * a deployment actually runs; this build narrows the offer to the two it
+ * ships configured — DigitalOcean serverless inference and Mistral — while
+ * hand-declared routes still join the directory as profiles appear.
+ * `mistral` rides the installed catalog for its endpoint and models; the
+ * rest resolve their defaults here.
+ */
+const SHIPPED_ROUTES: Readonly<Record<string, Readonly<ShippedRouteDefaults>>> = {
+  'digitalocean': {
+    displayName: 'DigitalOcean',
+    api: 'openai-completions',
+    baseURL: 'https://inference.do-ai.run/v1',
+    compat: {
+      supportsDeveloperRole: false,
+      maxTokensField: 'max_completion_tokens',
+      requiresReasoningContentOnAssistantMessages: true,
+    },
+    defaultReasoningEfforts: {
+    // `off` leaves the wire value empty: the gateway 400s `none` on some of
+    // its models (the deepseek-v4 family), while an absent `reasoning_effort`
+    // is the one spelling every model accepts; a profile whose model takes
+    // `none` declares `off: none` per model and wins over this default.
+      off: null,
+      low: 'low',
+      medium: 'medium',
+      high: 'high',
+      xhigh: 'xhigh',
+      max: 'max',
+    },
+  },
+  'mistral': {
+    displayName: 'Mistral',
+  },
+}
+
+/**
+ * The shipped defaults for one route, when this build ships the route.
+ * @param provider - provider route key.
+ * @returns the baked defaults, or `undefined` for any other route.
+ */
+export function shippedRoute(provider: string): Readonly<ShippedRouteDefaults> | undefined {
+  return SHIPPED_ROUTES[provider]
+}
+
 let providerIndex: Map<string, Provider> | undefined
 
 /**
@@ -185,11 +251,13 @@ export function catalogProvider(provider: string): Provider | undefined {
 }
 
 /**
- * Every provider route the installed pi-ai catalog ships.
- * @returns the catalog provider ids.
+ * Every provider route this build ships: the shipped set narrows the
+ * installed catalog to the providers a deployment runs, so configuration
+ * surfaces offer those instead of every vendor pi-ai has heard of.
+ * @returns the shipped provider ids.
  */
 export function catalogProviderIds(): readonly string[] {
-  return getBuiltinProviders()
+  return Object.keys(SHIPPED_ROUTES)
 }
 
 /**
@@ -599,14 +667,23 @@ export interface PiAiModelProfile {
   input?: PiAiModality[]
   /**
    * Selectable reasoning efforts. Absent inherits the installed catalog
-   * entry's capability (a hand-declared model has none and does not reason);
-   * `false` declares a non-reasoning model, which is how a profile strips
-   * reasoning from a catalog model its gateway cannot serve; a non-empty dict
-   * declares the offered levels and their wire spellings.
+   * entry's capability, or the route's effort menu when the catalog has no
+   * entry; `false` declares a non-reasoning model, which is how a profile
+   * strips reasoning from a catalog model its gateway cannot serve; a
+   * non-empty dict declares the offered levels and their wire spellings. An
+   * empty dict is the settings materialization of an omitted menu and takes
+   * the route menu when the route has one.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
+  /**
+   * Stored per-model tune: sampling knobs a session selection omits pick up
+   * here when the model is chosen, in precedence explicit selection over
+   * tune over the deployment default. Absent — or empty, which schemastery
+   * materializes for an omitted object — states no tune.
+   */
+  tunes?: PiAiModelTune
 }
 
 /**
@@ -617,6 +694,19 @@ export interface PiAiModelProfile {
  * model, keep the other thirty-seven" a three-line edit.
  */
 export type PiAiModelOverride = Omit<PiAiModelProfile, 'id'>
+
+/**
+ * Stored sampling tune for one model, written by any surface that edits the
+ * route's profile the way the Models page edits capacities. Both knobs are
+ * request defaults, not capabilities: they never size or gate the model,
+ * they only attend requests whose selection omitted the knob.
+ */
+export interface PiAiModelTune {
+  /** Sampling temperature in [0, 1] materialized when the selection omits one. */
+  temperature?: number
+  /** Route reasoning effort materialized when the selection omits one; must be a level the model offers. */
+  reasoningEffort?: ModelThinkingLevel
+}
 
 /** The route-level facts model materialization reads. */
 export interface RouteCatalogRequest {
@@ -640,6 +730,19 @@ export interface RouteCatalogRequest {
   defaultMaxTokens: number
   /** Modalities for a model neither the entry nor the catalog declares. */
   defaultInput: Model<Api>['input']
+  /**
+   * This route serves no stored models: its catalog arrives live from the
+   * endpoint, fed in by the plugin's interrogation. An empty catalog is then
+   * the honest pre-fetch state rather than a misconfiguration.
+   */
+  live?: boolean
+  /**
+   * Effort menu for a model the listing cannot describe. Applies when the
+   * model omits `reasoningEfforts` and the installed catalog has no entry,
+   * and when a stored entry carries the empty dict the settings schema
+   * materializes for an omitted menu.
+   */
+  defaultReasoningEfforts?: PiAiReasoningEfforts
 }
 
 /** An expected configuration failure that stored-catalog reads may retain for repair. */
@@ -693,9 +796,30 @@ function resolveModelReasoning(
   provider: string,
   entry: PiAiModelProfile,
   base: Model<Api> | undefined,
+  routeEfforts?: PiAiReasoningEfforts,
 ): ModelReasoning {
-  const efforts = entry.reasoningEfforts
+  const routeMenu = routeEfforts !== undefined && Object.keys(routeEfforts).length > 0
+    ? routeEfforts
+    : undefined
+  const declared = entry.reasoningEfforts
+  // The installed entry's map may ride along through `...base`; pi-ai never
+  // reads it on a non-reasoning model, so stripping it is not worth a field
+  // enumeration here.
+  if (declared === false) return { reasoning: false }
+  // A YAML `reasoningEfforts:` left valueless arrives as null through the
+  // schema union — outside the field's declared type, hence the widening —
+  // while an explicit `{}` arrives as an empty dict. Fetch specs writes that
+  // empty dict when the settings schema materializes an omitted route menu.
+  const empty = declared !== undefined
+    && ((declared as unknown) === null || Object.keys(declared).length === 0)
+  const efforts = declared === undefined
+    ? (base === undefined ? routeMenu : undefined)
+    : empty ? routeMenu : declared
   if (efforts === undefined) {
+    if (empty) {
+      invalid(provider, `model "${entry.id}" has an empty reasoningEfforts; declare the offered levels, set`
+        + ' false for a non-reasoning model, or omit the field to keep the installed catalog\'s capability')
+    }
     // Reasoning rides the installed entry or is absent: a bare capability flag
     // would make pi-ai advertise effort levels with no `thinkingLevelMap` to
     // spell them, and no listing endpoint reports a model's reasoning
@@ -703,23 +827,11 @@ function resolveModelReasoning(
     // spread in the model literal.
     return { reasoning: base?.reasoning ?? false }
   }
-  // The installed entry's map may ride along through `...base`; pi-ai never
-  // reads it on a non-reasoning model, so stripping it is not worth a field
-  // enumeration here.
-  if (efforts === false) return { reasoning: false }
-  // A YAML `reasoningEfforts:` left valueless arrives as null through the
-  // schema union — outside the field's declared type, hence the widening —
-  // while an explicit `{}` arrives as an empty dict. Both declare nothing,
-  // and neither is a spelling of "inherit" or "disable".
-  if ((efforts as unknown) === null || Object.keys(efforts).length === 0) {
-    invalid(provider, `model "${entry.id}" has an empty reasoningEfforts; declare the offered levels, set`
-      + ' false for a non-reasoning model, or omit the field to keep the installed catalog\'s capability')
-  }
-  const declared = THINKING_LEVELS.flatMap((level) => {
+  const levels = THINKING_LEVELS.flatMap((level) => {
     const wire = efforts[level]
     return wire === undefined ? [] : [[level, wire] as const]
   })
-  for (const [level, wire] of declared) {
+  for (const [level, wire] of levels) {
     if (wire === null) {
       if (level !== 'off') {
         invalid(provider, `model "${entry.id}" reasoningEfforts.${level} needs the wire value dispatch`
@@ -729,7 +841,7 @@ function resolveModelReasoning(
       invalid(provider, `model "${entry.id}" reasoningEfforts.${level} must not be an empty string`)
     }
   }
-  if (!declared.some(([level]) => level !== 'off')) {
+  if (!levels.some(([level]) => level !== 'off')) {
     invalid(provider, `model "${entry.id}" reasoningEfforts offers no level beyond "off"; declare a thinking`
       + ' level, or set reasoningEfforts to false for a non-reasoning model')
   }
@@ -816,6 +928,12 @@ export interface RouteCatalog {
    * picked, so only an explicit configuration lands here.
    */
   configuredMaxTokens: ReadonlyMap<string, number>
+  /**
+   * Stored per-model tunes this profile configured, by model id. Like
+   * {@link configuredMaxTokens}, only an explicit configuration lands here;
+   * resolution exposes them as the model's request defaults.
+   */
+  configuredTunes: ReadonlyMap<string, PiAiModelTune>
 }
 
 /**
@@ -871,8 +989,13 @@ export function resolveRouteModels(
     ? configured
     : [...defaults.values()].map(model => ({ id: model.id, ...overrides[model.id] }))
   if (entries.length === 0) {
-    invalid(provider, 'resolves no models; the installed catalog does not describe this route, so its models'
-      + ' must be listed in configuration')
+    // A live route's models arrive from the endpoint interrogation; before
+    // the first fetch (or while its credential is missing) the route simply
+    // serves nothing yet.
+    if (request.live !== true) {
+      invalid(provider, 'resolves no models; the installed catalog does not describe this route, so its models'
+        + ' must be listed in configuration')
+    }
   }
   const routeApi = sharedCatalogApi(defaults)
   // Vocabulary before protocols: a withheld or undeclared switch is refused
@@ -881,6 +1004,10 @@ export function resolveRouteModels(
   assertOfferedCompatFields(provider, 'route', request.compat)
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
+  const configuredTunes = new Map<string, PiAiModelTune>()
+  /** The reasoning fields one entry materializes, for validating its tune before the model literal is built. */
+  const reasoningForEntry = (entry: PiAiModelProfile, base: Model<Api> | undefined): ModelReasoning =>
+    resolveModelReasoning(provider, entry, base, request.defaultReasoningEfforts)
   const resolveEntry = (entry: PiAiModelProfile): Model<Api> => {
     assertOfferedCompatFields(provider, `model "${entry.id}"`, entry.compat)
     if (entry.id.length === 0) invalid(provider, 'has a model with an empty id')
@@ -914,6 +1041,24 @@ export function resolveRouteModels(
     // Only a value the profile named is a deployment choice; the catalog's is
     // the model's capability and stays out of request defaults.
     if (entry.maxTokens !== undefined) configuredMaxTokens.set(entry.id, entry.maxTokens)
+    const tune = entry.tunes !== undefined && (entry.tunes.temperature !== undefined || entry.tunes.reasoningEffort !== undefined)
+      ? entry.tunes
+      : undefined
+    if (tune !== undefined) {
+      if (tune.temperature !== undefined && (!Number.isFinite(tune.temperature) || tune.temperature < 0 || tune.temperature > 1)) {
+        invalid(provider, `model "${entry.id}" tunes.temperature must be inside [0, 1]`)
+      }
+      if (tune.reasoningEffort !== undefined) {
+        const reasoningFields = reasoningForEntry(entry, base)
+        const offered = reasoningFields.thinkingLevelMap
+          ?? (reasoningFields.reasoning ? base?.thinkingLevelMap : undefined)
+        const wire = offered?.[tune.reasoningEffort]
+        if (wire === undefined || wire === null) {
+          invalid(provider, `model "${entry.id}" tunes.reasoningEffort names "${tune.reasoningEffort}", which the model does not offer`)
+        }
+      }
+      configuredTunes.set(entry.id, tune)
+    }
     return {
       // The installed entry lays the floor, and the fields below override it.
       // Enumerating instead would silently drop every `Model` field this
@@ -930,7 +1075,7 @@ export function resolveRouteModels(
       cost: base?.cost ?? NO_COST,
       contextWindow,
       maxTokens,
-      ...resolveModelReasoning(provider, entry, base),
+      ...reasoningForEntry(entry, base),
       ...resolveModelCompat(provider, entry, request.compat, base, api),
     }
   }
@@ -952,11 +1097,15 @@ export function resolveRouteModels(
   // models take beside one only its anthropic models do, and neither should
   // fail for the other's sake. What is refused is a route default no model on
   // the route could ever read, which is a route that will not behave as written.
+  // A live route has no models until the endpoint answers; its declared api is
+  // the protocol those models will speak, so that api counts until they arrive.
+  const spoken = new Set(serviceableModels.map(model => model.api))
+  if (spoken.size === 0 && request.live === true && request.api !== undefined) spoken.add(request.api)
   for (const [field] of configuredCompatEntries(request.compat)) {
     const takers = compatProtocols(field)
-    if (serviceableModels.some(model => takers.includes(model.api))) continue
+    if ([...spoken].some(api => takers.includes(api))) continue
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, modelErrors }
+  return { models: serviceableModels, configuredMaxTokens, configuredTunes, modelErrors }
 }

@@ -186,6 +186,10 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * `role('secret')` fields. Such a caller can name the field it means without
  * restating the section: a wholesale `replace` rebuilt from a redacted
  * document silently deletes every secret the wire never returned.
+ * Array values are addressed by decimal index: a terminal `set` replaces the
+ * element or appends at exactly the array's end, deeper paths descend into
+ * the element, and `unset` never removes an element (rewrite the array
+ * instead) so sibling indices never shift under a concurrent reader.
  */
 export type SettingsPathOp =
   | { op: 'set'; path: readonly string[]; value: unknown }
@@ -208,6 +212,9 @@ function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp): Reco
     return kept
   }
   const child = section[head]
+  if (Array.isArray(child)) {
+    return { ...section, [head]: applyArrayOp(child, rest, op) }
+  }
   if (!isPlainObject(child)) {
     // Unsetting through an absent path is already satisfied; setting through
     // one creates the intermediate objects it needs.
@@ -215,6 +222,54 @@ function applyPathOp(section: Record<string, unknown>, op: SettingsPathOp): Reco
     return { ...section, [head]: applyPathOp({}, { ...op, path: rest }) }
   }
   return { ...section, [head]: applyPathOp(child, { ...op, path: rest }) }
+}
+
+/** The array index a decimal path segment names, or undefined for any other segment. */
+function indexOfSegment(segment: string): number | undefined {
+  if (!/^(?:0|[1-9][0-9]*)$/.test(segment)) return undefined
+  const index = Number(segment)
+  return index <= Number.MAX_SAFE_INTEGER ? index : undefined
+}
+
+/**
+ * Apply one path op inside an array: the head segment is the element's
+ * decimal index. A terminal set replaces the element, or appends when it
+ * names exactly the array's end; a deeper op recurses into the addressed
+ * element like any object path; unset never removes an element.
+ * @param items - the array the op addresses.
+ * @param path - the op path after the array's own key.
+ * @param op - the set or unset to apply.
+ * @returns the next array.
+ */
+function applyArrayOp(items: readonly unknown[], path: readonly string[], op: SettingsPathOp): unknown[] {
+  const [segment = '', ...rest] = path
+  const index = indexOfSegment(segment)
+  if (index === undefined) {
+    throw new TypeError(`settings mutate: array elements are addressed by decimal index, got ${JSON.stringify(segment)}`)
+  }
+  if (index > items.length) {
+    throw new TypeError(`settings mutate: index ${String(index)} skips past the end of a ${String(items.length)}-element array`)
+  }
+  if (rest.length === 0) {
+    if (op.op === 'unset') {
+      throw new TypeError('settings mutate: unset cannot remove an array element; rewrite the array instead')
+    }
+    const next = [...items]
+    next[index] = op.value
+    return next
+  }
+  const next = [...items]
+  const element = index < items.length ? items[index] : undefined
+  if (element === undefined) {
+    if (op.op === 'unset') return next
+    throw new TypeError(`settings mutate: cannot descend into absent index ${String(index)} of a ${String(items.length)}-element array`)
+  }
+  if (!isPlainObject(element)) {
+    if (op.op === 'unset') return next
+    throw new TypeError(`settings mutate: array element ${String(index)} is not an object a path can descend into`)
+  }
+  next[index] = applyPathOp(element, { ...op, path: rest })
+  return next
 }
 
 /** Human label for a value that lossless JSON cannot represent (numbers reject inline). */

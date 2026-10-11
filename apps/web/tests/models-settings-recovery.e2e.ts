@@ -66,10 +66,11 @@ describe('web e2e: repairs a stored provider after catalog drift', () => {
     await compareOrRefreshGolden(EXPECTED, await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), webSnapshotMode())
 
     await dialog.getByRole('button', { name: '添加提供方', exact: true }).click()
-    await dialog.getByLabel('提供方', { exact: true }).selectOption('minimax-cn')
+    await dialog.getByLabel('提供方', { exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Mistral', exact: true }).click()
     await dialog.getByRole('button', { name: '保存', exact: true }).click()
-    await dialog.getByText('已保存 minimax-cn。', { exact: true }).waitFor()
-    expect(await readFile(join(home, 'settings.yaml'), 'utf8')).toContain('minimax-cn: {}')
+    await dialog.getByText('已保存 Mistral。', { exact: true }).waitFor()
+    expect(await readFile(join(home, 'settings.yaml'), 'utf8')).toContain('mistral: {}')
     expect(await dialog.getByText(FAILURE, { exact: true }).count()).toBe(1)
   })
 
