@@ -243,7 +243,9 @@ export abstract class LlmAdapter {
    * runtime strips it so `lastOptions`-style observers and replays cannot
    * mistake a request for a schema-forced one. Declare a route capable only
    * when its protocol is proven to honor the field; pass-through "soft hint"
-   * behavior is not support.
+   * behavior is not support. Assign as a field (`= true` / `= (p, m) => ...`),
+   * never as a `get` accessor override: class-field semantics give the base
+   * declaration an own instance slot that shadows subclass accessors.
    */
   structuredOutputOnRequest?: LlmAdapterCapability
 

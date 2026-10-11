@@ -105,10 +105,7 @@ export function apply(ctx: Context): void {
       id: 'conversation-turn-shape',
       priority: GRAMMAR_PRIORITY.turnShape,
       attach: ({ agent, turn, config }) => {
-        const shape = shapeForTurn(agent.id, turn)
-        // eslint-disable-next-line no-console
-        console.log('TRACE attach shape', shape, 'cap', JSON.stringify(capability(config.provider, config.model)))
-        if (shape === 'narrate') return undefined
+        if (shapeForTurn(agent.id, turn) === 'narrate') return undefined
         if (!capability(config.provider, config.model).structuredOutput) return undefined
         return { structuredOutput: EMPTY_OBJECT_SCHEMA }
       },

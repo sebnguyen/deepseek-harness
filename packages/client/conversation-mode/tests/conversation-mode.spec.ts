@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { LlmAdapter, LlmRuntime, block, createUserMessage, type LlmCallConfig } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmRuntime, createUserMessage, type LlmCallConfig } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { agentEvents, GRAMMAR_PRIORITY, RequestGrammarService, type Agent } from '@deepseek-ai/dsh-agent'
 import { MemorySettings } from '../../../settings/settings/tests/memory.ts'
@@ -11,12 +11,11 @@ const SIGNAL = new AbortController().signal
 const EMPTY_SCRIPT: [] = []
 
 class StubAdapter extends LlmAdapter {
-  constructor(private readonly capable: boolean) {
-    super()
-  }
+  override readonly structuredOutputOnRequest: boolean
 
-  override get structuredOutputOnRequest(): boolean {
-    return this.capable
+  constructor(capable: boolean) {
+    super()
+    this.structuredOutputOnRequest = capable
   }
 
   async *stream(): AsyncIterableIterator<never> {
