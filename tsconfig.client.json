@@ -105,6 +105,7 @@
     { "path": "./packages/client/ui-settings-plugins" },
     { "path": "./packages/client/ui-user-questions" },
     { "path": "./packages/client/ui-quiet" },
+    { "path": "./packages/client/ui-vscode" },
     { "path": "./packages/client/ui-trajectory" },
     { "path": "./packages/client/ui-file-history" },
     { "path": "./packages/client/ui-line-note" },
