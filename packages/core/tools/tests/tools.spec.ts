@@ -579,6 +579,27 @@ describe('ToolRuntime', () => {
     expect(nested.isError ? undefined : nested.value).toBe('')
   })
 
+  it('arms the turn conclusion idempotently: repeated arms still yield one conclusion', async () => {
+    // The manage handoff and the recovery loop both re-arm concludeTurn when
+    // they touch an already-closing lane; the WeakSet marker must tolerate
+    // repeated arms so the result surfaces exactly one boolean, never a
+    // double-counted or poisoned conclusion.
+    const ctx = await setup()
+    ctx.tools.register({
+      ...echoTool,
+      name: 'double-conclude',
+      async execute(_args, exec) {
+        exec.concludeTurn()
+        exec.concludeTurn()
+        return 'done'
+      },
+    })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('double-conclude'), name: 'double-conclude', arguments: {} })
+    expect(result.isError).toBe(false)
+    expect(result.concludesTurn).toBe(true)
+    expect(result.isError ? undefined : result.value).toBe('done')
+  })
+
   it('carries a nested conclusion on the nested result for its composite to forward', async () => {
     const ctx = await setup()
     ctx.tools.register({
