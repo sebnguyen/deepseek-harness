@@ -1,11 +1,12 @@
-/* Three icon pills side by side under the composer, 13/20 tertiary text tier
-   with a hover-pill affordance; each pill's click-open panel wears the shared
-   stat-dialog.module.css skin. */
+/* Session stats under the composer as ONE quiet caption line: each pill is
+   a headline figure with an optional muted qualifier (13/20 tertiary tier),
+   pills separated by a hairline, and only the hover pill betrays that the
+   button form opens a dialog wearing the shared stat-dialog.module.css skin. */
 
 .root {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  align-items: center;
   max-width: var(--dsh-chat-content-width);
   width: 100%;
   margin: 0 auto;
@@ -15,21 +16,32 @@
   line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
-/* Dialog anchor: shrink-wraps its pill so the panel clamp measures the pill. */
+/* Dialog anchor: shrink-wraps its pill so the panel clamp measures the pill.
+   Sibling anchors get the row's hairline, centered in the 10px margins. */
 .anchor {
   display: inline-flex;
+  align-items: center;
   min-width: 0;
+}
+
+.anchor + .anchor::before {
+  content: '';
+  flex: none;
+  width: 1px;
+  height: 11px;
+  margin: 0 10px;
+  background: var(--dsw-alias-separator-primary);
 }
 
 .pill {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
   box-sizing: border-box;
   max-width: 100%;
-  padding: 1px 8px;
+  padding: 2px 6px;
   border: none;
-  border-radius: 24px;
+  border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -39,9 +51,10 @@
 }
 
 .pill svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   flex: none;
+  align-self: center;
 }
 
 /* Only the button form (a pill with dialog rows to open) invites interaction;
@@ -53,16 +66,31 @@ button.pill {
 button.pill:hover,
 button.pill[aria-expanded='true'] {
   background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
 }
 
-.label {
+/* Headline figure: the one reading each pill exists to answer. One tier
+   up from the row so the number lands before the qualifier. */
+.fig {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-weight: 600;
+  color: var(--dsw-alias-label-secondary);
+  letter-spacing: -0.01em;
 }
 
-.sep {
-  color: var(--dsw-alias-separator-primary);
-  margin: 0 6px;
+/* Figure unit (tok/s, %, tok): smaller and back at the row's tier. */
+.fig small {
+  font-size: 0.85em;
+  font-weight: 500;
+  color: var(--dsw-alias-label-tertiary);
+  margin-left: 2px;
+}
+
+/* Muted qualifier after the figure (context, not a second reading). */
+.what {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--dsw-alias-label-tertiary);
 }

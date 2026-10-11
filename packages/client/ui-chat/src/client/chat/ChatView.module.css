@@ -51,10 +51,17 @@
   margin-top: var(--dsh-chat-flow-gap, 16px);
 }
 
-/* Settled-flow identity boundary. It is neutral until it becomes the natural
-   measurement/mount unit for a virtualizer without changing the column gap. */
+/* Settled-flow identity boundary and the row window's mount unit: shells
+   stay mounted with their data-chat-* identity and a reserved height while
+   row-window.ts gates content rendering by viewport proximity (340px is the
+   shared estimate). content-visibility layers on top so live-but-offscreen
+   rows inside the overscan band still skip layout/paint until the browser
+   needs them — its intrinsic size matches the row-window estimate, and the
+   browser's `auto` size caches each row's last real height from then on. */
 .flowItem {
   min-width: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 340px;
 }
 
 /* A fold control pairs with the rows it summarizes at the same tight rhythm
@@ -108,6 +115,9 @@
    brand-blue band sweeps from left to right; reduced-motion keeps it static. */
 .turnStatus {
   align-self: flex-start;
+  /* Caps the fit-content row at the column width so .turnStatusText's
+     ellipsis constraint actually engages on long purposes. */
+  max-width: 100%;
   flex: none;
   display: inline-flex;
   align-items: center;

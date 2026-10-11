@@ -42,9 +42,14 @@ const TIMELINES = [{
   ],
 }]
 
-function Row({ openFile }: { openFile: (path: string, options?: unknown) => void }): ReactNode {
+function Row({
+  openFile, turn,
+}: {
+  openFile: (path: string, options?: unknown) => void
+  turn?: unknown
+}): ReactNode {
   return createElement(TurnChipRow, {
-    turn: { turn: 2 },
+    turn: turn ?? { turn: 2 },
     seq: 1,
     openFile,
     slots: () => Promise.resolve(TIMELINES as never),
@@ -78,6 +83,29 @@ describe('TurnChipRow', () => {
     expect(openFile).toHaveBeenLastCalledWith('src/notes.txt', { display: 'changes', stop: 'c2' })
     act(() => { fireEvent.click(note as HTMLElement) })
     expect(openFile).toHaveBeenLastCalledWith('src/notes.txt', { line: 4 })
+  })
+
+  it('auto-opens the first worktree chip of a freshly closed turn', async () => {
+    const openFile = vi.fn()
+    render(createElement(Row, {
+      openFile,
+      turn: { turn: 2, status: 'closed', end: { time: Date.now() } },
+    }))
+    await waitFor(() => {
+      expect(openFile).toHaveBeenCalledWith('src/notes.txt', { display: 'changes', stop: 'c2' })
+    })
+    expect(openFile).toHaveBeenCalledTimes(1)
+  })
+
+  it('waits for a click when the turn closed before the recency window', async () => {
+    const openFile = vi.fn()
+    render(createElement(Row, {
+      openFile,
+      turn: { turn: 2, status: 'closed', end: { time: Date.now() - 60_000 } },
+    }))
+    await screen.findAllByText('notes.txt')
+    await act(async () => {})
+    expect(openFile).not.toHaveBeenCalled()
   })
 
   it('renders nothing for a turn with no slots', async () => {

@@ -194,19 +194,27 @@ function latestToolPurpose(calls: readonly RunningToolCall[]): string | null {
 }
 
 /** Turn-level activity row: the stock pixel DO loader rides alongside the
- * latest tool event's purpose, which slides and fades in on every change.
- * Falls back to the swimming label when the last event carries no purpose. */
+ * last tool-call purpose, which sticks through events that carry none (call
+ * completions, streaming gaps) — the row mounts only while the turn runs, so
+ * the stickiness resets on turn end. Slides and fades in on every change.
+ * Falls back to the swimming label until the first purpose arrives. */
 function TurnStatus({ t, purpose }: {
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
   /** Latest tool-call purpose, or null while nothing carries one. */
   purpose: string | null
 }) {
+  // Same-component adjust-during-render: the last purpose-carrying tool call
+  // keeps the line until a younger purpose lands, instead of letting the
+  // latest event erase it back to the swim label.
+  const [lastPurpose, setLastPurpose] = useState<string | null>(null)
+  if (purpose !== null && purpose !== lastPurpose) setLastPurpose(purpose)
+  const text = purpose ?? lastPurpose
   return (
     <div className={css.turnStatus} role="status" aria-live="polite">
       <PixelLoader className={css.turnStatusSpinner} />
       {/* Keyed by the text so a change remounts the span and replays the sweep. */}
-      <span key={purpose ?? ''} className={css.turnStatusText}>{purpose ?? t('chat.swimming')}</span>
+      <span key={text ?? ''} className={css.turnStatusText}>{text ?? t('chat.swimming')}</span>
     </div>
   )
 }
@@ -317,7 +325,6 @@ export function ChatView({
   const [atBottom, setAtBottom] = useState(() => chatScroll.read() === null)
   const atBottomRef = useRef(atBottom)
   const scrollSamplePendingRef = useRef(false)
-  const [, setScrollSampleTick] = useState(0)
   const [activeTurn, setActiveTurn] = useState<number | null>(
     () => turnNavigationItems.at(-1)?.turn ?? null,
   )
@@ -601,8 +608,9 @@ export function ChatView({
       scrollSamplePendingRef.current = false
       if (sampleTimer !== undefined) window.clearTimeout(sampleTimer)
       sampleTimer = undefined
+      // The sampled pass publishes through setAtBottom/setActiveTurn; no
+      // blank slate re-render rides the 500ms cadence anymore.
       onScrollRef.current()
-      setScrollSampleTick(tick => tick + 1)
     }
     const onScroll = (): void => {
       scrollSamplePendingRef.current = true
@@ -768,7 +776,7 @@ export function ChatView({
 
   return (
     <div className={css.root}>
-      <div ref={listRef} className={css.scroll}>
+      <div ref={listRef} className={css.scroll} data-chat-window-root="">
         <TurnNavigator
           items={railItems}
           activeTurn={activeTurn}
@@ -777,7 +785,7 @@ export function ChatView({
           t={t}
         />
         <div ref={columnRef} className={css.column} data-chat-flow="">
-          {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
+            {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
           {openState === 'error' && openError !== null && (
             <div className={css.openError}>
               {t('chat.loadError', { message: openError.message, code: openError.code })}

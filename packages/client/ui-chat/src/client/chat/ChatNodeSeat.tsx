@@ -5,6 +5,7 @@ import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts
 import type { ChatNode } from '../contract/chat-nodes.ts'
 import { FOLDABLE_MEMBER_KINDS, spanKey } from '../contract/span-fold.ts'
 import { useFoldedHidden } from './fold-hidden.ts'
+import { useChatRowWindow } from './row-window.tsx'
 import { StepSpanDisclosure } from './StepSpanDisclosure.tsx'
 import css from './ChatView.module.css'
 
@@ -72,6 +73,9 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     if (processMember && !open && span !== undefined) actions.setSpanOpen(span, true)
   }, [actions, open, processMember, span])
   const { ref: wrapperRef, shellHidden } = useFoldedHidden(processHidden, revealSpan)
+  // Viewport-window gating: the shell and its data-chat-* identity ride the
+  // scroll contract either way; content only mounts near the reader.
+  const { live, dormantHeight } = useChatRowWindow(nodeKey, wrapperRef)
   const owner = useMemo<ChatNodeOwnerProps | null>(() => node === undefined
     ? null
     : {
@@ -106,33 +110,44 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-rail={railProcess ? 'process' : undefined}
       data-turn-process-member={processMember || undefined}
       data-turn-process-hidden={shellHidden || undefined}
+      data-row-dormant={live ? undefined : ''}
     >
-      {showDisclosure && (
-        <StepSpanDisclosure
-          turn={fold.turn}
-          step={fold.step}
-          endStep={fold.endStep}
-          toolCalls={fold.toolCalls}
-          thoughts={fold.thoughts}
-          subagents={fold.subagents}
-          contexts={fold.contexts}
-          running={fold.running}
-          open={open}
-          setOpen={setOpen}
-          t={t}
-        />
+      {live ? (
+        <>
+          {showDisclosure && (
+            <StepSpanDisclosure
+              turn={fold.turn}
+              step={fold.step}
+              endStep={fold.endStep}
+              toolCalls={fold.toolCalls}
+              thoughts={fold.thoughts}
+              subagents={fold.subagents}
+              contexts={fold.contexts}
+              running={fold.running}
+              open={open}
+              setOpen={setOpen}
+              t={t}
+            />
+          )}
+          {renderSlot('conversation.chat.node', routedOwner, {
+            entryKey: routedNode.kind,
+            hookContext: turnData,
+            fallback: (
+              <JsonBlock
+                label={t('message.unknownSurface', { type: routedNode.kind })}
+                payload={routedNode.data}
+                truncatedLabel={total => t('json.truncated', { total })}
+              />
+            ),
+          })}
+        </>
+      ) : (
+        // Dormant row: identity stays queryable, geometry reserved. The
+        // spacer child keeps the shell non-empty so the column's adjacent
+        // gap rule keeps applying around windows the reader cannot see.
+        // Content remounts with the same subscriptions and live history.
+        <div aria-hidden="true" style={{ height: dormantHeight }} />
       )}
-      {renderSlot('conversation.chat.node', routedOwner, {
-        entryKey: routedNode.kind,
-        hookContext: turnData,
-        fallback: (
-          <JsonBlock
-            label={t('message.unknownSurface', { type: routedNode.kind })}
-            payload={routedNode.data}
-            truncatedLabel={total => t('json.truncated', { total })}
-          />
-        ),
-      })}
     </div>
   )
 })

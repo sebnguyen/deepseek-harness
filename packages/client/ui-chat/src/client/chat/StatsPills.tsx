@@ -1,10 +1,13 @@
-// Session stats under the composer, split into three readings: a gauge pill
-// (turn/step counts + output speeds over the recent five requests and the
-// newest one) opening the time-and-speed dialog, a database pill (input/cache/output token buckets
-// + cache hit) opening the token-usage dialog, and a cost pill (total spend
-// + the live blended rate per million tokens) opening the spend dialog, whose
-// rows list the cache hit and the per-model spend, rolling the viewed
-// session's subagent descendants in through the list rows' parent chains.
+// Session stats under the composer as one quiet caption line: each pill is a
+// single headline figure with an optional muted qualifier — the gauge pill
+// (newest request's output speed, qualified by the pooled recent-five rate)
+// opening the time-and-speed dialog, a database pill (the cache-hit share,
+// qualified by the whole-log token total) opening the token-usage dialog, and
+// a cost pill (total spend, qualified by the live blended rate per million
+// tokens) opening the spend dialog, whose rows list the cache hit and the
+// per-model spend, rolling the viewed session's subagent descendants in
+// through the list rows' parent chains. Turn/step counts headline only while
+// no timed figure exists; otherwise they read as the time dialog's top row.
 // Settled-node identity prevents stream-delta updates from rerendering the row.
 // Mounted on 'conversation.composer.dock' so it sticks with the composer in the
 // active conversation scrollport (see ConversationRoot data-conversation-scroll).
@@ -189,11 +192,12 @@ type PillDialog = Pick<ReturnType<typeof useStatDialog>, 'open' | 'setOpen'>
 
 /**
  * The button chrome the three pills share: dialog affordance, accessible
- * name from the shown segments, the seat glyph, and the label content.
+ * name from the shown segments, the seat glyph, and the headline/qualifier
+ * content.
  * @param seat - the pill's dialog seat.
  * @param segments - shown label segments; the accessible name joins them.
  * @param icon - the pill's seat glyph.
- * @param children - label content.
+ * @param children - headline figure plus optional qualifier.
  * @returns the pill button.
  */
 function StatPillButton({ seat, segments, icon, children }: {
@@ -212,7 +216,7 @@ function StatPillButton({ seat, segments, icon, children }: {
       onClick={() => { seat.setOpen(!seat.open) }}
     >
       {icon}
-      <span className={css.label}>{children}</span>
+      {children}
     </button>
   )
 }
@@ -271,48 +275,46 @@ function TimePill({ stats, lastTps, t, dialog }: {
 }) {
   const seat = useStatDialog(dialog)
   const counts = t('stats.counts', { turns: stats.turns, steps: stats.steps })
-  const last5 = stats.recent5DecodeMs > 0
-    ? t('stats.last5Tps', {
-      tps: formatTokensPerSecond(stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000)),
-    })
+  // The pooled recency rate rides the durable projection (window fold as
+  // fallback), so paging cannot drop it the way a window-only reading drops.
+  const recent5Tps = stats.recent5DecodeMs > 0
+    ? formatTokensPerSecond(stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000))
     : null
-  const last = lastTps !== null
-    ? t('stats.lastTps', { tps: formatTokensPerSecond(lastTps) })
-    : null
-  const segments = [counts, last5, last].filter((s): s is string => s !== null)
-  const label = (
-    <>
-      {counts}
-      {last5 !== null && (
-        <>
-          <span className={css.sep} aria-hidden>·</span>
-          {last5}
-        </>
-      )}
-      {last !== null && (
-        <>
-          <span className={css.sep} aria-hidden>·</span>
-          {last}
-        </>
-      )}
-    </>
-  )
+  const hasRows = stats.llmMs > 0 || stats.toolMs > 0 || stats.ttftSteps > 0 || stats.decodeMs > 0
   // A window without one timed figure has no dialog rows to show, so the pill
-  // stays a plain reading instead of a button opening an empty dialog.
-  if (stats.llmMs <= 0 && stats.toolMs <= 0 && stats.ttftSteps <= 0 && stats.decodeMs <= 0) {
+  // stays a plain counts reading instead of a button opening an empty dialog.
+  if (!hasRows) {
     return (
       <span className={css.anchor}>
         <span className={css.pill}>
           <IconGaugeOutline16 />
-          <span className={css.label}>{label}</span>
+          <span className={css.fig}>{counts}</span>
         </span>
       </span>
     )
   }
+  // Headline: the newest request's speed; the recency pool qualifies it (or
+  // headlines itself when no per-request reading is available). A projection
+  // that serves times without sampled speeds falls back to the counts figure.
+  const headTps = lastTps !== null ? formatTokensPerSecond(lastTps) : recent5Tps
+  const speedText = headTps === null ? null : t('message.tokensPerSecond', { tps: headTps })
+  const qualifier = lastTps !== null && recent5Tps !== null
+    ? t('stats.qline.recentAvg', { tps: recent5Tps })
+    : null
+  const segments = speedText === null
+    ? [counts]
+    : [speedText, ...(qualifier === null ? [] : [qualifier])]
   return (
     <span ref={seat.rootRef} className={css.anchor}>
       <StatPillButton seat={seat} segments={segments} icon={<IconGaugeOutline16 />}>
-        {label}
+        {speedText === null
+          ? <span className={css.fig}>{counts}</span>
+          : (
+            <>
+              <span className={css.fig}>{headTps}<small>tok/s</small></span>
+              {qualifier !== null && <span className={css.what}>{qualifier}</span>}
+            </>
+          )}
       </StatPillButton>
       <StatDialogPanel
         seat={seat}
@@ -321,6 +323,8 @@ function TimePill({ stats, lastTps, t, dialog }: {
         title={t('stats.dialog.title')}
       >
         <dl className={dialogCss.details} data-session-stats-details>
+          <dt>{t('stats.dialog.counts')}</dt>
+          <dd>{counts}</dd>
           {stats.llmMs > 0 && (
             <>
               <dt>{t('stats.dialog.llmTime')}</dt>
@@ -375,28 +379,27 @@ function UsagePill({ usage, t, dialog }: {
   const seat = useStatDialog(dialog)
   // Same aggregate as the Turn pill's totalTokens: every prompt-side billing bucket plus output.
   const total = billedInputTokens(usage) + usage.outputTokens
-  const inputText = t('stats.usageInput', { count: formatTokens(usage.uncachedInputTokens, t) })
-  const cacheText = t('stats.usageCache', { count: formatTokens(usage.cacheReadTokens, t) })
-  const outputText = t('stats.usageOutput', { count: formatTokens(usage.outputTokens, t) })
+  const totalText = formatTokens(total, t)
   const cacheHit = cacheHitPercent(usage)
-  const cacheHitText = cacheHit !== null ? t('stats.cacheHit', { percent: cacheHit }) : null
-  const segments = cacheHitText === null
-    ? [inputText, cacheText, outputText]
-    : [inputText, cacheText, outputText, cacheHitText]
+  // Headline: the cache-hit share — the reading the buckets exist to explain —
+  // qualified by the whole-log total. Output-only activity (nothing billed on
+  // the input side) has no share, so the total headlines alone; the dialog
+  // keeps the exact per-bucket rows either way.
+  const withHit = cacheHit !== null
+  const qualifier = withHit ? t('stats.qline.cacheHitOf', { count: totalText }) : null
+  const figText = withHit ? `${cacheHit}%` : t('message.turnUsage.count', { count: totalText })
+  const segments = qualifier === null ? [figText] : [figText, qualifier]
   return (
     <span ref={seat.rootRef} className={css.anchor}>
       <StatPillButton seat={seat} segments={segments} icon={<IconDatabaseOutline16 />}>
-        {inputText}
-        <span className={css.sep} aria-hidden>·</span>
-        {cacheText}
-        <span className={css.sep} aria-hidden>·</span>
-        {outputText}
-        {cacheHitText !== null && (
-          <>
-            <span className={css.sep} aria-hidden>·</span>
-            {cacheHitText}
-          </>
-        )}
+        {withHit
+          ? (
+            <>
+              <span className={css.fig}>{cacheHit}<small>%</small></span>
+              <span className={css.what}>{qualifier}</span>
+            </>
+          )
+          : <span className={css.fig}>{totalText}<small>tok</small></span>}
       </StatPillButton>
       <StatDialogPanel
         seat={seat}
@@ -526,7 +529,8 @@ function CostPill({ cost, rollup, t, dialog }: {
 }) {
   const seat = useStatDialog(dialog)
   const rate = perMillionMicros(cost.costMicros, spendTokens(cost))
-  const costText = t('stats.cost', { amount: formatUsdMicros(cost.costMicros, t) })
+  // Headline: the spend amount; the blended rate qualifies it.
+  const costText = formatUsdMicros(cost.costMicros, t)
   const rateText = rate !== null
     ? t('stats.costPerMillion', { amount: formatUsdMicros(rate, t) })
     : null
@@ -540,13 +544,8 @@ function CostPill({ cost, rollup, t, dialog }: {
   return (
     <span ref={seat.rootRef} className={css.anchor}>
       <StatPillButton seat={seat} segments={segments} icon={<IconDataOutline16 />}>
-        {costText}
-        {rateText !== null && (
-          <>
-            <span className={css.sep} aria-hidden>·</span>
-            {rateText}
-          </>
-        )}
+        <span className={css.fig}>{costText}</span>
+        {rateText !== null && <span className={css.what}>{rateText}</span>}
       </StatPillButton>
       <StatDialogPanel
         seat={seat}

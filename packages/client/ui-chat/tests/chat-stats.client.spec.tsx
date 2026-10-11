@@ -262,12 +262,13 @@ describe('StatsPills', () => {
     // No timing on the fixture: the speed segment drops out and the dialog
     // would have no rows, so the counts reading stays a static pill (no button).
     expect(view.getByText('1 turns 1 steps').closest('button')).toBeNull()
-    // Hit comes from the projection, so paging the window cannot change
-    // it; the usage pill leads with the whole-log token total. Its accessible
-    // name separates the segments the visual sep glyph joins.
+    // The usage pill headlines the cache-hit share and qualifies it with the
+    // whole-log total (10 + 90 cached + 0 write + 5 out = 105); the per-bucket
+    // breakdown lives behind the click. Its accessible name separates the
+    // headline from the qualifier the layout spaces apart.
     const usagePill = view.getAllByRole('button')
-    expect(usagePill.map(pill => pill.textContent)).toEqual(['In 10·Cache 90·Out 5·Hit 90%'])
-    expect(usagePill[0]!.getAttribute('aria-label')).toBe('In 10 · Cache 90 · Out 5 · Hit 90%')
+    expect(usagePill.map(pill => pill.textContent)).toEqual(['90%cache hit · 105 tok'])
+    expect(usagePill[0]!.getAttribute('aria-label')).toBe('90% · cache hit · 105 tok')
     const empty = makeSource()
     const emptyView = render(<StatsPills {...props(empty.source, {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 },
@@ -278,34 +279,35 @@ describe('StatsPills', () => {
   })
 
   it.each([
-    { actual: '98.6%', tokenUsageValue: tokenUsage(986, 14), expected: 'Hit 99%' },
-    { actual: '99.1%', tokenUsageValue: tokenUsage(991, 9), expected: 'Hit 99%' },
-    { actual: '99.49%', tokenUsageValue: tokenUsage(9_949, 51), expected: 'Hit 99%' },
-    { actual: '99.5%', tokenUsageValue: tokenUsage(995, 5), expected: 'Hit 99.5%' },
-    { actual: '99.94%', tokenUsageValue: tokenUsage(9_994, 6), expected: 'Hit 99.9%' },
-    { actual: '99.95%', tokenUsageValue: tokenUsage(9_995, 5), expected: 'Hit 99.95%' },
-    { actual: '99.955%', tokenUsageValue: tokenUsage(19_991, 9), expected: 'Hit 99.96%' },
-    { actual: '99.985%', tokenUsageValue: tokenUsage(19_997, 3), expected: 'Hit 99.99%' },
-    { actual: '99.995%', tokenUsageValue: tokenUsage(19_999, 1), expected: 'Hit 99.995%' },
-    { actual: '99.9975%', tokenUsageValue: tokenUsage(39_999, 1), expected: 'Hit 99.998%' },
+    { actual: '98.6%', tokenUsageValue: tokenUsage(986, 14), expected: '99%' },
+    { actual: '99.1%', tokenUsageValue: tokenUsage(991, 9), expected: '99%' },
+    { actual: '99.49%', tokenUsageValue: tokenUsage(9_949, 51), expected: '99%' },
+    { actual: '99.5%', tokenUsageValue: tokenUsage(995, 5), expected: '99.5%' },
+    { actual: '99.94%', tokenUsageValue: tokenUsage(9_994, 6), expected: '99.9%' },
+    { actual: '99.95%', tokenUsageValue: tokenUsage(9_995, 5), expected: '99.95%' },
+    { actual: '99.955%', tokenUsageValue: tokenUsage(19_991, 9), expected: '99.96%' },
+    { actual: '99.985%', tokenUsageValue: tokenUsage(19_997, 3), expected: '99.99%' },
+    { actual: '99.995%', tokenUsageValue: tokenUsage(19_999, 1), expected: '99.995%' },
+    { actual: '99.9975%', tokenUsageValue: tokenUsage(39_999, 1), expected: '99.998%' },
     {
       actual: 'the closest non-full ratio available from safe integer cumulative counts',
       tokenUsageValue: tokenUsage(Number.MAX_SAFE_INTEGER - 1, 1),
-      expected: 'Hit 99.99999999999999%',
+      expected: '99.99999999999999%',
     },
-    { actual: '100%', tokenUsageValue: tokenUsage(10_000, 0), expected: 'Hit 100%' },
+    { actual: '100%', tokenUsageValue: tokenUsage(10_000, 0), expected: '100%' },
   ])('formats an actual $actual cache-hit ratio as $expected', ({ tokenUsageValue, expected }) => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsPills {...props(source, { tokenUsage: tokenUsageValue })} />)
     expect(view.getAllByRole('button')[0]!.textContent).toContain(expected)
   })
 
-  it('exposes output speed on the counts pill when decode timing exists', () => {
+  it('exposes output speed as the headline figure when decode timing exists', () => {
     const { source } = makeSource({ nodes: [timedStep()] })
     const view = render(<StatsPills {...props(source)} />)
     const timePill = view.getAllByRole('button')[0]!
-    expect(timePill.textContent).toBe('1 turns 1 steps·Last 5 20 tok/s·Last 20 tok/s')
-    expect(timePill.getAttribute('aria-label')).toBe('1 turns 1 steps · Last 5 20 tok/s · Last 20 tok/s')
+    // Newest-request speed headlines; the pooled recency rate qualifies it.
+    expect(timePill.textContent).toBe('20tok/srecent avg 20')
+    expect(timePill.getAttribute('aria-label')).toBe('20 tok/s · recent avg 20')
   })
 
   it('click-opens the time-and-speed dialog carrying the time split and speeds', () => {
@@ -326,6 +328,8 @@ describe('StatsPills', () => {
     expect(dialog.firstChild?.textContent).toBe('Session statistics')
     const details = dialog.querySelector('[data-session-stats-details]') as HTMLElement
     expect(details).toBeTruthy()
+    // Turn/step counts moved off the pill: the dialog opens with them now.
+    expect(details.textContent).toContain('Turns · steps1 turns 1 steps')
     expect(details.textContent).toContain('LLM time3.8s')
     // No tool call in this session: the row is absent, not zeroed.
     expect(details.textContent).not.toContain('Tool time')
@@ -399,9 +403,9 @@ describe('StatsPills', () => {
     const { source } = makeSource({ nodes: [timedStep()] })
     const view = render(<StatsPills {...props(source, { tokenUsage: tokenUsage(9_995, 5) })} t={t} />)
     const [timePill, usagePill] = [...view.getAllByRole('button')] as [HTMLElement, HTMLElement]
-    expect(timePill.textContent).toBe('1 轮 1 步·近 5 次 20 tok/s·上次 20 tok/s')
-    // cacheRead 9995 compacts to 10K.
-    expect(usagePill.textContent).toBe('输入 5·缓存 10K·输出 1·命中 99.95%')
+    expect(timePill.textContent).toBe('20tok/s近期均值 20')
+    // cacheRead 9995 compacts the 10001-token total to 10K.
+    expect(usagePill.textContent).toBe('99.95%缓存命中 · 10K tok')
     fireEvent.click(timePill)
     const timeDialog = view.getByRole('dialog')
     expect(timeDialog.getAttribute('aria-label')).toBe('会话统计')
@@ -426,7 +430,7 @@ describe('StatsPills', () => {
     // Context occupancy lives on the composer's ContextMeter ring, not here.
     const pills = view.getAllByRole('button')
     expect(pills).toHaveLength(1)
-    expect(pills[0]!.textContent).toBe('In 10·Cache 90·Out 5·Hit 90%')
+    expect(pills[0]!.textContent).toBe('90%cache hit · 105 tok')
   })
 
   it('drops the usage pill when no projection is composed', () => {
@@ -496,9 +500,9 @@ describe('StatsPills', () => {
       }),
     })} />)
     const timePill = view.getAllByRole('button')[0]!
-    // The untimed loaded window yields no newest-request reading, but the
-    // recent-five pool rides the durable projection.
-    expect(timePill.textContent).toBe('200 turns 200 steps·Last 5 20 tok/s')
+    // The untimed loaded window yields no newest-request reading, so the
+    // recent-five pool headlines alone; counts moved into the dialog.
+    expect(timePill.textContent).toBe('20tok/s')
     fireEvent.click(timePill)
     const dialog = view.getByRole('dialog')
     expect(dialog.textContent).toContain('LLM time1m40s')
@@ -515,8 +519,9 @@ describe('StatsPills', () => {
       tokenUsage: { uncachedInputTokens: 0, outputTokens: 7, cacheReadTokens: 0, cacheWriteTokens: 0 },
     })} />)
     const usagePill = view.getAllByRole('button')[0]!
-    expect(usagePill.textContent).toBe('In 0·Cache 0·Out 7')
-    expect(usagePill.getAttribute('aria-label')).toBe('In 0 · Cache 0 · Out 7')
+    // Output-only activity: no share to headline, so the total stands alone.
+    expect(usagePill.textContent).toBe('7tok')
+    expect(usagePill.getAttribute('aria-label')).toBe('7 tok')
     // Output-only activity still fills the dialog's token rows.
     fireEvent.click(usagePill)
     expect(view.getByRole('dialog').textContent).toContain('Output7 tok')
@@ -532,17 +537,17 @@ describe('StatsPills', () => {
         cacheWriteTokens: 100,
       },
     })} />)
-    expect(view.getAllByRole('button')[0]!.textContent).toBe('In 10·Cache 90·Out 7·Hit 45%')
+    expect(view.getAllByRole('button')[0]!.textContent).toBe('45%cache hit · 207 tok')
     // A session that did write cache keeps the row, exact.
     fireEvent.click(view.getAllByRole('button')[0]!)
     expect(view.getByRole('dialog').textContent).toContain('Cache write100 tok')
   })
 
   it.each([
-    { micros: 0, expected: 'Cost $0.00' },
-    { micros: 34_200, expected: 'Cost $0.0342' },
-    { micros: 850_000, expected: 'Cost $0.850' },
-    { micros: 1_850_000, expected: 'Cost $1.85' },
+    { micros: 0, expected: '$0.00' },
+    { micros: 34_200, expected: '$0.0342' },
+    { micros: 850_000, expected: '$0.850' },
+    { micros: 1_850_000, expected: '$1.85' },
   ])('renders the cost pill with the live blended rate ($expected)', ({ micros, expected }) => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsPills {...props(source, {
@@ -551,7 +556,7 @@ describe('StatsPills', () => {
     })} />)
     // The rate segment spreads the same figure over the fixture's one million
     // billed tokens, so per-million equals the headline amount.
-    expect(view.container.textContent).toContain(`${expected}·${expected.slice('Cost '.length)}/M tok`)
+    expect(view.container.textContent).toContain(`${expected}${expected}/M tok`)
   })
 
   it('click-opens the spend dialog carrying the blended rate, cache hit, and per-model rows', () => {
@@ -669,7 +674,7 @@ describe('StatsPills', () => {
       sessionCost: zero,
     })} />)
     const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
-    expect(costPill.textContent).toBe('Cost $0.00')
+    expect(costPill.textContent).toBe('$0.00')
     fireEvent.click(costPill)
     const details = view.getByRole('dialog').querySelector('[data-session-stats-cost]') as HTMLElement
     expect(details.textContent).not.toContain('Per 1M tok')
@@ -691,7 +696,7 @@ describe('StatsPills', () => {
       sessionCost: outOnly,
     })} />)
     const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
-    expect(costPill.textContent).toBe('Cost $0.500·$1.00/M tok')
+    expect(costPill.textContent).toBe('$0.500$1.00/M tok')
     fireEvent.click(costPill)
     const details = view.getByRole('dialog').querySelector('[data-session-stats-cost]') as HTMLElement
     expect(details.textContent).toContain('Per 1M tok$1.00/M tok')
@@ -705,7 +710,7 @@ describe('StatsPills', () => {
       sessionCost: COST_FIXTURE(1_000_000),
     })} t={t} />)
     const costPill = [...view.getAllByRole('button')].find(el => el.textContent.includes('$'))!
-    expect(costPill.textContent).toBe('费用 $1.00·$1.00/百万 tok')
+    expect(costPill.textContent).toBe('$1.00$1.00/百万 tok')
     fireEvent.click(costPill)
     const dialog = view.getByRole('dialog')
     expect(dialog.getAttribute('aria-label')).toBe('花费')
@@ -717,7 +722,7 @@ describe('StatsPills', () => {
   it('renders no cost pill when the deployment declared no rates', () => {
     const { source } = makeSource({ nodes: [assistant(1, 1)] })
     const view = render(<StatsPills {...props(source)} />)
-    expect(view.container.textContent).not.toContain('Cost $')
+    expect(view.container.textContent).not.toContain('$')
   })
 
   it('renders ZERO times during streaming chunk frames (RFC hard acceptance)', () => {

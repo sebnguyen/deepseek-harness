@@ -556,6 +556,35 @@ describe('Chat node rendering', () => {
 })
 
 describe('ChatView', () => {
+  it('keeps the last tool-call purpose through purpose-less events until a younger purpose lands', () => {
+    const purposed = (callId: string, purpose: string): RunningToolCall => ({
+      ...runningCall(callId),
+      argsRaw: JSON.stringify({ command: `cmd-${callId}`, _dsh_harness_purpose: purpose }),
+    })
+    const h = makeHarness(
+      { nodes: [user(1, 'try')], runningCalls: [purposed('a', 'Searching the schema')] },
+      { running: true },
+    )
+    const view = render(<h.ChatView {...h.props} />)
+    const status = () => view.getByRole('status')
+    expect(status().textContent).toBe('Searching the schema')
+
+    // The call leaving runningCalls (its completion event carries no purpose)
+    // does not drop the line back to the swimming label.
+    act(() => { h.set({ runningCalls: [] }) })
+    expect(status().textContent).toBe('Searching the schema')
+
+    // A younger purpose replaces the sticky one on sight.
+    act(() => { h.set({ runningCalls: [purposed('b', 'Reading the config')] }) })
+    expect(status().textContent).toBe('Reading the config')
+
+    // Turn end unmounts the row; the next turn starts from the swim label.
+    act(() => { h.set({ running: false, runningCalls: [] }) })
+    expect(view.queryByRole('status')).toBeNull()
+    act(() => { h.set({ running: true }) })
+    expect(status().textContent).toBe('游泳中…')
+  })
+
   it('leaves the turn rail unrendered when an unrelated Chat update commits', () => {
     const snapshot = chatSnapshotFixture({
       nodes: [
