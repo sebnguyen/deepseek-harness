@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Guide — DigitalOcean launch sketch</title>
+<style>
+  /* DigitalOcean color template: canonical DO blue #0069FF and an ocean
+     gradient strip, on midnight navy surfaces. Dark mode is the default
+     (this sketch's hero); [data-do-light] is the azure light variant.
+     The "before" replica below keeps the production --dsw token values
+     inline so the comparison stays faithful. */
+  body {
+    /* ocean dark (default) */
+    --do-bg: #060c1a;
+    --do-glow-1: rgba(0, 105, 255, 0.16);
+    --do-glow-2: rgba(0, 200, 255, 0.10);
+    --do-surface: #0b1626;
+    --do-surface-2: #101e33;
+    --do-ink: #eaf2ff;
+    --do-ink-2: #a9bfd9;
+    --do-ink-3: #6e86a6;
+    --do-line: rgba(148, 190, 255, 0.14);
+    --do-line-2: rgba(148, 190, 255, 0.24);
+    --do-accent: #3d8bff;
+    --do-accent-deep: #0069ff;
+    --do-chip-bg: rgba(61, 139, 255, 0.14);
+    --do-mask: rgba(3, 8, 20, 0.62);
+    --do-skel: rgba(148, 190, 255, 0.08);
+    --do-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+      'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --do-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+      'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
+    background: var(--do-bg);
+    color: var(--do-ink);
+  }
+  body[data-do-light] {
+    /* azure light */
+    --do-bg: #eef4ff;
+    --do-glow-1: rgba(0, 105, 255, 0.10);
+    --do-glow-2: rgba(0, 200, 255, 0.08);
+    --do-surface: #ffffff;
+    --do-surface-2: #eef4ff;
+    --do-ink: #0a1b33;
+    --do-ink-2: #3c5470;
+    --do-ink-3: #6e84a3;
+    --do-line: rgba(0, 61, 145, 0.12);
+    --do-line-2: rgba(0, 61, 145, 0.22);
+    --do-accent: #0069ff;
+    --do-accent-deep: #0069ff;
+    --do-chip-bg: rgba(0, 105, 255, 0.08);
+    --do-mask: rgba(9, 30, 66, 0.32);
+    --do-skel: rgba(0, 80, 180, 0.07);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: var(--do-font);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(60% 45% at 15% 0%, var(--do-glow-1), transparent 70%),
+      radial-gradient(50% 40% at 95% 15%, var(--do-glow-2), transparent 70%);
+    background-attachment: fixed;
+  }
+
+  /* ---------- sketch chrome ---------- */
+  .sketch-head { max-width: 1280px; margin: 28px auto 14px; padding: 0 20px; }
+  .sketch-head .tag {
+    display: inline-block; font: 600 10px/16px var(--do-mono);
+    letter-spacing: 0.14em; text-transform: uppercase;
+    border: 0.5px solid var(--do-line-2); border-radius: 999px;
+    padding: 2px 9px; color: var(--do-ink-2);
+  }
+  .sketch-head h2 { margin: 8px 0 4px; font-size: 18px; letter-spacing: -0.01em; }
+  .sketch-head p { margin: 0; color: var(--do-ink-2); max-width: 96ch; }
+  .sketch-head code {
+    font-family: var(--do-mono); font-size: 12px;
+    background: var(--do-chip-bg); border-radius: 4px; padding: 1px 5px;
+  }
+  #theme-toggle {
+    position: fixed; top: 18px; right: 18px; z-index: 60;
+    border: 0.5px solid var(--do-line-2); border-radius: 999px;
+    background: var(--do-surface); color: var(--do-ink-2);
+    font: 500 12px/1 var(--do-font); padding: 8px 12px; cursor: pointer;
+  }
+
+  /* ---------- the viewport: a fake app moment with the guide open ---------- */
+  .viewport {
+    position: relative; overflow: hidden;
+    max-width: 1280px; height: 780px; margin: 0 auto;
+    border: 0.5px solid var(--do-line); border-radius: 18px;
+    background: var(--do-bg);
+    box-shadow: 0 30px 80px -30px rgba(1, 6, 18, 0.6);
+  }
+
+  /* fake app behind the mask */
+  .fake-sidebar {
+    position: absolute; inset: 0 auto 0 0; width: 264px;
+    background: var(--do-surface-2);
+    border-right: 0.5px solid var(--do-line);
+    padding: 14px 10px; display: flex; flex-direction: column; gap: 6px;
+    z-index: 0;
+  }
+  .sb-row { flex: none; height: 30px; border-radius: 8px; background: var(--do-skel); }
+  .sb-row.w70 { width: 70%; } .sb-row.w85 { width: 85%; } .sb-row.w55 { width: 55%; }
+  .sb-spacer { flex: 1; }
+  .sb-trigger {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    height: 42px; padding: 0 10px 0 8px; border-radius: 12px;
+    color: var(--do-ink); font-size: 14px; cursor: pointer; user-select: none;
+    outline: 1.5px dashed color-mix(in srgb, var(--do-accent) 65%, transparent);
+    outline-offset: 3px;
+  }
+  .sb-trigger .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 8px;
+    color: var(--do-accent); background: var(--do-chip-bg);
+  }
+  .fake-main { position: absolute; inset: 0 0 0 264px; padding: 22px 28px; }
+  .bubble-u {
+    margin-left: auto; width: 46%; height: 56px; border-radius: 14px;
+    background: rgba(0, 105, 255, 0.18);
+  }
+  .bubble-a { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .bubble-a i { display: block; height: 10px; border-radius: 5px; background: var(--do-skel); }
+  .mask { position: absolute; inset: 0; background: var(--do-mask); z-index: 1; }
+
+  /* floating dialog: wrapper animates entrance, panel idles on a slow float */
+  .launch-wrap {
+    position: absolute; inset: 0; z-index: 2;
+    display: grid; place-items: center; pointer-events: none;
+    animation: wrap-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    transition: opacity 0.22s ease, visibility 0.22s;
+  }
+  .launch-wrap.closed { opacity: 0; visibility: hidden; }
+  @keyframes wrap-pop {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .launch {
+    pointer-events: auto; position: relative;
+    width: min(920px, calc(100% - 48px));
+    max-height: calc(100% - 48px);
+    display: flex; flex-direction: column;
+    border-radius: 24px; overflow: hidden auto;
+    background: var(--do-surface);
+    border: 1px solid var(--do-line);
+    color: var(--do-ink);
+    /* the floating element: layered cast shadow + soft blue ambience */
+    box-shadow:
+      0 40px 90px -12px rgba(1, 6, 18, 0.65),
+      0 12px 32px rgba(1, 6, 18, 0.40),
+      0 0 120px -40px rgba(0, 105, 255, 0.45);
+    animation: floaty 7s ease-in-out infinite alternate;
+  }
+  body[data-do-light] .launch {
+    box-shadow:
+      0 40px 80px -16px rgba(10, 60, 140, 0.28),
+      0 12px 28px rgba(10, 60, 140, 0.14),
+      0 0 120px -40px rgba(0, 105, 255, 0.30);
+  }
+  .launch.paused { animation-play-state: paused; }
+  @keyframes floaty { to { transform: translateY(-6px); } }
+
+  /* ocean signature strip: DO deep blue to cyan, full-bleed on top */
+  .strip {
+    flex: none; height: 5px;
+    background: linear-gradient(90deg,
+      #0052e6 0%, #0069ff 34%, #00b3f0 68%, #00e5c8 100%);
+  }
+
+  .hero { padding: 30px 48px 14px; }
+  .kicker {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    margin-bottom: 16px;
+  }
+  .kicker-left {
+    display: inline-flex; align-items: center; gap: 8px;
+    font: 600 10.5px/1 var(--do-mono);
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--do-ink-3);
+  }
+  .kicker-left svg { color: var(--do-accent); }
+  .kicker-tag {
+    font: 600 10.5px/1 var(--do-mono);
+    letter-spacing: 0.1em; text-transform: uppercase;
+    color: #fff; background: var(--do-accent-deep);
+    border-radius: 999px; padding: 6px 10px;
+  }
+  .display {
+    margin: 0 0 10px;
+    font-size: 50px; line-height: 1.0; font-weight: 700;
+    letter-spacing: -0.028em;
+  }
+  .display em { font-style: normal; color: var(--do-accent); }
+  .lede {
+    margin: 0; max-width: 66ch;
+    font-size: 14.5px; line-height: 24px;
+    color: var(--do-ink-2);
+  }
+  .hint {
+    margin-top: 10px;
+    font: 500 11px/1 var(--do-mono);
+    letter-spacing: 0.06em;
+    color: var(--do-ink-3);
+  }
+  .hint b { color: var(--do-accent); font-weight: 600; }
+
+  /* spec grid: hairline cells; each one is a door into the stage */
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border-top: 0.5px solid var(--do-line);
+    margin-top: 18px;
+  }
+  .cell {
+    padding: 14px 20px 16px; min-height: 138px;
+    border-right: 0.5px solid var(--do-line);
+    border-bottom: 0.5px solid var(--do-line);
+    display: flex; flex-direction: column; gap: 6px;
+    transition: background 0.15s ease;
+    cursor: pointer; user-select: none;
+  }
+  .cell:nth-child(3n) { border-right: none; }
+  .cell:hover { background: var(--do-chip-bg); }
+  .cell:focus-visible { outline: 2px solid var(--do-accent); outline-offset: -2px; }
+  .cell-top {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .num {
+    font: 500 10.5px/1 var(--do-mono);
+    letter-spacing: 0.08em;
+    color: var(--do-ink-3);
+  }
+  .chip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 9px;
+    color: var(--do-accent); background: var(--do-chip-bg);
+  }
+  .cell h3 {
+    margin: 0; font-size: 13px; line-height: 19px; font-weight: 600;
+    letter-spacing: -0.005em;
+  }
+  .cell p {
+    margin: 0; font-size: 12px; line-height: 18px;
+    color: var(--do-ink-2);
+  }
+  .cell p::after {
+    content: ' Open ↗';
+    font-family: var(--do-mono); font-size: 10px;
+    color: var(--do-accent); opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .cell:hover p::after { opacity: 1; }
+
+  .foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 11px 48px 13px;
+    font-size: 11px; line-height: 16px;
+    color: var(--do-ink-3);
+  }
+  .foot .sig {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-family: var(--do-mono); font-size: 10.5px;
+    color: var(--do-ink-2);
+  }
+  .foot .sig svg { color: var(--do-accent); }
+  kbd {
+    font: 500 10px/1 var(--do-mono);
+    border: 0.5px solid var(--do-line-2); border-bottom-width: 1.5px;
+    border-radius: 4px; padding: 2px 5px;
+    color: var(--do-ink-2);
+  }
+
+  /* ---------- the expanding stage: card → fills the frame ---------- */
+  .stage {
+    position: absolute; inset: 0; z-index: 5;
+    border-radius: 24px; overflow: hidden;
+    background: var(--do-surface);
+    border: 1px solid var(--do-line-2);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform-origin: 0 0;
+  }
+  .stage.on { opacity: 1; visibility: visible; pointer-events: auto; }
+  .stage-in {
+    display: flex; height: 100%;
+    opacity: 0; transition: opacity 0.28s ease 0.16s;
+  }
+  .stage.full .stage-in { opacity: 1; }
+
+  /* the "video" half */
+  .media {
+    flex: 0 0 44%; position: relative; overflow: hidden;
+    background:
+      radial-gradient(120% 90% at 20% 10%, hsl(var(--h, 215) 90% 62% / 0.55), transparent 60%),
+      radial-gradient(100% 85% at 88% 92%, hsl(calc(var(--h, 215) + 40) 85% 45% / 0.5), transparent 55%),
+      linear-gradient(160deg, hsl(var(--h, 215) 80% 17%), hsl(calc(var(--h, 215) + 20) 70% 9%));
+  }
+  .media .wm {
+    position: absolute; inset: 0; margin: auto;
+    width: 148px; height: 148px; color: rgba(255, 255, 255, 0.12);
+  }
+
+  /* light shafts: god-rays streaming down into the sea of the media pane.
+     Built by JS (seeded, so screenshots stay stable); blended SCREEN so the
+     shafts pick up each capability's --h hue. */
+  .rays {
+    position: absolute; inset: 0; overflow: hidden;
+    mix-blend-mode: screen; pointer-events: none;
+  }
+  .ray {
+    position: absolute; top: -12%; height: 132%;
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.18) 45%, transparent 78%);
+    border-radius: 999px;
+    filter: blur(6px);
+    transform: rotate(var(--drift, 0deg));
+    transform-origin: 50% -20%;
+    animation: ray-sway 9s ease-in-out infinite alternate;
+  }
+  .ray:nth-child(3n) {
+    filter: blur(3px);
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0.15) 55%, transparent 82%);
+  }
+  @keyframes ray-sway {
+    from { transform: rotate(calc(var(--drift) - 4deg)) translateX(-8px); }
+    to   { transform: rotate(calc(var(--drift) + 4deg)) translateX(8px); }
+  }
+  .surface-glow {
+    position: absolute; left: 50%; top: -34%; width: 135%; height: 72%;
+    transform: translateX(-50%);
+    background: radial-gradient(50% 52% at 50% 50%, rgba(255, 255, 255, 0.36), transparent 70%);
+    mix-blend-mode: screen; pointer-events: none;
+    animation: glow-breathe 7s ease-in-out infinite alternate;
+  }
+  @keyframes glow-breathe {
+    from { opacity: 0.7; } to { opacity: 1; }
+  }
+  .ring {
+    position: absolute; border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 50%; animation: pulse 4.5s ease-in-out infinite;
+  }
+  .ring.r1 { width: 220px; height: 220px; left: 16%; top: 22%; }
+  .ring.r2 { width: 360px; height: 360px; left: -8%; top: 34%; animation-delay: -2.2s; }
+  @keyframes pulse {
+    0%, 100% { transform: scale(0.94); opacity: 0.65; }
+    50%      { transform: scale(1.06); opacity: 1; }
+  }
+  .orb {
+    position: absolute; width: 130px; height: 130px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.10); filter: blur(42px);
+    animation: drift 9s ease-in-out infinite alternate;
+  }
+  .orb.o1 { left: -30px; top: 18%; }
+  .orb.o2 { right: -40px; bottom: 8%; animation-delay: -4.5s; }
+  @keyframes drift { to { transform: translate(46px, -34px); } }
+  .play {
+    position: absolute; inset: 0; margin: auto;
+    width: 64px; height: 64px; border-radius: 50%;
+    background: rgba(255, 255, 255, 0.14);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    backdrop-filter: blur(4px);
+    display: grid; place-items: center; cursor: pointer;
+    transition: transform 0.18s ease, background 0.18s ease;
+  }
+  .play:hover { transform: scale(1.07); background: rgba(255, 255, 255, 0.22); }
+  .vid-meta {
+    position: absolute; left: 16px; bottom: 16px;
+    font: 600 10.5px/1 var(--do-mono); letter-spacing: 0.08em;
+    color: #fff; background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    padding: 6px 10px; border-radius: 999px;
+  }
+  .vid-progress {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: rgba(255, 255, 255, 0.16);
+  }
+  .vid-progress i {
+    display: block; height: 100%; width: 0;
+    background: rgba(255, 255, 255, 0.9);
+    animation: vid-fill 8s linear infinite;
+  }
+  @keyframes vid-fill { to { width: 100%; } }
+
+  /* the explainer half */
+  .expl {
+    flex: 1; min-width: 0;
+    padding: 42px 40px 22px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .crumb {
+    font: 600 10.5px/1 var(--do-mono); letter-spacing: 0.16em;
+    color: var(--do-accent); text-transform: uppercase;
+  }
+  .expl h2 {
+    margin: 0; font-size: 30px; line-height: 1.12;
+    letter-spacing: -0.02em; font-weight: 700;
+  }
+  .expl .d {
+    margin: 0; font-size: 14px; line-height: 23px;
+    color: var(--do-ink-2); max-width: 54ch;
+  }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+  .chips span {
+    font: 500 10.5px/1 var(--do-mono); letter-spacing: 0.05em;
+    padding: 6px 9px; border-radius: 999px;
+    border: 1px solid var(--do-line-2);
+    color: var(--do-ink-2);
+  }
+  .expl .actions {
+    margin-top: auto; display: flex; align-items: center; gap: 10px;
+  }
+  .btn {
+    border: 1px solid var(--do-line-2); border-radius: 10px;
+    background: transparent; color: var(--do-ink);
+    font: 500 12.5px var(--do-font);
+    padding: 9px 14px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn:hover { background: var(--do-chip-bg); }
+  .btn.primary {
+    background: var(--do-accent-deep); border-color: transparent; color: #fff;
+  }
+  .btn.primary:hover { filter: brightness(1.12); background: var(--do-accent-deep); }
+  .actions .spacer { flex: 1; }
+  .stage .x {
+    position: absolute; top: 14px; right: 14px; z-index: 6;
+    width: 36px; height: 36px; border-radius: 50%;
+    border: 1px solid var(--do-line-2);
+    background: color-mix(in srgb, var(--do-surface) 80%, transparent);
+    color: var(--do-ink-2); font-size: 15px; line-height: 1;
+    cursor: pointer; display: grid; place-items: center;
+  }
+  .stage .x:hover { color: var(--do-ink); background: var(--do-surface-2); }
+
+  /* ---------- annotations ---------- */
+  .notes { max-width: 1280px; margin: 22px auto 60px; padding: 0 20px; }
+  .notes h4 { margin: 0 0 8px; font-size: 13px; }
+  .notes ul { margin: 0 0 18px; padding-left: 18px; color: var(--do-ink-2); }
+  .notes li { margin: 4px 0; max-width: 96ch; line-height: 21px; }
+  .notes b { color: var(--do-ink); font-weight: 600; }
+  .notes code {
+    font-family: var(--do-mono); font-size: 11px;
+    background: var(--do-chip-bg); border-radius: 4px; padding: 1px 5px;
+  }
+  .notes details {
+    border: 0.5px solid var(--do-line); border-radius: 12px;
+    padding: 12px 16px; background: var(--do-surface);
+  }
+  .notes details[open] { background: var(--do-surface); }
+  .notes summary { cursor: pointer; font-weight: 600; font-size: 13px; }
+  .notes .before-wrap { display: flex; gap: 28px; align-items: flex-start; margin-top: 14px; flex-wrap: wrap; }
+  .notes .cap { font-size: 12px; color: var(--do-ink-3); max-width: 34ch; line-height: 19px; }
+
+  /* the current popover, reproduced 1:1 from GuideHome.module.css on its
+     production light tokens */
+  .b-panel {
+    --b-ink: rgb(15, 17, 21);
+    --b-ink3: rgb(76, 88, 88);
+    --b-line: rgba(0, 0, 0, 0.1);
+    --b-surface: rgb(255, 255, 255);
+    --b-card: rgb(255, 255, 255);
+    --b-brand: rgb(65, 118, 230);
+    color: var(--b-ink);
+    width: 340px; padding: 16px; border-radius: 24px;
+    background: var(--b-surface);
+    box-shadow: 0 0 0 0.5px rgba(0,0,0,0.16), 0 3px 8px 0 rgba(0,0,0,0.04), 0 0 20px 0 rgba(0,0,0,0.05);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .b-head { display: flex; flex-direction: column; gap: 1px; padding: 0 2px; }
+  .b-title { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+  .b-lede { font-size: 11px; line-height: 16px; color: var(--b-ink3); }
+  .b-strip {
+    display: flex; flex-direction: column; gap: 8px;
+    max-height: 236px; overflow-y: auto; scroll-snap-type: y mandatory; padding: 2px;
+  }
+  .b-card {
+    flex: none; display: flex; gap: 8px; height: 110px; padding: 10px;
+    border: 0.5px solid var(--b-line); border-radius: 12px;
+    background: var(--b-card);
+    scroll-snap-align: start; scroll-snap-stop: always;
+  }
+  .b-icon {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 8px;
+    color: var(--b-brand); background: rgba(123, 180, 188, 0.12);
+  }
+  .b-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .b-ct { font-size: 12px; font-weight: 500; line-height: 18px; }
+  .b-cd { font-size: 11px; line-height: 16px; color: var(--b-ink3); }
+</style>
+</head>
+<body>
+
+<button id="theme-toggle" type="button">Toggle light</button>
+
+<header class="sketch-head">
+  <span class="tag">SKETCH · v3</span>
+  <h2>Harness Guide — DigitalOcean template, dark-first, expanding cards</h2>
+  <p>
+    The guide re-staged on the DO color template: <code>#0069FF</code> accent, ocean gradient strip,
+    midnight surfaces by default, a floating dialog with cast shadow and idle drift.
+    <b>Click any capability card</b>: it expands to fill the frame — a video stage on the left lit by
+    god-ray light shafts streaming down through the water, title and explanation on the right.
+    <code>←</code>/<code>→</code> or Prev/Next browse all nine; <code>Esc</code> folds back to the grid, then out of the dialog.
+  </p>
+</header>
+
+<div class="viewport">
+  <!-- fake app behind the mask -->
+  <div class="fake-sidebar" aria-hidden="true">
+    <div class="sb-row w70"></div>
+    <div class="sb-row w85"></div>
+    <div class="sb-row"></div>
+    <div class="sb-row w55"></div>
+    <div class="sb-row w70"></div>
+    <div class="sb-row w85"></div>
+    <div class="sb-spacer"></div>
+    <div class="sb-trigger" id="sb-trigger" role="button" tabindex="0">
+      <span class="chip">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+          <rect x="6" y="0" width="2" height="4"/><rect x="6" y="10" width="2" height="4"/>
+          <rect x="0" y="6" width="4" height="2"/><rect x="10" y="6" width="4" height="2"/>
+          <rect x="4" y="4" width="6" height="6"/>
+        </svg>
+      </span>
+      Harness Guide
+    </div>
+  </div>
+  <div class="fake-main" aria-hidden="true">
+    <div class="bubble-u"></div>
+    <div class="bubble-a">
+      <i style="width: 92%"></i>
+      <i style="width: 78%"></i>
+      <i style="width: 84%"></i>
+    </div>
+  </div>
+  <div class="mask" id="mask" aria-hidden="true"></div>
+
+  <!-- the launch dialog -->
+  <div class="launch-wrap" id="launch-wrap">
+    <section class="launch" id="launch" role="dialog" aria-modal="true" aria-label="Harness Guide">
+      <div class="strip" aria-hidden="true"></div>
+      <header class="hero">
+        <div class="kicker">
+          <span class="kicker-left">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+              <rect x="6" y="0" width="2" height="4"/><rect x="6" y="10" width="2" height="4"/>
+              <rect x="0" y="6" width="4" height="2"/><rect x="10" y="6" width="4" height="2"/>
+              <rect x="4" y="4" width="6" height="6"/>
+            </svg>
+            The capability stack
+          </span>
+          <span class="kicker-tag">On every session</span>
+        </div>
+        <h1 class="display">Harness <em>Guide</em></h1>
+        <p class="lede">
+          Every session rides the same capability stack. Nine systems, one roster —
+          open a card to see it in motion.
+        </p>
+        <p class="hint">▸ <b>CLICK A CARD</b> — IT EXPANDS TO FILL THE FRAME</p>
+      </header>
+
+      <div class="grid" id="grid" role="list"></div>
+
+      <footer class="foot">
+        <span><kbd>Esc</kbd> fold back · <kbd>←</kbd><kbd>→</kbd> browse inside a card</span>
+        <span class="sig">
+          <svg width="12" height="12" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <rect x="6" y="0" width="2" height="4"/><rect x="6" y="10" width="2" height="4"/>
+            <rect x="0" y="6" width="4" height="2"/><rect x="10" y="6" width="4" height="2"/>
+            <rect x="4" y="4" width="6" height="6"/>
+          </svg>
+          sidebar.guide § 09 capabilities
+        </span>
+      </footer>
+
+      <!-- the expanding detail stage -->
+      <div class="stage" id="stage" role="dialog" aria-modal="true" aria-label="Capability detail">
+        <button class="x" id="stage-x" type="button" aria-label="Back to grid">✕</button>
+        <div class="stage-in">
+          <div class="media" id="media">
+            <div class="rays" id="rays" aria-hidden="true"></div>
+            <span class="surface-glow" aria-hidden="true"></span>
+            <span class="ring r1" aria-hidden="true"></span>
+            <span class="ring r2" aria-hidden="true"></span>
+            <span class="orb o1" aria-hidden="true"></span>
+            <span class="orb o2" aria-hidden="true"></span>
+            <svg class="wm" id="media-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                 stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"></svg>
+            <span class="play" id="play" role="button" aria-label="Play demo">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="color:#fff; margin-left:2px">
+                <path d="M8 5.5v13l11-6.5z"/>
+              </svg>
+            </span>
+            <span class="vid-meta">DEMO · 0:42</span>
+            <div class="vid-progress" aria-hidden="true"><i></i></div>
+          </div>
+          <div class="expl">
+            <span class="crumb" id="crumb">CAPABILITY 01 / 09</span>
+            <h2 id="d-title"></h2>
+            <p class="d" id="d-desc"></p>
+            <div class="chips" id="d-chips"></div>
+            <div class="actions">
+              <button class="btn" id="prev" type="button">‹ Prev</button>
+              <button class="btn" id="next" type="button">Next ›</button>
+              <span class="spacer"></span>
+              <button class="btn primary" type="button">Try it in a session</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<footer class="notes">
+  <h4>Design notes — v2 changes</h4>
+  <ul>
+    <li><b>DO color template.</b> Canonical DigitalOcean blue <code>#0069FF</code> drives the accent, tag, links and chips; the signature strip is now the ocean ramp <code>#0052E6 → #0069FF → #00B3F0 → #00E5C8</code> instead of Mistral's warm-to-cool spectrum.</li>
+    <li><b>Dark mode as the hero.</b> The sketch now opens on midnight navy surfaces (<code>#0B1626</code> panel on <code>#060C1A</code> page) with ambient blue glows; the toggle flips to the azure light variant.</li>
+    <li><b>A floating element.</b> The dialog rides a three-layer cast shadow plus a soft blue ambience, and idles on a 7s drift loop — it reads as hovering over the session, not docked to it.</li>
+    <li><b>Click a card, it fills the frame.</b> A FLIP morph: the stage scales from the clicked cell's exact rect up to the full dialog (520ms, <code>cubic-bezier(.22,.9,.28,1)</code>), grid untouched behind it, and folds back to the same cell on close.</li>
+    <li><b>Video + explainer.</b> The expanded stage splits 44/56: a media half (hue-shifted gradient per capability, play button, running progress bar, <code>DEMO · 0:42</code> chip) and an explainer half with crumb, 30px title, description, keyword chips, and Prev/Next so all nine are browsable without returning to the grid.</li>
+    <li><b>Light shafts in every video.</b> Each capability film streams sunlight down into its sea: 22 seeded god-ray beams (varying width, blur, drift, and opacity, blended <code>screen</code> over the pane's <code>--h</code> hue) swaying on slow sine-a-likes, under a breathing surface glow at the top edge. Deterministic seed keeps screenshots and reloads identical.</li>
+  </ul>
+  <details>
+    <summary>Before — today’s popover, reproduced 1:1 from GuideHome.module.css (production light tokens)</summary>
+    <div class="before-wrap">
+      <div class="b-panel">
+        <div class="b-head">
+          <span class="b-title">Harness Guide</span>
+          <span class="b-lede">Every session rides the same capability stack.</span>
+        </div>
+        <div class="b-strip">
+          <div class="b-card">
+            <span class="b-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5 13 3.5v4c0 3.4-2.1 5.8-5 7-2.9-1.2-5-3.6-5-7v-4l5-2Z"/></svg></span>
+            <span class="b-text">
+              <span class="b-ct">Sandboxed Execution</span>
+              <span class="b-cd">Three confinement modes with approved one-shot escalation; the surface asks before sensitive acts.</span>
+            </span>
+          </div>
+          <div class="b-card">
+            <span class="b-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4.5 3 8l2.5 3.5M10.5 4.5 13 8l-2.5 3.5M8.8 3.5l-1.6 9"/></svg></span>
+            <span class="b-text">
+              <span class="b-ct">Persistent Shell &amp; Files</span>
+              <span class="b-cd">Long-lived bash &amp; pwsh terminals, background jobs, and live file read and edit tools.</span>
+            </span>
+          </div>
+          <div class="b-card">
+            <span class="b-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="5" r="2.2"/><path d="M1.5 13.5c.6-2.3 2.1-3.5 4-3.5s3.4 1.2 4 3.5"/><circle cx="11" cy="5.5" r="1.8"/><path d="M12.2 13.5c-.2-1.6-1-2.7-2.2-3.1"/></svg></span>
+            <span class="b-text">
+              <span class="b-ct">Subagents &amp; Teams</span>
+              <span class="b-cd">Delegate bounded work to spawn or fork agents, then message, steer, and orchestrate them.</span>
+            </span>
+          </div>
+        </div>
+      </div>
+      <p class="cap">
+        ui-guide@0.1.0 today: a 360px popover, 11–12px type, and nine 110px cards behind a mandatory
+        scroll-snap strip — only two cards visible at a time, nothing clickable, nothing alive.
+      </p>
+    </div>
+  </details>
+</footer>
+
+<script>
+  // ---------- roster: copy mirrors packages/client/ui-guide locales (en) ----------
+  const CAPS = [
+    { t: 'Sandboxed Execution', d: 'Three confinement modes with approved one-shot escalation; the surface asks before sensitive acts.',
+      chips: ['workspace-write', 'one-shot escalation', 'approval prompts'], h: 214, icon: 'shield' },
+    { t: 'Persistent Shell & Files', d: 'Long-lived bash & pwsh terminals, background jobs, and live file read and edit tools.',
+      chips: ['persistent terminals', 'background jobs', 'live file tools'], h: 196, icon: 'code' },
+    { t: 'Subagents & Teams', d: 'Delegate bounded work to spawn or fork agents, then message, steer, and orchestrate them.',
+      chips: ['spawn & fork', 'steering', 'orchestration'], h: 258, icon: 'agents' },
+    { t: 'Workflows & Ralph', d: 'Model-authored orchestration scripts fan agents out at scale; Ralph loops a fresh agent on one objective.',
+      chips: ['fan-out scripts', 'phases', 'ralph loops'], h: 174, icon: 'branch' },
+    { t: 'Goals & Plan Mode', d: 'A durable completion goal with continuation rounds, plus plan mode for human review.',
+      chips: ['durable objective', 'continuation rounds', 'plan review'], h: 148, icon: 'flag' },
+    { t: 'Skills', d: 'On-demand capability packs loaded into the prompt from project or user directories.',
+      chips: ['on-demand packs', 'project dirs', 'user dirs'], h: 32, icon: 'spark' },
+    { t: 'Web Search & MCP', d: 'Live search and page fetch; any MCP server mounts into the tool set as mcp__server__tool.',
+      chips: ['live search', 'page fetch', 'mcp bridge'], h: 190, icon: 'globe' },
+    { t: 'Session Log & Snapshots', d: 'The session log is the source of truth; checkpoints and projections keep turns resumable.',
+      chips: ['session log', 'checkpoints', 'projections'], h: 268, icon: 'archive' },
+    { t: 'Everything is a Plugin', d: 'The Cordis composition is the product: profiles, bundles, and presets swap whole capability sets.',
+      chips: ['cordis composition', 'profiles', 'presets'], h: 8, icon: 'plug' },
+  ]
+
+  const ICONS = {
+    shield: '<path d="M8 1.5 13 3.5v4c0 3.4-2.1 5.8-5 7-2.9-1.2-5-3.6-5-7v-4l5-2Z"/>',
+    code: '<path d="M5.5 4.5 3 8l2.5 3.5M10.5 4.5 13 8l-2.5 3.5M8.8 3.5l-1.6 9"/>',
+    agents: '<circle cx="5.5" cy="5" r="2.2"/><path d="M1.5 13.5c.6-2.3 2.1-3.5 4-3.5s3.4 1.2 4 3.5"/><circle cx="11" cy="5.5" r="1.8"/><path d="M12.2 13.5c-.2-1.6-1-2.7-2.2-3.1"/>',
+    branch: '<circle cx="4.5" cy="3.5" r="1.7"/><circle cx="4.5" cy="12.5" r="1.7"/><circle cx="11.5" cy="5" r="1.7"/><path d="M4.5 5.2v5.6M11.5 6.7c0 2.4-2 3.4-3.7 3.7"/>',
+    flag: '<path d="M3.5 14V2.5"/><path d="M3.5 3c3-1.6 5.5 1 8.5-.4v6c-3 1.4-5.5-1.2-8.5.4"/>',
+    spark: '<path d="M8 2.5c.3 2.5 1.5 3.7 4 4-2.5.3-3.7 1.5-4 4-.3-2.5-1.5-3.7-4-4 2.5-.3 3.7-1.5 4-4Z"/><path d="M12.5 11c.15 1.1.7 1.65 1.8 1.8-1.1.15-1.65.7-1.8 1.8-.15-1.1-.7-1.65-1.8-1.8 1.1-.15 1.65-.7 1.8-1.8Z"/>',
+    globe: '<circle cx="8" cy="8" r="6"/><path d="M2 8h12M8 2c-3.3 3.6-3.3 8.4 0 12 3.3-3.6 3.3-8.4 0-12Z"/>',
+    archive: '<path d="M2.5 2.5h11v3h-11zM4 5.5v8h8v-8M6.5 8.5h3"/>',
+    plug: '<path d="M6 1.5V5M10 1.5V5M4.5 5h7V8a3.5 3.5 0 0 1-7 0V5ZM8 11.5V14.5"/>',
+  }
+  const iconSvg = (name, size) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`
+
+  // ---------- light shafts: sunlight streaming down through the pane ----------
+  // Seeded PRNG so every reload and screenshot composes the identical sea.
+  ;(() => {
+    const raysEl = document.getElementById('rays')
+    if (!raysEl) return
+    let seed = 7
+    const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff
+    const COUNT = 22
+    for (let i = 0; i < COUNT; i++) {
+      const ray = document.createElement('i')
+      ray.className = 'ray'
+      const width = 1.5 + rnd() * 13          // % of pane width
+      const x = -14 + rnd() * 120             // rays wander past the edges
+      const drift = (rnd() * 2 - 1) * 13      // resting tilt, degrees
+      const dur = 6.5 + rnd() * 7.5           // sway period, s
+      const op = 0.10 + rnd() * 0.24          // shaft strength
+      ray.style.cssText =
+        `left:${x.toFixed(1)}%;width:${width.toFixed(1)}%;` +
+        `opacity:${op.toFixed(2)};--drift:${drift.toFixed(1)}deg;` +
+        `animation-duration:${dur.toFixed(1)}s;animation-delay:-${(rnd() * dur).toFixed(1)}s;`
+      raysEl.appendChild(ray)
+    }
+  })()
+
+  const pad = n => String(n + 1).padStart(2, '0')
+  const grid = document.getElementById('grid')
+  const launch = document.getElementById('launch')
+  const wrap = document.getElementById('launch-wrap')
+  const stage = document.getElementById('stage')
+  const stageIn = stage.querySelector('.stage-in')
+  let idx = -1
+  let morphing = false
+
+  // ---------- grid ----------
+  grid.innerHTML = CAPS.map((c, i) => `
+    <article class="cell" role="button" tabindex="0" data-i="${i}" aria-label="${c.t}">
+      <span class="cell-top">
+        <span class="num">${pad(i)}</span>
+        <span class="chip">${iconSvg(c.icon, 16)}</span>
+      </span>
+      <h3>${c.t}</h3>
+      <p>${c.d}</p>
+    </article>`).join('')
+
+  function fillStage(i) {
+    const c = CAPS[i]
+    idx = i
+    document.getElementById('crumb').textContent = `CAPABILITY ${pad(i)} / 09`
+    document.getElementById('d-title').textContent = c.t
+    document.getElementById('d-desc').textContent = c.d
+    document.getElementById('d-chips').innerHTML =
+      c.chips.map(k => `<span>${k}</span>`).join('')
+    document.getElementById('media-icon').innerHTML = ICONS[c.icon]
+    stage.style.setProperty('--h', c.h)
+    stage.setAttribute('aria-label', c.t)
+  }
+
+  function rectOf(el) {
+    const r = el.getBoundingClientRect()
+    return { left: r.left, top: r.top, width: r.width, height: r.height }
+  }
+  function morphFrom(cell) {
+    const c = rectOf(cell), l = rectOf(launch)
+    stage.style.transition = 'none'
+    stage.style.transform =
+      `translate(${c.left - l.left}px, ${c.top - l.top}px) ` +
+      `scale(${c.width / l.width}, ${c.height / l.height})`
+  }
+  function morphToIdentity() {
+    stage.style.transition = 'transform 520ms cubic-bezier(0.22, 0.9, 0.28, 1), opacity 0.18s ease'
+    stage.style.transform = 'none'
+  }
+
+  function openStage(i) {
+    if (morphing) return
+    const cell = grid.querySelector(`[data-i="${i}"]`)
+    if (!cell) return
+    morphing = true
+    fillStage(i)
+    stage.classList.remove('full')
+    stage.classList.add('on')
+    launch.classList.add('paused')
+    morphFrom(cell)
+    // two frames: commit the start rect, then transit to the full frame
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      morphToIdentity()
+      stage.classList.add('full')
+      stage.addEventListener('transitionend', function done(e) {
+        if (e.propertyName !== 'transform') return
+        stage.removeEventListener('transitionend', done)
+        morphing = false
+      }, { once: false })
+    }))
+  }
+
+  function closeStage() {
+    if (morphing || idx < 0) return
+    const cell = grid.querySelector(`[data-i="${idx}"]`)
+    morphing = true
+    stage.classList.remove('full')
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (cell) {
+        const c = rectOf(cell), l = rectOf(launch)
+        // animate back to the origin cell: transition must stay on so
+        // 'transitionend' fires (snapping with transition:none never does)
+        stage.style.transition = 'transform 520ms cubic-bezier(0.22, 0.9, 0.28, 1), opacity 0.18s ease'
+        stage.style.transform =
+          `translate(${c.left - l.left}px, ${c.top - l.top}px) ` +
+          `scale(${c.width / l.width}, ${c.height / l.height})`
+      } else {
+        stage.style.transition = 'none'
+      }
+      stage.addEventListener('transitionend', function done(e) {
+        if (e.propertyName !== 'transform') return
+        stage.removeEventListener('transitionend', done)
+        stage.classList.remove('on')
+        stage.style.transition = 'none'
+        stage.style.transform = 'none'
+        launch.classList.remove('paused')
+        morphing = false
+        idx = -1
+      })
+      if (!cell) {
+        // no origin to fold to: hide immediately
+        stage.classList.remove('on')
+        launch.classList.remove('paused')
+        morphing = false
+        idx = -1
+      }
+    }))
+  }
+
+  function stepStage(dir) {
+    if (idx < 0 || morphing) return
+    const next = (idx + dir + CAPS.length) % CAPS.length
+    stageIn.style.transition = 'opacity 0.12s ease'
+    stageIn.style.opacity = '0'
+    setTimeout(() => {
+      fillStage(next)
+      stageIn.style.transition = 'opacity 0.2s ease 0.05s'
+      stageIn.style.opacity = ''
+    }, 130)
+  }
+
+  const closeLaunch = () => { if (idx < 0) wrap.classList.add('closed') }
+  const openLaunch = () => { wrap.classList.remove('closed'); launch.classList.remove('paused') }
+
+  grid.addEventListener('click', (e) => {
+    const cell = e.target.closest('.cell')
+    if (cell) openStage(Number(cell.dataset.i))
+  })
+  grid.addEventListener('keydown', (e) => {
+    const cell = e.target.closest('.cell')
+    if (cell && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault()
+      openStage(Number(cell.dataset.i))
+    }
+  })
+  document.getElementById('stage-x').addEventListener('click', closeStage)
+  document.getElementById('prev').addEventListener('click', () => stepStage(-1))
+  document.getElementById('next').addEventListener('click', () => stepStage(1))
+  document.getElementById('mask').addEventListener('click', () => {
+    if (idx >= 0) closeStage(); else closeLaunch()
+  })
+  document.getElementById('sb-trigger').addEventListener('click', () => {
+    wrap.classList.contains('closed') ? openLaunch() : closeLaunch()
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (idx >= 0) closeStage(); else closeLaunch()
+    } else if (e.key === 'ArrowRight' && idx >= 0) stepStage(1)
+    else if (e.key === 'ArrowLeft' && idx >= 0) stepStage(-1)
+  })
+
+  // ---------- theme toggle: dark ocean is the default ----------
+  const toggle = document.getElementById('theme-toggle')
+  const syncLabel = () => {
+    toggle.textContent = document.body.hasAttribute('data-do-light')
+      ? 'Toggle dark' : 'Toggle light'
+  }
+  toggle.addEventListener('click', () => {
+    document.body.hasAttribute('data-do-light')
+      ? document.body.removeAttribute('data-do-light')
+      : document.body.setAttribute('data-do-light', '')
+    syncLabel()
+  })
+  syncLabel()
+</script>
+</body>
+</html>

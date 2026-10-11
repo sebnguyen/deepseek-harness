@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gridspace — inferencing travel mock</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+/* walrus tokens, subset traced from design-platform.css */
+html[data-theme="light"] {
+  --bg-base: rgb(250,251,251);
+  --lab-primary: rgb(0,12,42);
+  --lab-secondary: rgb(72,79,100);
+  --lab-tertiary: rgb(106,112,130);
+  --border-l2: rgb(224,225,224);
+  --surface-fg: #FFF;
+  --code-bg: #0b0e12;
+  --code-hl: #d4d6db;
+  --sea: linear-gradient(180deg, #FFFFFF 0%, rgb(247,248,248) 46%, rgb(243,249,251) 100%);
+  --rayA: rgba(0,99,248,.18);
+  --rayB: rgba(38,145,234,.26);
+  --rayC: rgba(96,165,175,.16);
+  --rayBoost: rgba(0,99,248,.18);
+  --dot: rgba(31,97,174,.18);
+  --dot-strong: rgba(31,97,174,.26);
+  --gridA: rgba(31,97,174,.65);
+  --gridB: rgba(38,145,234,.55);
+  --veil: rgba(247,248,248,.28);
+}
+html[data-theme="dark"] {
+  --bg-base: rgb(10,12,14);
+  --lab-primary: rgb(233,235,234);
+  --lab-secondary: rgb(160,162,163);
+  --lab-tertiary: rgb(114,119,118);
+  --border-l2: rgb(30,35,37);
+  --surface-fg: rgb(23,27,29);
+  --code-bg: #0b0e12;
+  --code-hl: #d4d6db;
+  --sea: linear-gradient(180deg, rgb(23,27,29) 0%, rgb(14,18,20) 48%, rgb(7,9,11) 100%);
+  --rayA: rgba(38,145,234,.22);
+  --rayB: rgba(97,200,249,.24);
+  --rayC: rgba(96,165,175,.22);
+  --rayBoost: rgba(38,145,234,.36);
+  --dot: rgba(145,159,158,.2);
+  --dot-strong: rgba(145,159,158,.3);
+  --gridA: rgba(145,159,158,.75);
+  --gridB: rgba(97,200,249,.65);
+  --veil: rgba(10,12,14,.3);
+}
+
+* { margin: 0; }
+html { color-scheme: light dark; }
+body {
+  font: 14px/1.5 Inter, system-ui, sans-serif;
+  color: var(--lab-primary);
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+/* ---------- scene ---------- */
+.seascene {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  animation: snapshot 0.4s ease-out;
+}
+.sea { position: absolute; inset: 0; background: var(--sea); }
+
+/* rays (production current values) */
+.rays { position: absolute; inset: 0; overflow: hidden; filter: saturate(var(--raySat, 1)); }
+.ray, .boostRay {
+  position: absolute; top: 0; height: 190vh; display: block;
+  opacity: .45; transform-origin: 50% 0;
+  mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
+  animation: raysway var(--sw, 26s) ease-in-out infinite alternate;
+}
+.boostRay { opacity: .9; }
+@keyframes raysway {
+  from { transform: rotate(calc(var(--r) - 1.4deg)); }
+  to { transform: rotate(calc(var(--r) + 1.4deg)); }
+}
+.boost { position: absolute; inset: 0; overflow: hidden; opacity: 0; }
+.suncore {
+  position: absolute; width: 220px; height: 220px; margin: -110px 0 0 -110px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, var(--rayB), transparent 70%);
+  filter: blur(38px);
+  opacity: .45;
+}
+
+/* ---------- gridspace: concentric dot-grid planes in 3D depth ---------- */
+.gs {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  perspective: 1100px;
+  perspective-origin: 50% 46%;
+}
+.gplane {
+  position: absolute;
+  left: 50%; top: 50%;
+  /* small canvas: the pattern repeats, and approach magnifies it.
+     4200->2400 cuts the GPU texture bill ~68% */
+  width: 2400px; height: 2400px;
+  margin: -1200px 0 0 -1200px;
+  transform: translateZ(0);
+  background-position: center;
+  background-repeat: repeat;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+/* each plane owns a few shafts: they scale with the plane as it
+   approaches the camera — parallax for free */
+.gpray {
+  position: absolute;
+  /* hinge hangs 150% of the tile above its own plane — the ray's birth
+     point is always off-screen, it descends into view */
+  top: -150%; height: 210%;
+  opacity: .8;
+  transform-origin: 50% 0;
+  transform: rotate(var(--r, 0deg));
+  mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
+  filter: blur(4px);
+}
+.gplane.a .gpray { background: linear-gradient(180deg, var(--gridB), transparent 72%); }
+.gplane.b .gpray { background: linear-gradient(180deg, var(--gridA), transparent 72%); }
+
+/* two pitches interleaved plane-to-plane: 44px dots on the A planes,
+   bigger 62px dots on the B planes — the interlace */
+.gplane.a { background-image: radial-gradient(circle, var(--gridA) 0 2px, transparent 4.2px); background-size: 44px 44px; }
+.gplane.b { background-image: radial-gradient(circle, var(--gridB) 0 2.8px, transparent 5.8px); background-size: 62px 62px; }
+
+/* lens vignette: corners pull toward the base fill, focus stays on
+   the column; uses bg-base mixes so both themes land */
+.vignette {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 74% 62% at 50% 44%,
+    transparent 46%,
+    color-mix(in srgb, var(--bg-base) 38%, transparent) 78%,
+    color-mix(in srgb, var(--bg-base) 66%, transparent) 100%);
+}
+
+/* depth fade + reading veil + input bar sink */
+.fades {
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg,
+      transparent 0%, transparent 44%,
+      color-mix(in srgb, var(--bg-base) 24%, transparent) 70%,
+      color-mix(in srgb, var(--bg-base) 52%, transparent) 90%,
+      color-mix(in srgb, var(--bg-base) 68%, transparent) 100%),
+    radial-gradient(ellipse 60% 55% at 50% -18%,
+      transparent 42%,
+      color-mix(in srgb, var(--bg-base) 16%, transparent) 70%,
+      color-mix(in srgb, var(--bg-base) 32%, transparent) 100%);
+}
+.veil { position: absolute; inset: 0; background: var(--veil); }
+
+/* ---------- sample UI (so you can judge UI interference) ---------- */
+.ui {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+.topbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 22px;
+  border-bottom: .5px solid var(--border-l2);
+  color: var(--lab-secondary);
+}
+.brand { font-weight: 600; letter-spacing: .04em; color: var(--lab-primary); }
+.spacer { flex: 1; }
+.pill {
+  padding: 5px 12px; border-radius: 999px;
+  border: .5px solid var(--border-l2);
+  color: var(--lab-secondary); font-size: 12.5px; cursor: pointer;
+  background: transparent; font: inherit;
+}
+.pill.go { border-color: transparent; background: rgba(38,145,234,.14); color: var(--lab-primary); }
+.column {
+  flex: 1; margin: 0 auto; padding: 26px 0 0;
+  width: min(760px, calc(100% - 64px));
+  overflow: hidden;
+}
+.msg-u {
+  background: rgb(249,246,249); color: var(--lab-primary);
+  border-radius: 22px; padding: 11px 16px; margin: 0 0 26px; align-self: stretch;
+  border: .5px solid var(--border-l2);
+}}
+html[data-theme="dark"] .msg-u { background: rgb(55,32,47); }
+.msg { margin: 0 0 22px; color: var(--lab-primary); }
+.msg h3 { font-size: inherit; margin-bottom: 6px; }
+.msg p, .msg li { color: var(--lab-secondary); }
+.composer {
+  align-self: center;
+  width: min(760px, calc(100% - 64px));
+  background: var(--surface-fg);
+  border: .5px solid var(--border-l2);
+  border-radius: 22px;
+  margin: 10px 0 18px;
+  padding: 14px 16px 10px;
+  box-shadow: 0 6px 14px rgb(4 11 27 / .06);
+}
+.ph { color: var(--lab-tertiary); }
+.ctools { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.send {
+  margin-left: auto;
+  width: 32px; height: 32px; border-radius: 999px;
+  border: 0; background: rgb(38,145,234); color: #fff;
+  display: grid; place-items: center; cursor: default;
+  font-size: 15px;
+}
+@keyframes snapshot { from { transform: scale(.994); } }
+@media (prefers-reduced-motion: reduce) {
+  .ray, .boostRay { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="seascene">
+  <div class="sea"></div>
+  <div class="rays" id="rays"></div>
+  <div class="boost" id="boost"></div>
+  <div class="gs" id="gs"></div>
+  <div class="vignette"></div>
+  <div class="fades"></div>
+  <div class="veil"></div>
+</div>
+
+<div class="ui">
+  <div class="topbar">
+    <span class="brand">deepseek-cockpit</span>
+    <span class="spacer"></span>
+    <button class="pill" id="btnTheme">theme</button>
+    <button class="pill go" id="btnInfer">start inference</button>
+  </div>
+  <div class="column">
+    <div class="msg-u">walk me through your idea for the grid space effect</div>
+    <div class="msg">
+      <h3>The concept</h3>
+      <p>The dot grid becomes a stack of planes at staggered depths, all centered on the same point. While we infer, the camera eases forward — planes bloom toward you, each fading in from the deep and dissolving as it passes the lens, so the tunnel feels endless.</p>
+      <p>Toggle <b>start inference</b> and watch the layer travel. Idle drifts gently backward-of-forward; inferencing is the sprint.</p>
+    </div>
+    <div class="msg">
+      <h3>Why it could work</h3>
+      <p>The UI stays readable because far planes fade before they dominate the type, and the sheer travel reads as thought without anything physically moving the page.</p>
+    </div>
+  </div>
+  <div class="composer">
+    <div class="ph">Ask about the current plan, or press the toggle…</div>
+    <div class="ctools">
+      <span class="pill">＋</span><span class="pill">Plan</span><span class="pill">Read-only</span>
+      <div class="send">↑</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var MX = window.matchMedia && window.matchMedia('(max-width: 900px)').matches;
+
+  /* view toggles */
+  var btnInfer = document.getElementById('btnInfer');
+  var btnTheme = document.getElementById('btnTheme');
+  var running = false;
+  btnInfer.onclick = function(){
+    running = !running;
+    btnInfer.textContent = running ? 'stop inference' : 'start inference';
+    btnInfer.classList.toggle('go', !running);
+  };
+  btnTheme.onclick = function(){
+    var h = document.documentElement;
+    h.dataset.theme = h.dataset.theme === 'light' ? 'dark' : 'light';
+  };
+  if (location.hash.indexOf('dark') >= 0) document.documentElement.dataset.theme = 'dark';
+  if (location.hash.indexOf('infer') >= 0) { running = true; btnInfer.textContent = 'stop inference'; }
+
+  /* ---- procedural rays (production geometry) ---- */
+  var rayHost = document.getElementById('rays');
+  var boostHost = document.getElementById('boost');
+  var RCOLORS = ['var(--rayA)','var(--rayB)','var(--rayC)'];
+  var seed = (Date.now() % 2147483646) + 1;
+  function rand(){ return (seed = (seed * 16807) % 2147483647) / 2147483647; }
+  var sunY = -(52 + rand() * 20), sun = document.createElement('div');
+  sun.className = 'suncore'; sun.style.top = sunY + 'vh';
+  rayHost.appendChild(sun);
+  var rays = [], i, el;
+  var RAY_N = MX ? 5 : 8;
+  for (i = 0; i < RAY_N; i++) {
+    var w = 190 + rand() * 300;
+    var ang = -16 + (i + 0.5) / RAY_N * 32 + (rand() - .5) * 4;
+    var dxf = (rand() - .5) * 0.24;
+    el = document.createElement('i');
+    el.className = 'ray';
+    el.style.top = (sunY + (rand()-.5)*14) + 'vh';
+    el.style.width = w + 'px';
+    el.style.setProperty('--r', ang + 'deg');
+    el.style.setProperty('--sw', (22 + rand()*14) + 's');
+    el.style.animationDelay = (-rand()*30) + 's';
+    el.style.background = 'linear-gradient(180deg, ' + RCOLORS[i%3] + ' 0%, color-mix(in srgb, ' + RCOLORS[i%3] + ' 55%, transparent) ' + (48 + rand()*8) + '%, transparent ' + (88 + rand()*10) + '%)';
+    el.style.filter = 'blur(' + (9 + rand()*10).toFixed(0) + 'px)';
+    rayHost.appendChild(el);
+    rays.push({ el: el, w: w, dxf: dxf, boost: false, f: 0.14 + rand()*0.3, ph: rand()*6.28, g: (0.8 + rand()*0.4) * (1 - Math.abs(ang)/22*0.5) });
+    var b = document.createElement('i');
+    b.className = 'boostRay';
+    b.style.top = (sunY + (rand()-.5)*14) + 'vh';
+    b.style.width = w + 'px';
+    b.style.marginLeft = (-w/2) + 'px';
+    b.style.setProperty('--r', ang + 'deg');
+    b.style.setProperty('--sw', (22 + rand()*14) + 's');
+    b.style.animationDelay = (-rand()*30) + 's';
+    b.style.background = 'linear-gradient(180deg, var(--rayBoost) 0%, transparent 60%)';
+    b.style.filter = 'blur(26px)';
+    boostHost.appendChild(b);
+    rays.push({ el: b, w: 0, dxf: dxf, boost: true, f: 0, ph: 0, g: 0 });
+  }
+  var scene = document.querySelector('.seascene');
+  function positionSun(){
+    var width = scene.clientWidth, cx = width / 2;
+    sun.style.left = cx + 'px';
+    rays.forEach(function(r){
+      var hinge = cx + r.dxf * width;
+      r.el.style.left = (r.boost ? hinge : hinge - r.w / 2) + 'px';
+    });
+  }
+  positionSun(); window.addEventListener('resize', positionSun);
+
+  /* ---- gridspace ---- */
+  var gs = document.getElementById('gs');
+  /* three planes on a 6km tunnel — astronomically far apart,
+     each one a slow apparition */
+  var PLANES = 3, DEPTH = 6000, GAP = DEPTH / PLANES;
+  var planes = [];
+  for (i = 0; i < PLANES; i++) {
+    el = document.createElement('div');
+    el.className = 'gplane ' + (i % 2 ? 'b' : 'a');
+    /* one to three shafts riding the plane */
+    var RAYN = 1 + (i % 2) + (rand() > 0.7 ? 1 : 0);
+    for (var k = 0; k < RAYN; k++) {
+      var pr = document.createElement('i');
+      pr.className = 'gpray';
+      pr.style.left = (12 + rand() * 76) + '%';
+      pr.style.width = (70 + rand() * 130) + 'px';
+      pr.style.setProperty('--r', ((rand() - .5) * 6).toFixed(2) + 'deg');
+      el.appendChild(pr);
+    }
+    gs.appendChild(el);
+    planes.push({ el: el, z: -i * GAP });
+  }
+
+  /* ---- animation loop ---- */
+  var runningRef = function(){ return running ? 1 : 0; };
+  var shine = 0, speed = 0, prev = performance.now();
+  function frame(now){
+    var dt = Math.min(0.05, (now - prev) / 1000); prev = now;
+    var target = runningRef();
+    shine += (target - shine) * Math.min(1, dt * (target > shine ? 2.2 : 1.1));
+    var lo = 0.06 + 0.3 * shine, cap = 0.5 + 0.5 * shine, t = now / 1000;
+    rays.forEach(function(r){
+      if (r.boost) return;
+      var wave = 0.5 + 0.5 * Math.sin(t * r.f * Math.PI * 2 + r.ph);
+      r.el.style.opacity = ((lo + (cap - lo) * wave) * r.g).toFixed(3);
+    });
+    boostHost.style.opacity = (shine * 0.8).toFixed(3);
+    /* the travel: idle barely drifts ahead, inference eases into a sprint */
+    var targetSpeed = 4 + shine * 240;         /* px per second, through depth */
+    speed += (targetSpeed - speed) * Math.min(1, dt * 1.6);
+    for (i = 0; i < PLANES; i++) {
+      var p = planes[i];
+      p.z += speed * dt;
+      if (p.z > 80) p.z -= DEPTH;
+      var z01 = (p.z + DEPTH) / DEPTH;         /* 0 deep .. 1 at camera */
+      /* fade in from the deep, fade out as it passes the lens; also
+         opacity scales with shine so the tunnel only "opens" on inference */
+      /* bell curve around mid-depth: appears slowly from the back,
+         peaks in the water column, dissolves before the lens */
+      /* asymmetric bell centered past mid-depth so opacity hits ~0
+         before the wrap point — no teleporting survivors */
+      var d = (z01 - 0.45) / 0.2;
+      var bell = Math.exp(-0.5 * d * d);
+      p.el.style.opacity = (bell * (0.22 + shine * 0.78)).toFixed(3);
+      p.el.style.transform = 'translateZ(' + p.z.toFixed(1) + 'px)';
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
