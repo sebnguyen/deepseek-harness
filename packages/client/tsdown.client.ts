@@ -13,6 +13,7 @@ import { existsSync, globSync, readFileSync } from 'node:fs'
 import { isBuiltin } from 'node:module'
 import { basename, dirname, isAbsolute, relative, resolve as resolvePath, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import ts from 'typescript'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 import { optionalStringArray } from './modules/src/client/manifest.ts'
@@ -239,7 +240,40 @@ function clientLibraryConfig(
       neverBundle: isProductionDependency,
       alwaysBundle: (specifier: string) => !isBuiltin(specifier) && !isProductionDependency(specifier),
     },
+    // Inlined workspace TypeScript can carry standard decorators. The root host
+    // pass lowers them in typertPlugin; this Client-face Node bundle does not
+    // load that plugin, so rolldown would otherwise emit the raw `@` token.
+    plugins: [lowerInlinedDecorators()],
     ...overrides,
+  }
+}
+
+const DECORATOR_SYNTAX = /^\s*@[A-Za-z_$][\w$]*/m
+
+/** Lower standard decorators in inlined TypeScript before rolldown parses it. */
+function lowerInlinedDecorators(): {
+  name: string
+  transform(code: string, id: string): { code: string; map: string | undefined } | undefined
+} {
+  return {
+    name: 'dsh-lower-inlined-decorators',
+    transform(code: string, id: string) {
+      const file = id.split('?', 1)[0] ?? id
+      if (!/\.[cm]?tsx?$/.test(file) || !DECORATOR_SYNTAX.test(code)) return
+      const result = ts.transpileModule(code, {
+        fileName: file,
+        compilerOptions: {
+          target: ts.ScriptTarget.ES2024,
+          module: ts.ModuleKind.ESNext,
+          ...(file.endsWith('x') ? { jsx: ts.JsxEmit.ReactJSX } : {}),
+          sourceMap: true,
+        },
+      })
+      return {
+        code: result.outputText.replace(/\n?\/\/# sourceMappingURL=.*$/u, '\n'),
+        map: result.sourceMapText,
+      }
+    },
   }
 }
 
