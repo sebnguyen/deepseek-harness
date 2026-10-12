@@ -233,7 +233,13 @@ if (( ! FORCE )) && [[ -x "$DIST/bin/code-server-oss" && -f "$MARKER" ]] && grep
 fi
 
 cd "$SRC"
-if [[ $PLATFORM == linux ]]; then export CC=gcc CXX=g++; fi
+if [[ $PLATFORM == linux ]]; then
+  export CC=gcc CXX=g++
+  # postinstall.ts clears CC/CXX for remote/ unless these are set. Without
+  # them, make uses its built-in CXX (g++-11 on this image), which is absent;
+  # @parcel/watcher then fails while compiling the server native.
+  export VSCODE_REMOTE_CC=gcc VSCODE_REMOTE_CXX=g++
+fi
 export npm_config_devdir="$SRC/.node-gyp-cache"
 export npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=8000 npm_config_fetch_retry_maxtimeout=90000
 # gyp races: parallel npm-ci lifecycle rebuilds of the repo's many native
