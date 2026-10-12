@@ -11,6 +11,8 @@
 #   $DSH_HOME/cache/vscode-source/<repo>/  fork checkout — cloned by
 #     `pnpm install` (postinstall, --fetch-only) and refreshed when the
 #     root `postbuild` hook runs this script after `pnpm run build`
+#   $DSH_HOME/cache/vscode-source/<lane>/  gulp lane output (sibling of the
+#     fork checkout — same layout as ../vscode-reh-web-* beside a dev clone)
 #   $DSH_HOME/cache/vscode-twin/
 #     logs/  per-step build logs (npm-ci.log, compile.log, gulp.log)
 #     dist/  the discovered slot — default ~/.dsh/cache/vscode-twin/dist
@@ -78,7 +80,8 @@ REPO_NAME="${REPO##*/}"
 REPO_NAME="${REPO_NAME%.git}"
 SRC="${DSH_VSCODE_SOURCE_DIR:-$dsh_home/cache/vscode-source/$REPO_NAME}"
 DIST="$BASE/dist"
-LANE_OUT="$BASE/$LANE"
+# Gulp writes the lane beside the fork checkout (../<lane> from repo root).
+LANE_OUT="$(dirname "$SRC")/$LANE"
 LOGS="$BASE/logs"
 MARKER="$DIST/.dsh-source.json"
 
