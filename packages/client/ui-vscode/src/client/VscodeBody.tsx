@@ -1,20 +1,26 @@
 /**
- * The vscode tab's body: one iframe mounted on the session twin's loopback URL.
+ * The vscode tab's body: poll the session twin's state; the ready answer
+ * mounts the workspace-keyed keep-alive frame.
  *
  * The component never touches process state directly — it polls the host's
  * `ideBridge.status` on a modest interval, and each ready answer forms
- * `url/?tkn=<token>&folder=<workspaceRoot>` as the iframe source. While the
- * host answers not-ready the body shows its progress line; a disabled
- * namespace shows the unavailable line, which is also the state the design
- * note relies on for "no viable twin, no mount" deployments.
+ * `url/?tkn=<token>&folder=<workspaceRoot>` as the workspace frame source.
+ * While the host answers not-ready the body shows its progress line; a
+ * disabled namespace shows the unavailable line, which is also the state
+ * the design note relies on for "no viable twin, no mount" deployments.
+ * The iframe element itself outlives this body: `keep-alive.tsx` hosts one
+ * frame per workspace root at document level, so a session switch on the
+ * same workspace re-shows the live workbench instead of reloading it, and
+ * a switch to a different workspace keeps the first frame alive for an
+ * instant restore on return.
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
+import { BootHero, TwinFrameMount } from './keep-alive.tsx'
 import type { IdeBridgeStatus } from './rpc.ts'
 
 /** Poll cadence for the status question while the twin warms up. */
@@ -33,111 +39,30 @@ export type VscodeBodyProps =
   & PropsLocale<'vscode'>
 
 /**
- * The vscode type's body, registered under `sidebar.right.pane.tab`.
- * @param props - composed slot props.
- * @returns the iframe mount, or the state line standing in for it.
- */
-/** The boot seam and state lines ride the harness theme, not a white flash. */
-const FRAME_STYLE = {
-  width: '100%',
-  height: '100%',
-  border: 'none',
-  background: 'var(--dsw-alias-bg-base, #121618)',
-} as const
-
-/**
- * Anti-flash wait: extra settle time after the twin document fires `load`
- * before the boot hero lifts. The workbench's own scripts paint a few beats
- * after `load`; revealing at `load` alone exposes one white/unstyled frame.
- * The iframe still mounts (and therefore loads) while the hero covers it, so
- * this delay hides precisely that boot window and nothing else.
- */
-const BOOT_SETTLE_MS = 1_200
-
-/** Overlay container: the ready branch stacks the iframe under the boot hero. */
-const STACK_STYLE = {
-  position: 'relative',
-  width: '100%',
-  height: '100%',
-} as const
-
-const COVER_STYLE = {
-  position: 'absolute',
-  inset: 0,
-} as const
-
-/** The boot hero: twinkle mark stacked on the wordmark, state line below. */
-const HERO_STYLE = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '14px',
-  width: '100%',
-  height: '100%',
-  padding: '16px',
-  boxSizing: 'border-box',
-  background: 'var(--dsw-alias-bg-base, #121618)',
-} as const
-
-const WORDMARK_STYLE = {
-  color: 'var(--dsw-alias-label-primary, #f7f8f8)',
-  fontSize: '12px',
-  fontWeight: 600,
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
-} as const
-
-const DETAIL_STYLE = {
-  color: 'var(--dsw-alias-label-secondary, #a0a2a3)',
-  fontSize: '12px',
-  textAlign: 'center',
-  maxWidth: '32em',
-} as const
-
-/**
- * The seam the user watches every time the twin spawns: the DO twinkle mark
- * centered over the wordmark with the state line — the same loading canvas
- * the harness boot page paints, instead of a bare text line on stock chrome.
- */
-function BootHero({ line, spinning = false }: { readonly line: string; readonly spinning?: boolean }): ReactNode {
-  return (
-    <div style={HERO_STYLE}>
-      {spinning
-        ? <PixelLoader mode="twinkle" grid={16} size={128} />
-        : <DigitalOceanLogo size={64} />}
-      <div style={WORDMARK_STYLE}>DigitalOcean Harness</div>
-      <output style={DETAIL_STYLE}>{line}</output>
-    </div>
-  )
-}
-
-/**
- * Last ready-triple per session id, kept module-level so a session switch —
- * which remounts this body per the seat's contract — repaints the ready
- * branch (and therefore a barn-cached frame) immediately instead of
- * re-showing the boot hero for one poll cycle.
+ * Last ready answer per session id, kept module-level so a session switch —
+ * which remounts this body per the seat's contract — paints the ready
+ * branch (and therefore adopts the already-live frame) immediately instead
+ * of re-showing the boot hero for one poll cycle.
  */
 const readyCache = new Map<string, IdeBridgeStatus>()
 
+/**
+ * The vscode type's body, registered under `sidebar.right.pane.tab`.
+ * @param props - composed slot props.
+ * @returns the workspace frame mount, or the state line standing in for it.
+ */
 export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
   // Resource addresses (file rows) carry their session in the URL; page
   // tabs (`sidebar://<kind>`) don't — those take the scope's session, which
   // the seat hands every session-scoped body anyway.
-  const sessionId = useMemo(() => {
+  const sessionId = useMemo<SessionId>(() => {
     const parsed = parseFileAddress(tab.contentId)
     return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
   }, [tab.contentId, scopeSessionId])
-  const [state, setState] = useState<IdeBridgeStatus | undefined>(
-    sessionId === undefined ? undefined : readyCache.get(sessionId),
-  )
+  const [state, setState] = useState<IdeBridgeStatus | undefined>(readyCache.get(sessionId))
 
   useEffect(() => {
-    if (sessionId === undefined) {
-      setState({ enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: 'no session is live for this tab' })
-      return
-    }
     const controller = new AbortController()
     let mounted = true
     const tick = async (): Promise<void> => {
@@ -145,7 +70,7 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
       if (!mounted || controller.signal.aborted) return
       const fallback = { enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: '' }
       const next = result.ok ? result.value : { ...fallback, detail: result.error.message }
-      if (next.ready === true) readyCache.set(sessionId, next)
+      if (next.ready) readyCache.set(sessionId, next)
       setState(next)
     }
     void tick()
@@ -158,8 +83,8 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
   }, [sessionId, status])
 
   if (state === undefined) return <BootHero line={t('state.opening')} spinning />
-  if (state.enabled !== true) return <BootHero line={t('state.unavailable')} />
-  if (state.ready !== true || state.url === null || state.tkn === null) {
+  if (!state.enabled) return <BootHero line={t('state.unavailable')} />
+  if (!state.ready || state.url === null || state.tkn === null) {
     return (
       <BootHero
         line={t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}
@@ -168,45 +93,13 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
     )
   }
   const folder = state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`
-  const src = `${state.url}/?tkn=${state.tkn}${folder}`
+  // dshGlass: the twin runs in glass-frame mode, composited transparent over
+  // the harness page behind its iframe (the chat-window look).
+  const src = `${state.url}/?tkn=${state.tkn}${folder}&dshGlass=1`
   return (
-    <IframeWithBootSeal
+    <TwinFrameMount
       src={src}
       spinLine={t('state.opening')}
     />
-  )
-}
-
-/**
- * The ready branch behind the wait flag: the twin iframe loads under the boot
- * hero, and the hero lifts only after the document's `load` event plus the
- * settle margin — no white or half-painted frame ever surfaces in the pane.
- */
-function IframeWithBootSeal({ src, spinLine }: { readonly src: string; readonly spinLine: string }): ReactNode {
-  const [settled, setSettled] = useState(false)
-  const [loaded, setLoaded] = useState(false)
-  useEffect(() => {
-    setLoaded(false)
-    setSettled(false)
-  }, [src])
-  useEffect(() => {
-    if (!loaded) return
-    const timer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
-    return () => { clearTimeout(timer) }
-  }, [loaded, src])
-  return (
-    <div style={STACK_STYLE}>
-      <iframe
-        title="vscode"
-        src={src}
-        style={FRAME_STYLE}
-        onLoad={() => { setLoaded(true) }}
-      />
-      {settled ? null : (
-        <div style={COVER_STYLE}>
-          <BootHero line={spinLine} spinning />
-        </div>
-      )}
-    </div>
   )
 }
