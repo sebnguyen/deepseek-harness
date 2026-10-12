@@ -19,8 +19,11 @@
 }
 .bubble {
   /* The bubble always spans the column and reads left-aligned; prompts of
-     any length wrap at the transcript width. */
+     any length wrap at the transcript width. border-box keeps width:100%
+     inside the column — the 16px side padding otherwise pushed the bubble
+     32px past the scroller edge and clipped it. */
   width: 100%;
+  box-sizing: border-box;
   background: var(--dsw-specific-bubble);
   border-radius: 22px;
   /* 42px single-line bubble at the default size: 22 line + 10 vertical
@@ -29,7 +32,7 @@
   padding: 10px 16px;
   font-size: var(--dsh-content-font-size, 14px);
   line-height: calc(22px + var(--dsh-content-font-delta, 0px));
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-button-info-label);
   /* The projected user text is inline runs; the bubble owns wrapping so a
      decorated single-line message stays one line. */
   white-space: pre-wrap;

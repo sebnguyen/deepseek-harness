@@ -17,6 +17,7 @@ import type { MessageSource } from '@deepseek-ai/dsh-llm'
 import { SessionLogOffset, SessionSeq } from '@deepseek-ai/dsh-session'
 import type { SessionEvent, SessionHeader, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError, type SessionObservation } from '@deepseek-ai/dsh-session-query'
+import { TURN_SHAPES } from '@deepseek-ai/dsh-client-conversation-mode/types'
 import { SessionTitleInvalidError } from '@deepseek-ai/dsh-session-title'
 import { canonicalClientTimeZone } from '@deepseek-ai/dsh-util-time'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -50,6 +51,8 @@ import type {
   SessionSelectModelValue,
   SessionSetStepPaceRequest,
   SessionSetStepPaceValue,
+  SessionSetTurnShapeRequest,
+  SessionSetTurnShapeValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
   SessionRequestId,
@@ -189,6 +192,25 @@ export class SessionCommandController {
     const agent = await this.resolveAgent(request.sessionId)
     agent.session.append('step-pace', { ms: request.ms })
     return { ms: request.ms }
+  }
+
+  /**
+   * Append one Session's transcript turn-shape selection.
+   * @param request - Session identity and selected shape.
+   * @returns the installed shape.
+   */
+  async setTurnShape(request: SessionSetTurnShapeRequest): Promise<SessionSetTurnShapeValue> {
+    // Wire-side validation: the Remote vocabulary and the conversation-mode taxonomy are the same union by construction.
+    if (!TURN_SHAPES.includes(request.shape)) {
+      throw new RemoteError(
+        'gateway/bad-request',
+        `turn shape must be one of ${TURN_SHAPES.join(', ')}`,
+        {},
+      )
+    }
+    const agent = await this.resolveAgent(request.sessionId)
+    agent.session.append('turn-shape/mode', { shape: request.shape })
+    return { shape: request.shape }
   }
 
   /**
@@ -568,7 +590,6 @@ export class SessionCommandController {
   private async readSessionState(sessionId: SessionId): Promise<SessionReadState> {
     const attached = this.ctx.sessions.get(sessionId)
     if (attached !== undefined) {
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       return { id: attached.id, header: attached.header, events: attached.snapshotEvents() }
     }
     const inspected = await inspectApiSession(this.ctx, sessionId)
@@ -615,7 +636,6 @@ function hasPromptRequest(agent: Agent, requestId: SessionRequestId): boolean {
     return source.kind === 'user' && 'rpcId' in source && source.rpcId === requestId
   }
   if (agent.inbox.nextTurn.some(matches) || agent.inbox.nextStep.some(matches)) return true
-  // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   return agent.session.snapshotEvents().some((event) => {
     if (event.type !== 'user/message') return false
     const source = event.data.source

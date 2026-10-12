@@ -197,12 +197,15 @@ function latestToolPurpose(calls: readonly RunningToolCall[]): string | null {
  * last tool-call purpose, which sticks through events that carry none (call
  * completions, streaming gaps) — the row mounts only while the turn runs, so
  * the stickiness resets on turn end. Slides and fades in on every change.
- * Falls back to the swimming label until the first purpose arrives. */
-function TurnStatus({ t, purpose }: {
+ * Falls back to the deep-diving label while a tool call is in flight
+ * without a purpose, and to the swimming label before any call starts. */
+function TurnStatus({ t, purpose, busy }: {
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
   /** Latest tool-call purpose, or null while nothing carries one. */
   purpose: string | null
+  /** Whether any tool call is still in flight. */
+  busy: boolean
 }) {
   // Same-component adjust-during-render: the last purpose-carrying tool call
   // keeps the line until a younger purpose lands, instead of letting the
@@ -214,7 +217,7 @@ function TurnStatus({ t, purpose }: {
     <div className={css.turnStatus} role="status" aria-live="polite">
       <PixelLoader className={css.turnStatusSpinner} />
       {/* Keyed by the text so a change remounts the span and replays the sweep. */}
-      <span key={text ?? ''} className={css.turnStatusText}>{text ?? t('chat.swimming')}</span>
+      <span key={text ?? ''} className={css.turnStatusText}>{text ?? (busy ? t('chat.deepDiving') : t('chat.swimming'))}</span>
     </div>
   )
 }
@@ -234,7 +237,7 @@ const ChatNodeList = memo(function ChatNodeList({ order, ...seatProps }: ChatNod
  * ordered business Node crosses the keyed renderer seat.
  */
 export function ChatView({
-  useSession, useChat, useChatNode, useChatNodeProcess, useSessions, useStore, actions, renderSlot,
+  useSession, useChat, useChatNode, useSessions, renderSlot,
   sessionId, openFile, openSkill, loadOlder, loadThrough, loadImage, openView, chatScroll, forkAt,
   revealFile, fileMentions,
   useProjection, t,
@@ -731,6 +734,13 @@ export function ChatView({
           top: flowTop(row, el),
         }
       }
+      // Paging deeper into history is leaving the live tail (a session whose
+      // loaded page fits the viewport is at its top and bottom at once):
+      // release bottom ownership BEFORE the prepend grows the column, or a
+      // pinned follow snaps the reader to the latest message and the new
+      // page's rows never wake.
+      atBottomRef.current = false
+      setAtBottom(false)
     }
     loadOlder()
   }
@@ -785,7 +795,7 @@ export function ChatView({
           t={t}
         />
         <div ref={columnRef} className={css.column} data-chat-flow="">
-            {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
+          {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
           {openState === 'error' && openError !== null && (
             <div className={css.openError}>
               {t('chat.loadError', { message: openError.message, code: openError.code })}
@@ -801,9 +811,6 @@ export function ChatView({
           <ChatNodeList
             order={order}
             useChatNode={useChatNode}
-            useChatNodeProcess={useChatNodeProcess}
-            useStore={useStore}
-            actions={actions}
             cwd={cwd}
             openFile={requestOpenFile}
             openSkill={openSkill}
@@ -821,7 +828,7 @@ export function ChatView({
               double-render the same wait. */}
           {/* Turn-level loading signal: rides the whole running turn (first-token
               wait, tool execution, streaming) so it never flickers per step. */}
-          {running && <TurnStatus t={t} purpose={latestToolPurpose(runningCalls)} />}
+          {running && <TurnStatus t={t} purpose={latestToolPurpose(runningCalls)} busy={runningCalls.length > 0} />}
           {pendingSteering.map(item => (
             <PendingSteeringBubble
               key={item.id}

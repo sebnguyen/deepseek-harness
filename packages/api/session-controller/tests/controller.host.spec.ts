@@ -38,6 +38,22 @@ describe('SessionController facade', () => {
     }
   })
 
+  it('setTurnShape persists a validated Session shape and rejects unknown shapes', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(AgentRegistry)
+    const controller = createSessionTestController(ctx, defaults)
+    const session = ctx.sessions.create()
+    const agent = { id: session.id, session, status: 'idle', ctx } as Agent
+    ctx.agents.register(agent)
+
+    expect(await controller.setTurnShape({ sessionId: session.id, shape: 'quiet' }))
+      .toEqual({ shape: 'quiet' })
+    expect(session.snapshotEvents().at(-1)).toMatchObject({ type: 'turn-shape/mode', data: { shape: 'quiet' } })
+    await expect(controller.setTurnShape({ sessionId: session.id, shape: 'loud' as never }))
+      .rejects.toThrow('turn shape must be one of')
+  })
+
   it('owns Host service methods and publishes Agent lifecycle projections', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)

@@ -495,8 +495,8 @@ describe('SessionHistoryController', () => {
       { address, throughSeq: -1, beforeSeq: -1 },
       { address, throughSeq: -1, beforeSeq: -0 },
       { address, throughSeq: -1, beforeSeq: 1.5 },
-      { address, throughSeq: -1, maxMessages: 0 },
-      { address, throughSeq: -1, maxMessages: 1.5 },
+      { address, throughSeq: -1, maxEvents: 0 },
+      { address, throughSeq: -1, maxEvents: 1.5 },
     ]) {
       await expect(transport.page(request, signal())).rejects.toMatchObject({ code: 'gateway/bad-request' })
     }
@@ -513,8 +513,8 @@ describe('SessionHistoryController', () => {
     await expect(corrupt.transport.page({
       address: { kind: 'session', sessionId: corruptId }, throughSeq: 1,
     }, signal())).rejects.toMatchObject({ code: 'SESSION_QUERY_CORRUPT_SESSION' })
-    for (const maxMessages of [0, 0.5]) {
-      const iterator = transport.follow({ address, maxMessages }, signal())[Symbol.asyncIterator]()
+    for (const maxEvents of [0, 0.5]) {
+      const iterator = transport.follow({ address, maxEvents }, signal())[Symbol.asyncIterator]()
       await expect(iterator.next()).rejects.toMatchObject({ code: 'gateway/bad-request' })
     }
   })
@@ -697,7 +697,7 @@ describe('SessionHistoryController', () => {
     expect(childSnapshot).toHaveBeenCalledWith(childSession)
   })
 
-  it('keeps message-aligned pagination contiguous across replacement provenance', async () => {
+  it('keeps event-band pagination contiguous across replacement provenance', async () => {
     const { ctx, transport } = await setup()
     const session = ctx.sessions.create(SessionId('pagination'), { meta: { cwd: '/workspace' } })
     session.append('turn/start', { turn: 1 })
@@ -711,14 +711,16 @@ describe('SessionHistoryController', () => {
       sourceEventSeqs: [SessionSeq(1), firstReply.seq, SessionSeq(3), SessionSeq(4), summary.seq],
     })
 
+    // A 3-event band would stop inside the replacement's own chain; source
+    // extension pulls the whole compaction group into the page instead.
     const page = await transport.page({
-      address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, maxMessages: 2,
+      address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, maxEvents: 3,
     }, signal())
     expect(page.records.map(entry => entry.event.seq))
-      .toEqual([3, 4, 5, replacement.seq])
+      .toEqual([1, firstReply.seq, 3, 4, summary.seq, replacement.seq])
     expect(page.hasMore).toBe(true)
     const before = await transport.page({
-      address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, beforeSeq: 3, maxMessages: 1,
+      address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, beforeSeq: 3, maxEvents: 1,
     }, signal())
     expect(before.records.map(entry => entry.event.seq)).toEqual([2])
   })
@@ -732,7 +734,7 @@ describe('SessionHistoryController', () => {
     })
 
     const page = await transport.page({
-      address: { kind: 'session', sessionId: session.id }, throughSeq: 1, maxMessages: 1,
+      address: { kind: 'session', sessionId: session.id }, throughSeq: 1, maxEvents: 1,
     }, signal())
     expect(page.records.map(entry => entry.event.seq)).toEqual([0, 1])
     expect(page.hasMore).toBe(false)

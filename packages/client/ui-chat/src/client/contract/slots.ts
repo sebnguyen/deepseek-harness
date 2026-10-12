@@ -6,27 +6,22 @@ import type {
   MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
+  InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime,
   SlotHookFactory, SnapshotSelectorHook,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { createChatStore } from '../stores.ts'
 import type { ToolCallId } from './store.ts'
 import type { ChatConversationViewNode, ChatNode, ChatNodeKind } from './chat-nodes.ts'
 import type {
-  ChatNodeProcessSource, ChatNodeSource, ChatSnapshot,
+  ChatNodeSource, ChatSnapshot,
 } from './snapshot.ts'
-import type { StepSpanFold } from './span-fold.ts'
 
 /** Selector hook over the current Conversation binding's Chat target. */
 export type UseChat = SnapshotSelectorHook<ChatSnapshot>
 
 /** Per-key selector hook over one Chat Node. */
 export type UseChatNode = KeyedSnapshotSelectorHook<ChatConversationViewNode | undefined>
-
-/** Per-key selector hook over one Chat Node's Step span fold. */
-export type UseChatNodeProcess = KeyedSnapshotSelectorHook<StepSpanFold | undefined>
 
 /** Where in a file an open should land. */
 export interface OpenFileOptions {
@@ -129,9 +124,6 @@ export interface CommandRowOwnerProps {
 /** Full props of a registered command row. */
 export type CommandRowProps = PropsRuntime<'conversation.chat.commandview'>
 
-/** Shared Chat store handle. */
-export type ChatStore = ReturnType<typeof createChatStore>
-
 /** In-memory reader position resilient to transcript reflow. */
 export interface ChatScrollPosition {
   readonly anchorKey: string
@@ -144,8 +136,6 @@ export interface ChatViewInjected {
   keyedHooks: {
     /** Resolve the stable source for one Chat Node key. */
     chatNode: (key: string) => ChatNodeSource
-    /** Resolve the stable Turn-process source for one Chat Node key. */
-    chatNodeProcess: (key: string) => ChatNodeProcessSource
   }
   /** Open the current source file of a skill referenced by a sent message. */
   openSkill: (name: string) => void
@@ -168,7 +158,6 @@ export interface ChatViewInjected {
 export type ChatViewSlotProps =
   PropsRuntime<'conversation.view'>
   & PropsRenderSlots<'conversation.chat.node' | 'conversation.message.images'>
-  & PropsStore<ChatStore>
   & InjectFace<ChatViewInjected>
   & PropsLocale<'chat'>
 

@@ -75,6 +75,10 @@ async function bench(nodes: ToolResultNode[]) {
     session: {
       openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })),
     },
+    checkpoint: {
+      slots: vi.fn(async () => ({ ok: true, value: [] })),
+      blob: vi.fn(async () => ({ ok: true, value: null })),
+    },
   })
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   runtime.ctx.provide('layout', { openDetails: vi.fn(), closeDetails: vi.fn() })
@@ -85,6 +89,10 @@ async function bench(nodes: ToolResultNode[]) {
       runtime.sessions.open(SID)
     }),
     openSession: (id: SessionId) => { runtime.sessions.open(id) },
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '' as SessionId, seq: 0 }),
+      subscribe: () => () => {},
+    },
   } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)

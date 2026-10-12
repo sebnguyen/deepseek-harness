@@ -146,11 +146,12 @@ export function ProjectRowItem({ group, onToggle, onCreate, actions, drag, home,
         }}
       onDragEnd={drag?.end}
     >
-      <span className={clsx(css.slot, css.folder, active && css.folderActive)}>
-        {row.expanded ? <IconFolderOpen16 /> : <IconFolderClose16 />}
-      </span>
+      {/* Explorer anatomy: the twistie leads, followed by the folder glyph. */}
       <span className={clsx(css.slot, css.chevron)}>
         <IconTriangleRightFill14 className={clsx(css.arrow, row.expanded && css.arrowOpen)} />
+      </span>
+      <span className={clsx(css.slot, css.folder, active && css.folderActive)}>
+        {row.expanded ? <IconFolderOpen16 /> : <IconFolderClose16 />}
       </span>
       <span className={css.projectText}>
         <span className={css.title}>{label}</span>
@@ -425,6 +426,7 @@ export function SessionNodeItem({
       ref={rowRef}
       className={clsx(
         css.sessionRow, selected && css.selected, menuOpen && css.menuOpen,
+        !flat && css.groupedRow,
         flat && !showStatus && css.flatSessionRowWithoutStatus,
         drag?.marker === 'before' && css.dropBefore, drag?.marker === 'after' && css.dropAfter,
       )}

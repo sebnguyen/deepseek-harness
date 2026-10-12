@@ -179,7 +179,7 @@ export class SessionEventStream extends RemoteJournalStream<
     for await (const frame of this.remote.session.follow({
       address: this.address,
       assistantStream: true,
-      ...(request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages }),
+      ...(request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents }),
     }, signal)) {
       if (frame.type === 'snapshot') {
         for (const record of frame.records) assertSessionWireEvent(record.event)
@@ -238,6 +238,6 @@ export class SessionEventStream extends RemoteJournalStream<
   protected override repairRequest(
     request: ClientSessionPageRequest,
   ): ClientSessionPageRequest {
-    return request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages }
+    return request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents }
   }
 }

@@ -1,9 +1,9 @@
 /**
  * Harness-guide plugin, browser half — a sidebar trigger that opens the
- * capability roster in a popover. The shell (ui-sidebar) declares the
- * `sidebar.guide` seat and supplies the stack site plus its column state;
- * this plugin owns the seat's copy, roster, and popover. The session list
- * stays in the browsing region.
+ * capability roster in a floating launch dialog. The shell (ui-sidebar)
+ * declares the `sidebar.guide` seat and supplies the stack site plus its
+ * column state; this plugin owns the seat's copy, roster, and dialog.
+ * The session list stays in the browsing region.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).

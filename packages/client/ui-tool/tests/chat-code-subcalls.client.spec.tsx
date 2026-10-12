@@ -120,8 +120,19 @@ async function bench(snapshot: ChatSnapshot) {
   ctx.provide('layout', layout as never)
   const sidebarRight = { openResource: vi.fn<(address: string) => void>() }
   ctx.provide('sidebarRight', sidebarRight as never)
-  ctx.provide('uiWorkspace', {} as never)
-  new TestRemote(ctx, { session: { openWorkspacePath } })
+  ctx.provide('uiWorkspace', {
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '', seq: 0 }),
+      subscribe: () => () => {},
+    },
+  } as never)
+  new TestRemote(ctx, {
+    session: { openWorkspacePath },
+    checkpoint: {
+      slots: vi.fn(async () => ({ ok: true, value: [] })),
+      blob: vi.fn(async () => ({ ok: true, value: null })),
+    },
+  })
   const locale = new LocaleRuntime(ctx)
   ctx.provide('locale', locale)
   locale.register(CONVERSATION_NS, { zh: conversationZh, en: conversationEn })

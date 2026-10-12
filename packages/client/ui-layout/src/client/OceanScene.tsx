@@ -1,11 +1,18 @@
 // Ocean scene — the ambient background layer of the app frame, painted
-// behind the floating cards. Procedural god-ray fan hinged on a single
-// calculated sun over the frame center, a dot grid, and a shine scalar that
-// climbs while the current session's engine is running (sessions list's
-// running flag).
+// behind the floating cards. The god-ray fan, sun halo cluster and dot grid
+// render through a layered WebGL2 engine (ocean-shader.ts): sea + instanced
+// lights into one quarter-res FBO, one blit, and a device-px dot lattice on
+// top — four draw calls per frame, no per-frame buffer uploads — so the whole
+// field composites as one GPU texture; when no GL context is available the
+// component falls back to the procedural DOM compositor below: god-ray fan
+// hinged on a single calculated sun over the frame center, a dot grid, and a
+// shine scalar that climbs while the current session's engine is running
+// (sessions list's running flag).
 
 import { useEffect, useRef } from 'react'
 import css from './OceanScene.module.css'
+import { makeRng, mountOceanShader } from './ocean-shader.ts'
+import type { OceanShaderHandle } from './ocean-shader.ts'
 
 /** The veil class-combination without a clsx-style join helper (ui-layout
    has no utility dependency: dense layers the deep variant over the base
@@ -22,24 +29,21 @@ export interface OceanSceneProps {
   dense: boolean
 }
 
-/** Deterministic per-mount PRNG so each page paints a stable composition. */
-function makeRng(): () => number {
-  let seed = (Date.now() % 2147483646) + 1
-  return () => (seed = (seed * 16807) % 2147483647) / 2147483647
-}
-
 /** Ambient ocean scene, generated once per conversation mount.
  * @param props — engine state and veil density, see {@link OceanSceneProps}.
  */
 export function OceanScene(props: OceanSceneProps) {
   const sceneRef = useRef<HTMLDivElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
   const raysHostRef = useRef<HTMLDivElement | null>(null)
   const boostHostRef = useRef<HTMLDivElement | null>(null)
   const gridspaceRef = useRef<HTMLDivElement | null>(null)
   const reducedRef = useRef(false)
   const runningRef = useRef(props.running)
+  const shaderRef = useRef<OceanShaderHandle | null>(null)
   useEffect(() => {
     runningRef.current = props.running
+    shaderRef.current?.setRunning(props.running)
     /* Reduced-motion sessions skip the shine loop; the boost layer still
        answers the engine state, as a static on/off layer. */
     const host = boostHostRef.current
@@ -56,7 +60,19 @@ export function OceanScene(props: OceanSceneProps) {
     const reduced = typeof window.matchMedia === 'function'
       /* v8 ignore next -- reduced-motion query only reached in real browsers */
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    reducedRef.current = reduced === true
+    reducedRef.current = reduced
+
+    /* GL first: one fragment pass replaces the per-frame DOM opacity writes.
+       No context (jsdom, blocked software GL) keeps the DOM compositor. */
+    const shader = mountOceanShader(canvasRef.current, { reduced: reducedRef.current, running: runningRef.current })
+    shaderRef.current = shader
+    if (shader !== null) {
+      return () => {
+        shaderRef.current = null
+        shader.dispose()
+      }
+    }
+
     const rand = makeRng()
     const RCOLORS = [
       'var(--dsh-ocean-ray-a)',
@@ -71,14 +87,14 @@ export function OceanScene(props: OceanSceneProps) {
     interface Halo { el: HTMLElement; dxf: number; dyf: number; base: number }
     const halos: Halo[] = []
     const sun = document.createElement('div')
-    sun.className = css.suncore!
+    sun.className = css.suncore ?? ''
     sun.style.top = `${sunY.toFixed(2)}vh`
     host.appendChild(sun)
     halos.push({ el: sun, dxf: 0, dyf: 0, base: 0.45 })
     const SAT_N = 2 + Math.round(rand() * 2)
     for (let i = 0; i < SAT_N; i++) {
       const sat = document.createElement('div')
-      sat.className = css.suncore!
+      sat.className = css.suncore ?? ''
       const size = 90 + rand() * 90
       sat.style.width = `${size.toFixed(0)}px`
       sat.style.height = `${size.toFixed(0)}px`
@@ -105,17 +121,14 @@ export function OceanScene(props: OceanSceneProps) {
       && window.matchMedia('(max-width: 900px)').matches ? 5 : 8
     for (let i = 0; i < RAY_N; i++) {
       const el = document.createElement('i')
-      el.className = css.ray!
+      el.className = css.ray ?? ''
       const w = 190 + rand() * 300
-      /* near-parallel shafts — overhead sun light stays within ±10°, but
-         hinge scatter keeps them from reading as a curtain */
-      /* near-parallel sweet spot: a modest fan, ~pm16, narrow enough
-         to read as overhead water light, wide enough not to cane back
-         into curtain territory */
-      const ang = -16 + (i + 0.5) / RAY_N * 32 + (rand() - 0.5) * 4
-      /* its own hinge spot inside the source region:
-         ±9% of the frame sideways, ±7vh vertically */
-      const dxf = (rand() - 0.5) * 0.24
+      /* hand-fan from the middle: hinges stratified across the full frame
+         width (with a local jitter), and each shaft's tilt follows its
+         offset from center — very slight, ±5° at the far edges, dead
+         vertical through the middle */
+      const dxf = ((i + 0.5) / RAY_N - 0.5) + (rand() - 0.5) * (1 / RAY_N) * 0.5
+      const ang = dxf * 10 + (rand() - 0.5) * 1.5
       const dyf = (rand() - 0.5) * 14
       el.style.top = `${(sunY + dyf).toFixed(2)}vh`
       el.style.width = `${w.toFixed(0)}px`
@@ -131,7 +144,7 @@ export function OceanScene(props: OceanSceneProps) {
       host.appendChild(el)
       if (boostHost !== null) {
         const boost = document.createElement('i')
-        boost.className = css.boostRay!
+        boost.className = css.boostRay ?? ''
         boost.style.top = `${(sunY + dyf).toFixed(2)}vh`
         boost.style.marginLeft = `${(-w / 2).toFixed(0)}px`
         boost.style.width = `${w.toFixed(0)}px`
@@ -189,32 +202,15 @@ export function OceanScene(props: OceanSceneProps) {
     const floorAt = (s: number) => 0.06 + 0.3 * s
     const capAt = (s: number) => 0.5 + 0.5 * s
     let shine = 0
-    /* gridspace: three zoom-cycling dot layers — zoom stands in for depth,
-       so no perspective is involved; each layer also carries its own rays,
-       their hinge hanging high so the source is always off-screen */
-    const CYC = 3
-    interface GridLayer { el: HTMLElement; phase: number }
-    const layers: GridLayer[] = []
+    /* gridspace: a single static reference grid — no travel, no cycling,
+       nothing per-frame; just a resonance floor under the rays' glow */
     const gridspaceHost = gridspaceRef.current
     if (gridspaceHost !== null) {
-      for (let i = 0; i < CYC; i++) {
-        const el = document.createElement('div')
-        el.className = i % 2 === 0 ? css.glayerA! : css.glayerB!
-        const PRAY_N = 1 + (i % 2) + (rand() > 0.7 ? 1 : 0)
-        for (let k = 0; k < PRAY_N; k++) {
-          const pr = document.createElement('i')
-          pr.className = css.gpray!
-          pr.style.left = `${(12 + rand() * 76).toFixed(0)}%`
-          pr.style.width = `${(70 + rand() * 130).toFixed(0)}px`
-          pr.style.setProperty('--r', ((rand() - 0.5) * 6).toFixed(2) + 'deg')
-          el.appendChild(pr)
-        }
-        gridspaceHost.appendChild(el)
-        layers.push({ el, phase: i / CYC })
-      }
+      const el = document.createElement('div')
+      el.className = css.glayerA ?? ''
+      el.style.opacity = '0.32'
+      gridspaceHost.appendChild(el)
     }
-    let speed = 0
-    let cyclePos = 0
     let raf = 0
     let prev = performance.now()
     const frame = (now: number) => {
@@ -223,7 +219,7 @@ export function OceanScene(props: OceanSceneProps) {
       const target = runningRef.current ? 1 : 0
       /* faster attack than release: the swell announces inference, the
          fade-out drifts back to idle */
-      shine += (target - shine) * Math.min(1, dt * (target > shine ? 2.2 : 1.1))
+      shine += (target - shine) * Math.min(1, dt * (target > shine ? 1.4 : 1.1))
       const lo = floorAt(shine)
       const cap = capAt(shine)
       const t = now / 1000
@@ -239,20 +235,6 @@ export function OceanScene(props: OceanSceneProps) {
       for (const h of halos) {
         h.el.style.opacity = (h.base + 0.4 * shine).toFixed(3)
       }
-      /* the travel: layers cycle forward — zoom per cycle is the approach.
-         Cycle rate eases from one pass per 22s at idle to one per 4.5s at
-         full inference; opacity follows the same asymmetric bell stance. */
-      const rateTarget = 1 / 22 + shine * (1 / 4.5 - 1 / 22)
-      speed += (rateTarget - speed) * Math.min(1, dt * 1.6)
-      cyclePos = (cyclePos + speed * dt) % 1
-      for (const lyr of layers) {
-        const p = (cyclePos + lyr.phase) % 1
-        const d = (p - 0.45) / 0.2
-        const bell = Math.exp(-0.5 * d * d)
-        /* idle keeps real presence (0.45); inference opens to 1.0 */
-        lyr.el.style.opacity = (bell * (0.45 + shine * 0.55)).toFixed(3)
-        lyr.el.style.transform = `scale(${(0.18 * Math.pow(7.1, p)).toFixed(4)})`
-      }
       raf = requestAnimationFrame(frame)
     }
     if (reduced) {
@@ -261,12 +243,6 @@ export function OceanScene(props: OceanSceneProps) {
       }
       for (const h of halos) {
         h.el.style.opacity = h.base.toFixed(3)
-      }
-      /* layers shone statically at their seed position in reduced motion */
-      for (const lyr of layers) {
-        const d = (lyr.phase - 0.45) / 0.2
-        lyr.el.style.opacity = (Math.exp(-0.5 * d * d) * 0.5).toFixed(3)
-        lyr.el.style.transform = `scale(${(0.18 * Math.pow(7.1, lyr.phase)).toFixed(4)})`
       }
     } else {
       raf = requestAnimationFrame(frame)
@@ -283,6 +259,7 @@ export function OceanScene(props: OceanSceneProps) {
 
   return (
     <div ref={sceneRef} className={css.scene} aria-hidden="true">
+      <canvas ref={canvasRef} className={css.gl} />
       <div ref={raysHostRef} className={css.rays} />
       <div ref={boostHostRef} className={css.boost} />
       <div ref={gridspaceRef} className={css.gs} />

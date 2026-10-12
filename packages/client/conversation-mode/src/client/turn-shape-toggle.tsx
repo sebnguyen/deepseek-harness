@@ -1,84 +1,88 @@
 /**
  * Turn-shape selector, browser half: one `Menu` on the composer input row
- * over Narrate, Quiet, and Tools only. The selector binds the shared
- * `ui-quiet` settings namespace through the settings scope and writes the
- * `turnShape` field; the host half snapshots the shape per turn, so a pick
- * made while a turn streams applies from the next turn — and the pill says
- * so, instead of pretending the mid-turn change took effect. Transcript
- * semantics live in the ui-chat render contract; this control only records
- * the preference.
+ * over Narrate, Quiet, and Tools only. The pill reads the current session's
+ * `turnShape` projection, and a pick appends `turn-shape/mode` through the
+ * `session.setTurnShape` Remote, so the arming is one session's logged state
+ * — never a cross-session setting. The host half snapshots the shape per
+ * turn, so a pick made while a turn streams applies from the next turn — and
+ * the pill says so, instead of pretending the mid-turn change took effect.
+ * Transcript semantics live in the ui-chat render contract; this control
+ * only records the selection.
  */
 
-import { useState, useSyncExternalStore } from 'react'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {
-  SettingsScopeSnapshot,
-} from '@deepseek-ai/dsh-client-ui-settings/client'
+// Type-only: pulls the generated Remote session namespace typing.
+import type { } from '@deepseek-ai/dsh-api-session-controller/remote'
+import type { } from '@deepseek-ai/dsh-client-locale/client'
+import type { } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type { } from '@deepseek-ai/dsh-client-ui-session/client'
 import {
   IconThinkOutline16, Menu, type MenuItem,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import css from './TurnShapeToggle.module.css'
-import {
-  DEFAULT_SHAPE, TURN_SHAPES, TURN_SHAPE_FIELD, TURN_SHAPE_SETTINGS_NAMESPACE,
-  normalizeTurnShape, type TurnShape, type TurnShapeSettings,
-} from '../turn-shape-settings.ts'
+import { DEFAULT_SHAPE, TURN_SHAPES, type TurnShape } from '../types.ts'
+import { en, zh, type TurnShapeKey } from './locales.ts'
 
-/** Selector rows, one per turn shape. */
-const SHAPE_ITEMS: MenuItem[] = [
-  { id: 'narrate', label: 'Narrate' },
-  { id: 'quiet', label: 'Quiet' },
-  { id: 'tools', label: 'Tools only' },
-]
+export { en, zh, type TurnShapeKey } from './locales.ts'
 
-/** Tooltip copy per shape, stated in transcript terms. */
-const SHAPE_TITLES: Record<TurnShape, string> = {
-  narrate: 'Narrate: thoughts, tools, and closing answers as usual',
-  quiet: 'Quiet: thoughts and tool rows; closes with one plain answer. Applies to the next turn.',
-  tools: 'Tools only: thoughts and tool rows; the turn ends without a summary. Applies to the next turn.',
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface LocaleNamespaceMap {
+    /** The turn-shape selector's copy (composer pill and menu). */
+    'turn-shape': TurnShapeKey
+  }
 }
 
-/** Short labels for the composer pill. */
-const SHAPE_LABELS: Record<TurnShape, string> = {
-  narrate: 'Narrate',
-  quiet: 'Quiet',
-  tools: 'Tools only',
+/** The shape's pill/menu label, localized. */
+function shapeLabel(t: TranslateNS<'turn-shape'>, shape: TurnShape): string {
+  switch (shape) {
+    case 'narrate': return t('label.narrate')
+    case 'quiet': return t('label.quiet')
+    case 'tools': return t('label.tools')
+  }
 }
 
-/**
- * The scope's surface as plain bound functions, built once at apply: the
- * scope's members are class methods, and handing them to
- * `useSyncExternalStore` detached would throw their `this` away at call
- * time — the selector would crash on first render.
- */
-export interface TurnShapeScopeFace {
-  /** Current sync snapshot (stable reference until the next change). */
-  getSnapshot(): SettingsScopeSnapshot<TurnShapeSettings>
-  /** Observe snapshot replacements. */
-  subscribe(listener: () => void): () => void
-  /** Write the turn shape to the shared namespace. */
-  setShape(shape: TurnShape): void
+/** The shape's tooltip, localized. */
+function shapeTitle(t: TranslateNS<'turn-shape'>, shape: TurnShape): string {
+  switch (shape) {
+    case 'narrate': return t('title.narrate')
+    case 'quiet': return t('title.quiet')
+    case 'tools': return t('title.tools')
+  }
+}
+
+/** Bound Remote face owned by the plugin apply. */
+export interface TurnShapeToggleFace {
+  /** Append one `turn-shape/mode` selection to the session (fire-and-forget). */
+  setShape(sessionId: SessionId, shape: TurnShape): void
 }
 
 /** Props the shape selector receives from the composer row slot. */
-export interface TurnShapeToggleProps extends PropsRuntime<'conversation.input.right'> {
-  /** The bound scope face owned by the plugin apply. */
-  turnShape: TurnShapeScopeFace
-}
+export type TurnShapeToggleProps = PropsRuntime<'conversation.input.right'>
+  & PropsLocale<'turn-shape'>
+  & {
+    /** The bound Remote face owned by the plugin apply. */
+    turnShape: TurnShapeToggleFace
+  }
 
 /** The Narrate/Quiet/Tools only selector riding the composer input row. */
 export function TurnShapeToggle(props: TurnShapeToggleProps): ReactNode {
   const [open, setOpen] = useState(false)
-  const snapshot = useSyncExternalStore(props.turnShape.subscribe, props.turnShape.getSnapshot)
-  const shape = normalizeTurnShape(snapshot.value ?? { turnShape: DEFAULT_SHAPE })
+  const projection = props.useProjection('turnShape')
+  const shape = projection?.shape ?? DEFAULT_SHAPE
+  const items: MenuItem[] = TURN_SHAPES.map(candidate => ({
+    id: candidate,
+    label: shapeLabel(props.t, candidate),
+  }))
   return (
     <Menu
       open={open}
       onClose={() => { setOpen(false) }}
-      items={SHAPE_ITEMS}
+      items={items}
       selectedId={shape}
       // The selector rides the composer row at the viewport bottom: the
       // list opens above the trigger and portals to fixed positioning,
@@ -88,9 +92,9 @@ export function TurnShapeToggle(props: TurnShapeToggleProps): ReactNode {
       onSelect={(id) => {
         setOpen(false)
         // The menu ids ARE the shape strings; admit only them so nothing
-        // outside the taxonomy reaches the shared namespace.
+        // outside the taxonomy reaches the session log.
         const next = TURN_SHAPES.find(turnShape => turnShape === id)
-        if (next !== undefined) props.turnShape.setShape(next)
+        if (next !== undefined) props.turnShape.setShape(props.sessionId, next)
       }}
       anchor={
         <button
@@ -98,11 +102,11 @@ export function TurnShapeToggle(props: TurnShapeToggleProps): ReactNode {
           className={shape === 'narrate' ? css.toggle : `${css.toggle} ${css.on}`}
           aria-haspopup="menu"
           aria-expanded={open}
-          title={SHAPE_TITLES[shape]}
+          title={shapeTitle(props.t, shape)}
           onClick={() => { setOpen(!open) }}
         >
           <IconThinkOutline16 />
-          {SHAPE_LABELS[shape]}
+          {shapeLabel(props.t, shape)}
         </button>
       }
     />
@@ -111,16 +115,22 @@ export function TurnShapeToggle(props: TurnShapeToggleProps): ReactNode {
 
 /** Client plugin body. @param ctx - client root context. */
 export function apply(ctx: ClientContext): void {
-  const scope = ctx.settingsScope.bind<TurnShapeSettings>({ namespace: TURN_SHAPE_SETTINGS_NAMESPACE })
-  const turnShape: TurnShapeScopeFace = {
-    getSnapshot: () => scope.getSnapshot(),
-    subscribe: listener => scope.subscribe(listener),
-    setShape: (next) => { void scope.set(TURN_SHAPE_FIELD, next) },
+  ctx.effect(() => ctx.locale.register('turn-shape', { zh, en }), 'conversation-mode: dictionaries')
+  const sessionRemote = ctx.remote.session
+  const turnShape: TurnShapeToggleFace = {
+    setShape: (sessionId, shape) => {
+      void sessionRemote.setTurnShape({ sessionId, shape }).then((result) => {
+        if (!result.ok) {
+          console.error(`session.setTurnShape failed: [${result.error.code}] ${result.error.message}`)
+        }
+      })
+    },
   }
   ctx.slots.inject('conversation.input.right', () => ctx.slots.register(
-    { name: 'conversation.input.right', id: 'turn-shape-toggle', order: 5 },
-    (props: PropsRuntime<'conversation.input.right'>) => TurnShapeToggle({ ...props, turnShape }),
+    { name: 'conversation.input.right', id: 'turn-shape-toggle', order: 5, locale: 'turn-shape' },
+    (props: PropsRuntime<'conversation.input.right'> & PropsLocale<'turn-shape'>) =>
+      TurnShapeToggle({ ...props, turnShape }),
   ))
 }
 
-export const inject = ['slots', 'settingsScope']
+export const inject = ['slots', 'locale', 'remote', 'remote.session']

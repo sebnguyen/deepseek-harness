@@ -8,14 +8,15 @@
   "files": [
     "src/index.ts",
     "src/turn-shape.ts",
-    "src/turn-shape-settings.ts"
+    "src/types.ts"
   ],
   "references": [
     { "path": "../../../vendor/cordis" },
-    { "path": "../../../vendor/schemastery" },
     { "path": "../../core/agent" },
     { "path": "../../core/session" },
-    { "path": "../../settings/settings" },
-    { "path": "../../llm/llm" }
+    { "path": "../../interaction/commands" },
+    { "path": "../../llm/llm" },
+    { "path": "../../session/session-projection" },
+    { "path": "../../util/brand" }
   ]
 }

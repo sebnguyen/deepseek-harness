@@ -142,6 +142,11 @@ export function createSnapshotStore<T>(
  * draft becomes {0:'h',1:'e',...}) — not fixable via merge/deserialize options
  * because the corruption happens before serialization. Storage failures
  * (quota, private mode) only disable persistence, never break the store.
+ *
+ * Writes coalesce to one per frame, scheduled off the mutation's task: a
+ * synchronous storage write per keystroke would stack unrelated main-thread
+ * work onto the controlled-input echo, and only the latest state is written.
+ * The pagehide drain flushes a pending tail so reloads observe it.
  */
 function attachPersistence<T>(api: StoreApi<T>, name: string): void {
   // Non-browser runs (node e2e booting the client tree) have no localStorage:
@@ -156,12 +161,50 @@ function attachPersistence<T>(api: StoreApi<T>, name: string): void {
   } catch (error) {
     console.error(`snapshot store '${name}' rehydration failed:`, error)
   }
-  api.subscribe((state) => {
+  let live = true
+  const write = (): void => {
     try {
-      localStorage.setItem(name, JSON.stringify(state))
+      localStorage.setItem(name, JSON.stringify(api.getState()))
     } catch (error) {
       console.error(`snapshot store '${name}' persistence failed:`, error)
     }
+  }
+  const flush = rafBatch(() => {
+    pendingPersistenceWrites.delete(write)
+    if (live) write()
+  })
+  armPagehideDrain()
+  api.subscribe(() => {
+    if (!live) return
+    pendingPersistenceWrites.add(write)
+    flush()
+  })
+  persistenceCancellerByKey.set(name, () => {
+    live = false
+    pendingPersistenceWrites.delete(write)
+    persistenceCancellerByKey.delete(name)
+  })
+}
+
+/** Live persistence cancel faces by persist name; clearPersisted cancels scheduled writes. */
+const persistenceCancellerByKey = new Map<string, () => void>()
+
+/** Persisted stores whose latest state is not yet written; drained on page unload. */
+const pendingPersistenceWrites = new Set<() => void>()
+let pagehideDrainArmed = false
+
+/**
+ * Flush scheduled persistence writes once per page at unload, so a
+ * frame-coalesced tail survives a reload landing between paints.
+ */
+function armPagehideDrain(): void {
+  // Retried per persist attach until a window exists (node lanes never arm).
+  if (pagehideDrainArmed || typeof window === 'undefined') return
+  pagehideDrainArmed = true
+  window.addEventListener('pagehide', () => {
+    // Drained entries stay scheduled: the pending frame flush rewrites the
+    // same state idempotently (bfcache restore runs it again).
+    for (const write of [...pendingPersistenceWrites]) write()
   })
 }
 
@@ -237,6 +280,9 @@ export function defineStore<T, A extends ActionsDecl<T>>(
         store,
         clearPersisted: () => {
           if (persistKey === undefined || typeof localStorage === 'undefined') return
+          // A write scheduled for this instance must not resurrect the key
+          // after its scope-death cleanup.
+          persistenceCancellerByKey.get(persistKey)?.()
           try {
             localStorage.removeItem(persistKey)
           } catch {

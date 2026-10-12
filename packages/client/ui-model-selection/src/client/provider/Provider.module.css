@@ -5,19 +5,21 @@
 .entry {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: 100%;
-  height: 42px;
+  justify-content: center;
+  gap: 0;
+  width: 20px;
+  height: 20px;
   margin: 0;
-  padding: 0 10px 0 8px;
+  padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
+  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 12.5px;
+  line-height: 16px;
   cursor: pointer;
   overflow: hidden;
 }
@@ -28,8 +30,8 @@
 
 .entry.rail {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 22px;
+  height: 22px;
   justify-content: center;
   gap: 0;
   padding: 0;
@@ -37,10 +39,10 @@
   corner-shape: round;
 }
 
+/* Icon-only entry: the wide label bows out; the button's aria-label keeps
+   the name exposed. */
 .entryLabel {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
+  display: none;
 }
 
 .overlay {

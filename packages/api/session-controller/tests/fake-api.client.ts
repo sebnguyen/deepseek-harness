@@ -138,7 +138,7 @@ export class FakeApiClient {
     }))
   onRename: (payload: unknown) => Promise<RemoteResult<{ title: string; seq: number }>> = () => Promise.resolve(ok({ title: 'fk-renamed', seq: 0 }))
   onFork: (payload: unknown) => Promise<RemoteResult<{ sessionId: SessionId }>> = () => Promise.resolve(ok({ sessionId: 'fk-fork' as SessionId }))
-  onHistory: (payload: { sessionId: SessionId; throughSeq?: number; beforeSeq?: number; maxMessages?: number })
+  onHistory: (payload: { sessionId: SessionId; throughSeq?: number; beforeSeq?: number; maxEvents?: number })
   => Promise<RemoteResult<SessionPage & { readonly projections?: SessionProjectionBaseline }>> =
     () => Promise.resolve(ok({ records: [], hasMore: false }))
 
@@ -229,6 +229,7 @@ export class FakeApiClient {
           this.onSelectModel(payload),
         ),
         setStepPace: payload => Promise.resolve(ok({ ms: payload.ms })),
+        setTurnShape: payload => Promise.resolve(ok({ shape: payload.shape })),
         rename: payload => this.record('session.rename', payload, this.onRename(payload)),
         fork: payload => this.record('session.fork', payload, this.onFork(payload)),
         prompt: payload => this.record('session.prompt', payload, this.onPrompt(payload)),
@@ -347,7 +348,7 @@ export class FakeApiClient {
         sessionId,
         throughSeq: request.throughSeq,
         ...request.beforeSeq === undefined ? {} : { beforeSeq: request.beforeSeq },
-        ...request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages },
+        ...request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents },
       }
       : {
         parentSessionId: request.address.parentSessionId,
@@ -355,14 +356,14 @@ export class FakeApiClient {
         mode: request.address.mode,
         throughSeq: request.throughSeq,
         ...request.beforeSeq === undefined ? {} : { beforeSeq: request.beforeSeq },
-        ...request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages },
+        ...request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents },
       }
     const method = request.address.kind === 'session' ? 'session.history' : 'subagent.history'
     const result = await this.record(method, payload, response ?? this.onHistory({
       sessionId,
       throughSeq: request.throughSeq,
       ...request.beforeSeq === undefined ? {} : { beforeSeq: request.beforeSeq },
-      ...request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages },
+      ...request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents },
     }))
     if (!result.ok) return result
     return {
@@ -384,7 +385,7 @@ export class FakeApiClient {
     try {
       const response = await this.onHistory({
         sessionId,
-        maxMessages: request.maxMessages ?? 50,
+        maxEvents: request.maxEvents ?? 50,
       })
       if (!response.ok) throw response.error
       const page = response.value

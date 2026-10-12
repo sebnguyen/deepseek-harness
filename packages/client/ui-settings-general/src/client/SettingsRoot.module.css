@@ -2,17 +2,22 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: calc(100% + 4px);
-  margin: 4px -2px;
+  gap: 4px;
+  margin: 0;
 }
 
-/* Sidebar-foot stack: feature entries above the Settings trigger row; the
-   rail variant centers its 36px column. */
+/* Sidebar-floor row: feature entries ride the same 20px icon row as the
+   Settings trigger; only the rail variant stacks its 22px circles. */
 .footColumn {
   display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+}
+
+.footColumn.railColumn {
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .footColumn .triggerRow {
@@ -28,52 +33,50 @@
 }
 
 .triggerRow.railRow {
-  width: 36px;
-  margin: 8px 0 10px;
+  width: 22px;
+  margin: 0;
 }
 
+/* Transparent icon trigger matching the shell's footing icons. */
 .trigger {
-  flex: 1;
+  flex: none;
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: auto;
-  height: 42px;
+  justify-content: center;
+  gap: 0;
+  width: 20px;
+  height: 20px;
   margin: 0;
-  padding: 0 10px 0 8px;
+  padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 12px;
+  border-radius: 6px;
+  corner-shape: round;
   background: transparent;
   cursor: pointer;
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
   font-family: inherit;
-  font-size: 14px;
-  line-height: 22px;
+  font-size: 12.5px;
+  line-height: 16px;
 }
 
 .trigger:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* Rail trigger: the same 36x36 circle box as the other rail controls. */
+/* Rail trigger: the same 22x22 circle box as the other rail controls. */
 .trigger.rail {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 22px;
+  height: 22px;
   margin: 0;
   justify-content: center;
   gap: 0;
   padding: 0;
   border-radius: 50%;
   corner-shape: round;
-}
-
-.triggerLabel {
-  overflow: hidden;
-  white-space: nowrap;
 }
 
 /* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the

@@ -57,6 +57,10 @@ async function bench() {
       runtime.sessions.open(id)
     },
     openSession: (id: SessionId) => { runtime.sessions.open(id) },
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '' as SessionId, seq: 0 }),
+      subscribe: () => () => {},
+    },
   } as never)
   const sessionFake = sessionFakeFor()
   await runtime.sessions.add({

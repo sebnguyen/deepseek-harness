@@ -42,6 +42,10 @@ async function bench() {
       runtime.sessions.open(SID)
     }),
     openSession: (id: SessionId) => { runtime.sessions.open(id) },
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '' as SessionId, seq: 0 }),
+      subscribe: () => () => {},
+    },
   } as never)
   new TestRemote(runtime.ctx, {
     session: { openWorkspacePath: vi.fn(async () => ({ ok: true, value: { opened: true } })) },
@@ -88,13 +92,11 @@ describe('Chat apply wiring', () => {
     await b.runtime.dispose()
   })
 
-  it('shares one Chat store while keeping it distinct from Conversation state', async () => {
+  it('mounts the Chat view without a store of its own while Conversation shares one', async () => {
     const b = await bench()
     const conversationStore = storeOf(b.runtime, 'conversation.session')
-    const chatStore = storeOf(b.runtime, 'conversation.view')
     expect(storeOf(b.runtime, 'conversation.session.header')).toBe(conversationStore)
-    expect(chatStore).toBeDefined()
-    expect(chatStore).not.toBe(conversationStore)
+    expect(storeOf(b.runtime, 'conversation.view')).toBeUndefined()
     await b.runtime.dispose()
   })
 

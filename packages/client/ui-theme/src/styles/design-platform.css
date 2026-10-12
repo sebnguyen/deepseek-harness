@@ -218,6 +218,9 @@ body {
   --dsw-alias-button-ghost-active-hover: var(--dsw-static-neutral-bluish-150);
   --dsw-alias-button-info-fill: var(--dsw-static-blue-500);
   --dsw-alias-button-info-hover: var(--dsw-static-blue-400);
+  /* Ink that stays legible on the info fill (bright blue in light, pale teal
+     in dark — see the dark recompute below). */
+  --dsw-alias-button-info-label: rgb(255, 255, 255);
   --dsw-alias-button-primary-dimmed: var(--dsw-static-neutral-bluish-100);
   --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
   --dsw-alias-button-primary-hover: rgb(0, 84, 204);
@@ -251,8 +254,10 @@ body {
   --dsw-alias-scrollbar-bg-l2: var(--dsw-static-neutral-200);
   --dsw-alias-scrollbar-hover-l1: var(--dsw-static-neutral-300);
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-300);
-  --dsw-specific-bubble: var(--dsw-static-violet-50);
-  --dsw-specific-bubble-highlight: var(--dsw-static-violet-200);
+  /* User bubble tracks the chat send button: the info fill and hover pair,
+     inked by --dsw-alias-button-info-label. */
+  --dsw-specific-bubble: var(--dsw-alias-button-info-fill);
+  --dsw-specific-bubble-highlight: var(--dsw-alias-button-info-hover);
   --dsw-specific-input-major: var(--dsw-static-neutral-bluish-00);
   --dsw-specific-login-input: var(--dsw-static-neutral-bluish-50);
   --dsw-specific-menu: var(--dsw-alias-bg-layer-3);
@@ -318,6 +323,7 @@ body[data-ds-dark-theme] {
   --dsw-alias-button-ghost-active-hover: var(--dsw-static-neutral-bluish-700);
   --dsw-alias-button-info-fill: var(--dsw-static-deepseek-400);
   --dsw-alias-button-info-hover: var(--dsw-static-deepseek-500);
+  --dsw-alias-button-info-label: var(--dsw-static-neutral-bluish-950);
   --dsw-alias-button-primary-dimmed: var(--dsw-static-neutral-bluish-750);
   --dsw-alias-button-primary-fill: var(--dsw-alias-brand-primary);
   --dsw-alias-button-primary-hover: rgb(148, 198, 204);
@@ -351,8 +357,8 @@ body[data-ds-dark-theme] {
   --dsw-alias-scrollbar-bg-l2: var(--dsw-static-neutral-600);
   --dsw-alias-scrollbar-hover-l1: var(--dsw-static-neutral-600);
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-550);
-  --dsw-specific-bubble: var(--dsw-static-violet-950);
-  --dsw-specific-bubble-highlight: var(--dsw-static-violet-800);
+  --dsw-specific-bubble: var(--dsw-alias-button-info-fill);
+  --dsw-specific-bubble-highlight: var(--dsw-alias-button-info-hover);
   --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
   --dsw-specific-login-input: var(--dsw-static-neutral-bluish-900);
   --dsw-specific-menu: var(--dsw-alias-bg-layer-3);

@@ -117,7 +117,7 @@ type FixtureSessionAddress =
 
 interface FixtureFollowRequest {
   readonly address: FixtureSessionAddress
-  readonly maxMessages?: number
+  readonly maxEvents?: number
   readonly assistantStream?: true
 }
 
@@ -125,7 +125,7 @@ interface FixturePageRequest {
   readonly address: FixtureSessionAddress
   readonly throughSeq: number
   readonly beforeSeq?: number
-  readonly maxMessages?: number
+  readonly maxEvents?: number
 }
 
 interface FixtureSessionWireHeader {
@@ -303,7 +303,7 @@ interface FixtureSessionApi {
     readonly sessionId: SessionId
     readonly throughSeq?: number
     readonly beforeSeq?: number
-    readonly maxMessages?: number
+    readonly maxEvents?: number
   }): Promise<ConnectionRpcResult<unknown>>
   selectModel(request: {
     readonly sessionId: SessionId
@@ -691,7 +691,7 @@ function fixtureSettledStream(
 /** Rendered system prompt of the fx-alpha history: surface node 0. */
 const FIXTURE_SYSTEM_PROMPT = '你是 DeepSeek Harness 的 fixture 助手。用简洁的中文回答，并在需要时调用工具。'
 
-/** fx-alpha history script: 75 turns (~150+ messages -> 4 pages at PAGE_MESSAGES=50),
+/** fx-alpha history script: 75 turns (~150+ messages plus tool traffic -> event-band pages),
  *  mixing reasoning blocks / tool call+result / context. */
 function buildAlphaLog(): SessionEvent[] {
   const events: Record<string, unknown>[] = []
@@ -1553,25 +1553,23 @@ function projectionFramesOf(
 }
 
 /**
- * Message-boundary paging mirrors the Host contract: count `maxMessages`
- * backwards from the end and cut at a turn/start boundary.
+ * Event-band paging mirrors the Host contract: the page is the last
+ * `maxEvents` events, extended down through cited sourceEventSeqs.
  */
 function pageOf(
   log: readonly SessionEvent[],
   beforeSeq: number | undefined,
-  maxMessages: number,
+  maxEvents: number,
 ): { records: FixtureHistoryRecord[]; hasMore: boolean } {
   const end = beforeSeq === undefined ? log.length : Math.max(0, Math.min(beforeSeq, log.length))
-  let start = 0
-  let messages = 0
-  for (let i = end - 1; i >= 0; i--) {
+  let start = Math.max(0, end - maxEvents)
+  for (let i = start; i < end; i++) {
     const event = log[i]
     /* v8 ignore next -- dense-array guard: log seqs are array indexes, i stays within [0, end). */
-    if (event === undefined) break
-    if (event.type === 'user/message' || event.type === 'assistant/message') messages++
-    if (event.type === 'turn/start' && messages >= maxMessages) {
-      start = i
-      break
+    const sources = event === undefined ? undefined : event.sourceEventSeqs
+    if (sources === undefined) continue
+    for (const source of sources) {
+      if (source < start) start = source
     }
   }
   const records = log.slice(start, end).map((event): FixtureHistoryRecord => ({ type: 'event', event }))
@@ -3310,7 +3308,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
       const throughSeq = request.throughSeq ?? log.length - 1
       const boundedLog = log.slice(0, throughSeq + 1)
       // Snapshot at request time, then deliver after the transit delay.
-      const page = pageOf(boundedLog, request.beforeSeq, request.maxMessages ?? 50)
+      const page = pageOf(boundedLog, request.beforeSeq, request.maxEvents ?? 50)
       const doomed = failNextHistory
       failNextHistory = false
       const delay = historyDelayMs
@@ -3623,7 +3621,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
     const summary = summaryOf(sessionId)
     /* v8 ignore next -- existence was checked before the stream registered. */
     if (summary === undefined) throw new Error(`fixture: no session ${sessionId}`)
-    const initial = pageOf(snapshot, undefined, request.maxMessages ?? 50)
+    const initial = pageOf(snapshot, undefined, request.maxEvents ?? 50)
     let nextSeq = cursor + 1
     try {
       yield {
@@ -4031,7 +4029,7 @@ function createFixtureWorld(options: FixtureOptions): FixtureWorld {
             sessionId: pageSessionId,
             throughSeq: page.throughSeq,
             ...page.beforeSeq === undefined ? {} : { beforeSeq: page.beforeSeq },
-            ...page.maxMessages === undefined ? {} : { maxMessages: page.maxMessages },
+            ...page.maxEvents === undefined ? {} : { maxEvents: page.maxEvents },
           })
         }
         case '$events/result': return Promise.resolve(answerRemoteEvent(args as unknown as FixtureRemoteEventResult))

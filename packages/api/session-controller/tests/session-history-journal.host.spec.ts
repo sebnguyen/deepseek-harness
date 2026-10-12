@@ -1,4 +1,4 @@
-/** Raw Session journal transport and message-aligned pagination coverage. */
+/** Raw Session journal transport and event-band pagination coverage. */
 
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -741,7 +741,7 @@ describe('Session history raw journal', () => {
     ])
   })
 
-  it('counts only append-origin messages toward maxMessages and keeps each compaction summary with its replacement', async () => {
+  it('cuts pages on an event budget and keeps each compaction summary with its replacement through source extension', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
@@ -777,22 +777,94 @@ describe('Session history raw journal', () => {
     const response = await remote.page({
       address: { kind: 'session', sessionId: session.id },
       throughSeq: session.seq - 1,
-      maxMessages: 2,
+      maxEvents: 3,
     })
     if (!response.ok) throw new Error('unreachable')
     const page = pageEvents(response.value)
-    // Two append-origin messages fill the page even though a replacement copy of
-    // the same event type sits in the window: the copy is model-only.
-    const messages = page.filter(event => event.type === 'user/message' || event.type === 'assistant/message')
-    expect(messages.map(event => event.seq)).toEqual([third.seq, third.seq + 1, third.seq + 3])
-    expect(page.some(event => event.seq === first.seq)).toBe(false)
+    // The 3-event band would stop at the second reply, but the checkpoint's
+    // sourceEventSeqs extend the cut through the whole compaction chain:
+    // the page stays contiguous from the first prompt and exceeds the band.
+    expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => first.seq + index))
+    expect(page.some(event => event.seq === first.seq)).toBe(true)
+    expect(page.some(event => event.seq === third.seq)).toBe(true)
+    expect(page.length).toBeGreaterThan(3)
     expect(response.value.hasMore).toBe(true)
     // The range stays contiguous, so the checkpoint's summary record is readable on
     // the same page as the checkpoint itself.
     const summaryIndex = page.findIndex(event => event.seq === summary.seq)
     expect(summaryIndex).toBeGreaterThan(-1)
     expect(page[summaryIndex + 1]?.seq).toBe(summary.seq + 1)
-    expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => third.seq + index))
+  })
+
+  it('extends a page cut transitively so stacked compaction envelopes stay whole', async () => {
+    const { ctx } = await harness()
+    const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+    const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    session.append('turn/start', { turn: 1 })
+    const first = appendUserText(session, 'first prompt')
+    appendAssistantText(session, 'first reply', 1)
+    const inner = [...session.surface.nodes]
+    const innerStart = inner[0]
+    const innerEnd = inner.at(-1)
+    if (innerStart === undefined || innerEnd === undefined) {
+      throw new Error('expected a non-empty surface')
+    }
+    const innerSummary = appendExtension(session, 'compaction/summary', {
+      summary: [{ type: 'text', text: 'inner summary' }],
+      shadowedRange: { start: inner[0], end: inner.at(-1) },
+      shadowedSeqs: inner,
+      shadowedTokenCount: 0,
+      provider: 'p',
+      model: 'm',
+    })
+    const innerCheckpoint = session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: '<context_checkpoint>inner</context_checkpoint>' }],
+      source: { kind: 'plugin', plugin: 'compact' },
+    }), {
+      surfaceOp: { op: 'replace', startSeq: innerStart, endSeq: innerEnd },
+      sourceEventSeqs: [...inner, innerSummary.seq],
+    })
+    appendUserText(session, 'second prompt')
+    appendAssistantText(session, 'second reply', 2)
+    const outer = [...session.surface.nodes]
+    const outerStart = outer[0]
+    const outerEnd = outer.at(-1)
+    if (outerStart === undefined || outerEnd === undefined) {
+      throw new Error('expected a non-empty surface')
+    }
+    const outerSummary = appendExtension(session, 'compaction/summary', {
+      summary: [{ type: 'text', text: 'outer summary' }],
+      shadowedRange: { start: outer[0], end: outer.at(-1) },
+      shadowedSeqs: outer,
+      shadowedTokenCount: 0,
+      provider: 'p',
+      model: 'm',
+    })
+    const outerCheckpoint = session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: '<context_checkpoint>outer</context_checkpoint>' }],
+      source: { kind: 'plugin', plugin: 'compact' },
+    }), {
+      surfaceOp: { op: 'replace', startSeq: outerStart, endSeq: outerEnd },
+      sourceEventSeqs: [...outer, outerSummary.seq],
+    })
+
+    // The 3-event band tops out inside the outer envelope. Source extension
+    // pulls the outer chain in, and the inner checkpoint it drags along cites
+    // the first compaction's envelope further down; a single extension pass
+    // would split that inner envelope across pages.
+    const response = await remote.page({
+      address: { kind: 'session', sessionId: session.id },
+      throughSeq: session.seq - 1,
+      maxEvents: 3,
+    })
+    if (!response.ok) throw new Error('unreachable')
+    const page = pageEvents(response.value)
+    expect(page[0]?.seq).toBe(first.seq)
+    expect(page.at(-1)?.seq).toBe(outerCheckpoint.seq)
+    expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => first.seq + index))
+    expect(page.some(event => event.seq === innerCheckpoint.seq)).toBe(true)
+    expect(page.some(event => event.seq === innerSummary.seq)).toBe(true)
+    expect(response.value.hasMore).toBe(true)
   })
 
   it('paginates a message with a large embedded stream without expanding physical records', async () => {
@@ -822,7 +894,7 @@ describe('Session history raw journal', () => {
       const response = await remote.page({
         address: { kind: 'session', sessionId: session.id },
         throughSeq: message.seq,
-        maxMessages: 1,
+        maxEvents: 1,
       })
       if (!response.ok) throw new Error('unreachable')
       expect(pageEvents(response.value).map(event => event.seq)).toEqual([message.seq])
@@ -833,7 +905,7 @@ describe('Session history raw journal', () => {
     }
   })
 
-  it('keeps an earlier declared source on the same message-aligned page', async () => {
+  it('keeps an earlier declared source on the same event-banded page', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
@@ -846,7 +918,7 @@ describe('Session history raw journal', () => {
     const response = await remote.page({
       address: { kind: 'session', sessionId: session.id },
       throughSeq: message.seq,
-      maxMessages: 1,
+      maxEvents: 1,
     })
     if (!response.ok) throw new Error('unreachable')
     expect(pageEvents(response.value).map(event => event.seq)).toEqual([source.seq, laterSource.seq, message.seq])

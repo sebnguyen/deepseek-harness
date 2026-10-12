@@ -74,14 +74,14 @@ function MessageItem({ node, t: translate, referenceLabels, skillNames }: Messag
         finalNode: node,
       }
       : node.kind === 'model-retry'
-      ? { attempts: [node], current: node }
-      : (node.kind === 'user' || node.kind === 'steering') && (referenceLabels !== undefined || skillNames !== undefined)
-        ? {
-          ...node,
-          ...(referenceLabels === undefined ? {} : { referenceLabels }),
-          ...(skillNames === undefined ? {} : { skillNames }),
-        }
-        : node,
+        ? { attempts: [node], current: node }
+        : (node.kind === 'user' || node.kind === 'steering') && (referenceLabels !== undefined || skillNames !== undefined)
+          ? {
+            ...node,
+            ...(referenceLabels === undefined ? {} : { referenceLabels }),
+            ...(skillNames === undefined ? {} : { skillNames }),
+          }
+          : node,
   }
   const props = {
     node: viewNode, t: translate, renderMessageImages, openFile: vi.fn(), openSkill: vi.fn(), useChat: useDetachedChat,
@@ -1083,7 +1083,9 @@ describe('small branch tails', () => {
     // The untimed counts pill renders static, so the usage pill is the only button.
     const [usagePill] = [...view.getAllByRole('button')] as [HTMLElement]
     expect(view.getByText('1 轮 1 步').closest('button')).toBeNull()
-    expect(usagePill.textContent).toBe('输入 0·缓存 0·输出 10')
+    // The headline pill carries the output-only figure; the bucket line
+    // lives in the click-open dialog.
+    expect(usagePill.textContent).toBe('10tok')
     // Pure output accounting still reaches the usage pill's click-open dialog rows.
     fireEvent.click(usagePill)
     const dialog = view.getByRole('dialog')

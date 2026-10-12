@@ -2,9 +2,9 @@
 .sessionRow {
   display: flex;
   align-items: center;
-  gap: 6px;
-  border-radius: 8px;
-  padding: 0 8px;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 0 6px;
   cursor: pointer;
   user-select: none;
   color: var(--dsw-alias-label-primary);
@@ -24,11 +24,11 @@
   flex-direction: column;
   align-items: stretch;
   width: 100%;
-  min-height: 48px;
+  min-height: 36px;
   box-sizing: border-box;
   border: none;
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 6px;
+  padding: 4px 6px;
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -56,16 +56,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12.5px;
+  line-height: 16px;
 }
 
 .searchResultMeta {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  margin-left: 20px;
+  margin-left: 16px;
 }
 
 .searchResultWorkspace,
@@ -73,8 +73,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
-  line-height: 17px;
+  font-size: 11px;
+  line-height: 15px;
 }
 
 .searchResultWorkspace {
@@ -89,20 +89,23 @@
   color: var(--dsw-alias-label-secondary);
 }
 
-/* Compact one-line Workspace row after removing the session-count subtitle. */
+/* Workspace header row: the explorer's folder row, same 22px tree rhythm. */
 .projectRow {
-  height: 34px;
+  height: 22px;
   align-items: center;
   box-sizing: border-box;
 }
 
 .projectRow .rowActions {
-  height: 20px;
+  height: 16px;
 }
 
-/* Session cell (figma): pad 8, a 16px status slot, then a 4px title gap. */
+/* Session cell: 22px row — relative so the timestamp can overlay the title
+   edge on hover without reserving width at rest. Grouped rows indent one
+   explorer depth under their workspace's twistie+icon run. */
 .sessionRow {
-  height: 32px;
+  position: relative;
+  height: 22px;
   gap: 0;
   /* Mount fade: session rows appear by unfolding a group (or the tree
      mounting). Stable row keys keep already-visible rows from replaying it. */
@@ -110,7 +113,11 @@
 }
 
 .sessionRow .title {
-  margin: 0 6px 0 4px;
+  margin: 0 4px 0 2px;
+}
+
+.groupedRow {
+  padding-left: 22px;
 }
 
 .flatSessionRowWithoutStatus .title {
@@ -124,7 +131,7 @@
 .slot {
   flex: none;
   width: 16px;
-  height: 20px;
+  height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -145,10 +152,12 @@
 }
 
 
-/* Project leading slot: folder by default, expand arrow on row hover. */
-.projectRow .chevron { display: none; }
-.projectRow:hover .chevron { display: inline-flex; }
-.projectRow:hover .folder { display: none; }
+/* Explorer anatomy: the twistie is permanent, followed by the folder glyph
+   (no hover swap). */
+.projectRow .chevron {
+  display: inline-flex;
+  width: 14px;
+}
 
 /* Expand arrow (filled triangle): points right closed, rotates to point down open. */
 .arrow {
@@ -172,14 +181,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12.5px;
+  line-height: 16px;
+}
+
+/* Group headers read as ordinary tree folders, slightly heavier. */
+.projectRow .title {
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 16px;
+  color: var(--dsw-alias-label-primary);
 }
 
 .renameInput {
   min-width: 0;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12.5px;
+  line-height: 16px;
   padding: 0 2px;
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 4px;
@@ -201,21 +219,41 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+/* Timestamp: an overlay revealed on hover — it reserves no room at rest
+   (sized rows + slim column), then surfaces over the title's trailing edge.
+   The gradient background terminates in the row's own hover composition
+   (interactive wash recombined with the sidebar fill via two stacked layers),
+   so it always matches the row underneath in either theme. */
 .time {
-  flex: none;
-  font-size: 12px;
-  line-height: 20px;
+  position: absolute;
+  /* Clears the action cluster (6px inset + 16px buttons + 6px gaps) that
+     surfaces on hover at the row's right edge. */
+  right: 30px;
+  top: 0;
+  bottom: 0;
+  display: inline-flex;
+  align-items: center;
+  padding-left: 24px;
+  font-size: 10.5px;
+  line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
+  background:
+    linear-gradient(to right, transparent, var(--dsw-alias-interactive-bg-hover) 72%),
+    linear-gradient(to right, transparent, var(--dsw-specific-sidebar-fill) 72%);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 120ms var(--ds-ease-in-out);
 }
 
 .scheduleIndicator {
   display: inline-flex;
   flex: none;
-  width: 16px;
-  height: 20px;
+  width: 14px;
+  height: 16px;
   align-items: center;
   justify-content: center;
-  margin-right: 6px;
+  margin-right: 4px;
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -228,13 +266,13 @@
   flex: none;
 }
 
-/* Trailing action buttons surface on hover only (figma 27:4668 / 27:4656):
-   bare 16px glyphs, gap 12, tertiary grey. */
+/* Trailing action buttons surface on hover only: bare 16px glyphs,
+   gap 6, tertiary grey. */
 .rowActions {
   flex: none;
   display: none;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
 }
 
 .projectRow:hover .rowActions,
@@ -246,7 +284,8 @@
 
 .sessionRow:hover .time,
 .sessionRow.menuOpen .time {
-  display: none;
+  opacity: 1;
+  visibility: visible;
 }
 
 /* An open row menu pins the hover affordances (figma: the row keeps its

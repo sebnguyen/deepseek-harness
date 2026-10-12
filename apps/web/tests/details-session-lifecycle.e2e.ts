@@ -163,8 +163,8 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
 
     const viewport = page.viewportSize()
     if (viewport === null) throw new Error('expected a fixed viewport')
-    const normalWidth = Math.round(viewport.width * 0.45)
-    const normalColumns = [280, viewport.width - 280 - normalWidth, normalWidth]
+    const normalWidth = Math.round(viewport.width * 0.25)
+    const normalColumns = [300, viewport.width - 300 - normalWidth, normalWidth]
 
     // The panel starts expanded per session, so the right track holds the
     // normal width from the first settled draw.
@@ -326,7 +326,7 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
     try {
       await page.setViewportSize({ width: 1024, height: viewport.height })
       // Frame measurement and the grid transition can finish after setViewportSize returns.
-      await expect.poll(() => columns(page), { timeout: 5_000 }).toEqual([280, 400, 344])
+      await expect.poll(() => columns(page), { timeout: 5_000 }).toEqual([300, 424, 300])
       await dragSidebar(page, 420)
       await expect.poll(() => columns(page)).toEqual([420, 604, 0])
       expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)

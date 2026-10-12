@@ -385,40 +385,39 @@
   padding-left: 0;
 }
 
-/* Harness-guide trigger above the foot: sized by the button, never
-   stretching the browsing region. The roster opens in a popover. */
-.guideArea {
-  flex: none;
-}
-
-/* Footer seats: additive actions stack above Settings. Each occupant owns its
-   button geometry and hover chrome. */
+/* Floor row: one icon strip under the browsing region — the guide and the
+   settings cluster lead, additive frame actions trail on the right edge.
+   The rail stacks the same seats centered on its 22px circle rhythm; each
+   occupant owns its button geometry and hover chrome. */
 .footArea {
   flex: none;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 2px;
 }
 
-.settingsArea,
-.footerActions {
+.guideArea,
+.settingsArea {
   flex: none;
   min-width: 0;
-  width: 100%;
-}
-
-.footerActions {
   display: flex;
-}
-
-.collapsed .footArea {
   align-items: center;
 }
 
-.collapsed .settingsArea,
-.collapsed .footerActions {
+.footerActions {
+  flex: none;
   display: flex;
-  justify-content: center;
-  width: auto;
+  margin-left: auto;
+}
+
+.collapsed .footArea {
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.collapsed .footerActions {
+  margin-left: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

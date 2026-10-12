@@ -33,7 +33,6 @@ import { StatsPills } from './chat/StatsPills.tsx'
 import { registerConversationNodes } from './conversation-nodes/register.ts'
 import { en, NS, zh } from './locale.ts'
 import { TokenEfficiencyEntry } from './settings/TokenEfficiencyEntry.tsx'
-import { createChatStore } from './stores.ts'
 import { useTurnDataValue } from './chat/use-turn-data.ts'
 
 const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
@@ -79,7 +78,6 @@ export function apply(ctx: Context): void {
 
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-chat: dictionaries')
   const t = ctx.locale.bind(NS)
-  const chatStore = createChatStore()
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()
   ctx.slots.inject('settings.trigger-item', () => ctx.slots.register({
     name: 'settings.trigger-item',
@@ -99,7 +97,6 @@ export function apply(ctx: Context): void {
         'conversation.chat.node': { kind: 'keyed', scope: 'session', inject: CHAT_NODE_INJECT },
         'conversation.message.images': { kind: 'single', scope: 'session' },
       },
-      store: chatStore,
       inject: (sessionId: SessionId): ChatViewInjected => {
         const binding = ctx.sessions.binding(sessionId)
         if (binding === undefined) throw new Error(`ui-chat: unknown session "${sessionId}"`)
@@ -115,7 +112,6 @@ export function apply(ctx: Context): void {
         return {
           keyedHooks: {
             chatNode: key => chat.getSnapshot().nodes.source(key),
-            chatNodeProcess: key => chat.getSnapshot().nodes.processSource(key),
           },
           fileMentions: (owner: TurnTailOwnerProps) => ctx.get('chatFileMentions')?.forClosing(owner, sessionId),
           // Files open in the right Sidebar, not in a desktop application: the

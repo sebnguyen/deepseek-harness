@@ -181,7 +181,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.chat.assistant-actions\', () => ctx.slots.register(\n      { name: \'conversation.chat.assistant-actions\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:226',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:215',
   },
   {
     key: 'conversation.chat.commandview',
@@ -231,7 +231,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     occupants: [],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.chat.commandview\', () => ctx.slots.register(\n      { name: \'conversation.chat.commandview\', key: \'<one key the owner dispatches>\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:214',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:203',
   },
   {
     key: 'conversation.chat.node',
@@ -287,8 +287,8 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-chat SystemPromptNodeView key \'system-prompt\'',
       'client-ui-chat AssistantNodeView key \'assistant-step-message\'',
       'client-ui-chat AssistantNodeView key \'assistant-step-reason\'',
-      'client-ui-chat StepBoundaryView key \'assistant-step-start\'',
-      'client-ui-chat StepBoundaryView key \'assistant-step-end\'',
+      'client-ui-chat DeclinedStepBoundaryView key \'assistant-step-start\'',
+      'client-ui-chat DeclinedStepBoundaryView key \'assistant-step-end\'',
       'client-ui-chat CommandNodeView key \'command\'',
       'client-ui-chat ManualCompactionNodeView key \'manual-compaction\'',
       'client-ui-chat CompactionNodeView key \'compaction\'',
@@ -303,7 +303,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.chat.node\', () => ctx.slots.register(\n      { name: \'conversation.chat.node\', key: \'<one key the owner dispatches>\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:195',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:184',
   },
   {
     key: 'conversation.chat.turnChips',
@@ -366,7 +366,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.chat.turnChips\', () => ctx.slots.register(\n      { name: \'conversation.chat.turnChips\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:233',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:222',
   },
   {
     key: 'conversation.chat.turnTail',
@@ -416,7 +416,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.chat.turnTail\', () => ctx.slots.register(\n      { name: \'conversation.chat.turnTail\', select: owner => null },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:220',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:209',
   },
   {
     key: 'conversation.composer',
@@ -1017,7 +1017,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'conversation.composer.bar\' (client-ui-conversation), so it exists while that entry is mounted',
     occupants: [
-      'client-conversation-mode (props: PropsRuntime<\'conversation.input.right\'>) => Turn… id \'turn-shape-toggle\'',
+      'client-conversation-mode (props: PropsRuntime<\'conversation.input.right\'> & PropsL… id \'turn-shape-toggle\'',
       'client-ui-claim ClaimDock id \'claim\'',
     ],
     replaceRisk: 'none',
@@ -1149,7 +1149,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'conversation.message.images\', () => ctx.slots.register(\n      { name: \'conversation.message.images\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-chat/src/client/contract/slots.ts:208',
+    source: 'packages/client/ui-chat/src/client/contract/slots.ts:197',
   },
   {
     key: 'conversation.session',
@@ -1642,7 +1642,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'main\', () => ctx.slots.register(\n      { name: \'main\', key: \'<one key the owner dispatches>\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-layout/src/client/index.ts:70',
+    source: 'packages/client/ui-layout/src/client/index.ts:72',
   },
   {
     key: 'main.conversation',
@@ -1686,7 +1686,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     doc: 'The right column: a track the centre makes room for, or nothing. OCCUPIED\nby the right Sidebar, which uses the resolved column width in normal\nmode and covers the viewport in fullscreen, retaining the wide-screen\ncolumn reservation underneath.\n\nWhether the panel is shown, and whether it takes a track, is the\noccupant\'s own recorded business — it reports the composition of its\nexpanded and presentation state through `ctx.layout`, and the frame sizes\nthe track and places the resize handle from that. The expand control is\nnot this column\'s: it is a button in the conversation header. The root\noccupant decides when to render its Session-bound content.',
     registerOptions: [],
     ownerProps: [
-      '/** Right column owner share: resolved normal geometry and opening eligibility. */\nexport interface RightbarOwnerProps {\n  /** Resolved normal panel width in px, not the saved preference; zero if it cannot fit. */\n  width: number\n  /** Current frame width in px. */\n  viewportWidth: number\n  /**\n   * Whether a normal right panel can retain 300px beside a 400px center.\n   * Before a narrow opening, includes the space from collapsing the left sidebar.\n   */\n  canShow: boolean\n}',
+      '/** Right column owner share: resolved normal geometry and opening eligibility. */\nexport interface RightbarOwnerProps {\n  /** Resolved normal panel width in px, not the saved preference; zero if it cannot fit. */\n  width: number\n  /** Current frame width in px. */\n  viewportWidth: number\n  /**\n   * Whether a normal right panel can retain 300px beside the center\'s protected\n   * minimum (400px on wide frames, its quarter below 1600px).\n   * Before a narrow opening, includes the space from collapsing the left sidebar.\n   */\n  canShow: boolean\n}',
     ],
     ownerPropsReferences: [],
     standardProps: [
@@ -1706,7 +1706,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'rightbar\', () => ctx.slots.register(\n      { name: \'rightbar\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-layout/src/client/index.ts:84',
+    source: 'packages/client/ui-layout/src/client/index.ts:86',
   },
   {
     key: 'rightbar.session',
@@ -1716,7 +1716,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     doc: 'Session content selected by the root-scoped right Sidebar controller.',
     registerOptions: [],
     ownerProps: [
-      '/** Right column owner share: resolved normal geometry and opening eligibility. */\nexport interface RightbarOwnerProps {\n  /** Resolved normal panel width in px, not the saved preference; zero if it cannot fit. */\n  width: number\n  /** Current frame width in px. */\n  viewportWidth: number\n  /**\n   * Whether a normal right panel can retain 300px beside a 400px center.\n   * Before a narrow opening, includes the space from collapsing the left sidebar.\n   */\n  canShow: boolean\n}',
+      '/** Right column owner share: resolved normal geometry and opening eligibility. */\nexport interface RightbarOwnerProps {\n  /** Resolved normal panel width in px, not the saved preference; zero if it cannot fit. */\n  width: number\n  /** Current frame width in px. */\n  viewportWidth: number\n  /**\n   * Whether a normal right panel can retain 300px beside the center\'s protected\n   * minimum (400px on wide frames, its quarter below 1600px).\n   * Before a narrow opening, includes the space from collapsing the left sidebar.\n   */\n  canShow: boolean\n}',
     ],
     ownerPropsReferences: [],
     standardProps: [
@@ -2337,10 +2337,12 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     hookContext: '',
     slotInject: '',
     declaredBy: 'an entry in \'root\' (client-ui-layout), so it exists while that entry is mounted',
-    occupants: [],
+    occupants: [
+      'client-ui-vscode TwinFrameHost id \'dsh-twin-frames\'',
+    ],
     replaceRisk: 'none',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'shell.overlay\', () => ctx.slots.register(\n      { name: \'shell.overlay\', id: \'my-entry\', order: 100, label: \'My entry\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-layout/src/client/index.ts:95',
+    source: 'packages/client/ui-layout/src/client/index.ts:97',
   },
   {
     key: 'sidebar',
@@ -2370,7 +2372,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     ],
     replaceRisk: 'shadows-shipped-ui',
     example: 'return {\n  inject: [\'slots\'],\n  apply(ctx) {\n    ctx.slots.inject(\'sidebar\', () => ctx.slots.register(\n      { name: \'sidebar\' },\n      () => React.createElement(\'div\', null, \'hello\'),\n    ))\n  },\n}',
-    source: 'packages/client/ui-layout/src/client/index.ts:61',
+    source: 'packages/client/ui-layout/src/client/index.ts:63',
   },
   {
     key: 'sidebar.brand.mark',
@@ -2473,6 +2475,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     slotInject: '',
     declaredBy: 'an entry in \'sidebar\' (client-ui-sidebar), so it exists while that entry is mounted',
     occupants: [
+      'client-ui-sidebar SwapToggle id \'layout.swap\'',
       'client-ui-cordis CordisPanel id \'cordis-panel\'',
     ],
     replaceRisk: 'none',
@@ -3028,7 +3031,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'useTrajectoryComposition: UseTrajectoryComposition',
       'useTrajectory: UseTrajectory',
     ],
-    keyDomain: 'open: any string the owner dispatches (no compile-time key set), already taken: ask_user_question, bash, cordis_define, cordis_run, cordis_stop, cordis_undefine, edit, glob, grep, present, read, read_image, skill, todo_write, web_fetch, web_search, write',
+    keyDomain: 'open: any string the owner dispatches (no compile-time key set), already taken: ask_user_question, bash, cordis_define, cordis_run, cordis_stop, cordis_undefine, edit, glob, grep, multi_bash, multi_read, multi_write, present, read, read_image, skill, todo_write, web_fetch, web_search, write',
     hookContext: '',
     slotInject: '',
     declaredBy: 'an entry in \'conversation.chat.node\' (client-ui-tool), so it exists while that entry is mounted',
@@ -3037,10 +3040,13 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
       'client-ui-skill SkillRow key \'skill\'',
       'client-ui-tool AskQuestionRow key \'ask_user_question\'',
       'client-ui-tool BashRow key \'bash\'',
+      'client-ui-tool BashRow key \'multi_bash\'',
       'client-ui-tool FileMutationRow key \'edit\'',
       'client-ui-tool FileMutationRow key \'write\'',
+      'client-ui-tool FileMutationRow key \'multi_write\'',
       'client-ui-tool ReadImageRow key \'read_image\'',
       'client-ui-tool ReadRow key \'read\'',
+      'client-ui-tool ReadRow key \'multi_read\'',
       'client-ui-tool SearchRow key \'grep\'',
       'client-ui-tool SearchRow key \'glob\'',
       'client-ui-tool TodoRow key \'todo_write\'',

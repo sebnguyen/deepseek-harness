@@ -1,0 +1,33 @@
+# The dsh-tui-app bundle patch: the interactive terminal application directly
+# over dsh-base. It mounts no Host, HTTP server, Web runtime, or browser
+# plugin; dsh-base keeps its single-session rows for exactly this surface. An
+# ordinary provider plugin injects `cmdlineArgs`, parses the app's own flags
+# (`dsh --profile tui [prompt...]`) and its --help, then the runner composes
+# one Agent through the core registry and renders the session to the terminal.
+
+- id: system-prompt
+  config:
+    personaSuffix: Your working directory is {{cwd}}.
+    personaPrefix: ''
+
+- id: tools
+  config:
+    # Keep the same temporary process-wide PTC mode opt-in as the Web surface.
+    mode: !!js process.env.DSH_TOOLS_MODE
+
+- insert:
+    # PTC mode is a core execution capability, not a Web component.
+    - id: code-runtime
+      name: '@deepseek-ai/dsh-code-runtime-worker-thread'
+
+    - id: tui-startup
+      name: '@deepseek-ai/dsh-tui-app/startup'
+
+    # Reads the optional seed prompt and color preference from the ordinary
+    # tuiStartup provider.
+    - id: tui-runner
+      name: '@deepseek-ai/dsh-tui-app'
+      inject: [tuiStartup]
+      config:
+        color: !!js ctx.tuiStartup.color
+        prompt: !!js ctx.tuiStartup.prompt ?? ''

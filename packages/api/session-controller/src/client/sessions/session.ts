@@ -49,11 +49,11 @@ function projectionsBaseline(value: SessionProjectionBaseline): ProjectionsBasel
   }
 }
 
-/** Messages requested per history page. */
-export const PAGE_MESSAGES = 50
-
-/** Messages requested per page while a turn jump loops backwards (fewer, larger round trips). */
-export const JUMP_PAGE_MESSAGES = 200
+/** Events requested per history page. Paging budgets log events, not just
+ * messages, so tool-heavy turns create real pages instead of hiding behind
+ * the message count. One uniform band: open, plain pulls, and jump loops
+ * all fetch in 200-event pages. */
+export const PAGE_EVENTS = 200
 
 /** Manager-owned observers of a Session object's local state edges. */
 export interface SessionOptions {
@@ -397,7 +397,7 @@ export class Session implements SessionFace {
     this.loadingOlder = true
     this.notifier.markDirty()
     try {
-      await events.prepend({ beforeSeq: this.baseSeq, maxMessages: PAGE_MESSAGES })
+      await events.prepend({ beforeSeq: this.baseSeq, maxEvents: PAGE_EVENTS })
     } catch (error) {
       if (!isRemoteFailure(error)) {
         console.error('[session-controller] loadOlder failed:', error)
@@ -435,7 +435,7 @@ export class Session implements SessionFace {
           const events = this.events
           if (events === undefined) return
           const before = this.baseSeq
-          await events.prepend({ beforeSeq: this.baseSeq, maxMessages: JUMP_PAGE_MESSAGES })
+          await events.prepend({ beforeSeq: this.baseSeq, maxEvents: PAGE_EVENTS })
           // No-progress guard: an empty or dropped page that still claims more
           // history must end the loop, not spin it.
           if (this.baseSeq >= before) return
@@ -631,7 +631,7 @@ export class Session implements SessionFace {
     })
     this.events = events
     try {
-      await events.open({ maxMessages: PAGE_MESSAGES })
+      await events.open({ maxEvents: PAGE_EVENTS })
       if (generation !== this.openGeneration || this.events !== events) return
       this.openState = 'open'
     } catch (error) {

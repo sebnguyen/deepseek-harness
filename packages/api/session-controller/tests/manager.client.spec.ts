@@ -10,6 +10,7 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { SessionControlFrame } from '@deepseek-ai/dsh-api-session-controller/types'
 import type {} from '@deepseek-ai/dsh-session-title/client'
 import { JOB_OUTPUT_BUFFER_LINES, SessionManager } from '../src/client/sessions/manager.ts'
+import { PAGE_EVENTS } from '../src/client/sessions/session.ts'
 import { FakeApiClient, deferred, err, fakeRemote, ok } from './fake-api.client.ts'
 import { entries, plainTurn } from './event-script.client.ts'
 
@@ -311,7 +312,7 @@ describe('subagent catalogs', () => {
           kind: 'subagent', parentSessionId: S1, childSessionId: S2, mode: 'continuable',
         },
         assistantStream: true,
-        maxMessages: 50,
+        maxEvents: PAGE_EVENTS,
       },
     ])
     expect(api.callsOf('subagent.history')).toEqual([])

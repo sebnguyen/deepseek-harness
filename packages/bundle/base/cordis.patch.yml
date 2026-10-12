@@ -64,25 +64,23 @@
     - id: user-questions
       name: '@deepseek-ai/dsh-user-questions'
 
-    # Turn-shape selector + host shield: quiet/tools shapes suppress assistant
-    # prose per turn — model-facing via the empty-object grammar shield on
-    # capable routes with a one-line per-turn reminder.
+    # Turn-shape selector + host reminder: the logged per-session turn-shape/mode
+    # selection folds through the turnShape projection; quiet/tools inject a
+    # one-line per-turn reminder — request grammar stays untouched.
     - id: conversation-mode
       name: '@deepseek-ai/dsh-client-conversation-mode'
 
-    # Model Provider rail window and the harness guide section on top of
-    # it: routes, format, endpoint, key, per-model tuning, and rates over
-    # the settings mirror. Pure UI plugin — the host apply is empty and
-    # the browser half ships through the dsh.client declaration, so every
-    # surface composes it and only the Web roster renders it.
+    # Model Provider rail window: routes, format, endpoint, key, per-model
+    # tuning, and rates over the settings mirror. Pure UI plugin — the host
+    # apply is empty and the browser half ships through the dsh.client
+    # declaration, so every surface composes it and only the Web roster
+    # renders it.
     - id: ui-model-selection
       name: '@deepseek-ai/dsh-client-ui-model-selection'
 
-    # Sidebar harness-guide section: a permanent, wide-only seat above the
-    # foot rendering a vertical scroll-snap carousel of the capability
-    # roster.
-    - id: ui-guide
-      name: '@deepseek-ai/dsh-client-ui-guide'
+    # `ui-guide` (sidebar harness-guide section) is unmounted: out of focus
+    # for now. Compose it again by adding a row with
+    # name '@deepseek-ai/dsh-client-ui-guide'.
 
     - id: agent
       name: '@deepseek-ai/dsh-agent'

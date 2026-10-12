@@ -5,8 +5,8 @@
 import { defineStore, type EngineStoreHandle } from '@deepseek-ai/dsh-client-store'
 import type { MainPanelId } from './service.ts'
 import {
-  clampWidth, RIGHTBAR_DEFAULT_RATIO, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN,
-  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
+  clampWidth, RIGHTBAR_MAX_RATIO, RIGHTBAR_MIN, rightbarDefaultWidth,
+  SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN, sidebarWidth,
 } from './columns.ts'
 
 /**
@@ -21,7 +21,7 @@ type LayoutState = {
   layoutInfo: LayoutInfo
 }
 
-type LayoutInfo = {
+export type LayoutInfo = {
   sidebar: number
   /** Last positive frame measurement; window width bootstraps the first render. */
   viewportWidth: number
@@ -45,6 +45,14 @@ type LayoutInfo = {
    * fullscreen. Reported by the occupant; always false while hidden.
    */
   rightbarTrack: boolean
+  /**
+   * Swapped track order: the right column's camel (IDE/vscode pane) sits
+   * between the sidebar and the conversation instead of at the frame's edge,
+   * so the frame reads sidebar | rightbar | main. New default for this
+   * product build; the occupant contracts (width, track, fullscreen) report
+   * unchanged — placement flips in AppFrame only.
+   */
+  swapped: boolean
   /** Reported fullscreen presentation; hides the outer resize handle. */
   rightbarFullscreen: boolean
   /** Suppress transitions for a fullscreen exit until another geometry action. */
@@ -60,6 +68,7 @@ type LayoutActions = {
   retainMainPanels: (draft: LayoutState, panelIds: readonly string[]) => void
   setSidebar: (draft: LayoutState, px: number) => void
   toggleSidebar: (draft: LayoutState) => void
+  toggleSwap: (draft: LayoutState) => void
   setViewportWidth: (draft: LayoutState, width: number) => void
   setRightbar: (draft: LayoutState, px: number) => void
   openRightbar: (draft: LayoutState, track: boolean, fullscreen: boolean) => void
@@ -69,8 +78,9 @@ type LayoutActions = {
 /**
  * Create the layout panel store handle. For the sidebar the preference IS the
  * width, so closing it forgets its drag width — reopening restores the contract
- * default. The right panel initializes at 45% of the frame on first opening
- * and keeps that px preference across resizes and close. Drag writes clamp to
+ * default. The right panel initializes on first opening at three quarters
+ * of the frame minus the effective sidebar and keeps that px preference
+ * across resizes and close. Drag writes clamp to
  * the current frame's range. Narrow sidebar toggles change only the expansion
  * override; opening the right panel clears that override.
  * @returns the store handle (spec + type + identity + factory in one).
@@ -88,6 +98,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         rightbarTrack: false,
         rightbarFullscreen: false,
         rightbarInstant: false,
+        swapped: true,
       },
     }),
     actions: {
@@ -112,6 +123,10 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
       },
       // Crossing the breakpoint in either direction drops the override: the
       // narrow default is auto-collapsed, the wide state is the preference.
+      toggleSwap: (d) => {
+        d.layoutInfo.rightbarInstant = false
+        d.layoutInfo.swapped = !d.layoutInfo.swapped
+      },
       setViewportWidth: (d, width: number) => {
         if (d.layoutInfo.viewportWidth === width) return
         d.layoutInfo.rightbarInstant = false
@@ -129,7 +144,10 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
           d.layoutInfo.rightbarInstant = d.layoutInfo.rightbarFullscreen && !fullscreen
         }
         if (!d.layoutInfo.rightbarShown && d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE) d.layoutInfo.narrowExpanded = false
-        d.layoutInfo.rightbar ??= Math.max(RIGHTBAR_MIN, Math.round(d.layoutInfo.viewportWidth * RIGHTBAR_DEFAULT_RATIO))
+        d.layoutInfo.rightbar ??= rightbarDefaultWidth(
+          d.layoutInfo.viewportWidth,
+          d.layoutInfo.viewportWidth < SIDEBAR_AUTO_COLLAPSE ? SIDEBAR_COLLAPSED : sidebarWidth(d.layoutInfo.sidebar),
+        )
         d.layoutInfo.rightbarShown = true
         d.layoutInfo.rightbarTrack = track
         d.layoutInfo.rightbarFullscreen = fullscreen

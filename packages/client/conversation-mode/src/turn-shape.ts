@@ -8,7 +8,7 @@
  * @module @deepseek-ai/dsh-client-conversation-mode/turn-shape
  */
 
-import type { TurnShape } from './turn-shape-settings.ts'
+import type { TurnShape } from './types.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {

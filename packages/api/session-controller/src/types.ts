@@ -329,6 +329,20 @@ export interface SessionSetStepPaceValue {
   readonly ms: number
 }
 
+/** Turn-shape vocabulary of the Remote surface (mirrors the conversation-mode taxonomy). */
+export type SessionTurnShape = 'narrate' | 'quiet' | 'tools'
+
+/** Set one Session's transcript turn shape. */
+export interface SessionSetTurnShapeRequest {
+  readonly sessionId: SessionId
+  readonly shape: SessionTurnShape
+}
+
+/** The installed turn shape. */
+export interface SessionSetTurnShapeValue {
+  readonly shape: SessionTurnShape
+}
+
 /** Normalized title and the durable event position that committed it. */
 export interface SessionRenameValue {
   readonly title: string
@@ -474,19 +488,19 @@ export interface SessionWireEvent {
   readonly surfaceOp?: JsonValue
 }
 
-/** One message-aligned backwards-history request. */
+/** One event-banded backwards-history request. */
 export interface SessionPageRequest {
   readonly address: SessionAddress
   /** Inclusive log cut obtained from the corresponding follow opening frame. */
   readonly throughSeq: number
   readonly beforeSeq?: number
-  readonly maxMessages?: number
+  readonly maxEvents?: number
 }
 
 /** One live event request for a durable Session address. */
 export interface SessionFollowRequest {
   readonly address: SessionAddress
-  readonly maxMessages?: number
+  readonly maxEvents?: number
   /** Include process-local assistant presentation frames for the Web client. */
   readonly assistantStream?: true
 }

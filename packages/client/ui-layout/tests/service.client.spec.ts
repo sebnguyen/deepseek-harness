@@ -2,12 +2,15 @@ import { describe, expect, it, vi } from 'vitest'
 import { LayoutController } from '../src/client/service.ts'
 import type { MainPanelId, PanelActions } from '../src/client/service.ts'
 
+const layoutInfo = { getSnapshot: () => null, subscribe: () => () => {} } as never
+
 function fakePanels(): PanelActions {
   return {
     selectPanel: vi.fn(),
     retainMainPanels: vi.fn(),
     setSidebar: vi.fn(),
     toggleSidebar: vi.fn(),
+    toggleSwap: vi.fn(),
     setViewportWidth: vi.fn(),
     setRightbar: vi.fn(),
     openRightbar: vi.fn(),
@@ -16,9 +19,14 @@ function fakePanels(): PanelActions {
 }
 
 describe('LayoutController', () => {
+  it('shares the constructor-supplied layout-info source on its face', () => {
+    const service = new LayoutController(fakePanels(), () => true, layoutInfo)
+    expect(service.layoutInfo).toBe(layoutInfo)
+  })
+
   it('forwards right column transitions to the constructor-supplied actions', () => {
     const panels = fakePanels()
-    const service = new LayoutController(panels, () => true)
+    const service = new LayoutController(panels, () => true, layoutInfo)
 
     service.openRightbar(true, false)
     service.openRightbar(true, true)
@@ -35,7 +43,7 @@ describe('LayoutController', () => {
 
   it('can toggle the sidebar immediately after construction', () => {
     const panels = fakePanels()
-    const service = new LayoutController(panels, () => true)
+    const service = new LayoutController(panels, () => true, layoutInfo)
 
     service.toggleSidebar()
 
@@ -43,9 +51,22 @@ describe('LayoutController', () => {
     expect(panels.setSidebar).not.toHaveBeenCalled()
   })
 
+  it('forwards the frame-order toggle without touching geometry', () => {
+    const panels = fakePanels()
+    const service = new LayoutController(panels, () => true, layoutInfo)
+
+    service.toggleSwap()
+    service.toggleSwap()
+
+    expect(panels.toggleSwap).toHaveBeenCalledTimes(2)
+    expect(panels.toggleSidebar).not.toHaveBeenCalled()
+    expect(panels.openRightbar).not.toHaveBeenCalled()
+    expect(panels.closeRightbar).not.toHaveBeenCalled()
+  })
+
   it('forwards panel selection and returning to the Conversation without changing geometry', () => {
     const panels = fakePanels()
-    const service = new LayoutController(panels, () => true)
+    const service = new LayoutController(panels, () => true, layoutInfo)
     const panelId = 'panel-a' as MainPanelId
     service.selectPanel(panelId)
     service.selectPanel(panelId)
@@ -61,8 +82,8 @@ describe('LayoutController', () => {
   it('keeps separately constructed controllers bound to their own instances', () => {
     const first = fakePanels()
     const second = fakePanels()
-    const firstService = new LayoutController(first, () => true)
-    const secondService = new LayoutController(second, () => true)
+    const firstService = new LayoutController(first, () => true, layoutInfo)
+    const secondService = new LayoutController(second, () => true, layoutInfo)
     firstService.toggleSidebar()
     expect(first.toggleSidebar).toHaveBeenCalledTimes(1)
     expect(second.toggleSidebar).not.toHaveBeenCalled()
@@ -74,7 +95,7 @@ describe('LayoutController', () => {
   it('rejects an absent main entry without changing selection or cancelling pending navigation', () => {
     const panels = fakePanels()
     const present = new Set(['panel-a'])
-    const service = new LayoutController(panels, id => present.has(id))
+    const service = new LayoutController(panels, id => present.has(id), layoutInfo)
     service.selectPanel('panel-a' as MainPanelId)
     const navigation = service.beginNavigation()
     present.delete('panel-a')
@@ -86,7 +107,7 @@ describe('LayoutController', () => {
   })
 
   it('supersedes asynchronous navigation on another request, any valid selection, and disposal', () => {
-    const service = new LayoutController(fakePanels(), () => true)
+    const service = new LayoutController(fakePanels(), () => true, layoutInfo)
     const first = service.beginNavigation()
     const second = service.beginNavigation()
     expect(first.aborted).toBe(true)

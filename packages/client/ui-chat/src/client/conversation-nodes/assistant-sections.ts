@@ -1,9 +1,9 @@
 /**
  * Per-Step Assistant span Definitions: the opener, the Reasoning and message
  * sections, and the closer. Each owns exactly one Node per Step, so the span —
- * not a seq-window scan — delimits what folds. The message section is the
- * transcript's default visible member; the opener hosts the disclosure that
- * reveals the folded sections and the Step's Tool rows.
+ * not a seq-window scan — delimits the Step's extent. The assembled stream
+ * already interleaves the opener, sections, Tool rows, and closer in anchor
+ * order, and every section renders expanded.
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -22,13 +22,13 @@ import {
 
 declare module '../contract/chat-nodes.ts' {
   interface ChatNodeDataMap {
-    /** Span opener: carries the disclosure for the Step's folded sections. */
+    /** Span opener: the Step's durable start boundary row. */
     'assistant-step-start': AssistantStepBoundaryChatData
     /** Span closer: the Step's durable end boundary row. */
     'assistant-step-end': AssistantStepBoundaryChatData
     /** Reasoning section of one Assistant Step. */
     'assistant-step-reason': AssistantChatData
-    /** Message section of one Assistant Step; the default visible member. */
+    /** Message section of one Assistant Step. */
     'assistant-step-message': AssistantChatData
   }
 }
@@ -316,7 +316,7 @@ export function createAssistantSectionDefinition(
 /** Reasoning section of one Assistant Step. */
 export const assistantReasonSection = createAssistantSectionDefinition('reasoning', 'assistant-step-reason')
 
-/** Message section of one Assistant Step; the span's default visible member. */
+/** Message section of one Assistant Step. */
 export const assistantMessageSection = createAssistantSectionDefinition('message', 'assistant-step-message')
 
 function boundaryDefinition(
@@ -361,7 +361,7 @@ function boundaryDefinition(
   }
 }
 
-/** Span opener: the Step row that hosts the folded-section disclosure. */
+/** Span opener: the Step's durable start boundary row. */
 export const assistantStepStart = boundaryDefinition('assistant-step-start', 'step/start')
 
 /** Span closer: the Step's durable end boundary row. */

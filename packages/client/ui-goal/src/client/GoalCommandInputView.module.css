@@ -22,7 +22,7 @@
   overflow-wrap: anywhere;
   border-radius: 22px;
   background: var(--dsw-specific-bubble);
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-button-info-label);
   /* The command echo is a user message: it inherits the body face like the
      user bubble and rides the same Settings font-size axis (14/22 at the
      default); the `/goal` command chip, set in the code face by the shared

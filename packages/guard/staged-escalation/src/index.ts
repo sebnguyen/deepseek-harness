@@ -48,7 +48,7 @@ export interface Config {
 }
 
 const DEFAULT_DESCRIPTIONS = {
-  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, the shell runs read-only for searches and listings, the `gh` CLI rides that shell for GitHub-side read-only lookups (`gh pr view`, `gh issue list`, `gh run view`), web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. Call request_escalation with the stage and a justification whenever you are ready to move on; it grants on the call itself, and explore evidence is not required.",
+  explore: "Exploration can be expedited and parallelized: the explore tool launches subagents that run on faster, cheaper models and search the workspace for you, returning a token-efficient curated output instead of the raw firehose. Thoroughly exploring before you act is effort well spent here — a turn that chases a non-viable solution built on unverified premises costs far more than the exploration that would have surfaced it, and read, grep, and glob pin down exactly which files the change touches, the shell runs read-only for searches and listings, the `gh` CLI rides that shell for GitHub-side read-only lookups (`gh pr view`, `gh issue list`, `gh run view`), web_search fetches what the repo doesn't keep, and ask_user_question turns ambiguous requests into specifications. Example: one explore call mapping how auth flows before writing the refactor saves three writes that each re-discover part of it; one ask_user_question about an ambiguous number beats a guessed file. While this stage lasts, the shell and file tools run gated to the read-only sandbox even when the session's configured file policy is wider — a write, install, or build that fails with a sandbox denial or a raw `EROFS` is the stage clamp, not a misconfiguration; request_escalation is what widens the fence (`sandbox_permissions` on a single command still routes through user approval and lifts nothing beyond that command). Call request_escalation with the stage and a justification whenever you are ready to move on; it grants on the call itself, and explore evidence is not required.",
   act: 'The act stage is where confidence gets spent: create, modify, execute, and reach the network — act on what exploration pinned down, on premises now read, searched, and answered rather than guessed. Stages last this turn only; your next message re-arms explore.',
 }
 
@@ -162,7 +162,6 @@ export function currentStage(stages: readonly Stage[], session: Session): number
   const pending = new Map<ToolCallId, string>()
   // A resumed session must re-derive its stage from the persisted log;
   // live call-time observation cannot replay events that predate it.
-  // oxlint-disable-next-line typescript/no-deprecated -- deliberate synchronous log replay.
   for (const event of session.snapshotEvents()) {
     if (event.type === 'turn/start') {
       current = 0
@@ -294,7 +293,6 @@ export function apply(ctx: Context, config: Config): void {
       },
       render: (_args, value) => [{ type: 'text', text: value.text }],
     },
-    // oxlint-disable-next-line typescript/require-await -- the async slot keeps validation failures rejections, not synchronous throws.
     async execute(args, exec) {
       if (exec.agent === undefined) throw new Error('request_escalation requires an owning agent session')
       const requested = stages.findIndex(stage => stage.name === args.stage)

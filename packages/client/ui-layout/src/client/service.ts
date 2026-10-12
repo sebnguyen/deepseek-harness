@@ -8,9 +8,9 @@
  * right-panel show/hide from ui-sidebar-right) — writes stay inside the
  * store's declared action set, shared with the root registration.
  */
-import type { BoundActions } from '@deepseek-ai/dsh-client-ui-slots'
+import type { BoundActions, HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { createLayoutStore } from './stores.ts'
+import type { createLayoutStore, LayoutInfo } from './stores.ts'
 
 /** Identity shared by a sidebar panel entry and its main-slot occupant. */
 export type MainPanelId = Branded<'MainPanelId'>
@@ -40,6 +40,14 @@ export interface ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void
   /**
+   * Flip the frame's track order between chat-first and IDE-first. The right
+   * panel occupant's own contract (shown/track/fullscreen) is untouched —
+   * only which side of the center column it sits on changes.
+   */
+  toggleSwap(): void
+  /** Frame layout info (track order, width/presentation reports) as a live source. */
+  readonly layoutInfo: HostObservable<LayoutInfo>
+  /**
    * Report the right panel's presentation without changing its expanded state.
    * @param track - whether the normal panel width reserves a grid track,
    *   including beneath a fullscreen overlay.
@@ -58,10 +66,12 @@ export class LayoutController implements ILayout {
   /**
    * @param panels - actions of the instance shared with the root entry.
    * @param hasMainPanel - checks the live main-slot registry for a panel id.
+   * @param layoutInfo - the instance's layout-info snapshot feed.
    */
   constructor(
     private readonly panels: PanelActions,
     private readonly hasMainPanel: (id: MainPanelId) => boolean,
+    readonly layoutInfo: HostObservable<LayoutInfo>,
   ) {}
 
   /** Select a global panel or return to the Conversation. */
@@ -88,6 +98,11 @@ export class LayoutController implements ILayout {
   /** Toggle the sidebar panel (closed ⟷ contract default width). */
   toggleSidebar(): void {
     this.panels.toggleSidebar()
+  }
+
+  /** Flip the frame's track order between chat-first and IDE-first. */
+  toggleSwap(): void {
+    this.panels.toggleSwap()
   }
 
   /** Report the right panel's track and fullscreen presentation. */

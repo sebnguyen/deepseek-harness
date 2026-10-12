@@ -39,7 +39,7 @@ export function TokenEfficiencyEntry({ useSessions, t, wide }: TokenEfficiencyEn
         aria-expanded={open}
         onClick={() => { setOpen(!open) }}
       >
-        <IconGaugeOutline16 />
+        <IconGaugeOutline16 size={wide ? 13 : 14} />
         {wide && <span className={css.entryLabel}>{t('efficiency.trigger')}</span>}
       </button>
       {open && <TokenEfficiencyWindow byId={byId} t={t} onClose={close} />}

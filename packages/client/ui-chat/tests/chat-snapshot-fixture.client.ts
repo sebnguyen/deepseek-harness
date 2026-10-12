@@ -1,7 +1,7 @@
 import type {
-  AssistantBlock, AssistantChatData, AssistantMessageNode, ChatConversationViewNode, ChatNode, ChatSnapshot,
-  ConversationNode, ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore,
-  StepSpanFold, CompactionSummaryNode, FinalAssistantChatData, LegacyConversationSlice,
+  AssistantBlock, AssistantChatData, AssistantMessageNode, ChatConversationViewNode, ChatSnapshot,
+  ConversationNode, ChatLocationNodeIndex, ChatNodeSource, ChatNodeStore,
+  CompactionSummaryNode, FinalAssistantChatData, LegacyConversationSlice,
   PartialAssistant, RunningToolCall, ToolCallBlock, TurnNavigationItem,
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
@@ -14,12 +14,17 @@ import {
   sameTurnNavigationItem, turnNavigationItem,
 } from '../src/client/conversation-nodes/turn-navigation.ts'
 import { orderedVisibleChatNodes } from '../src/client/conversation-nodes/chat-snapshot-builder.ts'
-import { ChatSpanFoldProjector } from '../src/client/conversation-nodes/span-fold-presentation.ts'
 
 const EMPTY: readonly never[] = []
 
 function sameValues<T>(left: readonly T[], right: readonly T[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index])
+}
+
+function publishDirty(dirtyKeys: Set<string>, sources: { get(key: string): { publish(): void } | undefined }): void {
+  const dirty = [...dirtyKeys]
+  dirtyKeys.clear()
+  for (const key of dirty) sources.get(key)?.publish()
 }
 
 function cachedSource<Key, Source>(
@@ -96,11 +101,8 @@ class FixtureSource<Value> {
 
 class FixtureNodeStore implements ChatNodeStore {
   private byKey = new Map<string, ChatConversationViewNode>()
-  private readonly spanFolds = new ChatSpanFoldProjector()
   private readonly sources = new Map<string, FixtureSource<ChatConversationViewNode | undefined>>()
-  private readonly processSources = new Map<string, FixtureSource<StepSpanFold | undefined>>()
   private readonly dirtyKeys = new Set<string>()
-  private readonly dirtyProcessKeys = new Set<string>()
   private list: readonly ChatConversationViewNode[] = EMPTY
 
   get(key: string): ChatConversationViewNode | undefined {
@@ -109,14 +111,6 @@ class FixtureNodeStore implements ChatNodeStore {
 
   source(key: string): ChatNodeSource {
     return cachedSource(this.sources, key, () => new FixtureSource(() => this.get(key)))
-  }
-
-  processSource(key: string): ChatNodeProcessSource {
-    return cachedSource(this.processSources, key, () => new FixtureSource(() => this.process(key)))
-  }
-
-  process(key: string): StepSpanFold | undefined {
-    return this.spanFolds.get(this.get(key) as ChatNode | undefined)
   }
 
   values(): readonly ChatConversationViewNode[] {
@@ -145,27 +139,12 @@ class FixtureNodeStore implements ChatNodeStore {
     for (const key of keys) {
       if (previous.get(key) !== next.get(key)) {
         this.dirtyKeys.add(key)
-        this.dirtyProcessKeys.add(key)
       }
     }
   }
 
-  replaceProcesses(order: readonly string[], locations: ChatLocationNodeIndex): void {
-    const changed = this.spanFolds.replace(order, locations, this)
-    for (const span of changed) {
-      const [turn, step] = span.split(':')
-      if (turn === undefined || step === undefined) continue
-      for (const key of locations.getStep(Number(turn), Number(step))) this.dirtyProcessKeys.add(key)
-    }
-  }
-
   publish(): void {
-    const dirty = [...this.dirtyKeys]
-    const dirtyProcesses = [...this.dirtyProcessKeys]
-    this.dirtyKeys.clear()
-    this.dirtyProcessKeys.clear()
-    for (const key of dirty) this.sources.get(key)?.publish()
-    for (const key of dirtyProcesses) this.processSources.get(key)?.publish()
+    publishDirty(this.dirtyKeys, this.sources)
   }
 }
 
@@ -228,9 +207,7 @@ class FixtureTurnDataStore implements ConversationLocationDataStore<Conversation
   }
 
   publish(): void {
-    const dirty = [...this.dirtyKeys]
-    this.dirtyKeys.clear()
-    for (const key of dirty) this.sources.get(key)?.publish()
+    publishDirty(this.dirtyKeys, this.sources)
   }
 }
 
@@ -642,7 +619,6 @@ export function chatSnapshotFixture(input: {
     ? previous.locations
     : new FixtureLocationIndex()
   locations.replace(byTurn, byStep)
-  store.replaceProcesses(order, locations)
   const timeline = previous !== undefined
     && previous.legacy.turnTimings === legacy.turnTimings
     && previous.legacy.turnEnds === legacy.turnEnds

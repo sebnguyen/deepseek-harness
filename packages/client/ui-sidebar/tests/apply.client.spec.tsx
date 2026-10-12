@@ -7,6 +7,7 @@ import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import { apply, inject } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { SidebarRootInjected } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 import type { MainPanelId } from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { SwapToggleInjected } from '../src/client/SwapToggle.tsx'
 import { apply as hostApply } from '../src/index.ts'
 
 const owners = new Set<Fiber>()
@@ -30,7 +31,12 @@ async function bench(declare = true) {
   await owner.await()
   if (ctx === undefined) throw new Error('the sidebar fixture owner did not activate')
   await ctx.plugin(SlotRegistry).await()
-  const layout = { toggleSidebar: vi.fn(), selectPanel: vi.fn() }
+  const layout = {
+    toggleSidebar: vi.fn(),
+    selectPanel: vi.fn(),
+    toggleSwap: vi.fn(),
+    layoutInfo: { getSnapshot: () => null, subscribe: () => () => {} },
+  }
   const uiWorkspace = { startSession: vi.fn() }
   ctx.provide('layout', layout)
   ctx.provide('uiWorkspace', uiWorkspace as never)
@@ -85,6 +91,18 @@ describe('ui-sidebar apply', () => {
     injected.selectPanel(panelId)
     expect(b.layout.selectPanel).toHaveBeenCalledExactlyOnceWith(panelId)
     expectTypeOf<Parameters<SidebarRootInjected['selectPanel']>[0]>().toEqualTypeOf<MainPanelId>()
+  })
+
+  it('registers the swap toggle beside Settings, driving ctx.layout', async () => {
+    const b = await bench()
+    await b.ctx.plugin({ inject: [...inject], apply }).await()
+    await vi.waitFor(() => { expect(b.slots.entries('sidebar.footer.action')).toHaveLength(1) })
+    const entry = b.slots.entries('sidebar.footer.action')[0]!
+    expect(entry.options.id).toBe('layout.swap')
+    const injected = (entry.inject as unknown as () => SwapToggleInjected)()
+    expect(injected.hooks.layoutInfo).toBe(b.layout.layoutInfo)
+    injected.toggleSwap()
+    expect(b.layout.toggleSwap).toHaveBeenCalledOnce()
   })
 
   it('waits for the sidebar declaration before registering', async () => {

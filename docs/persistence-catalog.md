@@ -258,7 +258,7 @@ Source: [`packages/core/session/src/types.ts:350`](../packages/core/session/src/
 'checkpoint/scan': { rows: CheckpointRow[] }
 ```
 
-Source: [`packages/fs/checkpoint/src/types.ts:43`](../packages/fs/checkpoint/src/types.ts)
+Source: [`packages/fs/checkpoint/src/types.ts:144`](../packages/fs/checkpoint/src/types.ts)
 
 ### `claim/*`
 
@@ -1209,6 +1209,23 @@ Source: [`packages/core/session/src/types.ts:314`](../packages/core/session/src/
 ```
 
 Source: [`packages/core/session/src/types.ts:305`](../packages/core/session/src/types.ts)
+
+### `turn-shape/*`
+
+<a id="turn-shapemode--log-only"></a>
+
+#### `turn-shape/mode` — log-only
+
+```ts persistence-catalog
+/**
+ * The session's transcript turn shape from this point on: log-only,
+ * non-surface, whole-value replace. The last `turn-shape/mode` wins; a
+ * log with none folds to `narrate` through the projection unit's fold.
+ */
+'turn-shape/mode': TurnShapeSelection
+```
+
+Source: [`packages/client/conversation-mode/src/types.ts:43`](../packages/client/conversation-mode/src/types.ts)
 
 ### `user/*`
 

@@ -151,16 +151,17 @@ describe('web e2e: a finished turn ends with the files it produced', () => {
       const frame = document.querySelector('[data-sidebar-collapsed][data-rightbar-collapsed]')
       if (frame === null) return false
       const tracks = getComputedStyle(frame).gridTemplateColumns.split(' ').map(Number.parseFloat)
-      // The responsive sidebar's settled collapsed track is 56px.
-      return tracks[0] === 56 && tracks.at(-1) === 0
+      // The responsive sidebar's settled collapsed track is 36px.
+      return tracks[0] === 36 && tracks.at(-1) === 0
         && frame.getAnimations().every(animation =>
           animation.playState === 'finished' || animation.playState === 'idle')
     }, undefined, { timeout: 10_000 })
     await expect.poll(() => chips.count()).toBe(4)
     const laneWidth = await row.evaluate(element => element.clientWidth)
-    // Keep font-metric differences away from the 479px and 583px container-query edges.
-    expect(laneWidth).toBeGreaterThan(503)
-    expect(laneWidth).toBeLessThan(559)
+    // Keep font-metric differences away from the container-query edges; the
+    // bounds track the collapsed track width (56→36 gave the lane 20px).
+    expect(laneWidth).toBeGreaterThan(523)
+    expect(laneWidth).toBeLessThan(579)
     expect(await chips.nth(0).innerText()).toBe('关于我.md')
     expect(await chips.nth(1).innerText()).toBe('index.html')
     expect(await chips.nth(3).innerText()).toBe('styles.css')

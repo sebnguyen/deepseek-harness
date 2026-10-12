@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import { IconPaperclipOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { createSnapshotStore, type BoundActions } from '@deepseek-ai/dsh-client-store'
+import { createSnapshotStore, type BoundActions, type ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 // Type-only service and declaration merges used by this assembly.
@@ -91,6 +91,8 @@ interface WorkspaceNavigation {
     workspaceId: Parameters<ConversationInjected['selectWorkspace']>[0],
     beforeOpen: (sessionId: SessionId) => void,
   ): Promise<void>
+  /** Every openSession gesture, reselects included (ui-workspace contract). */
+  readonly sessionActivations: ObservableSnapshot<{ readonly sessionId: SessionId; readonly seq: number }>
 }
 
 /** Action registration used by the composer without importing its command-UI consumer. */
@@ -208,6 +210,30 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   const inputHub = new InputHub(ctx, t)
   const composerBlocks = new ComposerBlockRegistry()
+
+  // Refocus the composer on every session-activation gesture. The InputBar's
+  // own mount/switch effect covers session changes, but reselecting the
+  // current row changes no store value (the list dedups), so no effect ever
+  // fires there — ui-workspace emits the gesture on this monotonic channel.
+  ctx.effect(() => {
+    const activations = workspaceNavigation.sessionActivations
+    let seen = activations.getSnapshot().seq
+    return activations.subscribe(() => {
+      const activation = activations.getSnapshot()
+      if (activation.seq === seen) return
+      seen = activation.seq
+      // Defer past the selection's own commit so the composer's editor root
+      // (and a stale-focus gesture removal) settle before focus lands.
+      requestAnimationFrame(() => {
+        const current = sessions.list.getSnapshot().current
+        if (current === undefined || current !== activation.sessionId) return
+        if (sessions.binding(current) === undefined) return
+        const editor = inputHub.shell(current).editor
+        editor.getRootElement()?.focus({ preventScroll: true })
+        editor.focus(() => {})
+      })
+    })
+  }, 'ui-conversation: composer focus on session activation')
 
   ctx.inject(['commandUi'], (scope) => {
     const commands = scope.get('commandUi') as FileCommandRegistry

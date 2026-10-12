@@ -61,6 +61,22 @@
   box-shadow: none;
 }
 
+/*
+ * Swapped frame (data-rightbar-swapped on the frame element): the IDE panel
+ * sits between the workspace sidebar and the conversation, so it anchors to
+ * its column's left edge — the frame edge it glides against no longer moves
+ * — and slides out to the left when hidden, mirroring the stock right-edge
+ * presentation.
+ */
+:global([data-rightbar-swapped]) .panel {
+  right: auto;
+  left: 0;
+}
+
+:global([data-rightbar-swapped]) .panel:not([data-sidebar-right-open]) {
+  transform: translateX(-100%);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .panel,
   .panel[data-sidebar-right-open] {

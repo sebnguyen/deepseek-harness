@@ -34,7 +34,7 @@ The layout itself — the split tree, its operations, the drag gestures, the flo
 <a id="presentations"></a>
 ## Presentations
 
-Normal and fullscreen presentations share the same content tree, so switching does not remount tabs. The normal panel anchors to the right column; fullscreen covers the viewport while retaining the wide-screen columns underneath. Opening below 768px uses fullscreen automatically; leaving fullscreen on a narrow viewport closes the panel, and widening does not reopen a closed panel. A fullscreen opening keeps the underlying columns unchanged until its slide finishes, then prepares the normal track without a column transition. Before a fullscreen panel retreats, closing prepares a full-width conversation and restoring prepares the normal right track; the background does not animate during the retreat.
+Normal and fullscreen presentations share the same content tree, so switching does not remount tabs. The normal panel anchors to its frame column — the frame's IDE-first default order places that column between the sidebar and the conversation, and `ctx.layout.toggleSwap()` restores it at the frame's right edge; fullscreen covers the viewport while retaining the wide-screen columns underneath. Opening below 768px uses fullscreen automatically; leaving fullscreen on a narrow viewport closes the panel, and widening does not reopen a closed panel. A fullscreen opening keeps the underlying columns unchanged until its slide finishes, then prepares the normal track without a column transition. Before a fullscreen panel retreats, closing prepares a full-width conversation and restoring prepares the normal right track; the background does not animate during the retreat.
 
 | Mode | The track | The panel |
 |---|---|---|

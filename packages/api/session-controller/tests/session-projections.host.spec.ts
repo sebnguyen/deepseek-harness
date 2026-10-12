@@ -56,13 +56,13 @@ function request<P>(payload: P): P {
 
 function page(
   remote: TestSessionRemote,
-  request: { sessionId: SessionId; throughSeq: number; beforeSeq?: number; maxMessages?: number },
+  request: { sessionId: SessionId; throughSeq: number; beforeSeq?: number; maxEvents?: number },
 ) {
   return remote.page({
     address: { kind: 'session', sessionId: request.sessionId },
     throughSeq: request.throughSeq,
     ...(request.beforeSeq === undefined ? {} : { beforeSeq: request.beforeSeq }),
-    ...(request.maxMessages === undefined ? {} : { maxMessages: request.maxMessages }),
+    ...(request.maxEvents === undefined ? {} : { maxEvents: request.maxEvents }),
   })
 }
 
@@ -70,12 +70,12 @@ function page(
 async function opening(
   remote: TestSessionRemote,
   sessionId: SessionId,
-  maxMessages?: number,
+  maxEvents?: number,
 ): Promise<Extract<SessionFollowFrame, { type: 'snapshot' }>> {
   const abort = new AbortController()
   const iterator = remote.follow({
     address: { kind: 'session', sessionId },
-    ...(maxMessages === undefined ? {} : { maxMessages }),
+    ...(maxEvents === undefined ? {} : { maxEvents }),
   }, abort.signal)[Symbol.asyncIterator]()
   const first = await iterator.next()
   abort.abort()
@@ -385,7 +385,7 @@ describe('session.history projections block', () => {
     ctx.sessionProjections.register(lastUserUnit())
     seedMessages(session, 5)
     const older = await page(remote(ctx), request({
-      sessionId: session.id, throughSeq: session.seq - 1, beforeSeq: 3, maxMessages: 2,
+      sessionId: session.id, throughSeq: session.seq - 1, beforeSeq: 3, maxEvents: 2,
     }))
     expect(older.ok).toBe(true)
     if (!older.ok) throw new Error('unreachable')

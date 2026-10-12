@@ -16,6 +16,7 @@ import type { HostObservable, SnapshotSelectorHook } from '@deepseek-ai/dsh-clie
 import type { PanelInfo } from './service.ts'
 import { AppFrame } from './AppFrame.tsx'
 import { createLayoutStore } from './stores.ts'
+import type { LayoutInfo } from './stores.ts'
 import { LayoutController } from './service.ts'
 import { ThemePresenter } from './theme-presenter.ts'
 
@@ -26,6 +27,7 @@ import { ThemePresenter } from './theme-presenter.ts'
 // against; the frame components and the store factory are package-internal.
 export { LayoutController } from './service.ts'
 export type { ILayout, MainPanelId, PanelInfo } from './service.ts'
+export type { LayoutInfo } from './stores.ts'
 
 /** Selector hook over root-scoped panel selection. */
 export type UsePanelInfo = SnapshotSelectorHook<PanelInfo>
@@ -117,7 +119,8 @@ export interface RightbarOwnerProps {
   /** Current frame width in px. */
   viewportWidth: number
   /**
-   * Whether a normal right panel can retain 300px beside a 400px center.
+   * Whether a normal right panel can retain 300px beside the center's protected
+   * minimum (400px on wide frames, its quarter below 1600px).
    * Before a narrow opening, includes the space from collapsing the left sidebar.
    */
   canShow: boolean
@@ -130,6 +133,8 @@ export const inject = ['slots', 'theme', 'locale']
  * Client plugin body: provide ctx.layout, then one register() call — AppFrame
  * into 'root' with the four child-slot declarations, the layout store seat,
  * and the shared root instance supplying commands and the panel-info source.
+ * Which packages mirror the frame's layout choices through ctx.layout.layoutInfo
+ * is their own business; nothing reads the layout store off this service.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -137,8 +142,12 @@ export function apply(ctx: ClientContext): void {
     const handle = createLayoutStore()
     const instance = handle.create()
     const store: typeof handle = { ...handle, create: () => instance }
+    const layoutInfo: HostObservable<LayoutInfo> = {
+      getSnapshot: () => instance.getSnapshot().layoutInfo,
+      subscribe: listener => instance.subscribe(listener),
+    }
     const layout = new LayoutController(instance.actions, id =>
-      ctx.slots.entries('main').some(entry => entry.options.key === id))
+      ctx.slots.entries('main').some(entry => entry.options.key === id), layoutInfo)
     const retainMainPanels = (): void => {
       instance.actions.retainMainPanels(ctx.slots.entries('main').flatMap(entry =>
         entry.options.key === undefined ? [] : [entry.options.key]))

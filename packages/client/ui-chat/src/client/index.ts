@@ -14,7 +14,7 @@ export type {} from './conversation-nodes/turn-tail.ts'
 
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProvenanceView, AssistantRequestConfig,
-  AssistantTiming, ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore,
+  AssistantTiming, ChatLocationNodeIndex, ChatNodeSource, ChatNodeStore,
   ChatSnapshot, ChatTurnNavigationIndex,
   CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
   LegacyConversationSlice, ModelRetryNode, PartialAssistant, RunningToolCall,
@@ -26,11 +26,10 @@ export type {
   ChatNodeKind, FinalAssistantChatData, ManualCompactionChatData, RetryChatData,
   ToolChatData, TurnTailChatData,
 } from './contract/chat-nodes.ts'
-export type { ChatStoreState, ToolCallId } from './contract/store.ts'
-export type { StepSpanFold } from './contract/span-fold.ts'
+export type { ToolCallId } from './contract/store.ts'
 export type {
   AssistantActionOwnerProps, ChatFileMentions, ChatNodeOwnerProps, ChatNodeTurnDataInjected,
-  ChatNodeViewProps, ChatScrollPosition, ChatStore, ChatViewInjected, ChatViewSlotProps,
+  ChatNodeViewProps, ChatScrollPosition, ChatViewInjected, ChatViewSlotProps,
   CommandRowOwnerProps, CommandRowProps, MessageImagesProps, OpenFileOptions,
   TurnTailOwnerProps, UseChat, UseChatNodeTurnData,
 } from './contract/slots.ts'

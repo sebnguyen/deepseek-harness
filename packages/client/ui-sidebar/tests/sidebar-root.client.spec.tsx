@@ -64,7 +64,7 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
           return <div data-testid="footer-action-seat" data-wide={owner.wide} />
         }
         if (key === 'sidebar.guide') {
-          return <div data-testid="guide-seat" data-wide={(owner as { wide: boolean }).wide} />
+          return <div data-testid="guide-seat" data-wide={owner.wide} />
         }
         regionOwner = owner as SidebarSectionOwnerProps
         return <div data-testid="region" data-wide={owner.wide} />

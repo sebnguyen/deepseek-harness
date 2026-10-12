@@ -20,6 +20,10 @@ async function bench(options: { declareConversation?: boolean } = {}) {
       runtime.sessions.open(SID)
     }),
     openSession: (id: SessionId) => { runtime.sessions.open(id) },
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '' as SessionId, seq: 0 }),
+      subscribe: () => () => {},
+    },
   } as never)
   runtime.ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
   const locale = new LocaleRuntime(runtime.ctx)

@@ -7,12 +7,11 @@ import type {
 import type { ChatConversationViewNode, ChatNode } from '../contract/chat-nodes.ts'
 import { isRunningTool } from '../contract/chat-nodes.ts'
 import type {
-  ChatLocationNodeIndex, ChatNodeProcessSource, ChatNodeSource, ChatNodeStore, ChatSnapshot,
-  ChatTurnNavigationIndex, StepSpanFold, LegacyConversationSlice, TurnNavigationItem,
+  ChatLocationNodeIndex, ChatNodeSource, ChatNodeStore, ChatSnapshot,
+  ChatTurnNavigationIndex, LegacyConversationSlice, TurnNavigationItem,
 } from '../contract/snapshot.ts'
 import { sessionRecallLabels, skillInvocationName } from './event-projection.ts'
 import { sameTurnNavigationItem, turnNavigationItem } from './turn-navigation.ts'
-import { ChatSpanFoldProjector } from './span-fold-presentation.ts'
 
 const EMPTY_KEYS: readonly string[] = []
 const EMPTY_TURNS: readonly number[] = []
@@ -66,11 +65,8 @@ class MutableChatSource<Value> {
 
 class MutableChatNodeStore implements ChatNodeStore {
   private readonly byKey = new Map<string, ChatConversationViewNode>()
-  private readonly spanFolds = new ChatSpanFoldProjector()
   private readonly sources = new Map<string, MutableChatSource<ChatConversationViewNode | undefined>>()
-  private readonly processSources = new Map<string, MutableChatSource<StepSpanFold | undefined>>()
   private readonly dirtyKeys = new Set<string>()
-  private readonly dirtyProcessKeys = new Set<string>()
   private valuesCache: readonly ChatConversationViewNode[] = EMPTY_LIST
   private valuesDirty = false
 
@@ -83,17 +79,6 @@ class MutableChatNodeStore implements ChatNodeStore {
       () => this.get(key),
       `[ui-chat] node source ${key}`,
     ))
-  }
-
-  processSource(key: string): ChatNodeProcessSource {
-    return cachedSource(this.processSources, key, () => new MutableChatSource(
-      () => this.process(key),
-      `[ui-chat] node process source ${key}`,
-    ))
-  }
-
-  process(key: string): StepSpanFold | undefined {
-    return this.spanFolds.get(this.get(key) as ChatNode | undefined)
   }
 
   values(): readonly ChatConversationViewNode[] {
@@ -111,13 +96,11 @@ class MutableChatNodeStore implements ChatNodeStore {
       this.byKey.set(node.key, node)
       if (previous.get(node.key) !== node) {
         this.dirtyKeys.add(node.key)
-        this.dirtyProcessKeys.add(node.key)
       }
       previous.delete(node.key)
     }
     for (const key of previous.keys()) {
       this.dirtyKeys.add(key)
-      this.dirtyProcessKeys.add(key)
     }
     this.valuesCache = [...this.byKey.values()]
     this.valuesDirty = false
@@ -129,35 +112,15 @@ class MutableChatNodeStore implements ChatNodeStore {
       if (this.byKey.get(node.key) === node) continue
       this.byKey.set(node.key, node)
       this.dirtyKeys.add(node.key)
-      this.dirtyProcessKeys.add(node.key)
       changed = true
     }
     if (changed) this.valuesDirty = true
   }
 
-  touchProcesses(spans: ReadonlySet<string>, locations: ChatLocationNodeIndex): void {
-    for (const span of spans) {
-      const [turn, step] = span.split(':')
-      if (turn === undefined || step === undefined) continue
-      for (const key of locations.getStep(Number(turn), Number(step))) this.dirtyProcessKeys.add(key)
-    }
-  }
-
-  replaceProcesses(order: readonly string[], locations: ChatLocationNodeIndex): void {
-    this.touchProcesses(this.spanFolds.replace(order, locations, this), locations)
-  }
-
-  updateProcesses(turns: ReadonlySet<number>, locations: ChatLocationNodeIndex): void {
-    this.touchProcesses(this.spanFolds.update(turns, locations, this), locations)
-  }
-
   publish(): void {
     const dirty = [...this.dirtyKeys]
-    const dirtyProcesses = [...this.dirtyProcessKeys]
     this.dirtyKeys.clear()
-    this.dirtyProcessKeys.clear()
     for (const key of dirty) this.sources.get(key)?.publish()
-    for (const key of dirtyProcesses) this.processSources.get(key)?.publish()
   }
 }
 
@@ -295,25 +258,6 @@ function locationCoordinates(location: ConversationLocation): { turn?: number; s
   if (location.kind === 'step') return { turn: location.turn.turn, step: location.step.step }
   if (location.kind === 'turn') return { turn: location.turn.turn }
   return {}
-}
-
-function locationTurnStatus(location: ConversationLocation): string | undefined {
-  return location.kind === 'turn' || location.kind === 'step' ? location.turn.status : undefined
-}
-
-function spanPresentationInputChanged(
-  previous: ChatNode | undefined,
-  next: ChatNode,
-  structural: boolean,
-): boolean {
-  if (structural || previous === undefined) return true
-  if (locationTurnStatus(previous.location) !== locationTurnStatus(next.location)) return true
-  if (previous.kind === 'tool-call' && next.kind === 'tool-call') return previous.data !== next.data
-  if (previous.kind !== next.kind) return true
-  return (previous.kind === 'assistant-step-start'
-    || previous.kind === 'assistant-step-end'
-    || previous.kind === 'assistant-step-reason')
-    && previous.data !== next.data
 }
 
 /**
@@ -901,7 +845,6 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     this.store.replace(nodes)
     this.order = orderedVisibleChatNodes(nodes).map(node => node.key)
     this.locations.rebuild(this.order, this.store)
-    this.store.replaceProcesses(this.order, this.locations)
     this.navigation.rebuild(input.timeline, this.locations, this.store)
     this.timeline = input.timeline
     const snapshot = this.snapshot(input.timeline, this.legacy.replace(nodes, input.timeline))
@@ -914,7 +857,6 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
     readonly timeline: ConversationTimelineSnapshot
   }): ChatSnapshot {
     const upserts = this.skillNames.apply(this.referenceLabels.apply(input.upserts, this.store), this.store)
-    const processTurns = new Set<number>()
     let structural = false
     const contentOnly: ChatConversationViewNode[] = []
     for (const node of upserts) {
@@ -926,12 +868,6 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
         || locationIdentity(previous.location) !== locationIdentity(node.location)
       structural ||= nodeStructural
       if (!nodeStructural) contentOnly.push(node)
-      if (spanPresentationInputChanged(previous as ChatNode | undefined, node as ChatNode, nodeStructural)) {
-        const previousTurn = previous === undefined ? undefined : locationCoordinates(previous.location).turn
-        const nextTurn = locationCoordinates(node.location).turn
-        if (previousTurn !== undefined) processTurns.add(previousTurn)
-        if (nextTurn !== undefined) processTurns.add(nextTurn)
-      }
     }
     this.store.upsert(upserts)
     if (structural) {
@@ -940,7 +876,6 @@ export class ChatSnapshotBuilder implements ConversationViewBuilder<ChatConversa
       this.locations.rebuild(this.order, this.store)
     }
     this.locations.touch(contentOnly)
-    this.store.updateProcesses(processTurns, this.locations)
     if (structural || input.timeline !== this.timeline) {
       this.navigation.rebuild(input.timeline, this.locations, this.store)
     } else {

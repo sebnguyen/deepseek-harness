@@ -339,21 +339,28 @@ export interface TwinFrameMountProps {
  */
 export function TwinFrameMount({ src, spinLine }: TwinFrameMountProps): ReactNode {
   const [box, setBox] = useState<HTMLDivElement | null>(null)
-  const [settled, setSettled] = useState(false)
+  // The settle verdict keys off the record, not this mount: a body restaking a
+  // frame whose document already booted must not resurrect the boot cover.
+  const [settled, setSettled] = useState(() => twins.get(src)?.loaded === true)
   const container = useSyncExternalStore(subscribeTwins, () => twinContainerOf(src))
 
   useEffect(() => {
     if (box === null) return
     const twin = ensureTwin(src)
+    if (twin.loaded) setSettled(true)
     const record = stake(twin, box)
     let settleTimer: ReturnType<typeof setTimeout> | undefined
-    const watch = setInterval(() => {
-      if (!twin.loaded || settleTimer !== undefined) return
-      settleTimer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
-    }, PLACE_MS)
+    // The anti-flash wait rides the watch interval only while the document
+    // has not finished booting; an already-loaded record skips the cover.
+    const watch = twin.loaded
+      ? undefined
+      : setInterval(() => {
+        if (!twin.loaded || settleTimer !== undefined) return
+        settleTimer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
+      }, PLACE_MS)
     return () => {
       releaseStake(twin, record)
-      clearInterval(watch)
+      if (watch !== undefined) clearInterval(watch)
       if (settleTimer !== undefined) clearTimeout(settleTimer)
       setSettled(false)
     }

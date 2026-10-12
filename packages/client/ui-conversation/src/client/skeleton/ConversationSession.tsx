@@ -174,9 +174,45 @@ export function ConversationSession({
   const active = resolveActiveView(tabs, selectedId)
   const session = useSession(s => s)
   const conversation = useConversation(s => s)
+  const viewRequest = useStore(s => s.viewRequest ?? null)
+  const blank = session.blank && conversationPhase(session, conversation) === 'blank'
+  return (
+    <>
+      {!blank && (
+        <div className={css.viewArea}>
+          {active !== undefined && renderSlot('conversation.view', {
+            viewRequest,
+            openView,
+            completeViewRequest: actions.completeViewRequest,
+          }, { only: active.id })}
+        </div>
+      )}
+      <DraftMirrorSeat
+        useInput={useInput}
+        inputActions={inputActions}
+        useStore={useStore}
+        actions={actions}
+        bindDraftMirror={bindDraftMirror}
+      />
+    </>
+  )
+}
+
+/**
+ * Seeds the shell draft from the persisted store and binds the draft mirror.
+ * The draft subscriptions fire per keystroke through the mirror; keeping them
+ * in their own seat stops every typed character from re-rendering the Session
+ * view area with the echo. It mounts from the blank state onward (the seed
+ * effect ordering matches the previous inline hook) and renders nothing.
+ */
+function DraftMirrorSeat({
+  useInput, inputActions, useStore, actions, bindDraftMirror,
+}: Pick<
+  ConversationSessionProps,
+  'useInput' | 'inputActions' | 'useStore' | 'actions' | 'bindDraftMirror'
+>): null {
   const inputState = useInput(s => s)
   const storedDraft = useStore(s => s.draft)
-  const viewRequest = useStore(s => s.viewRequest ?? null)
 
   useEffect(() => {
     if (inputState.draft === '' && storedDraft !== '') inputActions.setDraft(storedDraft)
@@ -185,15 +221,5 @@ export function ConversationSession({
     // Mount-only (deps pinned to inputActions): later store writes come from
     // the machine mirror, not this seed effect.
   }, [inputActions])
-
-  if (session.blank && conversationPhase(session, conversation) === 'blank') return null
-  return (
-    <div className={css.viewArea}>
-      {active !== undefined && renderSlot('conversation.view', {
-        viewRequest,
-        openView,
-        completeViewRequest: actions.completeViewRequest,
-      }, { only: active.id })}
-    </div>
-  )
+  return null
 }

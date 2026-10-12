@@ -17,7 +17,6 @@ import {
 } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { SessionSeq, type SessionId } from '@deepseek-ai/dsh-session/types'
 import type { WorkspaceId } from '@deepseek-ai/dsh-workspace/types'
-import { createChatStore } from '../src/client/stores.ts'
 
 usePinnedBrowserLanguages('zh-CN')
 
@@ -30,8 +29,6 @@ const ATTACHMENT = {
   height: 1,
 } as const
 
-type ChatInstance = ReturnType<ReturnType<typeof createChatStore>['create']>
-type ChatActions = ChatInstance['actions']
 
 function sessionFakeFor() {
   return {
@@ -68,6 +65,10 @@ async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
       runtime.sessions.open(ROOT)
     }),
     openSession: (id: SessionId) => { runtime.sessions.open(id) },
+    sessionActivations: {
+      getSnapshot: () => ({ sessionId: '' as SessionId, seq: 0 }),
+      subscribe: () => () => {},
+    },
   } as never)
   const session = sessionFakeFor()
   await runtime.sessions.add({
@@ -90,12 +91,10 @@ async function bench(revealIn?: (sessionId: SessionId, path: string) => void) {
 
   const chatViewApi = (id: SessionId) => {
     const entry = runtime.slots.entries('conversation.view')[0]!
-    const instance = runtime.storeOf('conversation.view', id) as ChatInstance
     const injected = (entry.inject as unknown as (
       sessionId: SessionId,
-      actions: ChatActions,
-    ) => ChatViewInjected)(id, instance.actions)
-    return { instance, injected }
+    ) => ChatViewInjected)(id)
+    return { injected }
   }
   return { runtime, layout, openWorkspacePath, sidebarRight, session, chatViewApi, checkpoint }
 }
@@ -204,11 +203,8 @@ describe('Chat inject API', () => {
   it('fails loud when a Chat View inject resolves no Session', async () => {
     const b = await bench()
     const entry = b.runtime.slots.entries('conversation.view')[0]!
-    const injectView = entry.inject as unknown as (
-      sessionId: SessionId,
-      actions: ChatActions,
-    ) => ChatViewInjected
-    expect(() => injectView('never-listed' as SessionId, {} as ChatActions))
+    const injectView = entry.inject as unknown as (sessionId: SessionId) => ChatViewInjected
+    expect(() => injectView('never-listed' as SessionId))
       .toThrow(/unknown session/)
     await b.runtime.dispose()
   })
@@ -223,7 +219,6 @@ describe('Chat inject API', () => {
     expect(b.sidebarRight.openResource).toHaveBeenLastCalledWith(
       'dsh-resource://file/session/root-1/src/a.ts', { params: { display: 'changes', stop: 'c4' } })
     expect(injected.keyedHooks.chatNode('n1')).toBeDefined()
-    expect(injected.keyedHooks.chatNodeProcess('n1')).toBeDefined()
     await b.runtime.dispose()
   })
 

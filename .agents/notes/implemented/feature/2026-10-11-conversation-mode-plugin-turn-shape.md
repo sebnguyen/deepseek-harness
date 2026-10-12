@@ -89,19 +89,20 @@ adapter-wide claim:
 
 Follow the existing client-package pattern (as `ui-quiet` already does):
 
-- **Host half** (`apply(ctx)`): the turn-shape setting, its per-turn
-  snapshot, the per-turn reminder injection, and the capability-gated shield
-  attach.
+- **Host half** (`apply(ctx)`): the turn-shape arming, its per-turn
+  snapshot, and the per-turn reminder injection (the shipped grammar now
+  attaches nothing — see the thoughts bug-fix note below).
 - **Browser half** (`src/client`, shipped through the `dsh.client`
   declaration): the composer selector (`Narrate · Quiet · Tools only`) showing
   "applies to next turn" while a turn streams.
 
-The two halves share one settings namespace (`conversation.turnShape`,
-migrating the `ui-quiet` field) and must version together; splitting into two
-packages buys nothing. The render-contract sanitizer itself lives in
-`ui-chat`
+The two halves must version together; splitting into two packages buys
+nothing. The render-contract sanitizer itself lives in `ui-chat`
 (where every renderer owns its response), which the plugin's client half
-depends on declaratively.
+depends on declaratively. The originally designed shared settings namespace
+(`conversation.turnShape`, migrating the `ui-quiet` field) shipped that way
+only briefly: arming is now logged per-session state per
+[turn-shape-session-scope](../architecture/2026-10-12-turn-shape-session-scope.md).
 
 ### Enabling with the LLM: injection through one seam, capability-gated and
 arbitrated
@@ -201,8 +202,10 @@ race and the multi-session flag leak at once.
 ## Consequences
 
 - A `dsh-client-conversation-mode` plugin row is mounted in the base patch,
-  replacing the removed `ui-quiet` row, with the `ui-quiet` settings field
-  migrating to `conversation.turnShape`.
+  replacing the removed `ui-quiet` row; the selector's arming lives as logged
+  per-session state (`turn-shape/mode` + the `turnShape` projection), not in
+  the settings document
+  ([session-scope note](../architecture/2026-10-12-turn-shape-session-scope.md)).
 - Per-route capability is resolvable from the plugin side: for a pi-ai
   non-OpenAI-compatible route the capability verdict is negative, the shield
   is not attached, and wire-level capture proves `response_format` appears

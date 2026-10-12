@@ -77,44 +77,31 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
+  /* the sheet sits ABOVE the rays and blends additively: ray glow passing
+     underneath adds into the dots, so the grid shines wherever a ray is on it */
+  mix-blend-mode: screen;
 }
-/* one zoom-cycling layer: a viewport-spanning dot tile whose scale loops
-   from small-and-dimming-in to large-and-fading-out */
-.glayer {
+/* a single STATIC sheet the size of the viewport — one compositor layer,
+   one viewport-sized backing texture, zero per-frame work, no will-change.
+   Declarations are duplicated per class (no composes:) so module class-maps
+   stay self-contained on every toolchain. */
+.glayerA,
+.glayerB {
   position: absolute;
-  left: 50%; top: 50%;
-  width: 420vmax; height: 420vmax;
-  margin: -210vmax 0 0 -210vmax;
-  transform-origin: center;
+  inset: 0;
   background-position: center;
   background-repeat: repeat;
   opacity: 0;
-  will-change: transform, opacity;
 }
 .glayerA {
-  composes: glayer;
-  background-image: radial-gradient(circle, var(--dsh-ocean-grid-a) 0 2px, transparent 4.2px);
-  background-size: 44px 44px;
+  background-image: radial-gradient(circle, var(--dsh-ocean-grid-a) 0 1px, transparent 2.4px);
+  background-size: 32px 32px;
 }
 .glayerB {
-  composes: glayer;
-  background-image: radial-gradient(circle, var(--dsh-ocean-grid-b) 0 2.8px, transparent 5.8px);
-  background-size: 62px 62px;
+  background-image: radial-gradient(circle, var(--dsh-ocean-grid-b) 0 1.4px, transparent 3.4px);
+  background-size: 46px 46px;
 }
-/* per-layer shafts, riding the layer's scale (parallax for free); the
-   hinge hangs above the tile so the source is always off-screen */
-.gpray {
-  position: absolute;
-  top: -150%; height: 210%;
-  opacity: .8;
-  transform-origin: 50% 0;
-  transform: rotate(var(--r, 0deg));
-  mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 22%, black 78%, transparent 100%);
-  filter: blur(4px);
-}
-.glayerA .gpray { background: linear-gradient(180deg, var(--dsh-ocean-grid-b), transparent 72%); }
-.glayerB .gpray { background: linear-gradient(180deg, var(--dsh-ocean-grid-a), transparent 72%); }
+
 
 /* readability veil; dense variant deepens while a transcript owns the
    centre — the global scene keeps the light veil in every phase. */
@@ -154,4 +141,14 @@
   .boostRay {
     animation: none;
   }
+}
+
+/* shader canvas: the GPU renderer paints sea, rays, halo and grid in one
+   fullscreen pass; the DOM fallback hosts stay empty beside it. */
+.gl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
 }

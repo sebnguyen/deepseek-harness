@@ -28,6 +28,7 @@ import type {} from '@deepseek-ai/dsh-goal/client'
 // wire types: apiproxy's sessions contract declares it, and client-runtime's
 // api-remotes import already places it in every client program.
 import type { Translate } from '@deepseek-ai/dsh-client-ui-slots'
+import type { DraftAttachmentId } from '../contract/input.ts'
 import type { ComposerBarProps } from '../contract/slots.ts'
 import { ComposerContentEditable } from '../input/editor/ComposerContentEditable.tsx'
 import { DecoratorPortals } from '../input/editor/DecoratorPortals.tsx'
@@ -277,6 +278,17 @@ export const InputBar = memo(function InputBar({
     if (rejected !== null) showToast(rejected)
   }, [subagent, addFiles, attachments, imageLimits, showToast, t])
 
+  const onRemoveAttachmentSlot = useCallback((id: DraftAttachmentId) => { removeAttachment?.(id) }, [removeAttachment])
+  const onRetryFileSlot = useCallback((id: DraftAttachmentId) => { retryFileUpload?.(id) }, [retryFileUpload])
+  // Slot-entry props keep value identity across draft-only re-renders so the
+  // memoized attachments entry bails out entirely on the typing echo.
+  const dropLimits = useMemo(
+    () => imageLimits === undefined
+      ? undefined
+      : { count: imageLimits.maxImagesPerMessage, size: imageSizeText(imageLimits.maxImageBytes) },
+    [imageLimits],
+  )
+
   const canAcceptDrop = subagent === null && !locked && !machineBusy && addFiles !== undefined
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -470,13 +482,10 @@ export const InputBar = memo(function InputBar({
           attachments,
           canAcceptDrop,
           onAddFiles: intakeFiles,
-          onRemoveAttachment: (id) => { removeAttachment?.(id) },
+          onRemoveAttachment: onRemoveAttachmentSlot,
           uploads,
-          onRetryFile: (id) => { retryFileUpload?.(id) },
-          dropLimits: imageLimits === undefined ? undefined : {
-            count: imageLimits.maxImagesPerMessage,
-            size: imageSizeText(imageLimits.maxImageBytes),
-          },
+          onRetryFile: onRetryFileSlot,
+          dropLimits,
         })}
         {/* One scrollport, one text surface: the contenteditable grows with
             its content and .scroll — capped at 14 lines in CSS — is the only

@@ -52,7 +52,7 @@ export function ProviderEntry({ wide, provider, t }: ProviderEntryProps) {
         aria-expanded={open}
         onClick={() => { setOpen(!open) }}
       >
-        <IconEnhanceOutline16 />
+        <IconEnhanceOutline16 size={wide ? 13 : 14} />
         {wide && <span className={css.entryLabel}>{t?.('entry.label') ?? ''}</span>}
       </button>
       {open && provider !== undefined

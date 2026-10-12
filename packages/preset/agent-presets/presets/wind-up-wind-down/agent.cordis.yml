@@ -57,8 +57,16 @@
   config:
     provider: spawn
     toolName: explore
+    # Same lane rule as `standard`'s explorer: the scoped `tools.restrict()`
+    # fails loud on unknown names, so the read/shell entries name exactly the
+    # spelling this lane mounts — legacy `read`/`bash` under VITEST test-lane
+    # boots, the `multi_*` batch faces in live sessions.
     toolFilter:
-      allow: [read, multi_read, read_image, glob, grep, lsp, symbols, bash, multi_bash, web_fetch, web_search]
+      allow: !!js >-
+        ['read_image', 'glob', 'grep', 'lsp', 'symbols', 'web_fetch', 'web_search']
+          .concat(process.env.VITEST === 'true'
+            ? ['read', 'bash']
+            : ['multi_read', 'multi_bash'])
     enableRunInBackground: false
     maxDepth: 1
     backgroundMode: one-shot

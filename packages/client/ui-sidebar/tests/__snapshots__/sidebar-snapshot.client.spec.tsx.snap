@@ -69,21 +69,13 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       />
     </div>
     <div
-      class="guideArea"
-    >
-      <div
-        data-slot="sidebar.guide"
-        style="display: contents;"
-      />
-    </div>
-    <div
       class="footArea"
     >
       <div
-        class="footerActions"
+        class="guideArea"
       >
         <div
-          data-slot="sidebar.footer.action"
+          data-slot="sidebar.guide"
           style="display: contents;"
         />
       </div>
@@ -94,6 +86,30 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           data-slot="sidebar.settings"
           style="display: contents;"
         />
+      </div>
+      <div
+        class="footerActions"
+      >
+        <div
+          data-slot="sidebar.footer.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="Swap editor and chat columns"
+            aria-pressed="true"
+            class="root rail"
+            type="button"
+          >
+            <svg
+              data-content="ae283ba4"
+              fill="none"
+              height="14"
+              viewBox="0 0 16 16"
+              width="14"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -207,21 +223,13 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
       />
     </div>
     <div
-      class="guideArea"
-    >
-      <div
-        data-slot="sidebar.guide"
-        style="display: contents;"
-      />
-    </div>
-    <div
       class="footArea"
     >
       <div
-        class="footerActions"
+        class="guideArea"
       >
         <div
-          data-slot="sidebar.footer.action"
+          data-slot="sidebar.guide"
           style="display: contents;"
         />
       </div>
@@ -232,6 +240,30 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
           data-slot="sidebar.settings"
           style="display: contents;"
         />
+      </div>
+      <div
+        class="footerActions"
+      >
+        <div
+          data-slot="sidebar.footer.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="Swap editor and chat columns"
+            aria-pressed="true"
+            class="root"
+            type="button"
+          >
+            <svg
+              data-content="ae283ba4"
+              fill="none"
+              height="13"
+              viewBox="0 0 16 16"
+              width="13"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -345,21 +377,13 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
       />
     </div>
     <div
-      class="guideArea"
-    >
-      <div
-        data-slot="sidebar.guide"
-        style="display: contents;"
-      />
-    </div>
-    <div
       class="footArea"
     >
       <div
-        class="footerActions"
+        class="guideArea"
       >
         <div
-          data-slot="sidebar.footer.action"
+          data-slot="sidebar.guide"
           style="display: contents;"
         />
       </div>
@@ -370,6 +394,30 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
           data-slot="sidebar.settings"
           style="display: contents;"
         />
+      </div>
+      <div
+        class="footerActions"
+      >
+        <div
+          data-slot="sidebar.footer.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="交换编辑器与对话栏位置"
+            aria-pressed="true"
+            class="root"
+            type="button"
+          >
+            <svg
+              data-content="ae283ba4"
+              fill="none"
+              height="13"
+              viewBox="0 0 16 16"
+              width="13"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </button>
+        </div>
       </div>
     </div>
   </div>

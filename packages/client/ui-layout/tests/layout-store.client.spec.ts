@@ -21,6 +21,7 @@ describe('createLayoutStore', () => {
         rightbarTrack: false,
         rightbarFullscreen: false,
         rightbarInstant: false,
+        swapped: true,
       },
     })
   })
@@ -61,6 +62,18 @@ describe('createLayoutStore', () => {
     expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 400, viewportWidth: 980, narrowExpanded: true })
     actions.toggleSidebar()
     expect(store.getSnapshot().layoutInfo).toMatchObject({ sidebar: 400, narrowExpanded: false })
+  })
+
+  it('flips the track order and clears the instant marker on toggleSwap', () => {
+    const { store, actions } = createLayoutStore().create()
+    actions.setSidebar(400)
+    actions.openRightbar(true, true)
+    actions.closeRightbar()
+    expect(store.getSnapshot().layoutInfo.rightbarInstant).toBe(true)
+    actions.toggleSwap()
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: false, rightbarInstant: false })
+    actions.toggleSwap()
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: true, sidebar: 400 })
   })
 
   it('clears the manual override only when crossing 1024px', () => {
@@ -119,7 +132,7 @@ describe('main panel selection', () => {
     expect(store.getSnapshot().layoutInfo).toBe(selected.layoutInfo)
   })
 
-  it.each(['setSidebar', 'toggleSidebar', 'setViewportWidth', 'setRightbar', 'openRightbar', 'closeRightbar'] as const)(
+  it.each(['setSidebar', 'toggleSidebar', 'toggleSwap', 'setViewportWidth', 'setRightbar', 'openRightbar', 'closeRightbar'] as const)(
     'preserves panelInfo identity when %s changes layoutInfo', (action) => {
       const { store, actions } = createLayoutStore().create()
       actions.selectPanel(panelA)
@@ -128,6 +141,7 @@ describe('main panel selection', () => {
       switch (action) {
         case 'setSidebar': actions.setSidebar(400); break
         case 'toggleSidebar': actions.toggleSidebar(); break
+        case 'toggleSwap': actions.toggleSwap(); break
         case 'setViewportWidth': actions.setViewportWidth(980); break
         case 'setRightbar': actions.setRightbar(500); break
         case 'openRightbar': actions.openRightbar(true, true); break
@@ -140,18 +154,18 @@ describe('main panel selection', () => {
 })
 
 describe('right panel', () => {
-  it('initializes at 45% of the latest frame only on first opening', () => {
+  it('initializes at three quarters of the frame minus the rail on first opening', () => {
     const { store, actions } = createLayoutStore().create()
     actions.setViewportWidth(1000)
     expect(store.getSnapshot().layoutInfo.rightbar).toBeNull()
     actions.openRightbar(true, false)
-    expect(store.getSnapshot().layoutInfo.rightbar).toBe(450)
+    expect(store.getSnapshot().layoutInfo.rightbar).toBe(694)
     actions.setViewportWidth(2000)
     actions.openRightbar(true, true)
-    expect(store.getSnapshot().layoutInfo.rightbar).toBe(450)
+    expect(store.getSnapshot().layoutInfo.rightbar).toBe(694)
     actions.closeRightbar()
     actions.openRightbar(true, false)
-    expect(store.getSnapshot().layoutInfo.rightbar).toBe(450)
+    expect(store.getSnapshot().layoutInfo.rightbar).toBe(694)
   })
 
   it('keeps track and fullscreen reports independent and clears both on close', () => {

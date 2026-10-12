@@ -141,7 +141,7 @@ describe('chat flow font-size axis', () => {
     expect(css).toMatch(/\):focus-within \.actions \{\s*opacity: 1/)
     // The caption offset rides the chat flow gap variable on the tail seat.
     const flow = read('ChatView.module.css')
-    expect(flow).toMatch(/\.flowItem\[data-chat-flow-kind='turn-tail'\] \{\s*--dsh-chat-flow-gap: 4px/)
+    expect(flow).toMatch(/\.flowItem\[data-chat-flow-kind='turn-tail'\] \{\s*--dsh-chat-flow-gap: 2px/)
   })
 
   it('uses flow sibling selectors to reveal only the latest user-authored row', () => {

@@ -258,9 +258,16 @@
         provider: spawn
         toolName: explore
         toolFilter:
-          # Legacy names stay: test-lane boots register the recorded-corpus
-          # names; live sessions register the multi_* batch faces.
-          allow: [read, multi_read, read_image, bash, multi_bash, web_fetch, web_search]
+          # The scoped `tools.restrict()` fails loud on unknown names, and
+          # the read/shell faces differ by lane: test-lane boots (VITEST)
+          # register the recorded corpus's `read`/`bash`, live sessions the
+          # `multi_*` batch faces — the same lane `legacyName`/`legacyFaces`
+          # resolve above. Name exactly one spelling per lane.
+          allow: !!js >-
+            ['read_image', 'web_fetch', 'web_search']
+              .concat(process.env.VITEST === 'true'
+                ? ['read', 'bash']
+                : ['multi_read', 'multi_bash'])
         enableRunInBackground: false
         enableBatchTasks: true
         maxDepth: 1

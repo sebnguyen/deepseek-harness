@@ -2,8 +2,6 @@ import type {
   ConversationNode, ConversationTimelineSnapshot, PartialAssistant, RunningToolCall,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatConversationViewNode } from './chat-nodes.ts'
-import type { StepSpanFold } from './span-fold.ts'
-export type { StepSpanFold } from './span-fold.ts'
 
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProvenanceView, AssistantRequestConfig,
@@ -21,22 +19,12 @@ export interface ChatNodeSource {
   readonly subscribe: (listener: () => void) => () => void
 }
 
-/** Per-key observable for the Step span fold surrounding one Chat Node. */
-export interface ChatNodeProcessSource {
-  /** @returns the current fold, or absence outside an Assistant Step span. */
-  readonly getSnapshot: () => StepSpanFold | undefined
-  /** @param listener - callback for fold changes. @returns the unsubscribe function. */
-  readonly subscribe: (listener: () => void) => () => void
-}
-
 /** Stable live per-key reader for Chat nodes. */
 export interface ChatNodeStore {
   /** @param key - stable Conversation Context key. @returns current Node, when visible or hidden. */
   get(key: string): ChatConversationViewNode | undefined
   /** @param key - stable Conversation Context key. @returns its identity-stable observable source. */
   source(key: string): ChatNodeSource
-  /** @param key - stable Conversation Context key. @returns its span-fold source. */
-  processSource(key: string): ChatNodeProcessSource
   /** @returns all currently materialized Nodes without imposing render order. */
   values(): readonly ChatConversationViewNode[]
 }
@@ -102,10 +90,6 @@ const EMPTY_NODE_SOURCE: ChatNodeSource = {
   getSnapshot: () => undefined,
   subscribe: () => () => {},
 }
-const EMPTY_NODE_PROCESS_SOURCE: ChatNodeProcessSource = {
-  getSnapshot: () => undefined,
-  subscribe: () => () => {},
-}
 
 /** Empty Chat target used before a view builder is registered. */
 export const EMPTY_CHAT_SNAPSHOT: ChatSnapshot = {
@@ -113,7 +97,6 @@ export const EMPTY_CHAT_SNAPSHOT: ChatSnapshot = {
   nodes: {
     get: () => undefined,
     source: () => EMPTY_NODE_SOURCE,
-    processSource: () => EMPTY_NODE_PROCESS_SOURCE,
     values: () => EMPTY_LIST,
   },
   locations: {

@@ -39,7 +39,24 @@ afterEach(() => {
  */
 async function bench(options: { locale?: 'en' } = {}) {
   const runtime = await SlotTestRuntime.create()
-  runtime.ctx.provide('layout', { toggleSidebar: vi.fn() })
+  runtime.ctx.provide('layout', {
+    toggleSidebar: vi.fn(),
+    toggleSwap: vi.fn(),
+    layoutInfo: {
+      getSnapshot: () => ({
+        sidebar: 280,
+        viewportWidth: 1920,
+        narrowExpanded: false,
+        rightbar: null,
+        rightbarShown: false,
+        rightbarTrack: false,
+        rightbarFullscreen: false,
+        rightbarInstant: false,
+        swapped: true,
+      }),
+      subscribe: () => () => {},
+    },
+  })
   runtime.ctx.provide('uiWorkspace', { startSession: vi.fn() } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   locale.register('common', { zh: commonZh, en: commonEn })

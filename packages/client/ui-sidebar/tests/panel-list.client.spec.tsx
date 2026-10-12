@@ -39,9 +39,24 @@ async function bench(collapsed = false) {
   const layout = {
     beginNavigation: vi.fn(() => new AbortController().signal),
     toggleSidebar: vi.fn(),
+    toggleSwap: vi.fn(),
     selectPanel: vi.fn((activePanelId: MainPanelId | null) => { runtime.panelInfo.set({ activePanelId }) }),
     openRightbar: vi.fn(),
     closeRightbar: vi.fn(),
+    layoutInfo: {
+      getSnapshot: () => ({
+        sidebar: 280,
+        viewportWidth: 1920,
+        narrowExpanded: false,
+        rightbar: null,
+        rightbarShown: false,
+        rightbarTrack: false,
+        rightbarFullscreen: false,
+        rightbarInstant: false,
+        swapped: true,
+      }),
+      subscribe: () => () => {},
+    },
   } satisfies ILayout
   await runtime.mount({
     inject: ['slots'],

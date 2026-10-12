@@ -6,7 +6,6 @@
  */
 import { IconSettingsOutline14, IconSettingsOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import css from './chrome.module.css'
 
 /** Trigger content props: the sidebar column state + the standard locale seat. */
 export type TriggerContentProps = PropsRuntime<'settings.trigger'> & PropsLocale<'settings'>
@@ -15,17 +14,15 @@ export type TriggerContentProps = PropsRuntime<'settings.trigger'> & PropsLocale
 export type HeaderContentProps = PropsRuntime<'settings.header'> & PropsLocale<'settings'>
 
 /**
- * Render the trigger row content (icon; label only in the wide column).
+ * Render the trigger row content: always icon-only on the slim floor; the
+ * trigger button's aria-label still carries the name.
  * @param props - composed slot props.
  * @returns the trigger content fragment.
  */
-export function TriggerContent({ wide, t }: TriggerContentProps) {
-  return (
-    <>
-      {wide ? <IconSettingsOutline16 size={16} /> : <IconSettingsOutline14 size={18} />}
-      {wide && <span className={css.triggerLabel}>{t('trigger')}</span>}
-    </>
-  )
+export function TriggerContent({ wide }: TriggerContentProps) {
+  return wide
+    ? <IconSettingsOutline16 size={13} />
+    : <IconSettingsOutline14 size={14} />
 }
 
 /**

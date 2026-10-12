@@ -1237,7 +1237,7 @@ export function WorkspaceBrowser({
                     setSearchExpanded(true)
                   }}
                 >
-                  <IconSearchOutline16 size={searchExpanded ? 11 : 14} />
+                  <IconSearchOutline16 size={searchExpanded ? 10 : 12} />
                 </button>
               </Tooltip>
               <input
@@ -1296,7 +1296,7 @@ export function WorkspaceBrowser({
                   setWsPickerOpen(v => !v)
                 }}
               >
-                <IconProjectAddOutline16 size={wide ? 16 : 18} />
+                <IconProjectAddOutline16 size={wide ? 13 : 14} />
               </button>
             </Tooltip>
           )}
@@ -1333,7 +1333,7 @@ export function WorkspaceBrowser({
               expandSidebar()
             }}
           >
-            <IconSearchOutline16 size={18} />
+            <IconSearchOutline16 size={14} />
           </button>
         </Tooltip>
       </div>}

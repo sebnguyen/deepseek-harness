@@ -57,6 +57,8 @@ import type {
   SessionSelectModelValue,
   SessionSetStepPaceRequest,
   SessionSetStepPaceValue,
+  SessionSetTurnShapeRequest,
+  SessionSetTurnShapeValue,
   SessionUpdateQueueRequest,
   SessionUpdateQueueValue,
 } from './types.ts'
@@ -223,7 +225,6 @@ export class SessionController extends TypertRemoteService {
       return Promise.resolve({
         meta: attached.header,
         inheritedEventCount: attached.inheritedEventCount,
-        // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
         events: attached.snapshotEvents(),
       })
     }
@@ -280,6 +281,17 @@ export class SessionController extends TypertRemoteService {
   @Remote('setStepPace')
   setStepPace(request: SessionSetStepPaceRequest): Promise<SessionSetStepPaceValue> {
     return this.commands.setStepPace(request)
+  }
+
+  /**
+   * Append one Session's transcript turn-shape selection after explicitly
+   * resuming the Session. The `turnShape` projection republishes the fold.
+   * @param request - Session identity and selected shape.
+   * @returns the installed shape.
+   */
+  @Remote('setTurnShape')
+  setTurnShape(request: SessionSetTurnShapeRequest): Promise<SessionSetTurnShapeValue> {
+    return this.commands.setTurnShape(request)
   }
 
   /**
@@ -417,7 +429,7 @@ export class SessionController extends TypertRemoteService {
   }
 
   /**
-   * Read one cold-safe, message-aligned Session history page.
+   * Read one cold-safe, event-banded Session history page.
    * @param request - durable address, backward cursor, and page budget.
    * @param signal - cancellation for persistence reads.
    * @returns one chronological page.

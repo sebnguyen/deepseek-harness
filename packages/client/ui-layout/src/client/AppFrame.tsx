@@ -7,8 +7,9 @@
  * the Conversation or a global panel. Each column occupant owns its Session
  * binding and reports the geometry it needs.
  *
- * The right column is a track, not a box: its occupant draws its panel anchored
- * to the frame's right edge at the resolved normal width, and the
+ * The tool column is a track, not a box: its occupant draws its panel anchored
+ * to the steady frame edge of that column (left edge in the IDE-first order,
+ * right edge in the chat-first order) at the resolved normal width, and the
  * track only decides whether the centre makes room for it. The occupant reports
  * shown/track/fullscreen through `ctx.layout`; fullscreen keeps the reported
  * track but hides the outer resize handle. Everything arrives through the framework
@@ -19,7 +20,7 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, RIGHTBAR_DEFAULT_RATIO, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT } from './columns.ts'
+import { computeColumns, rightbarDefaultWidth, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, sidebarWidth } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
@@ -136,12 +137,17 @@ export function AppFrame({
   t,
 }: AppFrameProps) {
   const layoutInfo = useStore(state => state.layoutInfo)
+  /* Swapped track order (per-frame default for this product build): the right
+     column's occupant — the IDE/vscode pane — sits between the sidebar and the
+     center conversation, so the frame reads sidebar | IDE | chat. Widths solve
+     identically; only track order, handle placement, and drag sign flip. */
+  const swapped = layoutInfo.swapped
   const frameRef = useRef<HTMLDivElement | null>(null)
   const viewport = layoutInfo.viewportWidth
   /* Engine state feeding the global ocean scene's inference boost: the current
      session's list-row running flag (list and selection ride one snapshot, so
      the selector follows session switches without a second subscription). */
-  const engineRunning = useSessions(s => {
+  const engineRunning = useSessions((s) => {
     const current = s.current
     return current === undefined ? false : (s.byId[current]?.running ?? false)
   })
@@ -178,7 +184,7 @@ export function AppFrame({
   const sidebarPreference = sidebarCollapsed
     ? 0
     : layoutInfo.sidebar === 0 ? SIDEBAR_DEFAULT : layoutInfo.sidebar
-  const rightbarPreference = layoutInfo.rightbar ?? viewport * RIGHTBAR_DEFAULT_RATIO
+  const rightbarPreference = layoutInfo.rightbar ?? rightbarDefaultWidth(viewport, sidebarWidth(sidebarPreference))
   // Opening on a narrow frame collapses the left sidebar. Eligibility must
   // include that space before the occupant's first shown report arrives.
   const normal = computeColumns(viewport, !layoutInfo.rightbarShown && narrow ? 0 : sidebarPreference, rightbarPreference)
@@ -202,9 +208,12 @@ export function AppFrame({
     actions.setSidebar(sidebarBase.current + dx)
   }, [actions])
   const onRightbarStart = useCallback(() => { rightbarBase.current = rightbarWidth.current; setDragging(true) }, [])
+  /* Swapped, the right panel's handle sits on its right edge: +dx widens it
+     (mirroring the stock layout where the handle sits on its left and -dx
+     widens). */
   const onRightbarDrag = useCallback((dx: number) => {
-    actions.setRightbar(rightbarBase.current - dx)
-  }, [actions])
+    actions.setRightbar(swapped ? rightbarBase.current + dx : rightbarBase.current - dx)
+  }, [actions, swapped])
   const productTitle = process.env.DSH_CLIENT_TITLE ?? t('brand.localBuild')
   const sidebar = useMemo(() => renderSlot('sidebar', {
     collapsed: sidebarCollapsed,
@@ -213,6 +222,11 @@ export function AppFrame({
   const main = useMemo(() => (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
   ), [usePanelInfo, renderSlot])
+  const rightbar = useMemo(() => renderSlot('rightbar', {
+    width: normal.rightbar,
+    viewportWidth: viewport,
+    canShow: normal.rightbar > 0,
+  }), [renderSlot, normal.rightbar, viewport])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
 
   return (
@@ -220,9 +234,11 @@ export function AppFrame({
       ref={frameRef}
       className={css.frame}
       style={{
-        gridTemplateColumns:
-          `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px`,
+        gridTemplateColumns: swapped
+          ? `${cols.sidebar}px ${cols.rightbar}px minmax(0, 1fr)`
+          : `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px`,
       }}
+      data-rightbar-swapped={swapped || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
@@ -241,19 +257,38 @@ export function AppFrame({
       <div className={css.sidebarCol}>
         {sidebar}
       </div>
-      <>
-        <CenterColumn>{main}</CenterColumn>
-        <RightbarColumn>
-          {renderSlot('rightbar', { width: normal.rightbar, viewportWidth: viewport, canShow: normal.rightbar > 0 })}
-        </RightbarColumn>
-      </>
+      {swapped
+        ? (
+          <>
+            <RightbarColumn>
+              {rightbar}
+            </RightbarColumn>
+            <CenterColumn>{main}</CenterColumn>
+          </>
+        )
+        : (
+          <>
+            <CenterColumn>{main}</CenterColumn>
+            <RightbarColumn>
+              {rightbar}
+            </RightbarColumn>
+          </>
+        )}
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
       </div>
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
       {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar + GAP_CENTER} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
-        <DragHandle side="rightbar" left={viewport - normal.rightbar - GAP_CENTER} onStart={onRightbarStart} onDrag={onRightbarDrag} onEnd={onDragEnd} />
+        /* Swapped, the handle centers on the gap right of the IDE track; stock
+           it centers on the gap left of it (frame edge anchored). */
+        <DragHandle
+          side="rightbar"
+          left={swapped ? cols.sidebar + normal.rightbar + GAP_CENTER : viewport - normal.rightbar - GAP_CENTER}
+          onStart={onRightbarStart}
+          onDrag={onRightbarDrag}
+          onEnd={onDragEnd}
+        />
       )}
     </div>
   )

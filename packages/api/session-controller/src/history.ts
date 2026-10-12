@@ -4,7 +4,6 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Deque } from '@deepseek-ai/dsh-deque'
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
 import {
-  isAppendSurfaceEvent,
   SessionLogOffset,
   SessionSeq,
 } from '@deepseek-ai/dsh-session'
@@ -35,8 +34,10 @@ import type {
 } from './types.ts'
 import { SessionAssistantStreamAccumulator } from './assistant-stream.ts'
 
-const DEFAULT_MAX_MESSAGES = 50
-const MESSAGE_TYPES = new Set(['user/message', 'assistant/message'])
+/** Events per history page when the caller names no limit. Paging counts
+ * every log event, not just messages, so a tool-heavy turn creates real
+ * pages instead of hiding behind the message-only count. */
+const DEFAULT_MAX_EVENTS = 200
 
 /** Implements cold-safe history operations delegated by the Session Controller. */
 export class SessionHistoryController {
@@ -69,7 +70,7 @@ export class SessionHistoryController {
   }
 
   /**
-   * Read one message-aligned history page without activating an Agent.
+   * Read one event-banded history page without activating an Agent.
    * @param request - durable address and backwards-page cursor.
    * @param signal - caller cancellation for persistence reads.
    * @returns a contiguous event page.
@@ -100,7 +101,7 @@ export class SessionHistoryController {
     const page = paginate(
       sourceLog,
       beforeSeq,
-      request.maxMessages ?? DEFAULT_MAX_MESSAGES,
+      request.maxEvents ?? DEFAULT_MAX_EVENTS,
       throughSeq,
     )
     const records = pageRecords(page.events)
@@ -152,7 +153,6 @@ export class SessionHistoryController {
       // Constructor seed events have no session/event notification. Normally
       // only the end-seed suffix is new; if persistence advanced after the
       // opening observation, replay everything beyond that snapshot cursor.
-      // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
       const suffix = session.snapshotEvents(snapshotCursor === undefined
         ? session.firstLiveSeq
         : SessionLogOffset(snapshotCursor + 1))
@@ -180,7 +180,7 @@ export class SessionHistoryController {
       signal.throwIfAborted()
       const cursor = source.cursor
       snapshotCursor = cursor
-      const page = paginate(events, undefined, request.maxMessages ?? DEFAULT_MAX_MESSAGES)
+      const page = paginate(events, undefined, request.maxEvents ?? DEFAULT_MAX_EVENTS)
       const assistantStream = request.assistantStream === true
         ? this.assistantStreams.get(target)?.snapshot() ?? { revision: 0 }
         : undefined
@@ -313,16 +313,16 @@ function validatePageRequest(request: SessionPageRequest): void {
       || Object.is(request.beforeSeq, -0))) {
     throw new RemoteError('gateway/bad-request', 'beforeSeq must be a non-negative safe integer', {})
   }
-  if (request.maxMessages !== undefined
-    && (!Number.isSafeInteger(request.maxMessages) || request.maxMessages <= 0)) {
-    throw new RemoteError('gateway/bad-request', 'maxMessages must be a positive safe integer', {})
+  if (request.maxEvents !== undefined
+    && (!Number.isSafeInteger(request.maxEvents) || request.maxEvents <= 0)) {
+    throw new RemoteError('gateway/bad-request', 'maxEvents must be a positive safe integer', {})
   }
 }
 
 function validateFollowRequest(request: SessionFollowRequest): void {
-  if (request.maxMessages !== undefined
-    && (!Number.isSafeInteger(request.maxMessages) || request.maxMessages <= 0)) {
-    throw new RemoteError('gateway/bad-request', 'maxMessages must be a positive safe integer', {})
+  if (request.maxEvents !== undefined
+    && (!Number.isSafeInteger(request.maxEvents) || request.maxEvents <= 0)) {
+    throw new RemoteError('gateway/bad-request', 'maxEvents must be a positive safe integer', {})
   }
 }
 
@@ -381,29 +381,33 @@ function rejectNotFound(address: SessionAddress): never {
   })
 }
 
+/**
+ * Cut one tail page out of a log window on an EVENT budget: the page is the
+ * last `maxEvents` events before `beforeSeq`/`throughSeq`, extended downward
+ * through sourceEventSeqs so a message's cited envelope (compaction chains,
+ * sourced context) never splits across pages. Tool-heavy turns therefore
+ * paginate like everything else instead of hiding behind a message count.
+ */
 function paginate(
   events: readonly SessionEvent[],
   beforeSeq: SessionLogOffsetType | undefined,
-  maxMessages: number,
+  maxEvents: number,
   throughSeq: SessionSeqCursor = events.at(-1)?.seq ?? -1,
 ): { readonly events: SessionEvent[]; readonly hasMore: boolean } {
   const end = SessionLogOffset(Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1))
-  let count = 0
-  let cut = SessionLogOffset(0)
-  for (let index = end - 1; index >= 0; index--) {
-    const event = events[index] as SessionEvent
-    if (!MESSAGE_TYPES.has(event.type) || !isAppendSurfaceEvent(event)) continue
-    count++
-    const sources = event.sourceEventSeqs
-    let groupStart = event.seq
-    if (sources !== undefined) {
+  let cut = SessionLogOffset(Math.max(0, end - maxEvents))
+  let previous = end
+  // Events dragged in from below the band can cite still-earlier envelopes
+  // (a compaction shadowing an earlier compaction), so descend until the
+  // cut's own envelope is whole.
+  while (cut < previous) {
+    previous = cut
+    for (let index = cut; index < end; index++) {
+      const sources = (events[index] as SessionEvent).sourceEventSeqs
+      if (sources === undefined) continue
       for (const source of sources) {
-        if (source < groupStart) groupStart = source
+        if (source < cut) cut = SessionLogOffset(source)
       }
-    }
-    if (count >= maxMessages) {
-      cut = SessionLogOffset(groupStart)
-      break
     }
   }
   return { events: events.slice(cut, end), hasMore: cut > 0 }

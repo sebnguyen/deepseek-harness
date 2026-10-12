@@ -250,7 +250,7 @@ describe('cold history recovery view', () => {
       address: { kind: 'session', sessionId },
       throughSeq: 0,
       beforeSeq: 1,
-      maxMessages: 10,
+      maxEvents: 10,
     })
     if (!history.ok) throw new Error('history failed')
     expect(history.value.records.map(record => record.event)).toMatchInlineSnapshot(`

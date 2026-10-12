@@ -121,7 +121,7 @@ interface FixtureSessionRequests {
   history: {
     readonly sessionId: SessionId
     readonly beforeSeq?: number
-    readonly maxMessages?: number
+    readonly maxEvents?: number
   }
   selectModel: {
     readonly sessionId: SessionId
@@ -397,7 +397,7 @@ function createSessionApi(rpc: ClientConnectionRpc): FixtureSessionApi {
           request: {
             address: { kind: 'session', sessionId: page?.sessionId },
             ...page?.beforeSeq === undefined ? {} : { beforeSeq: page.beforeSeq },
-            ...page?.maxMessages === undefined ? {} : { maxMessages: page.maxMessages },
+            ...page?.maxEvents === undefined ? {} : { maxEvents: page.maxEvents },
           },
         }
         : { request: request.payload }
@@ -680,33 +680,33 @@ describe('createFixtureApi', () => {
       .resolves.toMatchObject({ result: { ok: false, error: { code: 'gateway/cancelled' } } })
   })
 
-  it('pages history backwards on message-boundary cuts with seq-contiguous stitching', async () => {
+  it('pages history backwards on event-band cuts with seq-contiguous stitching', async () => {
     const api = createFixtureApi()
-    const tail = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 10 }))
+    const tail = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 10 }))
     if (!tail.result.ok) throw new Error('history failed')
     const tailPage = tail.result.value
     expect(tailPage.hasMore).toBe(true)
     const tailEvents = historyEvents(tailPage.records)
-    expect(tailEvents[0]?.type).toBe('turn/start') // cut lands on a turn boundary
+    expect(tailEvents.length).toBe(10) // the band is an event count, not a message count
     const boundary = tailEvents[0]?.seq ?? 0
     expect(boundary).toBeGreaterThan(0)
-    const older = await api.sessions.history(req({ sessionId: sid('fx-alpha'), beforeSeq: boundary, maxMessages: 10 }))
+    const older = await api.sessions.history(req({ sessionId: sid('fx-alpha'), beforeSeq: boundary, maxEvents: 10 }))
     if (!older.result.ok) throw new Error('older failed')
     const olderTail = historyEvents(older.result.value.records).at(-1)
     expect((olderTail?.seq ?? -1) + 1).toBe(boundary) // pages stitch with no hole/overlap
     // Out-of-range beforeSeq clamps instead of exploding.
-    const clamped = await api.sessions.history(req({ sessionId: sid('fx-alpha'), beforeSeq: -5, maxMessages: 10 }))
+    const clamped = await api.sessions.history(req({ sessionId: sid('fx-alpha'), beforeSeq: -5, maxEvents: 10 }))
     if (!clamped.result.ok) throw new Error('clamped failed')
     expect(clamped.result.value.records).toEqual([])
     // Unknown session: empty page, not an error (history of a bare id).
-    const empty = await api.sessions.history(req({ sessionId: sid('no-such'), maxMessages: 10 }))
+    const empty = await api.sessions.history(req({ sessionId: sid('no-such'), maxEvents: 10 }))
     if (!empty.result.ok) throw new Error('empty failed')
     expect(empty.result.value).toEqual({ records: [], hasMore: false })
   })
 
   it('serves raw history entries with replayable tool-result metadata', async () => {
     const api = createFixtureApi()
-    const response = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 200 }))
+    const response = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 200 }))
     if (!response.result.ok) throw new Error('history failed')
 
     const records = response.result.value.records
@@ -816,7 +816,7 @@ describe('createFixtureApi', () => {
 
   it('emits the todo/write snapshot at the real tool boundary: between tool/call and tool/result, timestamps monotonic', async () => {
     const api = createFixtureApi()
-    const tail = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 10 }))
+    const tail = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 10 }))
     if (!tail.result.ok) throw new Error('history failed')
     const events = historyEvents(tail.result.value.records)
     const todoAt = events.findIndex(e => e.type === 'todo/write')
@@ -1249,7 +1249,7 @@ describe('createFixtureApi', () => {
     // The response seq addresses the appended title event (the client plane
     // has no session/title in its event union — titles ride the projection —
     // so the event is located by seq and its payload checked structurally).
-    const history = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 100 }))
+    const history = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 100 }))
     if (!history.result.ok) throw new Error('history failed')
     const appended = historyEvents(history.result.value.records).find(event => event.seq === acceptedSeq)
     expect(appended).toMatchObject({
@@ -1520,10 +1520,10 @@ describe('createFixtureApi', () => {
     // One-shot transport failure after transit delay.
     hooks.setHistoryDelay(5)
     hooks.failNextHistory()
-    await expect(api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 5 }))).rejects.toThrow(/simulated history transport failure/)
+    await expect(api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 5 }))).rejects.toThrow(/simulated history transport failure/)
     hooks.setHistoryDelay(0)
     // The failure was one-shot: the next call succeeds.
-    const ok = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 5 }))
+    const ok = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 5 }))
     expect(ok.result.ok).toBe(true)
     // A durable append without a live frame creates a detectable seq gap.
     const gapAbort = new AbortController()
@@ -1571,8 +1571,10 @@ describe('createFixtureApi', () => {
         && frame.value === 'Fixture 修订标题')).toBe(true)
     })
     expect(followed.some(frame => frame.type === 'event' && (frame.event as { type: string }).type === 'session/title')).toBe(true)
-    // Paging and resumed follow agree on the recovered durable event.
-    const repull = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxMessages: 5 }))
+    // Paging and resumed follow agree on the recovered durable event. The
+    // title/retry appends above pushed the dropped frame several events
+    // back from the log tail; an event-band pull must cover the live phase.
+    const repull = await api.sessions.history(req({ sessionId: sid('fx-alpha'), maxEvents: 25 }))
     if (!repull.result.ok) throw new Error('repull failed')
     expect(JSON.stringify(repull.result.value.records)).toContain('静默丢帧')
     // breakStreams force-ends follow and control without client aborts.

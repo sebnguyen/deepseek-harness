@@ -1,20 +1,14 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationLocationDataStore, ConversationTurnDataMap } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ChatNode } from '../contract/chat-nodes.ts'
-import { FOLDABLE_MEMBER_KINDS, spanKey } from '../contract/span-fold.ts'
-import { useFoldedHidden } from './fold-hidden.ts'
 import { useChatRowWindow } from './row-window.tsx'
-import { StepSpanDisclosure } from './StepSpanDisclosure.tsx'
 import css from './ChatView.module.css'
 
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly nodeKey: string
   readonly useChatNode: ChatViewSlotProps['useChatNode']
-  readonly useChatNodeProcess: ChatViewSlotProps['useChatNodeProcess']
-  readonly useStore: ChatViewSlotProps['useStore']
-  readonly actions: ChatViewSlotProps['actions']
   readonly renderSlot: ChatViewSlotProps['renderSlot']
   readonly t: ChatViewSlotProps['t']
 }
@@ -33,48 +27,17 @@ function turnOf(node: ChatNode | undefined): number | undefined {
   return location?.kind === 'turn' || location?.kind === 'step' ? location.turn.turn : undefined
 }
 
-/** Subscribe, apply the Step span fold, and dispatch one stable Context key. */
+/** Subscribe to one stable node key and dispatch it to its keyed renderer. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
-  nodeKey, useChatNode, useChatNodeProcess,
-  cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
-  loadImage, renderMessageImages, fileMentions, useStore, actions, renderSlot, t,
+  nodeKey, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
+  loadImage, renderMessageImages, fileMentions, renderSlot, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
   const turn = turnOf(routedNode)
-  const fold = useChatNodeProcess(nodeKey)
-  const span = fold === undefined ? undefined : spanKey(fold.turn, fold.step)
-  const open = useStore(state => span !== undefined && state.openSpans.includes(span))
-  // The message section always stands alone; the span's opener hosts the
-  // disclosure and its folded members hide while the span stays closed.
-  const member = routedNode !== undefined
-    && fold !== undefined
-    && FOLDABLE_MEMBER_KINDS.has(routedNode.kind)
-  // The fold's disclosureKey names its seat: the run head's opener, or the
-  // prompt row the run covers — later openers decline it by key mismatch.
-  const showDisclosure = fold !== undefined
-    && routedNode?.key === fold.disclosureKey
-    && (fold.members > 0 || fold.running)
-  const processMember = member && fold.members > 0
-  const memberOpen = processMember && open
-  const processHidden = member && !memberOpen
-  // The process rail groups a span's disclosure and its folded members under
-  // one left rule; only seats that carry either draw it.
-  const railProcess = showDisclosure || processMember
-  const revealSpan = useCallback(() => {
-    if (span !== undefined) actions.setSpanOpen(span, true)
-  }, [actions, span])
-  const setOpen = useCallback((value: boolean) => {
-    if (span !== undefined) actions.setSpanOpen(span, value)
-  }, [actions, span])
-  // An automatic collapse that would hide keyboard focus opens the span
-  // instead and leaves focus in place.
-  const keepFocusOpen = useCallback(() => {
-    if (processMember && !open && span !== undefined) actions.setSpanOpen(span, true)
-  }, [actions, open, processMember, span])
-  const { ref: wrapperRef, shellHidden } = useFoldedHidden(processHidden, revealSpan)
   // Viewport-window gating: the shell and its data-chat-* identity ride the
   // scroll contract either way; content only mounts near the reader.
+  const wrapperRef = useRef<HTMLDivElement | null>(null)
   const { live, dormantHeight } = useChatRowWindow(nodeKey, wrapperRef)
   const owner = useMemo<ChatNodeOwnerProps | null>(() => node === undefined
     ? null
@@ -106,41 +69,20 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       data-chat-flow-key={routedNode.key}
       data-chat-flow-kind={routedNode.kind}
       data-chat-turn={turn}
-      onFocusCapture={keepFocusOpen}
-      data-rail={railProcess ? 'process' : undefined}
-      data-turn-process-member={processMember || undefined}
-      data-turn-process-hidden={shellHidden || undefined}
       data-row-dormant={live ? undefined : ''}
     >
       {live ? (
-        <>
-          {showDisclosure && (
-            <StepSpanDisclosure
-              turn={fold.turn}
-              step={fold.step}
-              endStep={fold.endStep}
-              toolCalls={fold.toolCalls}
-              thoughts={fold.thoughts}
-              subagents={fold.subagents}
-              contexts={fold.contexts}
-              running={fold.running}
-              open={open}
-              setOpen={setOpen}
-              t={t}
+        renderSlot('conversation.chat.node', routedOwner, {
+          entryKey: routedNode.kind,
+          hookContext: turnData,
+          fallback: (
+            <JsonBlock
+              label={t('message.unknownSurface', { type: routedNode.kind })}
+              payload={routedNode.data}
+              truncatedLabel={total => t('json.truncated', { total })}
             />
-          )}
-          {renderSlot('conversation.chat.node', routedOwner, {
-            entryKey: routedNode.kind,
-            hookContext: turnData,
-            fallback: (
-              <JsonBlock
-                label={t('message.unknownSurface', { type: routedNode.kind })}
-                payload={routedNode.data}
-                truncatedLabel={total => t('json.truncated', { total })}
-              />
-            ),
-          })}
-        </>
+          ),
+        })
       ) : (
         // Dormant row: identity stays queryable, geometry reserved. The
         // spacer child keeps the shell non-empty so the column's adjacent

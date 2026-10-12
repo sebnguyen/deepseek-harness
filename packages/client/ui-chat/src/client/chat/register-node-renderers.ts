@@ -1,12 +1,14 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { NS } from '../locale.ts'
 import { AssistantNodeView } from './AssistantNodeView.tsx'
-import { StepBoundaryView } from './StepSpanDisclosure.tsx'
 import { CommandNodeView, ManualCompactionNodeView } from './CommandNodeView.tsx'
 import {
   CompactionNodeView, ContextMessageNodeView, RetryNodeView, TurnErrorNodeView,
   TurnMaxTokensNodeView, UnknownNodeView, UserMessageNodeView,
 } from './MessageItem.tsx'
+
+/** The Step boundary rows only delimit spans; their seats render nothing. */
+const DeclinedStepBoundaryView = (): null => null
 import { SystemPromptNodeView } from './SystemPromptRow.tsx'
 import { TurnTailNodeView } from './TurnTailNodeView.tsx'
 
@@ -28,9 +30,9 @@ export function registerChatNodeRenderers(ctx: Context): void {
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
     { name: 'conversation.chat.node', key: 'assistant-step-reason', locale: NS }, AssistantNodeView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
-    { name: 'conversation.chat.node', key: 'assistant-step-start', locale: NS }, StepBoundaryView))
+    { name: 'conversation.chat.node', key: 'assistant-step-start', locale: NS }, DeclinedStepBoundaryView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register(
-    { name: 'conversation.chat.node', key: 'assistant-step-end', locale: NS }, StepBoundaryView))
+    { name: 'conversation.chat.node', key: 'assistant-step-end', locale: NS }, DeclinedStepBoundaryView))
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({
     name: 'conversation.chat.node',
     key: 'command',

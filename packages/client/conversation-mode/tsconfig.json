@@ -12,9 +12,6 @@
       "path": "../../../vendor/cordis"
     },
     {
-      "path": "../../../vendor/schemastery"
-    },
-    {
       "path": "../../core/agent"
     },
     {
@@ -24,7 +21,7 @@
       "path": "../../core/session"
     },
     {
-      "path": "../../settings/settings"
+      "path": "../../interaction/commands"
     },
     {
       "path": "../../core/tools"
@@ -33,13 +30,22 @@
       "path": "../../llm/llm"
     },
     {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../api/session-controller/tsconfig.client.json"
+    },
+    {
+      "path": "../../util/brand"
+    },
+    {
       "path": "../store"
     },
     {
-      "path": "../ui-chat"
+      "path": "../locale"
     },
     {
-      "path": "../ui-settings"
+      "path": "../ui-chat"
     },
     {
       "path": "../ui-primitives"
@@ -49,6 +55,9 @@
     },
     {
       "path": "../ui-conversation"
+    },
+    {
+      "path": "../ui-session"
     },
     {
       "path": "../ui-slots"

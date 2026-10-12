@@ -11,6 +11,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { SidebarPanelMetadata, SidebarRootInjected } from './contract/slots.ts'
 import { SidebarRoot } from './SidebarRoot.tsx'
+import { SwapToggle } from './SwapToggle.tsx'
+import type { SwapToggleInjected } from './SwapToggle.tsx'
 import { en, zh, type SidebarKey } from './locales.ts'
 
 export type {
@@ -68,6 +70,16 @@ export function apply(ctx: ClientContext): void {
     selectPanel: (id) => { ctx.layout.selectPanel(id) },
     hooks: { panels },
   })
+  // The footer swap toggle joins its declaration alongside the shell it renders beside.
+  ctx.slots.inject('sidebar.footer.action', () => ctx.slots.register({
+    name: 'sidebar.footer.action',
+    id: 'layout.swap',
+    locale: NS,
+    inject: () => ({
+      toggleSwap: () => { ctx.layout.toggleSwap() },
+      hooks: { layoutInfo: ctx.layout.layoutInfo },
+    }) satisfies SwapToggleInjected,
+  }, SwapToggle))
   ctx.slots.inject('sidebar', () => ctx.slots.register({
     name: 'sidebar',
     locale: NS,

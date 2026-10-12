@@ -11,9 +11,26 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import {
+  createSnapshotStore, type ObservableSnapshot, type SnapshotStore,
+} from '@deepseek-ai/dsh-client-store'
+
+/** One session-selection gesture, reselects included. */
+export interface SessionActivation {
+  readonly sessionId: SessionId
+  /** Strictly increasing per gesture; the dedup key for consumers. */
+  readonly seq: number
+}
 
 /** Workspace archive and directory operations consumed by Client UI domains. */
 export interface UiWorkspace {
+  /**
+   * Emits on EVERY session-selection gesture (openSession), including
+   * reselecting the current Session — the list store dedups those, so
+   * consumers reacting to the gesture itself (composer focus) need this
+   * monotonic channel instead of `sessions.list`.
+   */
+  readonly sessionActivations: ObservableSnapshot<SessionActivation>
   /**
    * Select a Session and show its Conversation as one UI navigation action.
    * @param sessionId - listed or retained Session to display.
@@ -88,8 +105,10 @@ export class DirectoryBrowseError extends Error {
 
 /** Implements Workspace archive and directory UI operations. */
 class UiWorkspaceService extends Service implements UiWorkspace {
+  readonly sessionActivations: ObservableSnapshot<SessionActivation>
   private readonly connecting = new Map<WorkspaceId, Promise<SessionId>>()
   private readonly lifetime = new AbortController()
+  private readonly activationStore: SnapshotStore<SessionActivation>
 
   /**
    * @param ctx - Client root Context.
@@ -104,6 +123,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     private readonly sessions: ISessions,
   ) {
     super(ctx, 'uiWorkspace')
+    this.activationStore = createSnapshotStore<SessionActivation>({ sessionId: '' as SessionId, seq: 0 })
+    this.sessionActivations = this.activationStore
     ctx.effect(() => this.watchNavigation(), 'ui-workspace: Workspace navigation policy')
   }
 
@@ -134,6 +155,10 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   openSession(sessionId: SessionId): void {
     this.sessions.open(sessionId)
     this.ctx.layout.selectPanel(null)
+    this.activationStore.set({
+      sessionId,
+      seq: this.activationStore.getSnapshot().seq + 1,
+    })
   }
 
   async openWorkspace(workspaceId: WorkspaceId, beforeOpen?: (sessionId: SessionId) => void): Promise<void> {

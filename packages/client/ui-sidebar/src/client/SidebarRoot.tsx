@@ -5,11 +5,12 @@
  * while the sliding column (AppFrame grid tracks) clips it — nothing reflows
  * mid-slide. At settle the wide-only content unmounts and the upper
  * controls enter the 56px rail from the same horizontal offset (one icon each,
- * same top-down order) on one fade that ends with the slide. The bottom-pinned
- * settings control only fades. The workspace/session browsing region between
- * global panel rows and the foot is the `sidebar.workspaces` registrant's,
- * and the foot holds `sidebar.settings` plus `sidebar.footer.action`; the shell
- * hands them the wide flag (plus an expand request callback for the browser).
+ * same top-down order) on one fade that ends with the slide. The floor only
+ * fades. The workspace/session browsing region between global panel rows and
+ * the foot is the `sidebar.workspaces` registrant's, and the foot is one icon
+ * row holding `sidebar.guide`, `sidebar.settings`, and the additive
+ * `sidebar.footer.action`; the shell hands them the wide flag (plus an expand
+ * request callback for the browser).
  *
  * The column also owns whether the scroll regions nested in it draw a
  * scrollbar at all: the shell tracks the pointer and rebinds ui-theme's
@@ -264,19 +265,18 @@ export function SidebarRoot({
         })}
       </div>
 
-      {/* Harness guide: a trigger above the foot. The roster opens in a
-          popover; the session list stays in the browsing region. */}
-      <div className={css.guideArea}>
-        {renderSlot('sidebar.guide', { wide })}
-      </div>
-
-      {/* Footer actions stack above Settings in both sidebar widths. */}
+      {/* Floor row: the guide and the settings cluster lead, additive frame
+          actions trail on the right edge; the rail stacks the same seats
+          centered on its circle rhythm. */}
       <div className={css.footArea}>
-        <div className={css.footerActions}>
-          {renderSlot('sidebar.footer.action', { wide })}
+        <div className={css.guideArea}>
+          {renderSlot('sidebar.guide', { wide })}
         </div>
         <div className={css.settingsArea}>
           {renderSlot('sidebar.settings', { wide })}
+        </div>
+        <div className={css.footerActions}>
+          {renderSlot('sidebar.footer.action', { wide })}
         </div>
       </div>
     </div>

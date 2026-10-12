@@ -25,7 +25,11 @@ export const AssistantNodeView = memo(function AssistantNodeView({
   // is stripped before the visibility call — including on the turn-tail
   // owner row, which is exactly where a tool-only or quiet turn leaks them.
   const blocks = useMemo(() => visibleAssistantBlocks(data.blocks), [data.blocks])
-  const visible = hasAssistantReplyContent(blocks)
+  // The reasoning section carries no reply content by construction; its
+  // visibility is a non-empty reasoning text, not the reply predicate.
+  const visible = node.kind === 'assistant-step-reason'
+    ? blocks.some(block => block.kind === 'reasoning' && block.text.trim() !== '')
+    : hasAssistantReplyContent(blocks)
   if (!visible) return null
   return (
     <AssistantMarkdown

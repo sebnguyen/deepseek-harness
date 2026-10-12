@@ -140,6 +140,12 @@ const wordmark = readFileSync(resolve(import.meta.dirname, '../public/wordmark.s
  * Styles the default theme does not provide, carried inline because the site
  * runs the stock theme with no theme directory of its own.
  *
+ * The font-face declarations self-host the woff2 files in `public/fonts/` so
+ * the site renders with Inter and JetBrains Mono without an install or a
+ * third-party request. The `--vp-font-family-*` overrides are the default
+ * theme's font tokens; naming the self-hosted files 'Inter' and
+ * 'JetBrains Mono' lets a system-installed copy win silently.
+ *
  * The navigation-bar lockup pairs with `siteTitle`. The scrollbar rules replace
  * the sidebar's platform bar, which reserves 15px of a 265px column and draws a
  * track the rest of the navigation has no border for; `scrollbarScript` supplies
@@ -148,6 +154,27 @@ const wordmark = readFileSync(resolve(import.meta.dirname, '../public/wordmark.s
  * stay behind a query only Firefox answers.
  */
 const siteStyle = `
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('${base}fonts/InterVariable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('${base}fonts/JetBrainsMonoVariable.woff2') format('woff2');
+}
+:root {
+  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+}
 .dsh-lockup { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
 .dsh-wordmark { display: block; height: 22px; width: auto; color: var(--vp-c-text-1); }
 .dsh-tag {
@@ -224,6 +251,10 @@ export default withMermaid({
   head: [
     // VitePress leaves head hrefs untouched, so the base belongs here explicitly.
     ['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}favicon.svg` }],
+    // Preload both fonts ahead of the first text paint; `crossorigin`
+    // is required because font fetches are always CORS-mode.
+    ['link', { rel: 'preload', as: 'font', type: 'font/woff2', crossorigin: '', href: `${base}fonts/InterVariable.woff2` }],
+    ['link', { rel: 'preload', as: 'font', type: 'font/woff2', crossorigin: '', href: `${base}fonts/JetBrainsMonoVariable.woff2` }],
     ['style', {}, siteStyle],
     ['script', {}, scrollbarScript],
   ],

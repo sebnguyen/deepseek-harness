@@ -4,16 +4,20 @@
   grid-template-columns: 14px max-content;
   align-items: center;
   column-gap: 4px;
-  height: 32px;
-  padding: 0 10px;
+  /* Floor-row height: the pill must never lift the row above its 20px
+     icon rhythm, and a long label clips instead of stretching the column. */
+  height: 20px;
+  max-width: 148px;
+  padding: 0 6px;
   box-sizing: border-box;
   border: none;
-  border-radius: 8px;
+  border-radius: 6px;
   font-family: inherit;
   font-size: 12px;
   font-weight: 500;
-  line-height: 18px;
+  line-height: 16px;
   white-space: nowrap;
+  overflow: hidden;
   transition: background-color 160ms ease-out, color 160ms ease-out;
 }
 
@@ -57,6 +61,8 @@
 .hoverLabel,
 .sizeLabel {
   grid-area: 1 / 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sizeLabel {
