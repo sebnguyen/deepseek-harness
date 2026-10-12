@@ -171,10 +171,10 @@ export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   'chat.disableAIFeatures': true,
   'chat.agentsControl.enabled': 'hidden',
   'workbench.secondarySideBar.defaultVisibility': 'hidden',
-  // Tree hugs the frame edge the harness puts us on: sidebar rides right —
+  // Tree hugs the frame's left edge like stock vscode: sidebar rides left —
   // position is stored UI state there, so `extension.cjs` fires the
   // deterministic command once per profile instead of a setting here.
-  'workbench.sideBar.location': 'right', // deprecated to UI state; see TWIN_EXTENSION_BOOT
+  'workbench.sideBar.location': 'left', // deprecated to UI state; see TWIN_EXTENSION_BOOT
   // Typography: the harness code stack and size, sober line highlight.
   'editor.fontFamily': "'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
   'editor.fontSize': 13,
@@ -243,9 +243,9 @@ export const TWIN_EXTENSION_BOOT = String.raw`'use strict';
 const vscode = require('vscode')
 
 function activate(context) {
-  if (context.globalState.get('dsh.do-harness.sideBarRight') === true) return
-  void vscode.commands.executeCommand('workbench.action.moveSideBarRight')
-  void context.globalState.update('dsh.do-harness.sideBarRight', true)
+  if (context.globalState.get('dsh.do-harness.sideBarLeft') === true) return
+  void vscode.commands.executeCommand('workbench.action.moveSideBarLeft')
+  void context.globalState.update('dsh.do-harness.sideBarLeft', true)
 }
 
 module.exports = { activate }

@@ -92,8 +92,8 @@ describe('stageTwinTheme', () => {
     expect(manifest.main).toBe('./extension.cjs')
     expect(manifest.activationEvents).toContain('onStartupFinished')
     const boot = await readFile(join(staged, 'extension.cjs'), 'utf8')
-    expect(boot).toContain('workbench.action.moveSideBarRight')
-    expect(boot).toContain('dsh.do-harness.sideBarRight')
+    expect(boot).toContain('workbench.action.moveSideBarLeft')
+    expect(boot).toContain('dsh.do-harness.sideBarLeft')
     expect(boot).toContain('globalState')
   })
 
