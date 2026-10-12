@@ -1,22 +1,29 @@
 /**
  * App-lifetime keep-alive frames for the VS Code twin, keyed on the workspace.
  *
- * The seat contract remounts session tab bodies on every session switch, which
- * recreated the iframe — and therefore re-booted the workbench document — even
- * when the two sessions share a workspace (the host already runs ONE twin per
- * workspace root and answers the identical URL + token). This module lifts the
- * iframe element above any body lifetime: one frame per workspace root, hosted
- * in a document-level node that no session owns. A body adopts its workspace's
- * frame into the pane and un-adopts on unmount, so a session switch on the same
- * workspace re-shows the LIVE document with no reload, a switch to a different
- * workspace keeps the first frame alive for an instant restore on return, and
- * only a genuinely new workspace root loads a fresh frame. Reload-visible state
- * (open editors, layout) still rides the workbench's origin-keyed IndexedDB as
- * before; the cap evicts the oldest frame no body currently shows.
+ * The seat contract remounts session tab bodies on every session switch, so the
+ * body itself can never own the iframe — and browsers make the naive keep-alive
+ * a trap too: moving an `<iframe>` element to another parent resets its browsing
+ * context, so reparenting reloads the workbench exactly like a fresh mount.
+ * This module therefore never moves the element. The twin store holds one
+ * record per ready src — the ready triple is the workspace identity, identical
+ * URL + token + folder for every session on one root — and the root-scoped
+ * `shell.overlay` host renders one permanent fixed-position float per record,
+ * appended to `document.body` so its stacking is root-level. A pane body
+ * `stake`s its box: a timer loop floats the container over the box's live rect
+ * (column drags, sidebar transitions, and the panel's fullscreen band all
+ * follow) and parks it hidden when the last stake leaves. A session switch on
+ * the same workspace only re-points the float — the live document, its scroll,
+ * and its focus survive with zero reloads; a switch to another workspace parks
+ * the first frame for an instant restore on return; only a genuinely new
+ * workspace root loads a fresh frame, and past the cap of two the oldest
+ * parked frame falls out. Reload-visible state across harness restarts still
+ * rides the workbench's origin-keyed IndexedDB.
  */
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
@@ -28,35 +35,44 @@ import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primit
  */
 const BOOT_SETTLE_MS = 1_200
 
-/** How many workspace frames stay alive; the oldest frame no body shows falls out beyond it. */
+/** Placing cadence so the float follows box drags and column transitions. */
+const PLACE_MS = 16
+
+/** How many workspace frames stay alive; the oldest parked frame falls out beyond it. */
 const MAX_TWIN_FRAMES = 2
 
-/** The adopted frame fills its box; parked in the zero-size host it stays off-screen. */
+/** Stacking above the right panel (10) and its drag handle (11), below the shell overlay layer (20). */
+const FLOAT_Z = 12
+/** Fullscreen panels climb to 40, so the float must climb past them while staying under the docked float host (60). */
+const FLOAT_Z_FULLSCREEN = 45
+
+/** The frame fills its floating container; the container owns position and visibility. */
 const FRAME_STYLE = {
-  // block: an inline-replaced iframe sits on the text baseline and leaves a
-  // descender gap under it, which overflows the pane body's auto scroller as a
-  // spurious vertical scrollbar.
-  display: 'none',
+  display: 'block',
   position: 'absolute',
-  inset: 0,
+  inset: '0',
   width: '100%',
   height: '100%',
   border: 'none',
   // Transparent element + `allowtransparency` attribute: the two Chromium
   // conditions for an iframe to composite over the host page, so the glass
-  // workbench (`?dshGlass=1`) floats on the ocean scene. Firefox is
-  // transparent by default and needs nothing more.
+  // workbench (`?dshGlass=1`) floats on the harness shell behind it.
+  // Firefox is transparent by default and needs only the element style.
   background: 'transparent',
 } as const
 
-/** Zero-size document-level host: parked frames keep their documents, not the user's eye. */
-const HOST_STYLE = {
-  position: 'absolute',
-  width: 0,
-  height: 0,
+/** Parked container: hidden and zero-size; never removed while its record lives (removal would reload the frame). */
+const PARKED_STYLE = {
+  position: 'fixed',
+  left: '0px',
+  top: '0px',
+  width: '0',
+  height: '0',
+  display: 'none',
+  overflow: 'hidden',
 } as const
 
-/** Box the body renders: the adopted frame lands inside it, the cover stacks over. */
+/** Box the body renders: it reserves the pane area the float covers. */
 const STACK_STYLE = {
   position: 'relative',
   width: '100%',
@@ -66,7 +82,7 @@ const STACK_STYLE = {
 const COVER_STYLE = {
   position: 'absolute',
   inset: 0,
-  // The adopted frame may append after the cover in DOM order; the cover must win the stack.
+  // The cover sits inside the floating container, above the frame it seals.
   zIndex: 1,
 } as const
 
@@ -119,96 +135,189 @@ export function BootHero({ line, spinning = false }: { readonly line: string; re
   )
 }
 
-/** One keep-alive frame: the element, its source, and who currently shows it. */
-interface TwinFrame {
-  /** The frame's keep-alive key: the ready src, identical for every session on one workspace. */
-  readonly key: string
-  /** The src the element currently loads. */
-  readonly src: string
-  /** The shared iframe element. */
-  readonly frame: HTMLIFrameElement
-  /** True once the workbench document has fired `load` at least once. */
-  loaded: boolean
-  /** The box currently showing the frame; null parks it in the host. */
-  staked: HTMLDivElement | null
-  /** Bodies currently adopting the frame. */
-  views: number
+/** One running stake: its box and its placement loop. */
+interface Stake {
+  readonly box: HTMLDivElement
+  timer: ReturnType<typeof setInterval> | undefined
 }
 
-const twins = new Map<string, TwinFrame>()
+/** One keep-alive workspace frame. */
+interface TwinState {
+  /** The record's key: the ready src. */
+  readonly key: string
+  /** The shared iframe element; it never changes parent while the record lives. */
+  frame: HTMLIFrameElement | null
+  /** The float container the host mounted for this record, if any. */
+  container: HTMLDivElement | null
+  /** True once the workbench document has fired `load` at least once. */
+  loaded: boolean
+  /** The live stake, or null while parked. */
+  stake: Stake | null
+}
 
-let keepAlive: HTMLDivElement | null = null
+const twins = new Map<string, TwinState>()
+const listeners = new Set<() => void>()
+let keysSnapshot: readonly string[] = []
 
-/** The document-level host, created on first park. */
-function twinHost(): HTMLDivElement {
-  if (keepAlive === null) {
-    keepAlive = document.createElement('div')
-    Object.assign(keepAlive.style, HOST_STYLE)
-    document.body.appendChild(keepAlive)
-  }
-  return keepAlive
+function notify(): void {
+  keysSnapshot = [...twins.keys()]
+  for (const listener of listeners) listener()
 }
 
 /**
- * Drop every cached frame and the host element; specs start from a cold cache.
+ * Store subscription for `useSyncExternalStore` consumers.
+ * @param listener - change callback.
+ * @returns the unsubscriber.
  */
-export function resetTwinFrames(): void {
-  for (const twin of twins.values()) twin.frame.remove()
-  twins.clear()
-  keepAlive?.remove()
-  keepAlive = null
+export function subscribeTwins(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
 }
 
-/** Remove the oldest frame no body shows, if any such frame exists. */
+/** Snapshot of the live record keys; referentially stable between changes. */
+export function twinKeys(): readonly string[] {
+  return keysSnapshot
+}
+
+/** The float container the host mounted for one record, if any. */
+export function twinContainerOf(src: string): HTMLDivElement | null {
+  return twins.get(src)?.container ?? null
+}
+
+/**
+ * Drop every record; the host unmounts its floats on the notify.
+ * Specs start from a cold cache.
+ */
+export function resetTwinFrames(): void {
+  for (const twin of twins.values()) clearInterval(twin.stake?.timer)
+  twins.clear()
+  notify()
+}
+
 function evictCold(except: string): void {
   for (const twin of twins.values()) {
-    if (twin.key === except || twin.staked !== null) continue
+    if (twin.key === except || twin.stake !== null) continue
     twins.delete(twin.key)
-    twin.frame.remove()
     return
   }
 }
 
 /**
- * The keep-alive frame for one ready src: reused as-is while the src holds,
+ * The keep-alive record for one ready src: reused as-is while the src holds,
  * recreated when the twin's URL, token, or folder changes, and created —
- * evicting the oldest unshown frame past the cap — when the workspace is new.
+ * evicting the oldest parked record past the cap — when the workspace is new.
  * @param src - the ready triple formed into the iframe source.
- * @returns the frame record for `src`.
+ * @returns the record for `src`.
  */
-function ensureTwin(src: string): TwinFrame {
+export function ensureTwin(src: string): TwinState {
   const live = twins.get(src)
   if (live !== undefined) return live
   if (twins.size >= MAX_TWIN_FRAMES) evictCold(src)
-  const frame = document.createElement('iframe')
-  frame.title = 'vscode'
-  Object.assign(frame.style, FRAME_STYLE)
-  // Chromium gate: without this attribute the iframe composites opaque even
-  // when both the element and the framed document are transparent.
-  frame.setAttribute('allowtransparency', 'true')
-  frame.src = src
-  const twin: TwinFrame = { key: src, src, frame, loaded: false, staked: null, views: 0 }
-  frame.addEventListener('load', () => { twin.loaded = true })
-  twinHost().appendChild(frame)
+  const twin: TwinState = { key: src, frame: null, container: null, loaded: false, stake: null }
   twins.set(src, twin)
+  notify()
   return twin
 }
 
-/** Show one twin in one body box. */
-function adopt(twin: TwinFrame, box: HTMLDivElement): void {
-  twin.views += 1
-  twin.staked = box
-  twin.frame.style.display = 'block'
-  box.appendChild(twin.frame)
+/** The panel element one box renders in, if any: its fullscreen state changes the float's stacking band. */
+function panelOf(box: HTMLDivElement): Element | null {
+  return box.closest('[data-sidebar-right-panel]')
 }
 
-/** Release one body's claim; the last view parks the live frame, hidden, in the host. */
-function unadopt(twin: TwinFrame): void {
-  twin.views = Math.max(0, twin.views - 1)
-  if (twin.views > 0) return
-  twin.staked = null
-  twin.frame.style.display = 'none'
-  twinHost().appendChild(twin.frame)
+/** Place one record's float over its stake's live rect, in the panel's stacking band. */
+function place(twin: TwinState): void {
+  const stake = twin.stake
+  const container = twin.container
+  if (stake === null || container === null) return
+  const rect = stake.box.getBoundingClientRect()
+  const zone = panelOf(stake.box)?.getAttribute('data-sidebar-right-panel') === 'fullscreen' ? FLOAT_Z_FULLSCREEN : FLOAT_Z
+  const style = container.style
+  const left = `${String(rect.left)}px`
+  const top = `${String(rect.top)}px`
+  const width = `${String(rect.width)}px`
+  const height = `${String(rect.height)}px`
+  if (style.left !== left) style.left = left
+  if (style.top !== top) style.top = top
+  if (style.width !== width) style.width = width
+  if (style.height !== height) style.height = height
+  if (style.zIndex !== String(zone)) style.zIndex = String(zone)
+  if (style.display === 'none') style.display = 'block'
+}
+
+/** Park one record's float; the frame element itself stays mounted. */
+function park(twin: TwinState): void {
+  if (twin.container !== null) Object.assign(twin.container.style, PARKED_STYLE)
+}
+
+/** Float one record over one body box until the returned teardown runs. */
+function stake(twin: TwinState, box: HTMLDivElement): Stake {
+  clearInterval(twin.stake?.timer)
+  const record: Stake = { box, timer: undefined }
+  twin.stake = record
+  record.timer = setInterval(() => {
+    place(twin)
+  }, PLACE_MS)
+  place(twin)
+  return record
+}
+
+/** Release one body's stake; the record parks when the released stake was the live one. */
+function releaseStake(twin: TwinState, record: Stake): void {
+  clearInterval(record.timer)
+  if (twin.stake === record) {
+    twin.stake = null
+    park(twin)
+  }
+}
+
+/**
+ * Mount one record's permanent float: on ref attach the iframe is created
+ * once as the container's only child and never reparented; on ref detach
+ * (record eviction or host teardown) the record sheds its element.
+ * @param src - the record key the float belongs to.
+ * @returns the portalled float element.
+ */
+function TwinFloat({ src }: { readonly src: string }): ReactNode {
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    const twin = twins.get(src)
+    if (twin === undefined) return
+    if (el === null) {
+      twin.container = null
+      twin.frame = null
+      notify()
+      return
+    }
+    Object.assign(el.style, PARKED_STYLE)
+    twin.container = el
+    if (twin.frame === null) {
+      const frame = document.createElement('iframe')
+      frame.title = 'vscode'
+      frame.setAttribute('data-twin-frame', src)
+      Object.assign(frame.style, FRAME_STYLE)
+      // Chromium gate: without this attribute the iframe composites opaque
+      // even when both the element and the framed document are transparent.
+      frame.setAttribute('allowtransparency', 'true')
+      frame.src = src
+      frame.addEventListener('load', () => { twin.loaded = true })
+      el.appendChild(frame)
+      twin.frame = frame
+    }
+    notify()
+  }, [src])
+  return createPortal(<div ref={ref} data-twin-float={src} />, document.body)
+}
+
+/** The root-scoped shell.overlay entry's props. */
+export type TwinFrameHostProps = PropsRuntime<'shell.overlay'>
+
+/**
+ * The app-lifetime host for every workspace float, registered on the
+ * root-scoped `shell.overlay` list seat so session switches never touch it.
+ * @returns one float per live record.
+ */
+export function TwinFrameHost(_props: TwinFrameHostProps): ReactNode {
+  const keys = useSyncExternalStore(subscribeTwins, twinKeys)
+  return keys.map(src => <TwinFloat key={src} src={src} />)
 }
 
 /** The props the pane-side mount takes. */
@@ -220,41 +329,41 @@ export interface TwinFrameMountProps {
 }
 
 /**
- * The pane-side end of the keep-alive: adopts the workspace frame for `src`
- * into this body's box on mount, parks it on unmount, and stacks the boot
- * cover until the workbench document loads plus the settle margin. Moving
- * the element between connected parents never reloads its document, so a
- * session switch on the same workspace re-shows the live workbench.
+ * The pane-side end of the keep-alive: reserves the box the workspace frame
+ * floats over, stakes the frame on mount, parks it on unmount, and stacks
+ * the boot cover in the float until the workbench document loads plus the
+ * settle margin. The frame element never changes parent, so a session
+ * switch on the same workspace re-shows the live workbench without any reload.
  * @param props - the frame source and the cover's state line.
- * @returns the box, with the shared frame and the cover as its children.
+ * @returns the box, with the boot cover portalled into the shared float.
  */
 export function TwinFrameMount({ src, spinLine }: TwinFrameMountProps): ReactNode {
   const [box, setBox] = useState<HTMLDivElement | null>(null)
   const [settled, setSettled] = useState(false)
+  const container = useSyncExternalStore(subscribeTwins, () => twinContainerOf(src))
 
   useEffect(() => {
     if (box === null) return
     const twin = ensureTwin(src)
-    adopt(twin, box)
-    let timer: ReturnType<typeof setTimeout> | undefined
-    const settle = (): void => {
-      timer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
-    }
-    if (twin.loaded) settle()
-    twin.frame.addEventListener('load', settle)
+    const record = stake(twin, box)
+    let settleTimer: ReturnType<typeof setTimeout> | undefined
+    const watch = setInterval(() => {
+      if (!twin.loaded || settleTimer !== undefined) return
+      settleTimer = setTimeout(() => { setSettled(true) }, BOOT_SETTLE_MS)
+    }, PLACE_MS)
     return () => {
-      unadopt(twin)
-      twin.frame.removeEventListener('load', settle)
-      if (timer !== undefined) clearTimeout(timer)
+      releaseStake(twin, record)
+      clearInterval(watch)
+      if (settleTimer !== undefined) clearTimeout(settleTimer)
       setSettled(false)
     }
   }, [box, src])
 
   return (
     <div ref={setBox} style={STACK_STYLE}>
-      {box !== null && createPortal(
-        settled ? null : <div style={COVER_STYLE}><BootHero line={spinLine} spinning /></div>,
-        box,
+      {settled || container === null ? null : createPortal(
+        <div style={COVER_STYLE}><BootHero line={spinLine} spinning /></div>,
+        container,
       )}
     </div>
   )
