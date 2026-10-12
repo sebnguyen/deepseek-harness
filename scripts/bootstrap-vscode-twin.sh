@@ -9,8 +9,8 @@
 # (@deepseek-ai/dsh-api-ide) discovers last:
 #
 #   $DSH_HOME/cache/vscode-source/<repo>/  fork checkout — cloned by
-#     `pnpm install` (postinstall, --fetch-only) and refreshed at the
-#     head of every build, so one fetch feeds machine-wide rebuilds
+#     `pnpm install` (postinstall, --fetch-only) and refreshed when the
+#     root `postbuild` hook runs this script after `pnpm run build`
 #   $DSH_HOME/cache/vscode-twin/
 #     logs/  per-step build logs (npm-ci.log, compile.log, gulp.log)
 #     dist/  the discovered slot — default ~/.dsh/cache/vscode-twin/dist

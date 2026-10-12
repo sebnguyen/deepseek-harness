@@ -33,18 +33,14 @@ git clone https://github.com/deepseek-ai/deepseek-harness.git
 cd deepseek-harness
 pnpm install
 pnpm run build
-pnpm dsh web
+pnpm run dev
 ```
 
-`pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
+The three steps own one machine-wide pipeline (`~/.dsh/cache`, relocatable via `$DSH_HOME`):
 
-The optional embedded VS Code editor needs a built twin dist on the machine. Build it once from the pinned vscode fork — desktop natives stripped (no electron/chromium/X11 fetch), the result cached machine-wide at `~/.dsh/cache/vscode-twin/dist` (`$DSH_HOME` relocates the cache) and discovered automatically by `pnpm dsh web`:
-
-```sh
-pnpm run vscode:twin
-```
-
-The first build takes ~20–40 minutes and needs node ≥ 24.18, a C/C++ toolchain, and (on Linux) libkrb5 headers — [scripts/bootstrap-vscode-twin.sh](scripts/bootstrap-vscode-twin.sh) checks each up front and never compiles desktop-only natives (server-web posture) and builds the lane for the host's OS and architecture (Linux and macOS; Windows hosts run it inside WSL2). Without a twin the vscode tab stays unavailable and the fallback editor loads.
+- `pnpm install` installs the workspace dependencies and fetches the pinned vscode fork source into `cache/vscode-source/<repo>` (best-effort: when the fork is unreachable the install still succeeds — rerun `pnpm run vscode:twin:fetch` once online).
+- `pnpm run build` builds the harness artifacts. Its `postbuild` hook then compiles the underlying twin dist — VS Code — by running `pnpm run vscode:twin`. The hook skips when `CI` is set. The first twin build takes ~20–40 minutes and needs node ≥ 24.18, a C/C++ toolchain, and (on Linux) libkrb5 headers — [scripts/bootstrap-vscode-twin.sh](scripts/bootstrap-vscode-twin.sh) checks each up front, skips the rebuild while the cache already carries the pinned commit, and atomically swaps the result into `cache/vscode-twin/dist`.
+- `pnpm run dev` (an alias of `pnpm dsh web`) launches the built harness without rebuilding, discovering that cache slot automatically. Without a twin the vscode tab stays unavailable and the fallback editor loads.
 
 ## Community and support
 

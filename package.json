@@ -18,6 +18,7 @@
   ],
   "scripts": {
     "build": "tsx scripts/build.ts",
+    "postbuild": "bash -c 'test -n \"$CI\" || pnpm run vscode:twin'",
     "build:bench": "npm run build:native-system && npm run build:lib && tsdown --config benchmarks/tsdown.config.ts",
     "build:official": "tsx scripts/build.ts --profile official",
     "build:lib": "pnpm run build:lib:host && pnpm run build:lib:client",
@@ -25,6 +26,7 @@
     "build:lib:client": "tsc -b tsconfig.client.json && tsdown --env.DSH_BUILD_FACE client",
     "build:web": "pnpm --filter @deepseek-ai/dsh-web-frontend run build",
     "build:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run build",
+    "dev": "pnpm dsh web",
     "dev:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run dev",
     "start:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run start",
     "prepare:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run prepare:package",
@@ -176,8 +178,9 @@
     "demo:inspector": "node --import tsx/esm apps/cli/src/bin.ts web --patch ./packages/experimental/inspector/cordis.source.patch.yml",
     "mock:llm": "node --import tsx packages/test-support/llm-mock-server/src/bin.ts",
     "vscode:twin": "bash scripts/bootstrap-vscode-twin.sh",
+    "vscode:twin:fetch": "bash scripts/bootstrap-vscode-twin.sh --fetch-only",
     "dev:web": "tsx scripts/dev-web.ts --poll",
-    "postinstall": "node scripts/install-lefthook.mjs"
+    "postinstall": "node scripts/install-lefthook.mjs && { pnpm run vscode:twin:fetch || echo '[vscode-twin] source fetch failed (offline?) — retry: pnpm run vscode:twin:fetch'; }"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-agent": "workspace:^",
