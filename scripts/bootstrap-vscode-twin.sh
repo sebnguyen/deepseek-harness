@@ -8,8 +8,10 @@
 # atomically into the machine-wide cache slot that findTwinDist
 # (@deepseek-ai/dsh-api-ide) discovers last:
 #
+#   $DSH_HOME/cache/vscode-source/<repo>/  fork checkout — cloned by
+#     `pnpm install` (postinstall, --fetch-only) and refreshed at the
+#     head of every build, so one fetch feeds machine-wide rebuilds
 #   $DSH_HOME/cache/vscode-twin/
-#     src/   fork checkout, kept (and git-fetch-refreshed) between runs
 #     logs/  per-step build logs (npm-ci.log, compile.log, gulp.log)
 #     dist/  the discovered slot — default ~/.dsh/cache/vscode-twin/dist
 #
@@ -24,20 +26,26 @@
 # network steps (clone, fetch, npm ci, compile, gulp) retry
 # RETRY_LIMIT times before failing (default 3; set RETRY_LIMIT to change).
 #
-# Server-web posture: desktop-only natives never compile here. After every
-# checkout the root package.json allowScripts junk flips them to false
-# (native-keymap, native-is-elevated — electron-main-only upstream,
-# verified by grep before this was wired; Playwright's chromium download),
-# ELECTRON_SKIP_BINARY_DOWNLOAD empties the desktop runtime fetch, and
-# `dsnSource` keeps their types for `npm run compile` untouched. More is
-# never stripped: everything the REH server actually loads (node-pty,
-# spdlog, sqlite3, kerberos, ripgrep, watchdog) still builds normally.
+# Server-web posture: the fork's root .npmrc has no Electron target and
+# root allowScripts is false, so npm ci does not node-gyp the desktop tree.
+# This script still forces those root entries false (and remote deviceid)
+# without rewriting the rest of the file. ELECTRON_SKIP_BINARY_DOWNLOAD
+# empties the desktop runtime fetch. The REH server loads remote/node_modules
+# (node-pty, spdlog, sqlite3, kerberos, ripgrep, watchdog, fs-copyfile,
+# policy-watcher), and that tree still builds. npm ci runs only when the
+# lockfiles, npmrc files, or Node version differ from
+# $DSH_HOME/cache/vscode-twin/install-stamp; out/ is left in place so
+# `npm run compile` is incremental.
 #
-# Usage: scripts/bootstrap-vscode-twin.sh [--clean] [--force]
-#   --clean  delete src/ and logs/ and re-clone from scratch
-#   --force  rebuild even when dist/ already carries the wanted commit
+# Usage: scripts/bootstrap-vscode-twin.sh [--clean] [--force] [--fetch-only]
+#   --clean       delete the source checkout and logs/ and re-clone
+#   --force       rebuild even when dist/ already carries the wanted commit
+#   --fetch-only  clone/refresh the source checkout only, no build — the
+#                 mode `pnpm install`'s postinstall runs; skips the
+#                 build-only prerequisites (toolchain, node pin, 15GB disk)
 # Env overrides: DSH_VSCODE_TWIN_{REPO,REF,HOME,LANE} replace the fork URL,
-# the ref (branch tip or commit sha), the cache root, and the gulp lane name.
+# the ref (branch tip or commit sha), the dist/logs cache root, and the gulp
+# lane name; DSH_VSCODE_SOURCE_DIR relocates the source checkout root.
 set -euo pipefail
 
 REPO="${DSH_VSCODE_TWIN_REPO:-git@github.com:sebnguyen/openvscode-server.git}"
@@ -66,7 +74,9 @@ LANE="${DSH_VSCODE_TWIN_LANE:-vscode-reh-web-$PLATFORM-$ARCH}"
 dsh_home="${DSH_HOME:-$HOME/.dsh}"
 if [[ -z "${dsh_home//[[:space:]]/}" ]]; then dsh_home="$HOME/.dsh"; fi
 BASE="${DSH_VSCODE_TWIN_HOME:-$dsh_home/cache/vscode-twin}"
-SRC="$BASE/src"
+REPO_NAME="${REPO##*/}"
+REPO_NAME="${REPO_NAME%.git}"
+SRC="${DSH_VSCODE_SOURCE_DIR:-$dsh_home/cache/vscode-source/$REPO_NAME}"
 DIST="$BASE/dist"
 LANE_OUT="$BASE/$LANE"
 LOGS="$BASE/logs"
@@ -74,12 +84,14 @@ MARKER="$DIST/.dsh-source.json"
 
 CLEAN=0
 FORCE=0
+FETCH_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --clean) CLEAN=1 ;;
     --force) FORCE=1 ;;
-    -h|--help) sed -n '2,31p' "${BASH_SOURCE[0]}"; exit 0 ;;
-    *) echo "error: unknown argument '$arg' (try --clean, --force)" >&2; exit 2 ;;
+    --fetch-only) FETCH_ONLY=1 ;;
+    -h|--help) sed -n '2,51p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) echo "error: unknown argument '$arg' (try --clean, --force, --fetch-only)" >&2; exit 2 ;;
   esac
 done
 
@@ -110,6 +122,9 @@ if command -v nvm >/dev/null 2>&1 && nvm ls "$WANT_NODE" 2>/dev/null | grep -q "
   nvm use "$WANT_NODE" >/dev/null
 fi
 
+# Fetch needs only git + node (the strip step runs a node one-liner); the
+# toolchain, node-pin, krb5, and disk gates bind builds only, so install-time
+# fetch works on machines that never compile the twin.
 missing=()
 case "$PLATFORM" in
   linux) needed=(git node gcc g++ make python3) ;;
@@ -118,21 +133,23 @@ esac
 for tool in "${needed[@]}"; do
   command -v "$tool" >/dev/null 2>&1 || missing+=("$tool")
 done
-# Linux native deps (native-keymap's gyp): pkg-config metadata for X11/XKBFile.
-((${#missing[@]} == 0)) || die "missing build tools: ${missing[*]}"
-node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>24||(a===24&&b>=18)?0:1)' \
-  || die "node $(node -p process.versions.node) found; the twin lane pins $WANT_NODE+"
-if [[ $PLATFORM == linux ]] \
-  && ! { pkg-config --exists mit-krb5 2>/dev/null || ls /usr/include/krb5/krb5.h >/dev/null 2>&1 || ls /usr/include/*/krb5/krb5.h >/dev/null 2>&1; }; then
-  die "libkrb5 headers not found (apt install libkrb5-dev / dnf install krb5-devel)"
+((${#missing[@]} == 0)) || die "missing tools: ${missing[*]}"
+if (( ! FETCH_ONLY )); then
+  # Linux native deps (native-keymap's gyp): pkg-config metadata for X11/XKBFile.
+  node -e 'const [a,b]=process.versions.node.split(".").map(Number);process.exit(a>24||(a===24&&b>=18)?0:1)' \
+    || die "node $(node -p process.versions.node) found; the twin lane pins $WANT_NODE+"
+  if [[ $PLATFORM == linux ]] \
+    && ! { pkg-config --exists mit-krb5 2>/dev/null || ls /usr/include/krb5/krb5.h >/dev/null 2>&1 || ls /usr/include/*/krb5/krb5.h >/dev/null 2>&1; }; then
+    die "libkrb5 headers not found (apt install libkrb5-dev / dnf install krb5-devel)"
+  fi
+  mkdir -p "$BASE" "$LOGS"
+  avail_kb=$(df -kP "$BASE" | awk 'NR==2 {print $4}')
+  [[ "$avail_kb" =~ ^[0-9]+$ ]] || die "cannot read free space at $BASE"
+  (( avail_kb >= WANT_DISK_KB )) || die "only $((avail_kb/1024/1024))GB free under $BASE; the source build wants ~15GB"
 fi
+mkdir -p "$(dirname "$SRC")"
 
-mkdir -p "$BASE" "$LOGS"
-avail_kb=$(df -kP "$BASE" | awk 'NR==2 {print $4}')
-[[ "$avail_kb" =~ ^[0-9]+$ ]] || die "cannot read free space at $BASE"
-(( avail_kb >= WANT_DISK_KB )) || die "only $((avail_kb/1024/1024))GB free under $BASE; the source build wants ~15GB"
-
-(( CLEAN )) && rm -rf "$SRC" "$LOGS" && mkdir -p "$LOGS"
+(( CLEAN )) && rm -rf "$SRC" "$LOGS" && mkdir -p "$(dirname "$SRC")"
 
 # --- source tree ----------------------------------------------------------
 if [[ ! -d "$SRC/.git" ]]; then
@@ -152,27 +169,61 @@ fi
 git -C "$SRC" remote set-url origin "$REPO"
 log "fetch $REF from $REPO"
 retry git -C "$SRC" fetch --filter=blob:none origin "$REF" || die "git fetch failed repeatedly"
-git -C "$SRC" checkout -- package.json || true
+git -C "$SRC" checkout -- package.json remote/package.json || true
 git -C "$SRC" checkout --detach FETCH_HEAD
 COMMIT=$(git -C "$SRC" rev-parse HEAD)
-log "building $COMMIT (${REPO##*/} @$REF, lane $LANE)"
+log "$COMMIT ready (${REPO##*/} @$REF, lane $LANE)"
 
-# --- server-web strip: desktop natives never compile ------------------------
-log "strip desktop natives from allowScripts (native-keymap, native-is-elevated, browser-chromium)"
-node - "$SRC/package.json" <<'EOF'
-const path = process.argv[2]
-const pkg = require(path)
-const STRIP_PREFIXES = ['native-keymap@', 'native-is-elevated@', '@playwright/browser-chromium@']
-let flipped = 0
-for (const name of Object.keys(pkg.allowScripts ?? {})) {
-  if (STRIP_PREFIXES.some((p) => name.startsWith(p))) {
-    pkg.allowScripts[name] = false
-    flipped += 1
+# --- server-web strip: root natives never compile ---------------------------
+# Root allowScripts is already false on dsh-build. Rewrite only the matching
+# booleans so a checkout that still has them true is stripped without
+# reformatting package.json (a full JSON.stringify dirties the tree and
+# busts the install stamp).
+log "strip root native allowScripts (remote deviceid too)"
+node - "$SRC" <<'EOF'
+const fs = require('node:fs')
+const path = require('node:path')
+const SRC = process.argv[2]
+const TARGETS = [
+  ['package.json', () => true],
+  ['remote/package.json', (name) => name.startsWith('@vscode/deviceid@')],
+]
+for (const [rel, match] of TARGETS) {
+  const file = path.join(SRC, rel)
+  if (!fs.existsSync(file)) continue
+  const original = fs.readFileSync(file, 'utf8')
+  const keyAt = original.indexOf('"allowScripts"')
+  if (keyAt < 0) continue
+  const brace = original.indexOf('{', keyAt)
+  let depth = 0
+  let end = -1
+  for (let i = brace; i < original.length; i += 1) {
+    if (original[i] === '{') depth += 1
+    else if (original[i] === '}') {
+      depth -= 1
+      if (depth === 0) { end = i; break }
+    }
   }
+  if (end < 0) continue
+  let flipped = 0
+  const block = original.slice(brace, end + 1).replace(/"([^"]+)"(\s*:\s*)true/g, (entry, name, sep) => {
+    if (!match(name)) return entry
+    flipped += 1
+    return `"${name}"${sep}false`
+  })
+  if (flipped === 0) {
+    console.log(`${rel}: allowScripts already off`)
+    continue
+  }
+  fs.writeFileSync(file, original.slice(0, brace) + block + original.slice(end + 1))
+  console.log(`${rel}: allowScripts ${flipped} entries disabled`)
 }
-require('node:fs').writeFileSync(path, JSON.stringify(pkg, null, '\t') + '\n')
-console.log(`allowScripts ${flipped} entries disabled`)
 EOF
+
+if (( FETCH_ONLY )); then
+  log "source cached: $SRC ($COMMIT)"
+  exit 0
+fi
 
 # Skip when dist already carries exactly this commit.
 if (( ! FORCE )) && [[ -x "$DIST/bin/code-server-oss" && -f "$MARKER" ]] && grep -q "\"commit\": \"$COMMIT\"" "$MARKER"; then
@@ -185,18 +236,59 @@ cd "$SRC"
 if [[ $PLATFORM == linux ]]; then export CC=gcc CXX=g++; fi
 export npm_config_devdir="$SRC/.node-gyp-cache"
 export npm_config_fetch_retries=5 npm_config_fetch_retry_mintimeout=8000 npm_config_fetch_retry_maxtimeout=90000
+# gyp races: parallel npm-ci lifecycle rebuilds of the repo's many native
+# modules share one npm_config_devdir and intermittently crash node-gyp
+# (ENOENT lstat build/node_gyp_bins). Serial installs avoid the class;
+# the env var reaches the subdir npm ci processes postinstall.ts spawns too.
+export npm_config_foreground_scripts=true
 # Desktop runtime binaries are download-cost without paying for the server-web twin.
 export ELECTRON_SKIP_BINARY_DOWNLOAD=1
 
 # --- dependencies ---------------------------------------------------------
-log "npm ci (log: $LOGS/npm-ci.log)"
-retry npm ci --cache "$SRC/.npm-cache" --no-audit --no-fund \
-  >>"$LOGS/npm-ci.log" 2>&1 \
-  || { tail -20 "$LOGS/npm-ci.log" >&2; die "npm ci failed — see $LOGS/npm-ci.log"; }
-if [[ ! -d build/node_modules || ! -d extensions/node_modules || ! -d remote/node_modules ]]; then
-  log "postinstall subdirs missing; rerunning build/npm/postinstall.js"
-  retry node build/npm/postinstall.js >>"$LOGS/npm-ci.log" 2>&1 \
-    || { tail -20 "$LOGS/npm-ci.log" >&2; die "subdir postinstall failed — see $LOGS/npm-ci.log"; }
+# Hash the lockfiles, npmrc files, and Node version. A match plus the four
+# node_modules trees means npm ci would only delete and rebuild what is
+# already installed; compile below still sees out/ and is incremental.
+INSTALL_STAMP="$BASE/install-stamp"
+INSTALL_HASH="$(node - "$SRC" <<'EOF'
+const fs = require('node:fs')
+const path = require('node:path')
+const crypto = require('node:crypto')
+const src = process.argv[2]
+const files = [
+  'package.json', 'package-lock.json', '.npmrc', '.nvmrc',
+  'remote/package.json', 'remote/package-lock.json', 'remote/.npmrc',
+  'build/package.json', 'build/package-lock.json', 'build/.npmrc',
+  'extensions/package.json', 'extensions/package-lock.json',
+]
+const hash = crypto.createHash('sha256')
+hash.update(process.version + '\n')
+for (const rel of files) {
+  const file = path.join(src, rel)
+  hash.update(rel + '\n')
+  if (fs.existsSync(file)) hash.update(fs.readFileSync(file))
+  hash.update('\n')
+}
+process.stdout.write(hash.digest('hex'))
+EOF
+)"
+deps_ready=0
+if [[ -d node_modules && -d build/node_modules && -d extensions/node_modules && -d remote/node_modules && -f "$INSTALL_STAMP" ]] \
+  && [[ "$(<"$INSTALL_STAMP")" == "$INSTALL_HASH" ]]; then
+  deps_ready=1
+fi
+if (( deps_ready )); then
+  log "dependencies match lockfiles and node $(node -p process.versions.node) — skipping npm ci"
+else
+  log "npm ci (log: $LOGS/npm-ci.log)"
+  retry npm ci --cache "$SRC/.npm-cache" --no-audit --no-fund \
+    >>"$LOGS/npm-ci.log" 2>&1 \
+    || { tail -20 "$LOGS/npm-ci.log" >&2; die "npm ci failed — see $LOGS/npm-ci.log"; }
+  if [[ ! -d build/node_modules || ! -d extensions/node_modules || ! -d remote/node_modules ]]; then
+    log "postinstall subdirs missing; rerunning build/npm/postinstall.js"
+    retry node build/npm/postinstall.js >>"$LOGS/npm-ci.log" 2>&1 \
+      || { tail -20 "$LOGS/npm-ci.log" >&2; die "subdir postinstall failed — see $LOGS/npm-ci.log"; }
+  fi
+  printf '%s\n' "$INSTALL_HASH" >"$INSTALL_STAMP"
 fi
 
 # --- build ----------------------------------------------------------------
@@ -234,4 +326,4 @@ cat >"$MARKER" <<EOF
 EOF
 
 log "twin cached: $DIST (commit $COMMIT)"
-log "pnpm dsh web discovers this slot automatically — no restart or var needed"
+log "pnpm run dev (pnpm dsh web) discovers this slot automatically — no restart or var needed"
