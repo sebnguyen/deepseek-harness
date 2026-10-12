@@ -38,6 +38,14 @@ pnpm dsh web
 
 `pnpm run build` prepares the repository artifacts. `pnpm dsh web` uses those built artifacts without rebuilding.
 
+The optional embedded VS Code editor needs a built twin dist on the machine. Build it once from the pinned vscode fork — desktop natives stripped (no electron/chromium/X11 fetch), the result cached machine-wide at `~/.dsh/cache/vscode-twin/dist` (`$DSH_HOME` relocates the cache) and discovered automatically by `pnpm dsh web`:
+
+```sh
+pnpm run vscode:twin
+```
+
+The first build takes ~20–40 minutes and needs node ≥ 24.18, a C/C++ toolchain, and (on Linux) libkrb5 headers — [scripts/bootstrap-vscode-twin.sh](scripts/bootstrap-vscode-twin.sh) checks each up front and never compiles desktop-only natives (server-web posture) and builds the lane for the host's OS and architecture (Linux and macOS; Windows hosts run it inside WSL2). Without a twin the vscode tab stays unavailable and the fallback editor loads.
+
 ## Community and support
 
 - Submit feedback or bug reports through [GitHub Discussions](https://github.com/deepseek-ai/deepseek-harness/discussions).

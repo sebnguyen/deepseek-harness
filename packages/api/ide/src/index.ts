@@ -43,12 +43,14 @@ export {
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
   /**
-   * Absolute path of the combined VS Code twin dist: the `vscode-reh-linux-x64`
-   * product with `vscode-web/out/*` overlaid onto its own `out/`. Empty puts
-   * the namespace on discovery: the sibling then in-repo `.vscode-twin/dist`
-   * candidates (see `twin-dist.ts`) stand in, and only when none exists does
-   * `status` answer `enabled: false` and the client tab stay on the fallback
-   * text editor.
+   * Absolute path of the combined VS Code twin dist: the host's
+   * `vscode-reh-web-<platform>-<arch>` lane product. Empty puts the namespace on
+   * discovery: the fresh lane beside a sibling `vscode` checkout, then the
+   * sibling, then the in-repo `.vscode-twin/dist`, then the machine-wide
+   * `$DSH_HOME/cache/vscode-twin/dist` source-build cache that `pnpm run
+   * vscode:twin` fills (see `twin-dist.ts`) — the candidates stand in, and
+   * only when none exists does `status` answer `enabled: false` and the
+   * client tab stay on the fallback text editor.
    */
   dist: string
   /** Milliseconds one `status` call waits for a spawn to answer HTTP before reporting not-ready. */
