@@ -8,6 +8,12 @@
  */
 import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+/** Persistence writes coalesce onto the next animation frame, or a microtask where rAF is absent. */
+const flushPersist = (): Promise<void> => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { resolve() })
+  else queueMicrotask(resolve)
+})
 import type { SessionId } from '@deepseek-ai/dsh-api-remotes/client'
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { LlmAttemptId } from '@deepseek-ai/dsh-llm'
@@ -712,8 +718,10 @@ describe('current selection (migrated from ui-layout, arbitrated into the list s
     const b = bench()
     await feedList(b, [{ id: 's1' }])
     b.svc.open(sid('s1'))
+    await flushPersist()
     expect(storage.get('dsh.sessions.current')).toContain('s1')
     b.svc.clear()
+    await flushPersist()
     expect(b.svc.list.getSnapshot().current).toBeUndefined()
     // Persisted wipe: a fresh service with the same storage stays on empty.
     const again = bench()
@@ -740,6 +748,7 @@ describe('current selection (migrated from ui-layout, arbitrated into the list s
     const first = bench()
     await feedList(first, [{ id: 's1' }])
     first.svc.open(sid('s1'))
+    await flushPersist()
     expect(storage.get('dsh.sessions.current')).toContain('s1')
     // A fresh boot (same storage) recovers the selection once the list holds the session.
     const second = bench()

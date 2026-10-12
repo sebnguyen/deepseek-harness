@@ -5,7 +5,14 @@ import { createConversationStore, readConversationViewPreference } from '../src/
 
 const KEY = 'dsh.conversation'
 
-beforeEach(() => {
+/** Persistence writes coalesce onto the next animation frame, or a microtask where rAF is absent. */
+const flushPersist = (): Promise<void> => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { resolve() })
+  else queueMicrotask(resolve)
+})
+
+beforeEach(async () => {
+  await flushPersist()
   localStorage.clear()
 })
 
@@ -31,10 +38,11 @@ describe('createConversationStore', () => {
     expect(store.store.getSnapshot().viewRequest).toBeNull()
   })
 
-  it('persists per Session scope and clears the persisted value', () => {
+  it('persists per Session scope and clears the persisted value', async () => {
     const first = createConversationStore().create('sess-1')
     first.actions.setDraft('draft for one')
     first.actions.setView('chat')
+    await flushPersist()
     expect(localStorage.getItem(`${KEY}.sess-1`)).not.toBeNull()
     expect(localStorage.getItem(`${KEY}.sess-2`)).toBeNull()
 
@@ -56,10 +64,11 @@ describe('createConversationStore', () => {
     expect(second.store.getSnapshot().draft).toBe('')
   })
 
-  it('reads only a usable persisted View preference', () => {
+  it('reads only a usable persisted View preference', async () => {
     const sessionId = 'sess-1' as SessionId
     const store = createConversationStore().create(sessionId)
     store.actions.setView('trajectory')
+    await flushPersist()
     expect(readConversationViewPreference(sessionId)).toBe('trajectory')
 
     localStorage.setItem(`${KEY}.${sessionId}`, '{invalid')

@@ -31,7 +31,14 @@ function storeFor(
   return current.runtime.storeOf(slot, sessionId) as ConversationInstance
 }
 
-beforeEach(() => {
+/** Persistence writes coalesce onto the next animation frame, or a microtask where rAF is absent. */
+const flushPersist = (): Promise<void> => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { resolve() })
+  else queueMicrotask(resolve)
+})
+
+beforeEach(async () => {
+  await flushPersist()
   localStorage.clear()
 })
 
@@ -74,6 +81,7 @@ describe('Conversation state survives on its store seat', () => {
     const doomed = storeFor(b, 'conversation.session', sid('s1'))
     doomed.actions.setDraft('to be buried')
     doomed.actions.setView('chat')
+    await flushPersist()
     expect(localStorage.getItem('dsh.conversation.s1')).not.toBeNull()
 
     await b.runtime.sessions.remove('s1')

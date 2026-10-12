@@ -24,13 +24,13 @@ describe('computeColumns', () => {
   })
 
   it.each([
-    [1300, 280, 620, 400],
-    [1100, 280, 420, 400],
-    [1120, 420, 300, 400],
-    [1119, 420, 0, 699],
-    [1024, 420, 0, 604],
-    [756, 0, 300, 400],
-    [755, 0, 0, 699],
+    [1300, 280, 695, 325],
+    [1100, 280, 545, 275],
+    [1120, 420, 420, 280],
+    [1119, 420, 419, 280],
+    [1024, 420, 348, 256],
+    [756, 0, 511, 189],
+    [755, 0, 510, 189],
     [455, 0, 0, 399],
     [20, 0, 0, 0],
   ])('solves frame %i and sidebar %i to right %i and center %i', (viewport, sidebar, rightbar, center) => {
@@ -38,11 +38,11 @@ describe('computeColumns', () => {
   })
 
   it('does not reduce the wide sidebar to keep a normal right panel open', () => {
-    expect(computeColumns(1024, 420, 500)).toEqual({ sidebar: 420, center: 604, rightbar: 0 })
+    expect(computeColumns(1024, 420, 500)).toEqual({ sidebar: 420, center: 256, rightbar: 348 })
   })
 
   it('restores a still-open preference when the frame widens', () => {
-    expect(computeColumns(1100, 280, 864).rightbar).toBe(420)
+    expect(computeColumns(1100, 280, 864).rightbar).toBe(545)
     expect(computeColumns(1920, 280, 864).rightbar).toBe(864)
   })
 

@@ -18,14 +18,21 @@ import { WorkspaceBrowser } from '../src/client/rows/WorkspaceBrowser.tsx'
 import { zh } from '../src/client/locales.ts'
 
 // Every fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
-const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => { } })) as GlobalStandardProps['useResource']
 const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
 
 afterEach(cleanup)
 const scrollIntoView = vi.fn()
-beforeEach(() => {
+/** Persistence writes coalesce onto the next animation frame, or a microtask where rAF is absent. */
+const flushPersist = (): Promise<void> => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { resolve() })
+  else queueMicrotask(resolve)
+})
+beforeEach(async () => {
+  await flushPersist()
   localStorage.clear()
   createWorkspaceViewStore().create().actions.setOrderBy('manual')
+  await flushPersist()
   Element.prototype.scrollIntoView = scrollIntoView
   scrollIntoView.mockClear()
 })
@@ -88,15 +95,15 @@ function mount(overrides: Partial<WorkspaceBrowserProps> = {}) {
     open: vi.fn(),
     searchSessions: vi.fn(async () => ({ items: [], hasMore: false })),
     searchResultLimit: 20,
-    renameSession: vi.fn(async () => {}),
+    renameSession: vi.fn(async () => { }),
     forkSession: vi.fn(),
-    renameWorkspace: vi.fn(async () => {}),
-    deleteWorkspace: vi.fn(async () => {}),
-    archiveSession: vi.fn(async () => {}),
-    insertWorkspaceBefore: vi.fn(async () => {}),
-    insertSessionBefore: vi.fn(async () => {}),
+    renameWorkspace: vi.fn(async () => { }),
+    deleteWorkspace: vi.fn(async () => { }),
+    archiveSession: vi.fn(async () => { }),
+    insertWorkspaceBefore: vi.fn(async () => { }),
+    insertSessionBefore: vi.fn(async () => { }),
     createWorkspace: vi.fn(async () => workspace('created', [])),
-    useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => true, subscribe: () => () => {} }),
+    useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => true, subscribe: () => () => { } }),
     useHostInfo: selector => selector({ home: undefined, isLoopback: true }),
     renderSlot: ((_name: string, owner: { open: boolean }) => (owner.open ? <div data-testid="directory-flow" /> : null)) as never,
     t,
@@ -219,7 +226,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('persists flat-list drag order locally and applies Last updated within that account', async () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const sessions = sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])
     const workspaces = workspaceState([
       workspace('alpha', ['one']),
@@ -260,6 +267,7 @@ describe('WorkspaceBrowser', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: '手动排序' }))
     fireEvent.dragStart(one, { dataTransfer: dragData() })
     fireDrag(three, 'drop', 180)
+    await flushPersist()
     b.view.unmount()
 
     const restored = mount({ useSessions: hook(sessions), useWorkspaces: hook(workspaces) })
@@ -438,7 +446,7 @@ describe('WorkspaceBrowser', () => {
   it('anchors collapsed drags before hidden rows so the source stays visible', async () => {
     const ordinary = Array.from({ length: 6 }, (_, index) => summary(`session-${index + 1}`, 6 - index))
     const blank = summary('blank', 7, { blank: true })
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const b = mount({
       useSessions: hook(sessionState([blank, ...ordinary], { current: blank.id })),
       useWorkspaces: hook(workspaceState([workspace('alpha', [blank.id, ...ordinary.map(item => item.id)])])),
@@ -547,7 +555,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('archives a session from the row menu and hides archived rows in both modes', async () => {
-    const archiveSession = vi.fn(async () => {})
+    const archiveSession = vi.fn(async () => { })
     const b = mount({
       useSessions: hook(sessionState([summary('kept-s', 2), summary('gone-s', 1)])),
       useWorkspaces: hook(workspaceState([workspace('alpha', ['kept-s', 'gone-s'])])),
@@ -570,7 +578,7 @@ describe('WorkspaceBrowser', () => {
   it('logs and keeps the tree when the archive call rejects', async () => {
     const rejection = new Error('archive exploded')
     const archiveSession = vi.fn(async () => { throw rejection })
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => { })
     try {
       mount({
         useSessions: hook(sessionState([summary('alpha-s', 1)])),
@@ -709,7 +717,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('does not repeat blank promotion after a manual drag or the first prompt', async () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const b = mount({
       useSessions: hook(sessionState([
         summary('old', 100),
@@ -1182,7 +1190,7 @@ describe('WorkspaceBrowser', () => {
   it('hides the add button when no directory-flow occupant is composed', () => {
     mount({
       useWorkspaces: hook(workspaceState([workspace('alpha', [])])),
-      useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => {} }),
+      useDirectoryFlow: bindSnapshotSelector({ getSnapshot: () => false, subscribe: () => () => { } }),
     })
     // Nothing to add with, so the header offers no dead button.
     expect(screen.queryByRole('button', { name: '添加工作区' })).toBeNull()
@@ -1190,7 +1198,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('uses the full expanded Workspace section when resolving a Workspace drop half', () => {
-    const insertWorkspaceBefore = vi.fn(async () => {})
+    const insertWorkspaceBefore = vi.fn(async () => { })
     const sessions = sessionState(Array.from({ length: 5 }, (_, index) => summary(`beta-${index}`, index)))
     mount({
       useSessions: hook(sessions),
@@ -1240,7 +1248,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('accepts a document-level drop and commits the last Workspace marker on drag end', () => {
-    const insertWorkspaceBefore = vi.fn(async () => {})
+    const insertWorkspaceBefore = vi.fn(async () => { })
     mount({
       useWorkspaces: hook(workspaceState([
         workspace('alpha', []),
@@ -1268,7 +1276,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('drag reorder reports the anchor to insertSessionBefore and skips no-op drops', () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const sessions = sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])
     mount({
       useSessions: hook(sessions),
@@ -1303,7 +1311,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('persists Ungrouped drag order in both modes without writing a Host Workspace account', async () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const sessions = sessionState([summary('one', 3), summary('two', 2), summary('three', 1)])
     const b = mount({
       useSessions: hook(sessions),
@@ -1337,6 +1345,7 @@ describe('WorkspaceBrowser', () => {
     expect(b.store.getSnapshot().sessionOrderByAccount[UNGROUPED_KEY]).toEqual(['two', 'three', 'one'])
     expect(insertSessionBefore).not.toHaveBeenCalled()
 
+    await flushPersist()
     b.view.unmount()
     const restored = mount({
       useSessions: hook(sessions),
@@ -1352,7 +1361,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('still sends the reorder when the dragged row left the group mid-drag', () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const sessions = sessionState([summary('one', 2), summary('two', 1)])
     const b = mount({
       useSessions: hook(sessions),
@@ -1374,7 +1383,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('drag end without a drop clears markers; bottom-half drop appends past the last row', () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     const sessions = sessionState([summary('one', 2), summary('two', 1)])
     mount({
       useSessions: hook(sessions),
@@ -1401,7 +1410,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('accepts a document-level drop and commits the last Session marker on drag end', () => {
-    const insertSessionBefore = vi.fn(async () => {})
+    const insertSessionBefore = vi.fn(async () => { })
     mount({
       useSessions: hook(sessionState([summary('one', 2), summary('two', 1)])),
       useWorkspaces: hook(workspaceState([workspace('alpha', ['one', 'two'])])),
@@ -1423,7 +1432,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('logs and keeps the order when the reorder call rejects', async () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => { })
     try {
       const insertSessionBefore = vi.fn(async () => { throw new Error('stale anchor') })
       const sessions = sessionState([summary('one', 2), summary('two', 1)])
@@ -1567,7 +1576,7 @@ describe('WorkspaceBrowser', () => {
   })
 
   it('Cancel, Escape, and Close dismiss deletion without calling the action', () => {
-    const deleteWorkspace = vi.fn(async () => {})
+    const deleteWorkspace = vi.fn(async () => { })
     mount({
       useWorkspaces: hook(workspaceState([workspace('alpha', [], 'Alpha')])),
       deleteWorkspace,
