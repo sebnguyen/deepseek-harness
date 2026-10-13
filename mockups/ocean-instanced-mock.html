@@ -44,14 +44,14 @@
   </div>
   <div class="sliders">
     <label>rays <input id="nray" type="range" min="2" max="16" step="1" value="12"><span id="nray-v">12</span></label>
-    <label>width <input id="wmul" type="range" min="0.3" max="5.0" step="0.05" value="1.75"><span id="wmul-v">1.75×</span></label>
+    <label>width <input id="wmul" type="range" min="0.3" max="5.0" step="0.05" value="0.9"><span id="wmul-v">0.90×</span></label>
     <label>glow <input id="gmul" type="range" min="0.3" max="3" step="0.05" value="0.75"><span id="gmul-v">0.75×</span></label>
     <label>breathe <input id="bmul" type="range" min="0" max="1.5" step="0.05" value="1"><span id="bmul-v">1.00×</span></label>
     <label>blur <input id="blmul" type="range" min="0" max="1" step="0.05" value="0.6"><span id="blmul-v">0.60</span></label>
     <label>radius <input id="radmul" type="range" min="0.4" max="1.8" step="0.05" value="1"><span id="radmul-v">1.00</span></label>
     <label>radial <input id="radstr" type="range" min="0" max="1" step="0.05" value="0.1"><span id="radstr-v">0.10</span></label>
-    <label>dim-lo <input id="dimlo" type="range" min="0" max="0.3" step="0.01" value="0.06"><span id="dimlo-v">0.06</span></label>
-    <label>dim-cap <input id="dimcap" type="range" min="0.15" max="0.65" step="0.01" value="0.40"><span id="dimcap-v">0.40</span></label>
+    <label>dim-lo <input id="dimlo" type="range" min="0" max="0.3" step="0.01" value="0"><span id="dimlo-v">0.00</span></label>
+    <label>dim-cap <input id="dimcap" type="range" min="0.05" max="0.65" step="0.01" value="0.12"><span id="dimcap-v">0.12</span></label>
   </div>
   <div id="themehint" style="opacity:.6">#dark / #light</div>
   <div id="stat">booting…</div>
@@ -117,7 +117,7 @@ void main(){
   float kind = iB.w;
   /* idle darkness: uDimLo/uDimCap are the breathing window at shine=0;
      old DOM scene was 0.06/0.5, the earlier port left it at 0.18/0.55 */
-  float lo = uDimLo + (0.43 - uDimLo) * uShine;
+  float lo = uDimLo + (0.2 - uDimLo) * uShine;
   float cap = uDimCap + (1.0 - uDimCap) * uShine;
   float theta = radians(iB.x) + radians(1.4) * sin(uTime * 6.28318 / iB.y + iB.z);
   if (kind > 1.5) theta = 0.0;
@@ -149,7 +149,7 @@ void main(){
      swells only during inference, so they never read as a nested band */
   vAlpha = uVis * base * (kind < 0.5 ? amp * iC.z
          : kind < 1.5 ? 0.55 * uShine * uShine * iC.z
-         : (iC.z + 0.4 * uShine) * (0.7 + 0.3 * uShine));
+         : (iC.z + 0.4 * uShine) * uShine * uShine);
   vKind = kind;
   vGradS = iE.x;
   vGradE = iE.y;
@@ -276,7 +276,9 @@ function buildInstances(){
     const dxf = ((i + 0.5) / N - 0.5) + s.rj * (1 / N) * 0.5
     const ang = dxf * 10 + s.rAng * 1.5
     const dyf = s.rdyf * 14
-    const w = (190 + s.rw * 300) * widthMul   /* DOM widths: 190-490px */
+    /* resolution-relative: 1.0× at 1440 css-wide, clamped like prod */
+    const resScale = Math.min(1.25, Math.max(0.5, (window.innerWidth || 1440) / 1440))
+    const w = (190 + s.rw * 300) * widthMul * resScale
     const g = (0.8 + s.rg * 0.4) * (1 - Math.abs(ang) / 22 * 0.5)
     /* fade starts high so the ray tip is fully gone by ~75% of the viewport;
        DOM used 48-56→88-98 but its sea hides the shaft differently */
@@ -387,7 +389,7 @@ document.getElementById('radstr').addEventListener('input', e => {
   radStr = +e.target.value
   document.getElementById('radstr-v').textContent = (+e.target.value).toFixed(2)
 })
-let dimLo = 0.06, dimCap = 0.4
+let dimLo = 0.0, dimCap = 0.12
 document.getElementById('dimlo').addEventListener('input', e => {
   dimLo = +e.target.value
   document.getElementById('dimlo-v').textContent = (+e.target.value).toFixed(2)

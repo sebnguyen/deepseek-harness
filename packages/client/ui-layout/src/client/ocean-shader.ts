@@ -84,16 +84,23 @@ const POSE = {
   raysWide: 12,
   raysNarrow: 6,
   narrowPx: 900,
-  widthMul: 1.75,
-  glowMul: 0.75,
+  /* shaft width scales with viewport width (1.0 at widthRef, clamped
+     0.5..1.25) so small windows don't balloon shafts */
+  widthMul: 0.9,
+  widthRef: 1440,
+  /* inferencing cap: 0.6 — reads clearly against the dark idle floor
+     without overpowering transparent text above */
+  shineTarget: 0.6,
+  glowMul: 0.6,
   breatheMul: 1,
   blurMul: 0.6,
   radScale: 1,
   radStr: 0.1,
   scale: 0.25,
-  /* idle darkness: breathing window at shine=0 (DOM scene ran 0.06/0.5) */
-  dimLo: 0.06,
-  dimCap: 0.4,
+  /* idle darkness: breathing window at shine=0 — maximal blackout
+     except the sea gradient; halo cluster is likewise gated on shine² */
+  dimLo: 0.0,
+  dimCap: 0.12,
 } as const
 
 /* Instance stream: one 16-float record per light, laid out as four vec4s
@@ -148,7 +155,7 @@ uniform float uVis; uniform float uBlur; uniform float uDimLo; uniform float uDi
 out vec2 vUv; out vec3 vColor; out float vAlpha; out float vKind; out float vGradS; out float vGradE; out float vBlurStart; out float vAsp;
 void main(){
   float kind = iB.w;
-  float lo = uDimLo + (0.43 - uDimLo) * uShine;
+  float lo = uDimLo + (0.2 - uDimLo) * uShine;
   float cap = uDimCap + (1.0 - uDimCap) * uShine;
   float theta = radians(iB.x) + radians(1.4) * sin(uTime * 6.28318 / iB.y + iB.z);
   if (kind > 1.5) theta = 0.0;
@@ -174,7 +181,7 @@ void main(){
   amp = mid + (amp - mid) * uBreath;
   vAlpha = uVis * base * (kind < 0.5 ? amp * iC.z
          : kind < 1.5 ? 0.55 * uShine * uShine * iC.z
-         : (iC.z + 0.4 * uShine) * (0.7 + 0.3 * uShine));
+         : (iC.z + 0.4 * uShine) * uShine * uShine);
   vKind = kind;
   vGradS = iE.x;
   vGradE = iE.y;
@@ -246,7 +253,7 @@ interface LightSpec {
 }
 
 /** One instance = one light: ray shaft (0), boost bell (1) or halo blob (2). */
-function buildInstances(rng: () => number, rayCount: number): Float32Array {
+function buildInstances(rng: () => number, rayCount: number, widthScale: number): Float32Array {
   const sunY = -(52 + rng() * 20)
   const spec: LightSpec[] = []
   for (let i = 0; i < 16; i++) {
@@ -271,7 +278,7 @@ function buildInstances(rng: () => number, rayCount: number): Float32Array {
     const dxf = ((i + 0.5) / rayCount - 0.5) + s.rj * (1 / rayCount) * 0.5
     const ang = dxf * 10 + s.rAng * 1.5
     const dyf = s.rdyf * 14
-    const w = (190 + s.rw * 300) * POSE.widthMul
+    const w = (190 + s.rw * 300) * POSE.widthMul * widthScale
     const g = (0.8 + s.rg * 0.4) * (1 - Math.abs(ang) / 22 * 0.5)
     const gS = (40 + s.rgS * 8) / 100
     const gE = (62 + s.rgE * 10) / 100
@@ -369,7 +376,10 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
 
   const rng = makeRng()
   const rayCount = typeof window !== 'undefined' && window.innerWidth <= POSE.narrowPx ? POSE.raysNarrow : POSE.raysWide
-  const instances = buildInstances(rng, rayCount)
+  const widthScale = typeof window === 'undefined'
+    ? 1
+    : Math.min(1.25, Math.max(0.5, window.innerWidth / POSE.widthRef))
+  const instances = buildInstances(rng, rayCount, widthScale)
   const instanceCount = instances.length / STRIDE
   const slot = (lo: number) => instances.filter((_, idx) => idx % STRIDE >= lo && idx % STRIDE < lo + 4)
   const lightBuf = twgl.createBufferInfoFromArrays(gl, {
@@ -410,7 +420,7 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
   }
 
   let running = options.running
-  let shine = options.running ? 1 : 0
+  let shine = options.running ? POSE.shineTarget : 0
   const drawFrame = (time: number, breath: number): void => {
     resize()
     const aspect = fbi.width / fbi.height
@@ -479,7 +489,7 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
   const frame = (now: number): void => {
     const dt = Math.min(0.05, (now - prev) / 1000)
     prev = now
-    const target = running ? 1 : 0
+    const target = running ? POSE.shineTarget : 0
     shine += (target - shine) * Math.min(1, dt * (target > shine ? 1.4 : 1.1))
     drawFrame(now / 1000, POSE.breatheMul)
     raf = requestAnimationFrame(frame)
