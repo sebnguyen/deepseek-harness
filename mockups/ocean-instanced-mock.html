@@ -50,6 +50,8 @@
     <label>blur <input id="blmul" type="range" min="0" max="1" step="0.05" value="0.6"><span id="blmul-v">0.60</span></label>
     <label>radius <input id="radmul" type="range" min="0.4" max="1.8" step="0.05" value="1"><span id="radmul-v">1.00</span></label>
     <label>radial <input id="radstr" type="range" min="0" max="1" step="0.05" value="0.1"><span id="radstr-v">0.10</span></label>
+    <label>dim-lo <input id="dimlo" type="range" min="0" max="0.3" step="0.01" value="0.06"><span id="dimlo-v">0.06</span></label>
+    <label>dim-cap <input id="dimcap" type="range" min="0.15" max="0.65" step="0.01" value="0.40"><span id="dimcap-v">0.40</span></label>
   </div>
   <div id="themehint" style="opacity:.6">#dark / #light</div>
   <div id="stat">booting…</div>
@@ -105,6 +107,7 @@ layout(location = 2) in vec4 iB; // angleDeg, swayPeriod, swayPhase, kind
 layout(location = 3) in vec4 iC; // freqHz, phase, gain, paletteIndex
 layout(location = 4) in vec4 iE; // gradStart, gradEnd, pad, pad
 uniform float uTime; uniform float uShine; uniform float uAspect; uniform vec2 uRes; uniform float uCssH; uniform float uBreath; uniform float uBlur;
+uniform float uDimLo; uniform float uDimCap;
 uniform vec3 uRayCol[3]; uniform float uRayA[3];
 uniform vec3 uBoostCol; uniform float uBoostA;
 uniform vec3 uHaloCol; uniform float uHaloA;
@@ -112,8 +115,10 @@ uniform float uVis;
 out vec2 vUv; out vec3 vColor; out float vAlpha; out float vKind; out float vGradS; out float vGradE; out float vBlurStart; out float vAsp;
 void main(){
   float kind = iB.w;
-  float lo = 0.18 + 0.25 * uShine;
-  float cap = 0.55 + 0.45 * uShine;
+  /* idle darkness: uDimLo/uDimCap are the breathing window at shine=0;
+     old DOM scene was 0.06/0.5, the earlier port left it at 0.18/0.55 */
+  float lo = uDimLo + (0.43 - uDimLo) * uShine;
+  float cap = uDimCap + (1.0 - uDimCap) * uShine;
   float theta = radians(iB.x) + radians(1.4) * sin(uTime * 6.28318 / iB.y + iB.z);
   if (kind > 1.5) theta = 0.0;
   float ct = cos(theta), st = sin(theta);
@@ -144,7 +149,7 @@ void main(){
      swells only during inference, so they never read as a nested band */
   vAlpha = uVis * base * (kind < 0.5 ? amp * iC.z
          : kind < 1.5 ? 0.55 * uShine * uShine * iC.z
-         : iC.z + 0.4 * uShine);
+         : (iC.z + 0.4 * uShine) * (0.7 + 0.3 * uShine));
   vKind = kind;
   vGradS = iE.x;
   vGradE = iE.y;
@@ -330,7 +335,7 @@ let fbi = null
 let half = true
 /* URL hash also solo-selects a pass: #lights / #grid / #sea */
 let solo = location.hash === '#lights' ? 'lights' : location.hash === '#grid' ? 'grid' : location.hash === '#sea' ? 'sea' : 'all'
-let running = true
+let running = location.hash !== '#idle'
 let shine = 0
 
 function resize(){
@@ -382,6 +387,15 @@ document.getElementById('radstr').addEventListener('input', e => {
   radStr = +e.target.value
   document.getElementById('radstr-v').textContent = (+e.target.value).toFixed(2)
 })
+let dimLo = 0.06, dimCap = 0.4
+document.getElementById('dimlo').addEventListener('input', e => {
+  dimLo = +e.target.value
+  document.getElementById('dimlo-v').textContent = (+e.target.value).toFixed(2)
+})
+document.getElementById('dimcap').addEventListener('input', e => {
+  dimCap = +e.target.value
+  document.getElementById('dimcap-v').textContent = (+e.target.value).toFixed(2)
+})
 document.getElementById('theme').addEventListener('click', e => {
   themeName = themeName === 'dark' ? 'light' : 'dark'
   e.target.textContent = themeName
@@ -417,6 +431,7 @@ function frame(now){
       uHaloCol: R.haloCol, uHaloA: R.haloA,
       uVis: R.vis * glowMul, uBreath: breatheMul, uBlur: blurMul,
       uRadScale: radScale, uRadStr: radStr,
+      uDimLo: dimLo, uDimCap: dimCap,
     })
     twgl.drawBufferInfo(gl, lightBuf, gl.TRIANGLE_STRIP, 4, 0, instances.length / STRIDE); calls++
   }

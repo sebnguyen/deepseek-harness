@@ -91,6 +91,9 @@ const POSE = {
   radScale: 1,
   radStr: 0.1,
   scale: 0.25,
+  /* idle darkness: breathing window at shine=0 (DOM scene ran 0.06/0.5) */
+  dimLo: 0.06,
+  dimCap: 0.4,
 } as const
 
 /* Instance stream: one 16-float record per light, laid out as four vec4s
@@ -141,12 +144,12 @@ uniform float uTime; uniform float uShine; uniform float uAspect; uniform vec2 u
 uniform vec3 uRayCol[3]; uniform float uRayA[3];
 uniform vec3 uBoostCol; uniform float uBoostA;
 uniform vec3 uHaloCol; uniform float uHaloA;
-uniform float uVis; uniform float uBlur;
+uniform float uVis; uniform float uBlur; uniform float uDimLo; uniform float uDimCap;
 out vec2 vUv; out vec3 vColor; out float vAlpha; out float vKind; out float vGradS; out float vGradE; out float vBlurStart; out float vAsp;
 void main(){
   float kind = iB.w;
-  float lo = 0.18 + 0.25 * uShine;
-  float cap = 0.55 + 0.45 * uShine;
+  float lo = uDimLo + (0.43 - uDimLo) * uShine;
+  float cap = uDimCap + (1.0 - uDimCap) * uShine;
   float theta = radians(iB.x) + radians(1.4) * sin(uTime * 6.28318 / iB.y + iB.z);
   if (kind > 1.5) theta = 0.0;
   float ct = cos(theta), st = sin(theta);
@@ -171,7 +174,7 @@ void main(){
   amp = mid + (amp - mid) * uBreath;
   vAlpha = uVis * base * (kind < 0.5 ? amp * iC.z
          : kind < 1.5 ? 0.55 * uShine * uShine * iC.z
-         : iC.z + 0.4 * uShine);
+         : (iC.z + 0.4 * uShine) * (0.7 + 0.3 * uShine));
   vKind = kind;
   vGradS = iE.x;
   vGradE = iE.y;
@@ -438,6 +441,8 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
       uBlur: POSE.blurMul,
       uRadScale: POSE.radScale,
       uRadStr: POSE.radStr,
+      uDimLo: POSE.dimLo,
+      uDimCap: POSE.dimCap,
     })
     twgl.drawBufferInfo(gl, lightBuf, gl.TRIANGLE_STRIP, 4, 0, instanceCount)
     gl.bindFramebuffer(gl.FRAMEBUFFER, null)

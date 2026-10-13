@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>dsh sidebar refresh — compact geometry proposal; current anatomy measured</title>
+<style>
+  /* Token sheet: values copied from packages/client/ui-theme (same dark palette
+     used by vscode-frame-ui-sketch.html). Current-state geometry measured from
+     packages/client/ui-sidebar/src/client/SidebarRoot.module.css,
+     packages/client/ui-workspace/src/client/rows/{WorkspaceBrowser,Rows}.module.css,
+     and ui-layout/src/client/columns.ts (SIDEBAR_DEFAULT 280, MIN 264). */
+  :root{
+    --dsw-font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;
+    --ds-font-family-code:'SF Mono','JetBrains Mono','Fira Code',Consolas,'Liberation Mono',Menlo,Courier,monospace;
+  }
+  body{
+    --dsw-static-deepseek-100:rgb(228,237,253); --dsw-static-deepseek-400:rgb(103,158,254);
+    --dsw-static-deepseek-500:rgb(65,118,230); --dsw-static-deepseek-800:rgb(52,65,91);
+    /* DO walrus teal scale (design-platform.css) — the dark-theme button-info
+       fill the composer send button already rides */
+    --dsw-static-teal-400:rgb(148,198,204); --dsw-static-teal-500:rgb(69,137,149);
+    --dsw-static-teal-ink:rgb(21,21,23);
+    --dsw-static-green-500:rgb(34,197,94); --dsw-static-amber-500:rgb(245,158,11);
+    --dsw-static-purple-400:rgb(167,139,250);
+    --dsw-static-neutral-bluish-50:rgb(244,245,246); --dsw-static-neutral-bluish-300:rgb(207,211,214);
+    --dsw-static-neutral-bluish-400:rgb(173,178,184); --dsw-static-neutral-bluish-600:rgb(122,127,133);
+    --dsw-static-neutral-bluish-850:rgb(44,44,46); --dsw-static-neutral-bluish-875:rgb(36,36,38);
+    --dsw-static-neutral-bluish-900:rgb(27,27,28); --dsw-static-neutral-bluish-950:rgb(21,21,23);
+    --dsw-alias-bg-base:var(--dsw-static-neutral-bluish-950);
+    --dsw-alias-bg-layer-1:var(--dsw-static-neutral-bluish-875);
+    --dsw-alias-border-l1:rgba(255,255,255,.06); --dsw-alias-border-l3:rgba(255,255,255,.16); --dsw-alias-border-l4:rgba(255,255,255,.2);
+    --dsw-alias-label-primary:var(--dsw-static-neutral-bluish-50);
+    --dsw-alias-label-secondary:var(--dsw-static-neutral-bluish-300);
+    --dsw-alias-label-tertiary:var(--dsw-static-neutral-bluish-400);
+    --dsw-alias-label-caption:var(--dsw-static-neutral-bluish-600);
+    --dsw-alias-interactive-bg-hover:rgba(255,255,255,.07);
+    --dsw-specific-sidebar-fill:var(--dsw-alias-bg-layer-1);
+    margin:0;background:#141416;color:var(--dsw-alias-label-secondary);
+    font:14px/22px var(--dsw-font-family);
+  }
+  *{box-sizing:border-box}
+  h1{font:700 15px/22px var(--dsw-font-family);color:var(--dsw-alias-label-primary);padding:18px 26px 2px;margin:0}
+  h1 small{font:12px/20px var(--dsw-font-family);color:var(--dsw-alias-label-tertiary);font-weight:400}
+  .legend{display:flex;gap:14px;padding:6px 26px 0;font:11px/16px var(--ds-font-family-code);color:var(--dsw-alias-label-tertiary)}
+  .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .stage{display:flex;gap:28px;align-items:flex-start;padding:14px 26px 26px;flex-wrap:wrap}
+  .frame{display:flex;flex-direction:column;gap:6px}
+  .frame>h2{font:600 12px/18px var(--ds-font-family-code);color:var(--dsw-alias-label-tertiary);margin:0;letter-spacing:.3px}
+  .frame>h2 b{color:var(--dsw-alias-label-secondary)}
+  /* app window chrome around each sidebar mock */
+  .win{display:flex;height:720px;border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;corner-shape:round;overflow:hidden;background:var(--dsw-alias-bg-base);box-shadow:0 14px 40px rgba(0,0,0,.45)}
+  .sb{display:flex;flex-direction:column;background:var(--dsw-specific-sidebar-fill);border-right:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary)}
+  .conv{flex:1;min-width:0;background:var(--dsw-alias-bg-base);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--dsw-alias-label-caption);font:12px/18px var(--ds-font-family-code)}
+  .conv .line{width:62%;height:9px;border-radius:4px;background:rgba(255,255,255,.045)}
+  .conv .line.s{width:38%}
+  .convmark{font:600 11px/16px var(--ds-font-family-code);color:var(--dsw-alias-label-caption);opacity:.8}
+
+  /* ── measurement callouts: outline + right-edge tag (current column only) ── */
+  .mz{position:relative;z-index:1}
+  .mz::after{content:var(--tag,'');position:absolute;right:-7px;top:50%;transform:translate(100%,-50%);
+    font:600 10px/1 var(--ds-font-family-code);white-space:nowrap;padding:4px 6px;border-radius:5px;
+    background:#1b1b1d;border:.5px solid var(--mz-c,var(--dsw-alias-label-caption));color:var(--mz-c,var(--dsw-alias-label-tertiary))}
+  .mz::before{content:'';position:absolute;inset:0;border:1px dashed var(--mz-c,var(--dsw-alias-label-caption));border-radius:6px;pointer-events:none;opacity:.75}
+  .c-chrome{--mz-c:#f28c8c}.c-pad{--mz-c:#e9b979}.c-cap{--mz-c:#8fb8f6}.c-row{--mz-c:#7fc79a}.c-foot{--mz-c:#b9a7f2}
+
+  /* ══════════════ CURRENT — geometry exactly as shipped ══════════════ */
+  .sb.cur{width:280px;padding:6px 12px;flex:none}
+  /* logoRow: 60px, pad 8/0/8/4, margin-bottom 8 — SidebarRoot.tsx:91-99 */
+  .cur .logoRow{display:flex;align-items:center;justify-content:flex-end;gap:8px;height:60px;padding:8px 0 8px 4px;margin-bottom:8px}
+  .cur .brand{flex:1;display:flex;align-items:center;gap:8px;height:24px;cursor:pointer}
+  .mark{width:24px;height:24px;border-radius:7px;corner-shape:round;flex:none;
+    background:linear-gradient(135deg,var(--dsw-static-deepseek-400),var(--dsw-static-deepseek-500));
+    color:#fff;font:700 13px/24px var(--dsw-font-family);display:flex;align-items:center;justify-content:center}
+  .cur .brandName{display:flex;flex-direction:column;gap:1px;line-height:1.1}
+  .cur .brandName b{font:600 12px/13px var(--dsw-font-family);color:var(--dsw-alias-label-primary)}
+  .cur .badge{align-self:flex-start;margin-top:0;padding:0 3px;height:10px;border-radius:2px;background:var(--dsw-alias-label-primary);
+    color:var(--dsw-alias-bg-base);font:500 6px/10px var(--ds-font-family-code);white-space:nowrap}
+  .ibtn{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;corner-shape:round;
+    background:transparent;border:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;flex:none}
+  .ibtn:hover{background:var(--dsw-alias-interactive-bg-hover)}
+  .cur .toggle{width:28px;height:28px}
+  /* newSession: 38px bar, radius 12, margin 0 2px 8 — SidebarRoot.module.css:250-269 */
+  .cur .newSess{display:flex;align-items:center;justify-content:center;gap:6px;height:38px;padding:8px 16px;margin:0 2px 8px;
+    border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;corner-shape:squircle;background:rgba(255,255,255,.05);
+    color:var(--dsw-alias-label-primary);font:500 14px/22px var(--dsw-font-family);cursor:pointer}
+  /* sectionHeader: 36px, mt 2, mb 4 — WorkspaceBrowser.module.css:39-57 */
+  .cur .secHead{display:flex;align-items:center;justify-content:flex-end;gap:4px;height:36px;padding-left:4px;margin:2px -4px 4px 0;
+    color:var(--dsw-alias-label-tertiary);font:14px/20px var(--dsw-font-family)}
+  .cur .secHead .lbl{margin-right:auto}
+  .cur .secHead .ibtn{width:28px;height:28px}
+  /* rows — Rows.module.css: projectRow 34, sessionRow 32 */
+  .list{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+  .wrow{height:34px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:8px;cursor:pointer;color:var(--dsw-alias-label-primary);font:14px/20px var(--dsw-font-family)}
+  .wrow:hover,.srow:hover{background:var(--dsw-alias-interactive-bg-hover)}
+  .wrow .chev{color:var(--dsw-alias-label-tertiary)}
+  .srow{height:32px;display:flex;align-items:center;gap:4px;padding:0 8px;border-radius:8px;cursor:pointer;color:var(--dsw-alias-label-primary);font:14px/20px var(--dsw-font-family)}
+  .srow.on{background:var(--dsw-alias-interactive-bg-hover)}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--dsw-static-green-500);flex:none;margin:0 7px 0 5px}
+  .dot.idle{background:transparent;border:1px solid var(--dsw-alias-label-caption);width:5px;height:5px}
+  .srow .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .tm{flex:none;font:12px/20px var(--dsw-font-family);color:var(--dsw-alias-label-tertiary)}
+  .indent{padding-left:22px!important}
+  .foot{flex:none;display:flex;flex-direction:column;margin-top:auto}
+  .frow{display:flex;align-items:center;gap:8px;height:36px;padding:0 8px;border-radius:8px;color:var(--dsw-alias-label-tertiary);font:14px/20px var(--dsw-font-family);cursor:pointer;margin:0 -4px}
+  .frow:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}
+
+  /* ══════════════ PROPOSED — dense refresh: one strip + the list ══════════════ */
+  .sb.new{width:300px;padding:4px 4px 6px;flex:none}
+  /* ONE 28px control strip carries identity AND every global action; no logo
+     row, no CTA bar, no caption row. Version stays a tooltip on the mark. */
+  /* strip regains vertical air (34px) and its identity back: two-line brand —
+     “DigitalOcean” micro-caption over “Harness” wordmark. Collapse rides the
+     mark (hover swaps ◈→◀), mirroring the shipped rail behavior, so the text
+     and the 3 actions both fit at 144px. */
+  .new .top{display:flex;align-items:center;gap:6px;height:34px;padding:0 2px;margin-bottom:4px}
+  .new .top .mark{width:18px;height:18px;font:700 9px/18px var(--dsw-font-family);border-radius:5px;cursor:pointer}
+  .new .top .nm{display:flex;flex-direction:column;justify-content:center;min-width:0;line-height:1}
+  .new .top .nm em{font-style:normal;font:600 8.5px/11px var(--dsw-font-family);letter-spacing:.5px;text-transform:uppercase;color:var(--dsw-alias-label-caption)}
+  .new .top .nm b{font:600 12.5px/14px var(--dsw-font-family);color:var(--dsw-alias-label-primary);white-space:nowrap}
+  /* workspace region gets its OWN header span again (like the shipped
+     sectionHeader, slimmed to 22px): label + search / view-options / add.
+     Brand strip is identity-only; these actions belong to the tree. */
+  .new .whdr{display:flex;align-items:center;height:22px;padding:0 6px;margin:0 0 2px}
+  .new .whdr .wl{font:600 9px/14px var(--dsw-font-family);letter-spacing:.5px;text-transform:uppercase;color:var(--dsw-alias-label-caption)}
+  .new .whdr .acts{margin-left:auto;display:flex;gap:1px}
+  /* one icon language across the whole column: 20px box, 6px radius,
+     10.5px glyph — strip actions, whdr actions and footer all match */
+  .new .whdr .ibtn{width:20px;height:20px;font-size:10.5px;border-radius:6px;corner-shape:round}
+  .new .whdr .ibtn:hover{background:var(--dsw-alias-interactive-bg-hover)}
+  .new .top .acts{margin-left:auto;display:flex;gap:1px}
+  .new .top .ibtn{width:19px;height:19px;font-size:10.5px;margin-left:0}
+  .new .top .col{opacity:0;transition:opacity .12s ease}
+  .new .top:hover .col{opacity:1}
+  /* New session is BACK to its own boxed button like the shipped one — same
+     .newSession anatomy (border, radius, elevated fill), just dense: 26px. */
+  /* CTA stays a dedicated teal button on the info tokens — the composer send
+     button's pair (deepseek-400 dark / blue-500 light, hover 500).
+     ROWS: twistie + folder glyph permanent, vscode tree rhythm */
+  .new .nrow{display:flex;align-items:center;justify-content:center;gap:5px;height:26px;margin:0 0 6px;padding:0 10px;border-radius:8px;corner-shape:round;
+    border:none;background:var(--dsw-static-teal-400);color:var(--dsw-static-teal-ink);font:600 12.5px/16px var(--dsw-font-family);cursor:pointer;width:100%}
+  .new .nrow:hover{background:var(--dsw-static-teal-500);color:#fff}
+  /* rows 22px; timestamps hidden until row hover — trailing column stays
+     free at rest, so titles keep full width and rows trim harder. */
+  .new .wrow{height:22px;font:500 12.5px/16px var(--dsw-font-family);color:var(--dsw-alias-label-primary);padding:0 6px;display:flex;align-items:center;gap:4px}
+  .new .srow{position:relative;height:22px;font:12.5px/16px var(--dsw-font-family);padding:0 6px;gap:2px;border-radius:6px}
+  /* time OVERLAYS the title on hover: absolutely positioned at row right,
+     carried on a right→left solid→transparent gradient of the composed hover
+     color so the title fades underneath. Zero width cost, zero layout shift;
+     the title always owns the full row. --dsh-row-hover-solid = sidebar fill
+     composed with the interactive hover wash (theme-snapshot token). */
+  .new .srow .tm{position:absolute;right:6px;top:0;bottom:0;display:flex;align-items:center;padding-left:28px;
+    font:10px/16px var(--dsw-font-family);
+    background:linear-gradient(to right,transparent,rgb(52,52,54) 72%);
+    opacity:0;visibility:hidden;transition:opacity .1s ease}
+  .new .srow:hover .tm{opacity:1;visibility:visible}
+  /* static page can’t hover: .hov simulates the hovered row. */
+  .new .srow.hov{background:var(--dsw-alias-interactive-bg-hover)}
+  .new .srow.hov .tm{opacity:1;visibility:visible}
+  .new .dot{width:5px;height:5px;margin:0 5px 0 2px}
+  .new .dot.idle{width:4px;height:4px}
+  .new .indent{padding-left:22px!important}
+  /* footer: one 24px micro row — guide bottom-left, health label+dot at 10px */
+  .new .foot{flex-direction:row;align-items:center;gap:2px;height:26px;padding:6px 4px 0;border-top:.5px solid var(--dsw-alias-border-l1)}
+  .new .foot .frow{height:20px;width:20px;justify-content:center;padding:0;margin:0;gap:0;border-radius:6px;corner-shape:round;font-size:10.5px}
+  .new .foot .sp{flex:1}
+  .new .foot .ok{margin-left:6px;font:500 10px/16px var(--ds-font-family-code);color:var(--dsw-static-green-500);display:flex;align-items:center;gap:4px}
+  .new .foot .ok::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--dsw-static-green-500)}
+
+  /* dense rail: 36px vs shipped 56 */
+  .sb.rail{width:36px;padding:6px;align-items:center}
+  .rail .sb .mark{width:18px;height:18px;font:700 9px/18px var(--dsw-font-family);border-radius:5px;margin-bottom:6px}
+  .rail .ribtn{width:22px;height:22px;border-radius:6px;corner-shape:round;border:none;background:transparent;
+    color:var(--dsw-alias-label-primary);cursor:pointer;display:flex;align-items:center;justify-content:center;margin-bottom:5px;font-size:10.5px}
+  .rail .ribtn:hover{background:var(--dsw-alias-interactive-bg-hover)}
+  .rail .ribtn.dim{color:var(--dsw-alias-label-tertiary)}
+  .rail .grow{flex:1}
+
+  /* ══════════ AUTO-DENSITY flyout: resting rail 36 + overlay panel on hover/⌘B ══════════ */
+  .fly{position:relative}
+  .fly .conv{margin-left:36px;width:380px}
+  .fly .rest{position:absolute;left:0;top:0;bottom:0;width:36px;display:flex;flex-direction:column;align-items:center;
+    padding:6px 0;background:var(--dsw-specific-sidebar-fill);border-right:.5px solid var(--dsw-alias-border-l1)}
+  .fly .panel{position:absolute;left:36px;top:0;bottom:0;width:168px;display:flex;flex-direction:column;
+    padding:4px 6px 6px;background:var(--dsw-specific-sidebar-fill);border-right:.5px solid var(--dsw-alias-border-l2);
+    box-shadow:18px 0 42px rgba(0,0,0,.5);z-index:2}
+  .fly .hint{position:absolute;left:214px;top:14px;max-width:210px;font:10.5px/15px var(--ds-font-family-code);
+    color:var(--dsw-alias-label-caption);background:rgba(27,27,29,.9);border:.5px solid var(--dsw-alias-border-l3);
+    border-radius:8px;corner-shape:round;padding:7px 9px;z-index:3}
+  .tagrow{display:flex;gap:6px;padding:2px 0 0}
+  .save{font:600 11px/16px var(--ds-font-family-code);color:#8adcc0;background:rgba(78,209,126,.08);
+    border:.5px solid rgba(78,209,126,.35);border-radius:6px;padding:3px 8px}
+  /* notes table */
+  .notes{margin:0 26px 40px;max-width:1100px;border:.5px solid var(--dsw-alias-border-l3);border-radius:12px;corner-shape:round;overflow:hidden;background:var(--dsw-alias-bg-layer-1)}
+  .notes h3{margin:0;padding:12px 16px;font:600 13px/20px var(--dsw-font-family);color:var(--dsw-alias-label-primary);border-bottom:.5px solid var(--dsw-alias-border-l1)}
+  .notes table{width:100%;border-collapse:collapse;font:12.5px/19px var(--dsw-font-family)}
+  .notes td{padding:9px 16px;vertical-align:top;border-bottom:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary)}
+  .notes tr:last-child td{border-bottom:none}
+  .notes td:first-child{width:225px;color:var(--dsw-alias-label-primary);font-weight:600;white-space:nowrap}
+  .notes code{font:11.5px var(--ds-font-family-code);color:var(--dsw-static-deepseek-400);background:rgba(103,158,254,.08);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+
+<h1>Sidebar refresh — compact draft <small>· measured against ui-sidebar@current · geometry-only changes, no new color tokens</small></h1>
+<div class="legend"><span><i style="background:#f28c8c"></i>chrome（header / CTA）</span><span><i style="background:#8fb8f6"></i>section header</span><span><i style="background:#7fc79a"></i>list rows</span><span><i style="background:#b9a7f2"></i>footer</span><span>· tags show shipped heights</span></div>
+
+<div class="stage">
+
+  <!-- ══════════ CURRENT ══════════ -->
+  <div class="frame">
+    <h2>CURRENT — <b>280px</b> · 162px chrome before first row</h2>
+    <div class="win">
+      <div class="sb cur">
+        <div class="logoRow mz c-chrome" data-z="1" style="--tag:'60+8'">
+          <div class="brand">
+            <span class="mark">◈</span>
+            <span class="brandName"><b>Local Build</b><span class="badge">12.4.0-3f9a1c-dirty</span></span>
+          </div>
+          <button class="ibtn toggle" title="Collapse">◀</button>
+        </div>
+        <div class="newSess mz c-chrome" style="--tag:'38+8'"><span style="font-size:15px">＋</span> New session</div>
+        <div class="secHead mz c-cap" style="--tag:'36+6'">
+          <span class="lbl">Workspaces</span>
+          <button class="ibtn" title="Search">⌕</button><button class="ibtn" title="View">⚙</button><button class="ibtn" title="Add">＋</button>
+        </div>
+        <div class="list mz c-row" style="--tag:'32 / row'">
+          <div class="wrow"><span style="color:var(--dsw-alias-label-tertiary)">▾</span>📁︎ api-gateway</div>
+          <div class="srow indent on"><span class="dot"></span><span class="t">rate-limit retry storm</span><span class="tm">2m</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">migrate sessions v2</span><span class="tm">1h</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">webhook signature audit</span><span class="tm">6h</span></div>
+          <div class="wrow">▾ spaces-cdn</div>
+          <div class="srow indent"><span class="dot"></span><span class="t">purge stale cache keys</span><span class="tm">12m</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">image resize lambda</span><span class="tm">1d</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">signed-url rotation</span><span class="tm">2d</span></div>
+          <div class="wrow"><span style="color:var(--dsw-alias-label-tertiary)">▸</span>📁︎ billing-exporter</div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">invoice csv backfill</span><span class="tm">3d</span></div>
+        </div>
+        <div class="foot mz c-foot" style="--tag:'~80'">
+          <div class="frow">✦ Harness guide</div>
+          <div class="frow">⚙ Settings</div>
+        </div>
+      </div>
+      <div class="conv"><span class="convmark">conversation</span><div class="line"></div><div class="line"></div><div class="line s"></div></div>
+    </div>
+  </div>
+
+  <!-- ══════════ PROPOSED WIDE ══════════ -->
+  <div class="frame">
+    <h2>SLIM — <b>300px</b> (vscode default) · 98px chrome · explorer rows · picker → vscode → chat</h2>
+    <div class="win">
+      <div class="sb new">
+        <div class="top">
+          <span class="mark" title="Harness 12.4.0-3f9a1c — full build string lives here now" style="background:linear-gradient(135deg,var(--dsw-static-deepseek-400),var(--dsw-static-deepseek-500));display:flex;align-items:center;justify-content:center;color:#fff">◈</span>
+          <span class="nm"><em>DigitalOcean</em><b>Harness</b></span>
+        </div>
+        <button class="nrow"><span style="font-size:11px">＋</span> New session</button>
+
+        <div class="whdr">
+          <span class="wl">Workspaces</span>
+          <span class="acts"><button class="ibtn" title="Search">⌕</button><button class="ibtn" title="View options">⚙</button><button class="ibtn" title="Add workspace">＋</button></span>
+        </div>
+        <div class="list">
+          <div class="wrow">▾ api-gateway</div>
+          <div class="srow indent on hov" title="hovered: time appears"><span class="dot"></span><span class="t">rate-limit retry storm</span><span class="tm">2m</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">migrate sessions v2</span><span class="tm">1h</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">webhook signature audit</span><span class="tm">6h</span></div>
+          <div class="wrow">▾ spaces-cdn</div>
+          <div class="srow indent"><span class="dot"></span><span class="t">purge stale cache keys</span><span class="tm">12m</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">image resize lambda</span><span class="tm">1d</span></div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">signed-url rotation</span><span class="tm">2d</span></div>
+          <div class="wrow"><span style="color:var(--dsw-alias-label-tertiary)">▸</span>📁︎ billing-exporter</div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">invoice csv backfill</span><span class="tm">3d</span></div>
+          <div class="wrow">▿ k8s-cost-audit</div>
+          <div class="srow indent"><span class="dot idle"></span><span class="t">node pool rightsizing</span><span class="tm">4d</span></div>
+          <div class="wrow">ungrouped</div>
+          <div class="srow"><span class="dot idle"></span><span class="t">dns migration checklist</span><span class="tm">1w</span></div>
+          <div class="srow"><span class="dot idle"></span><span class="t">terraform plan drift</span><span class="tm">1w</span></div>
+          <div class="srow"><span class="dot idle"></span><span class="t">statuspage auto-post</span><span class="tm">2w</span></div>
+        </div>
+        <div class="foot">
+          <!-- \uFE0E forces text presentation: transparent monochrome glyphs
+               like the shipped outline-SVG icons, never platform emoji fills -->
+          <button class="frow" title="Harness guide">✦︎</button>
+          <button class="frow" title="Settings">⚙︎</button>
+          <span class="ok">connected</span>
+        </div>
+      </div>
+      <div class="conv"><span class="convmark">conversation · +104px</span><div class="line"></div><div class="line"></div><div class="line s"></div></div>
+    </div>
+    <div class="tagrow"><span class="save">+12 rows visible @720px</span><span class="save">+104px conv width</span><span class="save">chrome 162→98</span><span class="save">sash-hover → overlay</span><span class="save">times → hover only</span></div>
+  </div>
+
+  <!-- ══════════ PROPOSED RAIL ══════════ -->
+  <div class="frame">
+    <h2>PROPOSED RAIL — <b>36px</b> <span style="opacity:.6">(now 56)</span></h2>
+    <div class="win">
+      <div class="sb new rail">
+        <span class="mark" style="background:linear-gradient(135deg,var(--dsw-static-deepseek-400),var(--dsw-static-deepseek-500));display:flex;align-items:center;justify-content:center;color:#fff">◈</span>
+        <button class="ribtn">＋</button>
+        <button class="ribtn dim">⌕</button>
+        <button class="ribtn dim">▤</button>
+        <span class="grow"></span>
+        <button class="ribtn dim">✦</button>
+        <button class="ribtn dim">⚙</button>
+      </div>
+      <div class="conv"><span class="convmark">conversation</span><div class="line"></div><div class="line"></div><div class="line s"></div></div>
+    </div>
+    <div class="tagrow"><span class="save">+20px vs old rail</span></div>
+  </div>
+
+  <!-- ══════════ AUTO-DENSITY: rail at rest + flyout over conversation ══════════ -->
+  <div class="frame">
+    <h2>AUTO-DENSITY — <b>36px at rest</b> · hover/⌘B flies the 168px panel OVER the chat</h2>
+    <div class="win">
+      <div class="fly" style="flex:1;">
+        <div class="rest rail">
+          <button class="ribtn dim" style="margin:2px 0 4px;color:var(--dsw-static-deepseek-400)">◈</button>
+          <button class="ribtn">＋</button>
+          <button class="ribtn dim">⌕</button>
+          <button class="ribtn dim">▤</button>
+          <span style="flex:1"></span>
+          <button class="ribtn dim">✦</button>
+          <button class="ribtn dim">⚙</button>
+        </div>
+        <div class="conv" style="margin-left:36px">
+          <span class="convmark">conversation · +244px vs expanded</span>
+
+        </div>
+        <div class="panel new">
+          <div class="top">
+            <span class="mark" style="background:linear-gradient(135deg,var(--dsw-static-deepseek-400),var(--dsw-static-deepseek-500));display:flex;align-items:center;justify-content:center;color:#fff">◈</span>
+            <span class="nm"><em>DigitalOcean</em><b>Harness</b></span>
+          </div>
+          <button class="nrow">＋&nbsp; New session</button>
+          <div class="whdr">
+            <span class="wl">Workspaces</span>
+            <span class="acts"><button class="ibtn">⌕</button><button class="ibtn">⚙</button><button class="ibtn">＋</button></span>
+          </div>
+          <div class="list" style="overflow:hidden">
+            <div class="wrow">▾ api-gateway</div>
+            <div class="srow indent on"><span class="dot"></span><span class="t">rate-limit retry storm</span><span class="tm">2m</span></div>
+            <div class="srow indent"><span class="dot idle"></span><span class="t">migrate sessions v2</span><span class="tm">1h</span></div>
+            <div class="wrow">▾ spaces-cdn</div>
+            <div class="srow indent"><span class="dot"></span><span class="t">purge stale cache</span><span class="tm">12m</span></div>
+            <div class="srow indent"><span class="dot idle"></span><span class="t">image resize lambda</span><span class="tm">1d</span></div>
+            <div class="wrow">ungrouped</div>
+            <div class="srow"><span class="dot idle"></span><span class="t">terraform plan drift</span><span class="tm">1w</span></div>
+          </div>
+          <div class="foot"><button class="frow" title="Harness guide">✦︎</button><button class="frow" title="Settings">⚙︎</button><span class="ok">connected</span></div>
+        </div>
+        <div class="hint">same overlay serves both:<br>rail hover → full panel;<br>slim sash hover → 220px<br>expansion · retracts on<br>pointer-exit (+300ms) / ⌘B</div>
+      </div>
+    </div>
+    <div class="tagrow"><span class="save">rest footprint 36px</span><span class="save">full tree one hover away</span><span class="save">zero reflow</span></div>
+  </div>
+</div>
+
+<div class="notes">
+  <h3>What moves / what dies — and where it lands in code</h3>
+  <table>
+    <tr><td>Chrome stack → 34px strip + 26px teal CTA</td>
+      <td>Logo row (60+8) and section header (36+6) collapse into one 34px identity strip (“DIGITALOCEAN” micro-caption over the “Harness” wordmark, collapse riding the mark — the shipped rail’s exact pattern), then the DEDICATED teal CTA below keeps its own boxed button on the info tokens (composer-send teal 400/500). Rows read as a vscode tree: permanent twistie + folder glyph, 22px uniform rhythm, one 22px explorer-depth indent for grouped sessions, show-more rides the same rhythm, pane header (“WORKSPACES” + ⌕⚙＋) at view-header scale, and the floor is a single icon row with the connection caption right-docked. <code>SidebarRoot.module.css</code> + <code>Rows.module.css</code> + <code>SettingsRoot.module.css</code>.</td></tr>
+    <tr><td>New session stays a real button — 38→26px</td>
+      <td>Same anatomy as the shipped <code>.newSession</code> (0.5px border, radius, elevated fill) so it keeps its affordance and its margin rhythm; just dense-sized and typo-consistent with the strip. <code>SidebarRoot.module.css:250-298</code>.</td></tr>
+    <tr><td>Workspace header span returns — 42→22px</td>
+      <td>The section header is its own row again (label + search / view-options / add), like the shipped <code>sectionHeader</code>, just at slim density: “WORKSPACES” as 9px uppercase caption, icons 28→18px, search keeps its inline-expand morph from the row itself. Brand strip sheds those actions and is identity-only. <code>WorkspaceBrowser.module.css:39-127</code>.</td></tr>
+    <tr><td>Rows 32/34 → 22 · time is a hover overlay</td>
+      <td>Titles 14→12.5px, status slot→5px dot, indent 22→12px; vertical breathing room kept. <b>Timestamps are absolutely positioned on row hover over a right→left gradient</b> (<code>transparent → composed hover color</code> at ~70%) so the title fades out underneath — no trailing column at rest, no layout shift on hover, title always owns full row width. The gradient end-color snapshots sidebar-fill + hover wash into one <code>--dsh-row-hover-solid</code> token per theme. The shipped code already runs this swap in reverse (<code>Rows.module.css:247-250</code> hides <code>.time</code> on hover to reveal actions). <code>Rows.module.css:93-114,195-209</code>.</td></tr>
+    <tr><td>Footer 72 → 26 micro row</td>
+      <td>Guide keeps its bottom-left home at 20px icon size; Settings lives beside it in the same row; footer-actions ride the guide popover; connection health shrinks to a 10px label+dot. Symbols render as transparent monochrome text (<code>\uFE0E</code> glyph presentation), mirroring the shipped transparent outline-icon buttons — never platform-emoji fills. <code>SidebarRoot.tsx</code> footArea + settings/guide/footer.action seat merge.</td></tr>
+    <tr><td>Widths 280→300 / rail 56→36</td>
+      <td><code>ui-layout/src/client/columns.ts</code> SIDEBAR_DEFAULT (→300, the vscode sidebar default) and the rail track constant; drag still floors at 144. The 300px wide lane keeps the two-line brand lockup (DIGITALOCEAN / Harness), collapse on the mark swap, the explorer tree at full title length, and hover overlays for expansive surfaces. Column flow: workspace picker → vscode twin (center slot) → chat (right column, card-treated).</td></tr>
+    <tr><td>Auto-density (the horizontal endgame)</td>
+      <td>The overlay pattern now serves both rest states: at the 36px rail the whole 144px panel floats out over the chat on hover/⌘B; at 144px rest, hovering the right sash expands a <b>220px overlay</b> with full untruncated titles. Pointer-exit +300ms dwell retracts either — zero content reflow in both. <code>ui-layout</code> AppFrame gains an <code>auto</code> track mode; <code>SidebarRoot</code>’s collapse state machine gains an overlay seat beside <code>collapsed</code>.</td></tr>
+    <tr><td>Untouched</td>
+      <td><code>sidebar.workspaces / .guide / .settings / .footer.action / .panellist</code> slot contracts, collapse slide+crossfade motion, pointer-revealed scrollbars, search debounce and tree logic — this draft is geometry + chrome only; every theme token is reused.</td></tr>
+  </table>
+</div>
+
+</body>
+</html>

@@ -36,7 +36,7 @@ const GAP_CENTER = FRAME_INSET + FRAME_GAP / 2
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay' | 'shell.ide'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
@@ -57,8 +57,15 @@ function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'use
  * occupant's panel is positioned against the column's right edge, which never
  * moves, so it can hang over the centre when there is no track.
  */
-function RightbarColumn(props: { children?: ReactNode }) {
-  return <div className={css.rightbarCol} data-rightbar-col>{props.children}</div>
+function RightbarColumn(props: { children?: ReactNode; ide?: ReactNode; ideWidth: number | '100%' }) {
+  return (
+    <div className={css.rightbarCol} data-rightbar-col>
+      {props.children}
+      {/* The singleton IDE layer: shares the panel's anchor and slide
+          (AppFrame.module.css); its width mirrors the resolved panel width. */}
+      <div className={css.ideLayer} style={{ width: props.ideWidth }} data-ide-layer>{props.ide}</div>
+    </div>
+  )
 }
 
 /**
@@ -228,6 +235,10 @@ export function AppFrame({
     canShow: normal.rightbar > 0,
   }), [renderSlot, normal.rightbar, viewport])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
+  const ide = useMemo(() => renderSlot('shell.ide', {}), [renderSlot])
+  // The IDE layer mirrors the panel's contract: resolved width normally,
+  // viewport-spanning while fullscreen.
+  const ideWidth: number | '100%' = layoutInfo.rightbarFullscreen ? '100%' : normal.rightbar
 
   return (
     <div
@@ -242,6 +253,7 @@ export function AppFrame({
       data-sidebar-collapsed={sidebarCollapsed || undefined}
       data-rightbar-collapsed={cols.rightbar === 0 || undefined}
       data-rightbar-fullscreen={layoutInfo.rightbarFullscreen || undefined}
+      data-rightbar-shown={layoutInfo.rightbarShown || undefined}
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
       data-dragging={dragging || undefined}
     >
@@ -260,7 +272,7 @@ export function AppFrame({
       {swapped
         ? (
           <>
-            <RightbarColumn>
+            <RightbarColumn ideWidth={ideWidth} ide={ide}>
               {rightbar}
             </RightbarColumn>
             <CenterColumn>{main}</CenterColumn>
@@ -269,7 +281,7 @@ export function AppFrame({
         : (
           <>
             <CenterColumn>{main}</CenterColumn>
-            <RightbarColumn>
+            <RightbarColumn ideWidth={ideWidth} ide={ide}>
               {rightbar}
             </RightbarColumn>
           </>
@@ -280,11 +292,13 @@ export function AppFrame({
       {/* The collapsed rail is fixed-width: no resize handle while closed. */}
       {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar + GAP_CENTER} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
       {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
-        /* Swapped, the handle centers on the gap right of the IDE track; stock
-           it centers on the gap left of it (frame edge anchored). */
+        /* Swapped, the handle centers on the gap right of the IDE track (one
+           more inter-card gap than the sidebar handle, which sits one gap
+           earlier — hence the extra FRAME_GAP); stock it centers on the gap
+           left of the track (frame edge anchored). */
         <DragHandle
           side="rightbar"
-          left={swapped ? cols.sidebar + normal.rightbar + GAP_CENTER : viewport - normal.rightbar - GAP_CENTER}
+          left={swapped ? cols.sidebar + normal.rightbar + GAP_CENTER + FRAME_GAP : viewport - normal.rightbar - GAP_CENTER}
           onStart={onRightbarStart}
           onDrag={onRightbarDrag}
           onEnd={onDragEnd}

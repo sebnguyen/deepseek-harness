@@ -3,8 +3,8 @@
  * leaves `dist` empty.
  *
  * The twin dist is a ~485MB build output, so it is never vendored into
- * the repository: `scripts/prepare-vscode-twin.sh` stages it beside the
- * checkout (or inside it), `scripts/bootstrap-vscode-twin.sh` builds it
+ * the repository: the vscode gulp lane lands it beside the sibling
+ * `vscode` checkout, `scripts/bootstrap-vscode-twin.sh` builds it
  * from the pinned vscode fork into the harness-home cache, and the
  * discovery below finds all of those without an exported
  * `DSH_VSCODE_TWIN_DIST`, which is what lets a plain `dsh web` boot mount

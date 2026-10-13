@@ -15,38 +15,74 @@
  *   state, never the open turn; the snapshot is keyed by (session, turn) so
  *   same-step retries and concurrent sessions keep the minted value.
  * - **A one-line reminder** injected into every turn of a non-narrate shape,
- *   stating the transcript promise in one sentence. This is the shape's only
- *   model-facing instruction.
- *
- * The request itself stays untouched in every shape: the retired strict
- * empty-object `structuredOutput` shield suppressed the provider's
- * reasoning channel alongside the leaked prose it guarded against, which
- * deleted the transcript's thoughts under quiet and tools. Thoughts now
- * render regardless of the armed shape, and the plugin attaches **no
- * grammar fields in any form** — no `structuredOutput`, no `toolChoice`.
- * Turn termination stays the loop's natural zero-tool-call rule.
+ *   stating the transcript promise in one sentence. This is the shape's
+ *   standing model-facing instruction.
+ * - **Request-grammar hints on capable routes only.** Under `quiet` and
+ *   `tools` the plugin contributes two fields at the declared
+ *   `GRAMMAR_PRIORITY.turnShape` band through the arbitration seam: an
+ *   explicit `toolChoice: 'auto'` and the strict empty-object
+ *   `structuredOutput` shield ({@link EMPTY_OBJECT_SCHEMA}), whose `{}`
+ *   output channel the render contract sanitizes away. Both attach only
+ *   where `llm.grammarCapability` resolves true for the request's route —
+ *   capability-negative routes (and any composition without the `llm`
+ *   service) run reminder-only. A capture driver's schema at a higher band
+ *   always wins the `structuredOutput` slot.
+ * - **Quiet closes with one unshielded wrap-up step.** When a quiet turn
+ *   reaches its natural zero-tool-call ending, the `agent/turn-stopping`
+ *   dispatch steers exactly one continuation asking for the plain closing
+ *   answer, and the grammar contribution abstains for the rest of that
+ *   turn, so the closing answer goes out with no restriction. `tools`
+ *   steers nothing: the turn ends when the agent ends it.
  *
  * `narrate` performs no injection at all.
  *
- * Agent Note:
+ * Agent Notes:
+ * - .agents/notes/implemented/feature/2026-10-13-conversation-mode-grammar-hints.md
  * - .agents/notes/implemented/architecture/2026-10-12-turn-shape-session-scope.md
  */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Agent, PreStepDecision } from '@deepseek-ai/dsh-agent'
+import { GRAMMAR_PRIORITY, type Agent, type PreStepDecision, type RequestGrammarPatch } from '@deepseek-ai/dsh-agent'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import type { CommandDefinitionId } from '@deepseek-ai/dsh-commands'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
-import type {} from '@deepseek-ai/dsh-session-projection'
+import type { } from '@deepseek-ai/dsh-session-projection'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
 import { z } from 'zod'
-import { turnShapeReminderText, type TurnShapeSource } from './turn-shape.ts'
+import {
+  EMPTY_OBJECT_SCHEMA, turnShapeReminderText, turnShapeWrapUpText, type TurnShapeSource,
+} from './turn-shape.ts'
 import {
   DEFAULT_SHAPE, TURN_SHAPES, type TurnShape, type TurnShapeProjection, type TurnShapeUnitState,
 } from './types.ts'
 
 export type * from './types.ts'
-export { turnShapeReminderText, type TurnShapeSource } from './turn-shape.ts'
+export {
+  EMPTY_OBJECT_SCHEMA,
+  turnShapeReminderText,
+  turnShapeWrapUpText,
+  type TurnShapeSource,
+} from './turn-shape.ts'
+
+/** Conversation-mode configuration accepted from cordis.yml `config:`. */
+export interface ConversationModeConfig {
+  /**
+   * Attach the request-grammar hints (`toolChoice: 'auto'` plus the strict
+   * empty-object shield) to quiet/tools requests. The hints attach only on
+   * routes whose adapter capability resolves true; the quiet wrap-up step
+   * always goes out unrestricted.
+   * @defaultValue true
+   */
+  grammarHints?: boolean
+}
+
+/**
+ * Runtime schema for {@link ConversationModeConfig}.
+ * A cordis.yml row with no `config` arrives as `undefined` and validates as `{}`.
+ */
+export const Config = z.object({
+  grammarHints: z.boolean().optional(),
+}).default({}) as unknown as z.ZodType<ConversationModeConfig>
 
 const turnShapeUnitStateSchema = z.object({
   shape: z.enum(['narrate', 'quiet', 'tools']),
@@ -72,8 +108,16 @@ export const turnShapeProjectionDefinition = {
   },
 } satisfies ProjectionDefinition<'turnShape', TurnShapeUnitState>
 
-/** Host plugin body: the projection registration, the per-turn snapshot, and the per-turn reminder. */
-export function apply(ctx: Context): void {
+/**
+ * Host plugin body: the projection registration, the per-turn snapshot, the
+ * per-turn reminder, the capability-gated grammar contribution, and the
+ * quiet wrap-up steer.
+ * @param ctx - the plugin scope.
+ * @param config - validated cordis.yml config.
+ */
+export function apply(ctx: Context, config: ConversationModeConfig = {}): void {
+  // Resolution lives at composition, never inside a listener.
+  const grammarHints = config.grammarHints ?? true
   ctx.inject(['sessionProjections'], (scoped) => {
     scoped.sessionProjections.register(turnShapeProjectionDefinition)
 
@@ -87,18 +131,30 @@ export function apply(ctx: Context): void {
      * correct for any turn still open.
      */
     const snapshots = new Map<Agent, { turn: number; shape: TurnShape }>()
+    /**
+     * The (agent, turn) pair whose natural stop already fired the quiet
+     * wrap-up. Sheltered from re-mint like the snapshot it rides: the wrap-up
+     * cue steers once per turn, and the grammar contribution abstains for
+     * the armed turn's remaining requests so the closing answer goes out
+     * with the restriction removed.
+     */
+    const wrapUps = new Map<Agent, number>()
     const MAX_SNAPSHOTS = 64
+    const evict = (key: Agent): void => {
+      snapshots.delete(key)
+      wrapUps.delete(key)
+    }
     const shapeForTurn = (agent: Agent, turn: number): TurnShape => {
       const snapshot = snapshots.get(agent)
       if (snapshot !== undefined) {
         if (snapshot.turn === turn) return snapshot.shape
-        snapshots.delete(agent)
+        evict(agent)
       }
       const shape = scoped.sessionProjections.stateOf(agent.session, 'turnShape')?.shape ?? DEFAULT_SHAPE
       while (snapshots.size >= MAX_SNAPSHOTS) {
         const oldest = snapshots.keys().next()
         if (oldest.done === true) break
-        snapshots.delete(oldest.value)
+        evict(oldest.value)
       }
       snapshots.set(agent, { turn, shape })
       return shape
@@ -118,6 +174,47 @@ export function apply(ctx: Context): void {
       })
       return { ...decision, messages: [...decision.messages, reminder] }
     })
+
+    // A quiet turn's natural zero-tool-call stop is followed by exactly one
+    // steered wrap-up step; a second stop in the same turn closes for real.
+    scoped.on('agent/turn-stopping', ({ agent, turn }) => {
+      if (shapeForTurn(agent, turn) !== 'quiet') return
+      if (wrapUps.get(agent) === turn) return
+      wrapUps.set(agent, turn)
+      const wrapUpSource: TurnShapeSource = { kind: 'turn-shape', turnShape: 'quiet' }
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: turnShapeWrapUpText() }],
+        source: wrapUpSource,
+      }))
+    })
+
+    // The grammar hints need the capability query; no `llm` service means the
+    // composition runs reminder-only, and no `request-grammar` service means
+    // arbitration is absent outright. Guarded by the declared config.
+    if (grammarHints) {
+      scoped.inject(['llm', 'request-grammar'], (grammarCtx) => {
+        const dispose = grammarCtx['request-grammar'].contribute({
+          id: 'conversation-mode:turn-shape',
+          priority: GRAMMAR_PRIORITY.turnShape,
+          attach: (draft) => {
+            if (shapeForTurn(draft.agent, draft.turn) === 'narrate') return undefined
+            if (wrapUps.get(draft.agent) === draft.turn) return undefined
+            const support = grammarCtx.llm.grammarCapability(
+              draft.config.provider,
+              draft.config.model,
+            )
+            const patch: RequestGrammarPatch = {
+              ...support.structuredOutput ? { structuredOutput: EMPTY_OBJECT_SCHEMA } : {},
+              ...support.toolChoice ? { toolChoice: 'auto' as const } : {},
+            }
+            return patch.structuredOutput === undefined && patch.toolChoice === undefined
+              ? undefined
+              : patch
+          },
+        })
+        grammarCtx.effect(() => dispose, 'turn-shape grammar contribution teardown')
+      })
+    }
 
     // The command child activates only when a command registry is composed.
     scoped.inject(['commands'], (commandCtx) => {

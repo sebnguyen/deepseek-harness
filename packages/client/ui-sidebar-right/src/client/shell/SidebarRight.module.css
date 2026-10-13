@@ -16,15 +16,16 @@
  * edge therefore travel together. Visibility flips after the slide so the box
  * is out of reach once off-edge, and flips back before the slide starts.
  *
- * The normal panel is below frame overlays (20); fullscreen (40) covers the
- * frame and remains below independently floating panels (60).
+ * The normal panel sits in the content band; fullscreen climbs to the
+ * presentations band and remains below independently floating panels (the
+ * frame's z-layer tokens, ui-theme base.css).
  */
 .panel {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  z-index: 10;
+  z-index: var(--dsh-z-panel);
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -51,12 +52,13 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-/* The mounted vscode twin stakes its box inside this card and floats its
-   glass workbench over it (keep-alive.tsx): the card's own surface would
-   show through the transparent workbench as a second, flat fill with square
-   corners, so while the twin is mounted the panel drops its chrome and the
-   ocean reads straight through to the twin's floating windows. */
-.panel:has([data-twin-stake]) {
+/* A mounted vscode tab is the pane's whole identity, and the singleton twin
+   layer (ui-layout's `shell.ide` seat) shows its glass workbench over this
+   card: the card's own surface would sit behind the transparent workbench as
+   a second, flat fill with square corners, so while the twin is mounted the
+   panel drops its chrome and the ocean reads straight through to the twin's
+   floating windows. */
+.panel[data-vscode-mounted] {
   background: transparent;
   box-shadow: none;
 }
@@ -66,7 +68,7 @@
 .panel[data-sidebar-right-panel='fullscreen'] {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: var(--dsh-z-panel-fullscreen);
   border: none;
   border-radius: 0;
   box-shadow: none;
@@ -164,7 +166,7 @@
   position: absolute;
   top: 8px;
   right: 8px;
-  z-index: 11;
+  z-index: var(--dsh-z-panel-chrome);
   display: flex;
   gap: 4px;
   padding: 2px;
@@ -183,12 +185,11 @@
  * Host for the portalled floating panels. Panels leave the column so they can
  * cross it and the conversation, which puts them beside the app root rather than
  * inside it — and a sibling of the root does not inherit its stacking, so the
- * level is stated here. The value sits above the frame's own overlay layer;
- * there is no z-index token layer to draw from yet.
+ * level comes from the frame's z-layer tokens (ui-theme base.css).
  */
 .floatHost {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: var(--dsh-z-float-host);
   pointer-events: none;
 }

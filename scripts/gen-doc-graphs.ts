@@ -122,7 +122,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     title: 'LLM adapter registry',
     mode: 'seam',
     implementations: ['llm-deepseek', 'llm-pi-ai', 'llm-replay'],
-    consumers: ['agent-loop', 'compaction-basic'],
+    consumers: ['agent-loop', 'client-conversation-mode', 'compaction-basic'],
     note: 'Adapters register provider implementations; the loop and compaction call the provider-neutral stream service.',
   },
   {
@@ -130,7 +130,7 @@ const SERVICE_ROLES: ServiceRole[] = [
     pkg: 'agent',
     title: 'Declared-priority request-grammar arbitration',
     mode: 'core',
-    consumers: ['subagent-in-process-driver'],
+    consumers: ['client-conversation-mode', 'subagent-in-process-driver'],
     note: 'One fold listener merges priority-sorted structuredOutput/toolChoice contributions for every agent/request seed, so listener composition order never decides which grammar survives.',
   },
   {

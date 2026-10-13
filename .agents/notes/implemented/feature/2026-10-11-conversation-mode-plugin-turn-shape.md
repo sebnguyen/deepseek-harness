@@ -53,6 +53,8 @@ breaks in practice — reproduced in-session and documented in
 
 ## Decision
 
+Partly superseded: the grammar layer died and returned — see [thoughts fix](../bug-fix/2026-10-11-conversation-mode-thoughts-every-shape.md) and [grammar hints](2026-10-13-conversation-mode-grammar-hints.md).
+
 Rebuild the feature as a **conversation-mode plugin** with three shapes —
 `narrate` (default), `quiet`, `tools` — whose promise is a **render contract**
 first and a **provider-compatible generation hint** second. Grammar stops

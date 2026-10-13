@@ -1,15 +1,16 @@
 /**
  * Browser half: register `vscode` as a right-Sidebar tab type, plus the
- * root-scoped float host that keeps one workspace iframe alive across the
- * session-bound bodies.
+ * workspace frame cache that occupies ui-layout's positional `shell.ide`
+ * seat.
  *
  * The type reaches the Sidebar through its public path only: the definition
  * into `ctx.sidebarRightTabs`, the body into the keyed
- * `sidebar.right.pane.tab` seat under the definition's `id`. The keep-alive
- * host rides the root-scoped `shell.overlay` list seat, so it mounts once
- * per app and session switches never touch the frames it hosts. The host
- * face contributes nothing; status reads run straight through the injected
- * `ideBridge` remote namespace.
+ * `sidebar.right.pane.tab` seat under the definition's `id`. The frame cache
+ * rides the root-scoped `shell.ide` seat, so it mounts once per app and
+ * session switches never touch the frame elements; the session bodies only
+ * publish the active workspace's ready src through the intent store. The
+ * host face contributes nothing; status reads run straight through the
+ * injected `ideBridge` remote namespace.
  */
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
@@ -19,7 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { VscodeBody, type VscodeInjected } from './VscodeBody.tsx'
-import { TwinFrameHost } from './keep-alive.tsx'
+import { TwinFrame } from './twin.tsx'
 import { VSCODE_ID, VSCODE_KIND, vscodeDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
 import type { VscodeIdeRemote } from './rpc.ts'
@@ -64,16 +65,16 @@ export function apply(ctx: ClientContext): void {
     VscodeBody,
   )), 'ui-vscode: vscode body')
 
-  // The twin floats live one scope above the session-bound bodies: the
-  // root-scoped overlay mounts once per app, so a session switch re-points
-  // a float at the new body's box instead of remounting any iframe.
-  ctx.effect(() => ctx.slots.inject('shell.overlay', () => ctx.slots.register(
+  // The frame cache lives one scope above the session-bound bodies: the
+  // root-scoped positional seat mounts once per app, so a session switch only
+  // changes which record shows — it can never remount an element.
+  ctx.effect(() => ctx.slots.inject('shell.ide', () => ctx.slots.register(
     {
-      name: 'shell.overlay',
-      id: 'dsh-twin-frames',
+      name: 'shell.ide',
+      locale: 'vscode',
     },
-    TwinFrameHost,
-  )), 'ui-vscode: twin float host')
+    TwinFrame,
+  )), 'ui-vscode: twin frame cache')
 
   // The twin is the harness's editor: mount it as soon as a session surface
   // exists rather than waiting for a file-row click. The session-scoped path

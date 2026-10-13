@@ -1,0 +1,406 @@
+<!doctype html>
+<!-- Ocean scene, GPU-layered mock: twgl over WebGL2, numbers lifted 1:1 from the
+     DOM compositor in ui-layout/OceanScene.tsx so this is a faithful GPU twin.
+     One half-res FBO holds the scene; four draw calls per frame:
+       1. sea       — depth gradient (fullscreen triangle)
+       2. lights    — rays + boost shafts + halo blobs in ONE instanced draw,
+                      premultiplied source-over like the DOM's alpha stacking
+       3. grid      — the ONE flat 2D dot lattice (DOM instantiates glayerA only:
+                      pitch 32px, opacity 0.32; glayerB is never drawn there either)
+       4. blit      — bilinear upscale to the screen
+     Ray geometry matches the DOM: 190-490px widths, 190vh length, ±(dxf*10)deg
+     fans, ±1.4deg sway over 22-36s, breathing opacity 0.06..0.5 x g at idle,
+     soft edges only in the outer 16% of each shaft (the DOM mask).
+     HUD solos each pass; buttons for half-res, the shine swell, and theme. -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>ocean — twgl instanced two-layer mock</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0b0d0f; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #hud { position: fixed; top: 10px; left: 10px; z-index: 2; font: 12px/1.6 ui-monospace, monospace;
+         color: #dfe7ee; background: rgba(10, 14, 18, .72); border: 1px solid rgba(120, 160, 200, .25);
+         border-radius: 8px; padding: 8px 10px; }
+  #hud button { font: inherit; color: inherit; background: rgba(40, 60, 80, .6); border: 1px solid rgba(120, 160, 200, .35);
+                border-radius: 6px; padding: 2px 8px; margin: 0 4px 4px 0; cursor: pointer; }
+  #hud button.on { background: rgba(0, 99, 248, .55); }
+  #hud label { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; }
+  #hud input[type=range] { width: 90px; accent-color: rgb(0, 99, 248); }
+  #stat { opacity: .75; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <div>
+    <button data-solo="all" class="on">all</button>
+    <button data-solo="sea">sea</button>
+    <button data-solo="lights">lights (instanced)</button>
+    <button data-solo="grid">grid</button>
+    <button id="half" class="on">half-res</button>
+    <button id="run" class="on">shine=running</button>
+    <button id="theme" class="on">dark</button>
+  </div>
+  <div class="sliders">
+    <label>rays <input id="nray" type="range" min="2" max="16" step="1" value="8"><span id="nray-v">8</span></label>
+    <label>width <input id="wmul" type="range" min="0.3" max="5.0" step="0.05" value="1"><span id="wmul-v">1.00×</span></label>
+    <label>glow <input id="gmul" type="range" min="0.3" max="3" step="0.05" value="1"><span id="gmul-v">1.00×</span></label>
+    <label>breathe <input id="bmul" type="range" min="0" max="1.5" step="0.05" value="1"><span id="bmul-v">1.00×</span></label>
+  </div>
+  <div id="themehint" style="opacity:.6">#dark / #light</div>
+  <div id="stat">booting…</div>
+</div>
+
+<script type="x-shader/x-vertex" id="vs-full">
+#version 300 es
+// Bufferless fullscreen triangle; uv recovered from the clip position.
+out vec2 vUv;
+void main(){
+  vec2 p = vec2(float((gl_VertexID << 1) & 2), float(gl_VertexID & 2));
+  vUv = p;
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+</script>
+
+<script type="x-shader/x-fragment" id="fs-sea">
+#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+uniform vec3 uSea0; uniform vec3 uSea1; uniform vec3 uSea2;
+void main(){
+  float t = clamp(1.0 - vUv.y, 0.0, 1.0);
+  vec3 col = mix(uSea0, uSea1, smoothstep(0.0, 0.46, t));
+  col = mix(col, uSea2, smoothstep(0.46, 1.0, t));
+  o = vec4(col, 1.0);
+}
+</script>
+
+<script type="x-shader/x-fragment" id="fs-grid">
+#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+uniform vec2 uRes; uniform float uOn;
+uniform vec3 uGrid; uniform float uAlpha; uniform float uPitch;
+void main(){
+  /* ONE flat 2D dot lattice in device px — the DOM draws only glayerA. */
+  vec2 px = vUv * uRes;
+  vec2 g = mod(px + uPitch * 0.5, uPitch) - uPitch * 0.5;
+  float c = (1.0 - smoothstep(0.7, 1.9, length(g))) * uAlpha;
+  o = vec4(uGrid * c, c) * uOn;
+}
+</script>
+
+<script type="x-shader/x-vertex" id="vs-light">
+#version 300 es
+layout(location = 0) in vec2 aCorner;
+// One instance = one light: ray shaft (0), boost shaft (1) or halo blob (2).
+layout(location = 1) in vec4 iA; // xFrac, yVh, widthPx, len (vh for shafts, px for blobs)
+layout(location = 2) in vec4 iB; // angleDeg, swayPeriod, swayPhase, kind
+layout(location = 3) in vec4 iC; // freqHz, phase, gain, paletteIndex
+layout(location = 4) in vec4 iE; // gradStart, gradEnd, pad, pad
+uniform float uTime; uniform float uShine; uniform float uAspect; uniform vec2 uRes; uniform float uCssH; uniform float uBreath;
+uniform vec3 uRayCol[4]; uniform float uRayA[4];
+uniform vec3 uBoostCol; uniform float uBoostA;
+uniform vec3 uHaloCol; uniform float uHaloA;
+uniform float uVis;
+out vec2 vUv; out vec3 vColor; out float vAlpha; out float vKind; out float vGradS; out float vGradE;
+void main(){
+  float kind = iB.w;
+  float lo = 0.18 + 0.25 * uShine;
+  float cap = 0.55 + 0.45 * uShine;
+  float theta = radians(iB.x) + radians(1.4) * sin(uTime * 6.28318 / iB.y + iB.z);
+  if (kind > 1.5) theta = 0.0;
+  float ct = cos(theta), st = sin(theta);
+  /* all quad geometry in vh units (0..100 = viewport height); uCssH is the
+     CSS viewport height so instance pixel sizes convert to vh like the DOM's */
+  float wu = iA.z * 100.0 / uCssH;
+  float lu = kind > 1.5 ? iA.w * 100.0 / uCssH : iA.w;
+  float lx = (aCorner.x - 0.5) * wu;
+  float ly = aCorner.y * lu;
+  float X = iA.x * uAspect * 100.0 + lx * ct + ly * st;
+  float Y = iA.y + ly * ct - lx * st;
+  gl_Position = vec4((X / (100.0 * uAspect)) * 2.0 - 1.0, 1.0 - 2.0 * Y / 100.0, 0.0, 1.0);
+  vUv = aCorner;
+  int pal = int(iC.w + 0.5);
+  vec3 col = uRayCol[0]; float base = uRayA[0];
+  if (pal == 1) { col = uRayCol[1]; base = uRayA[1]; }
+  else if (pal == 2) { col = uRayCol[2]; base = uRayA[2]; }
+  else if (pal == 3) { col = uRayCol[3]; base = uRayA[3]; }
+  if (kind > 0.5 && kind < 1.5) { col = uBoostCol; base = uBoostA; }
+  if (kind > 1.5) { col = uHaloCol; base = uHaloA; }
+  vColor = col;
+  /* breathing: uBreath blends the per-ray wave toward its mean so dim/bright
+     shafts equalize; the DOM scene runs this at 1.0 and flickers */
+  float wave = 0.5 + 0.5 * sin(uTime * iC.x * 6.28318 + iC.y);
+  float amp = (lo + (cap - lo) * wave);
+  float mid = (lo + cap) * 0.5;
+  amp = mid + (amp - mid) * uBreath;
+  vAlpha = uVis * base * (kind < 0.5 ? amp * iC.z
+         : kind < 1.5 ? 0.9 * uShine * iC.z
+         : iC.z + 0.4 * uShine);
+  vKind = kind;
+  vPal = iC.w;
+  vGradS = iE.x;
+  vGradE = iE.y;
+}
+</script>
+
+<script type="x-shader/x-fragment" id="fs-light">
+#version 300 es
+precision highp float;
+in vec2 vUv; in vec3 vColor; in float vAlpha; in float vKind; in float vGradS; in float vGradE;
+out vec4 o;
+void main(){
+  float m;
+  if (vKind < 0.5) {
+    /* DOM mask: solid middle 68%, soft only in the outer 16% each side */
+    m = (1.0 - smoothstep(0.84, 1.0, abs(vUv.x * 2.0 - 1.0)))
+      * (1.0 - smoothstep(vGradS, vGradE, vUv.y));
+  } else if (vKind < 1.5) {
+    /* boosts blur wider (26px vs 9-19px rays in the DOM) */
+    m = (1.0 - smoothstep(0.5, 1.0, abs(vUv.x * 2.0 - 1.0)))
+      * (1.0 - smoothstep(vGradS, vGradE, vUv.y));
+  } else {
+    m = 1.0 - smoothstep(0.3, 0.78, length(vUv - 0.5) * 2.0);
+  }
+  float a = clamp(vAlpha * m, 0.0, 1.0);
+  o = vec4(vColor * a, a);
+}
+</script>
+
+<script type="x-shader/x-fragment" id="fs-blit">
+#version 300 es
+precision highp float;
+in vec2 vUv;
+out vec4 o;
+uniform sampler2D uTex;
+void main(){ o = texture(uTex, vUv); }
+</script>
+
+<script src="./twgl-full.js"></script>
+<script>
+window.addEventListener('error', e => {
+  const s = document.getElementById('stat')
+  if (s) s.textContent = 'JS error: ' + e.message
+})
+try {
+  boot()
+} catch (err) {
+  document.getElementById('stat').textContent = 'boot error: ' + err.message
+  throw err
+}
+function boot(){
+/* Themes mirror ui-theme's ocean-scene sheet (straight rgb + alpha). VIS lifts
+   the faint sheet alphas so shafts read on screen; dark needs less lift. */
+const THEMES = {
+  dark: {
+    sea: [[23, 27, 29], [14, 18, 20], [7, 9, 11]],
+    /* DO night fan, from the design-platform scales:
+       blue-500 / deepseek-450 teal / blue-300 / violet-400 */
+    rays: [[[38, 145, 234], .22], [[96, 165, 175], .2], [[97, 200, 249], .24], [[221, 165, 205], .34]],
+    boost: [[97, 200, 249], .32], halo: [[147, 222, 253], .24],
+    grid: [[145, 159, 158], .42], vis: 2.2,
+  },
+  light: {
+    sea: [[255, 255, 255], [247, 248, 248], [243, 249, 251]],
+    rays: [[[0, 99, 248], .18], [[96, 165, 175], .15], [[38, 145, 234], .26], [[221, 165, 205], .22]],
+    boost: [[0, 99, 248], .32], halo: [[38, 145, 234], .26],
+    grid: [[31, 97, 174], .42], vis: 3.0,
+  },
+}
+/* #light / #dark in the URL picks the theme; button toggles */
+let themeName = location.hash === '#light' ? 'light' : 'dark'
+const T = () => THEMES[themeName]
+const f1 = v => v / 255
+
+function makeRng(seed){ let s = (seed % 2147483646) + 1; return () => (s = s * 16807 % 2147483647) / 2147483647 }
+/* one draw stream seeds the whole composition so slider rebuilds keep the
+   same fan shape — only count/width/glow move */
+const rand = makeRng(Date.now())
+const sunY = -(52 + rand() * 20)
+const STRIDE = 16
+const instances = []
+function push(xf, cy, w, len, ang, swayP, swayPh, kind, f, ph, gain, pal, gS, gE){
+  instances.push(xf, cy, w, len, ang, swayP, swayPh, kind, f, ph, gain, pal, gS, gE, 0, 0)
+}
+const MAX_RAYS = 16
+const spec = []
+for (let i = 0; i < MAX_RAYS; i++) {
+  spec.push({
+    rj: rand() - 0.5, rAng: rand() - 0.5, rdyf: rand() - 0.5, rw: rand(),
+    rg: rand(), rgS: rand(), rgE: rand(), sp: rand(), sph: rand(),
+    bf: rand(), bp: rand(),
+  })
+}
+const haloSpec = [{}, {}, {}, {}].map(() => ({ x: rand(), y: rand(), r: rand(), c: rand() }))
+let rayCount = window.innerWidth <= 900 ? 5 : 8
+let widthMul = 1
+function buildInstances(){
+  instances.length = 0
+  const N = rayCount
+  for (let i = 0; i < N; i++) {
+    const s = spec[i]
+    const dxf = ((i + 0.5) / N - 0.5) + s.rj * (1 / N) * 0.5
+    const ang = dxf * 10 + s.rAng * 1.5
+    const dyf = s.rdyf * 14
+    const w = (190 + s.rw * 300) * widthMul   /* DOM widths: 190-490px */
+    const g = (0.8 + s.rg * 0.4) * (1 - Math.abs(ang) / 22 * 0.5)
+    const gS = (55 + s.rgS * 8) / 100
+    const gE = (78 + s.rgE * 10) / 100
+    const swayP = 22 + s.sp * 14
+    const swayPh = -s.sph * 30
+    push(0.5 + dxf, sunY + dyf, w, 190, ang, swayP, swayPh, 0,
+      0.14 + s.bf * 0.3, s.bp * 6.28, g, i % T().rays.length, gS, gE)
+    push(0.5 + dxf, sunY + dyf, w * 0.45, 190, ang, swayP, swayPh, 1, 0, 0, g, 0, 0.36, 0.68)
+  }
+  haloSpec.forEach((h, j) => {
+    const r = j === 0 ? 110 : (90 + h.r * 90) / 2
+    push(j === 0 ? 0.5 : 0.5 + (h.x - 0.5) * 0.22, j === 0 ? sunY : sunY + (h.y - 0.5) * 10,
+      r * 2, r * 2, 0, 1, 0, 2, 0, 0, j === 0 ? 0.45 : 0.25 + h.c * 0.2, 0, 0, 1)
+  })
+}
+let glowMul = 1
+let breatheMul = 1
+buildInstances()
+
+const canvas = document.getElementById('gl')
+const gl = canvas.getContext('webgl2', { alpha: false, antialias: false, powerPreference: 'low-power' })
+if (!gl) throw new Error('no WebGL2 — this mock needs a modern browser')
+/* trim(): script-tag leading newlines would sit before #version, which real
+   GLSL drivers reject. */
+const src = id => document.getElementById(id).textContent.trim()
+const prog = (v, f) => twgl.createProgramInfo(gl, [src(v), src(f)])
+const pSea = prog('vs-full', 'fs-sea')
+const pGrid = prog('vs-full', 'fs-grid')
+const pLight = prog('vs-light', 'fs-light')
+const pBlit = prog('vs-full', 'fs-blit')
+
+const slot = lo => instances.filter((_, k) => k % STRIDE >= lo && k % STRIDE < lo + 4)
+const lightBuf = twgl.createBufferInfoFromArrays(gl, {
+  aCorner: { data: [0, 0, 1, 0, 0, 1, 1, 1], size: 2 },
+  iA: { numComponents: 4, divisor: 1, data: slot(0) },
+  iB: { numComponents: 4, divisor: 1, data: slot(4) },
+  iC: { numComponents: 4, divisor: 1, data: slot(8) },
+  iE: { numComponents: 4, divisor: 1, data: slot(12) },
+})
+function rebuild(){
+  buildInstances()
+  twgl.setAttribInfoBufferFromArray(gl, lightBuf.attribs.iA, slot(0))
+  twgl.setAttribInfoBufferFromArray(gl, lightBuf.attribs.iB, slot(4))
+  twgl.setAttribInfoBufferFromArray(gl, lightBuf.attribs.iC, slot(8))
+  twgl.setAttribInfoBufferFromArray(gl, lightBuf.attribs.iE, slot(12))
+}
+const FBO_OPTS = [{ min: gl.LINEAR, mag: gl.LINEAR, wrap: gl.CLAMP_TO_EDGE }]
+let fbi = null
+let half = true
+let solo = 'all'
+let running = true
+let shine = 0
+
+function resize(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
+  const scale = half ? 0.5 : 1
+  const w = Math.max(2, Math.round(canvas.clientWidth * dpr * scale))
+  const h = Math.max(2, Math.round(canvas.clientHeight * dpr * scale))
+  canvas.width = Math.max(2, Math.round(canvas.clientWidth * dpr))
+  canvas.height = Math.max(2, Math.round(canvas.clientHeight * dpr))
+  if (fbi) twgl.resizeFramebufferInfo(gl, fbi, FBO_OPTS, w, h)
+  else fbi = twgl.createFramebufferInfo(gl, FBO_OPTS, w, h)
+}
+addEventListener('resize', resize)
+resize()
+
+document.querySelectorAll('[data-solo]').forEach(b => b.addEventListener('click', () => {
+  solo = b.dataset.solo
+  document.querySelectorAll('[data-solo]').forEach(x => x.classList.toggle('on', x === b))
+}))
+document.getElementById('half').addEventListener('click', e => { half = !half; e.target.classList.toggle('on', half); resize() })
+document.getElementById('run').addEventListener('click', e => { running = !running; e.target.classList.toggle('on', running) })
+document.getElementById('nray').addEventListener('input', e => {
+  rayCount = +e.target.value
+  document.getElementById('nray-v').textContent = e.target.value
+  rebuild()
+})
+document.getElementById('wmul').addEventListener('input', e => {
+  widthMul = +e.target.value
+  document.getElementById('wmul-v').textContent = (+e.target.value).toFixed(2) + '×'
+  rebuild()
+})
+document.getElementById('gmul').addEventListener('input', e => {
+  glowMul = +e.target.value
+  document.getElementById('gmul-v').textContent = (+e.target.value).toFixed(2) + '×'
+})
+document.getElementById('bmul').addEventListener('input', e => {
+  breatheMul = +e.target.value
+  document.getElementById('bmul-v').textContent = (+e.target.value).toFixed(2) + '×'
+})
+document.getElementById('theme').addEventListener('click', e => {
+  themeName = themeName === 'dark' ? 'light' : 'dark'
+  e.target.textContent = themeName
+  e.target.classList.toggle('on', themeName === 'dark')
+})
+
+let prev = performance.now()
+function frame(now){
+  const dt = Math.min(0.05, (now - prev) / 1000); prev = now
+  shine += ((running ? 1 : 0) - shine) * Math.min(1, dt * (running ? 1.4 : 1.1))
+  const aspect = fbi.width / fbi.height
+  const t = now / 1000
+  const th = T()
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbi.framebuffer)
+  gl.viewport(0, 0, fbi.width, fbi.height)
+  gl.disable(gl.BLEND)
+  let calls = 0
+  if (solo === 'all' || solo === 'sea') {
+    gl.useProgram(pSea.program)
+    twgl.setUniforms(pSea, {
+      uSea0: th.sea[0].map(f1), uSea1: th.sea[1].map(f1), uSea2: th.sea[2].map(f1),
+    })
+    gl.drawArrays(gl.TRIANGLES, 0, 3); calls++
+  } else { gl.clearColor(0, 0, 0, 1); gl.clear(gl.COLOR_BUFFER_BIT) }
+  gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+  if (solo === 'all' || solo === 'lights') {
+    gl.useProgram(pLight.program)
+    twgl.setBuffersAndAttributes(gl, pLight, lightBuf)
+    twgl.setUniforms(pLight, {
+      uTime: t, uShine: shine, uAspect: aspect, uRes: [fbi.width, fbi.height],
+      uCssH: canvas.clientHeight,
+      uRayCol: th.rays.map(r => r[0].map(f1)),
+      uRayA: th.rays.map(r => r[1]),
+      uBoostCol: th.boost[0].map(f1), uBoostA: th.boost[1],
+      uHaloCol: th.halo[0].map(f1), uHaloA: th.halo[1],
+      uVis: th.vis * glowMul, uBreath: breatheMul,
+    })
+    twgl.drawBufferInfo(gl, lightBuf, gl.TRIANGLE_STRIP, 4, 0, instances.length / STRIDE); calls++
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.viewport(0, 0, canvas.width, canvas.height)
+  gl.disable(gl.BLEND)
+  gl.useProgram(pBlit.program)
+  twgl.setUniforms(pBlit, { uTex: fbi.attachments[0] })
+  gl.drawArrays(gl.TRIANGLES, 0, 3); calls++
+  /* grid goes on the backbuffer at full res, crisp like the DOM lattice */
+  if (solo === 'all' || solo === 'grid') {
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+    gl.useProgram(pGrid.program)
+    twgl.setUniforms(pGrid, {
+      uRes: [canvas.width, canvas.height], uOn: 1,
+      uGrid: th.grid[0].map(f1), uAlpha: th.grid[1], uPitch: 32.0,
+    })
+    gl.drawArrays(gl.TRIANGLES, 0, 3); calls++
+  }
+
+  document.getElementById('stat').textContent =
+    `${calls} draw calls/frame · ${instances.length / STRIDE} instances (${rayCount} rays ×2 + 4 halos) in one draw · ${half ? 'half' : 'full'}-res ${themeName} (${fbi.width}×${fbi.height})`
+  requestAnimationFrame(frame)
+}
+requestAnimationFrame(frame)
+}
+</script>
+</body>
+</html>

@@ -31,7 +31,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame {
+  .frame,
+  .ideLayer {
     transition: none;
   }
 }
@@ -72,7 +73,7 @@
   width: 8px;
   margin-left: -4px;
   cursor: col-resize;
-  z-index: 11;
+  z-index: var(--dsh-z-handle);
   touch-action: none;
   /* Rides the same curve as the tracks so the pill stays on the moving
      border during collapse/expand; paused while dragging (frame rule). */
@@ -82,6 +83,55 @@
 .frame[data-dragging] .handle {
   transition: none;
 }
+
+/* The singleton IDE layer: it rides the right column's coordinate system
+   beside the right panel — same edge anchor, same slide, same fullscreen
+   presentation — so the layout's own geometry places it and nothing tracks a
+   rect in JS. It renders above the panel surface (document order, shared
+   --dsh-z-panel/--dsh-z-ide band) but below the chrome band (drag handles,
+   the panel's corner floats), and pointer events stay off unless the
+   occupant fills it: an empty layer must never swallow a hit. */
+.ideLayer {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--dsh-z-ide);
+  visibility: hidden;
+  transform: translateX(100%);
+  border-radius: var(--dsh-frame-card-radius);
+  overflow: hidden;
+  pointer-events: none;
+  transition:
+    transform var(--ds-transition-duration-slow) var(--ds-ease-in-out),
+    visibility 0s linear var(--ds-transition-duration-slow);
+}
+
+.frame[data-rightbar-shown] .ideLayer {
+  visibility: visible;
+  transform: none;
+  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
+}
+
+.frame[data-rightbar-swapped] .ideLayer {
+  right: auto;
+  left: 0;
+}
+
+.frame[data-rightbar-swapped]:not([data-rightbar-shown]) .ideLayer {
+  transform: translateX(-100%);
+}
+
+.frame[data-rightbar-fullscreen] .ideLayer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--dsh-z-fullscreen-ide);
+}
+
+.frame[data-dragging] .ideLayer {
+  transition: none;
+}
+
 
 /* Fullscreen covers the frame while its underlying columns enter or exit. */
 .frame[data-rightbar-fullscreen],
@@ -113,7 +163,7 @@
 .overlayLayer {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--dsh-z-shell-overlay);
   pointer-events: none;
 }
 

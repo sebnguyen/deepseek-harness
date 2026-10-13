@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DSH — unified theme proposal, v2 signature pass (mock)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,400;0,500;0,700;1,400&family=Ubuntu+Mono:ital,wght@0,400;0,700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   UNIFIED THEME PROPOSAL — one accent family, one prefix, one sheet
+   Sibling: design/THEME_AUDIT.md (findings this page renders).
+   · --ds-* is the single beneficiary prefix (BRAND_GUIDELINES: "DSH")
+   · values = DO walrus scale, declared ONCE (today duplicated per theme)
+   · accent = blue in BOTH themes (today: blue light / deepseek-teal dark)
+   · states re-derived from walrus rungs via color-mix (no Tailwind literals)
+   ============================================================ */
+:root{
+  --ds-neutral-50:#F7F8F8; --ds-neutral-100:#EEF0F0; --ds-neutral-150:#D9DEDE;
+  --ds-neutral-200:#C5CDCD; --ds-neutral-300:#919F9E; --ds-neutral-400:#738484;
+  --ds-neutral-500:#5D6C6C; --ds-neutral-600:#4C5858; --ds-neutral-700:#414A4B;
+  --ds-neutral-750:#2E3234; --ds-neutral-800:#25292A; --ds-neutral-850:#202426;
+  --ds-neutral-875:#1B1F21; --ds-neutral-900:#171B1D; --ds-neutral-950:#121618;
+  --ds-blue-100:#BFEAFE; --ds-blue-300:#93DEFD; --ds-blue-400:#61C8F9;
+  --ds-blue-450:#3CADF5; --ds-blue-500:#2691EA; --ds-blue-600:#1E7AD8;
+  --ds-blue-800:#1F61AE; --ds-blue-900:#1F5389;
+  --ds-teal-300:#94C6CC; --ds-teal-500:#458995;
+  --ds-violet-100:#F6EEF4; --ds-violet-300:#DDC4D8; --ds-violet-600:#9C668C;
+  --ds-violet-800:#845274; --ds-violet-950:#37202F;
+  --ds-green-100:#E4F4E6; --ds-green-400:#71B379; --ds-green-500:#397A41;
+  --ds-amber-100:#FCF8EE; --ds-amber-400:#DAA549; --ds-amber-500:#D08730;
+  --ds-red-400:#FCA5A5; --ds-red-600:#B91C1C;
+  --ds-radius-card:24px; --ds-radius-frame:14px; --ds-radius-row:10px;
+  --ds-ease:cubic-bezier(.4,0,.2,1); --ds-dur:.2s;
+  --ds-font-ui:'Ubuntu',-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;
+  --ds-font-code:'Ubuntu Mono','SF Mono','JetBrains Mono','Fira Code',Consolas,'Liberation Mono',Menlo,Courier,monospace;
+}
+html[data-theme=light]{
+  color-scheme:light;
+  --ds-gradient-ocean:linear-gradient(95deg,rgb(0,99,248),rgb(97,200,249) 55%,rgb(96,165,175));
+  --ds-ray-a:rgba(0,99,248,.18); --ds-ray-b:rgba(38,145,234,.26); --ds-ray-c:rgba(96,165,175,.16);
+  --ds-surface-0:#FFFFFF; --ds-surface-1:#FFFFFF; --ds-surface-2:#F7F8F8;
+  --ds-surface-3:#EEF0F0; --ds-surface-rail:#F7F8F8;
+  --ds-line-1:rgba(0,12,42,.04); --ds-line-2:rgba(0,12,42,.10);
+  --ds-line-3:rgba(0,12,42,.12); --ds-line-4:rgba(0,12,42,.16);
+  --ds-ink-1:rgb(0,12,42); --ds-ink-2:rgb(56,65,89); --ds-ink-3:#5D6C6C;
+  --ds-ink-4:#738484; --ds-ink-5:#919F9E; --ds-ink-inverted:#FFFFFF;
+  --ds-accent-fill:#0063F8; --ds-accent-hover:#0054CC;
+  --ds-accent-ink:#FFFFFF; --ds-accent-text:#1F61AE;
+  --ds-accent-soft:color-mix(in srgb,#0063F8 8%,transparent);
+  --ds-accent-soft-2:color-mix(in srgb,#0063F8 14%,transparent);
+  --ds-accent2-text:#9C668C; --ds-accent2-fill:#F6EEF4; --ds-accent2-line:#DDC4D8;
+  --ds-state-ok:#397A41;   --ds-state-ok-bg:color-mix(in srgb,#397A41 8%,transparent);
+  --ds-state-warn:#D08730; --ds-state-warn-bg:color-mix(in srgb,#D08730 10%,transparent);
+  --ds-state-err:#B91C1C;  --ds-state-err-bg:color-mix(in srgb,#B91C1C 7%,transparent);
+  --ds-fill-hover:rgba(57,65,65,.06); --ds-fill-active:rgba(57,65,65,.10);
+  --ds-fill-2:#EEF0F0; --ds-fill-tsp-secondary:color-mix(in srgb,#0063F8 8%,transparent);
+  --ds-separator:rgba(0,12,42,.10); --ds-scroll:rgba(0,12,42,.14); --ds-mask:rgba(0,0,0,.24);
+  --ds-tooltip-bg:#414A4B; --ds-toast-bg:#414A4B; --ds-toast-ink:#F7F8F8;
+  --ds-hovercard:#FFFFFF;
+  --ds-syn-fg:var(--ds-ink-1); --ds-syn-comment:#919F9E; --ds-syn-keyword:#B86827;
+  --ds-syn-punct:#5D6C6C; --ds-syn-string:#458995; --ds-syn-string-expr:#365D68;
+  --ds-syn-const:#1F61AE; --ds-syn-func:#9C668C; --ds-syn-param:#A54A34;
+  --ds-sea:linear-gradient(180deg,#FFFFFF 0%,rgb(247,248,248) 46%,rgb(239,250,255) 100%);
+  --ds-grid:color-mix(in srgb,#1F61AE 9%,transparent);
+  --ds-veil:rgba(247,248,248,.30); --ds-veil-strong:rgba(247,248,248,.66);
+}
+html[data-theme=dark]{
+  color-scheme:dark;
+  --ds-gradient-ocean:linear-gradient(95deg,rgb(38,145,234),rgb(97,200,249) 55%,rgb(148,198,204));
+  --ds-ray-a:rgba(38,145,234,.22); --ds-ray-b:rgba(97,200,249,.24); --ds-ray-c:rgba(96,165,175,.22);
+  --ds-surface-0:#121618; --ds-surface-1:#1B1F21; --ds-surface-2:#202426;
+  --ds-surface-3:#25292A; --ds-surface-rail:#171B1D;
+  --ds-line-1:rgba(247,248,248,.06); --ds-line-2:rgba(247,248,248,.12);
+  --ds-line-3:rgba(247,248,248,.16); --ds-line-4:rgba(247,248,248,.20);
+  --ds-ink-1:#F7F8F8; --ds-ink-2:rgb(160,162,163); --ds-ink-3:rgb(132,134,135);
+  --ds-ink-4:#738484; --ds-ink-5:#5D6C6C; --ds-ink-inverted:#000C2A;
+  --ds-accent-fill:#2691EA; --ds-accent-hover:#3CADF5;
+  --ds-accent-ink:#04121D; --ds-accent-text:#61C8F9;
+  --ds-accent-soft:color-mix(in srgb,#2691EA 14%,transparent);
+  --ds-accent-soft-2:color-mix(in srgb,#2691EA 22%,transparent);
+  --ds-accent2-text:#DDC4D8; --ds-accent2-fill:#37202F; --ds-accent2-line:#845274;
+  --ds-state-ok:#71B379;   --ds-state-ok-bg:color-mix(in srgb,#71B379 12%,transparent);
+  --ds-state-warn:#DAA549; --ds-state-warn-bg:color-mix(in srgb,#DAA549 12%,transparent);
+  --ds-state-err:#FCA5A5;  --ds-state-err-bg:color-mix(in srgb,#FCA5A5 10%,transparent);
+  --ds-fill-hover:rgba(255,255,255,.08); --ds-fill-active:rgba(255,255,255,.14);
+  --ds-fill-2:#25292A; --ds-fill-tsp-secondary:color-mix(in srgb,#2691EA 14%,transparent);
+  --ds-separator:rgba(247,248,248,.14); --ds-scroll:rgba(247,248,248,.16); --ds-mask:rgba(0,0,0,.5);
+  --ds-tooltip-bg:#414A4B; --ds-toast-bg:#F7F8F8; --ds-toast-ink:#121618;
+  --ds-hovercard:#25292A;
+  --ds-syn-fg:#F7F8F8; --ds-syn-comment:#738484; --ds-syn-keyword:#DAA549;
+  --ds-syn-punct:#C5CDCD; --ds-syn-string:#60A5AF; --ds-syn-string-expr:#C0DEE1;
+  --ds-syn-const:#61C8F9; --ds-syn-func:#DDC4D8; --ds-syn-param:#D48B63;
+  --ds-sea:linear-gradient(180deg,rgb(23,27,29) 0%,rgb(14,18,20) 48%,rgb(7,9,11) 100%);
+  --ds-grid:color-mix(in srgb,#919F9E 16%,transparent);
+  --ds-veil:rgba(10,12,14,.30); --ds-veil-strong:rgba(10,12,14,.58);
+}
+*{box-sizing:border-box}
+.app,.app *,.panel,.panel *{--ds-elev-stroke:0 0 0 .5px var(--ds-elev-line,var(--ds-line-3))}
+html,body{margin:0}
+body{font-family:var(--ds-font-ui);font-size:14px;line-height:22px;
+  background:var(--ds-surface-0);color:var(--ds-ink-1);-webkit-font-smoothing:antialiased}
+code,kbd,samp{font-family:var(--ds-font-code)}
+
+/* ------- mock shell ------- */
+.shell{max-width:1480px;margin:0 auto;padding:32px 28px 80px}
+.mock-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.mock-head .mark{width:32px;height:32px;border-radius:9px;background:var(--ds-gradient-ocean);display:grid;place-items:center;
+  box-shadow:0 2px 10px color-mix(in srgb,var(--ds-accent-fill) 35%,transparent)}
+.mock-head .mark svg{width:18px;height:18px;display:block;fill:#fff}
+.mock-head h1{font-size:19px;font-weight:600;margin:0}
+.mock-head .ver{font-size:11px;padding:1px 8px;border:1px solid var(--ds-line-3);border-radius:999px;color:var(--ds-ink-3)}
+.mock-head .spacer{flex:1}
+.theme-toggle{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--ds-ink-3);
+  cursor:pointer;border:none;background:none;font-family:inherit}
+.theme-toggle .tk{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;
+  border:.5px solid var(--ds-line-3);background:var(--ds-surface-2);color:var(--ds-ink-2)}
+.intro{max-width:920px;margin:16px 0 4px;color:var(--ds-ink-2);font-size:13.5px;line-height:1.62}
+.intro b{color:var(--ds-ink-1);font-weight:600}
+.intro code{font-size:12px;background:var(--ds-surface-2);border:.5px solid var(--ds-line-1);border-radius:6px;padding:0 5px;color:var(--ds-ink-1)}
+.sect-h{display:flex;align-items:baseline;gap:10px;margin:36px 0 14px}
+.sect-h h2{font-size:16px;font-weight:600;margin:0}
+.sect-h .n{font-family:var(--ds-font-code);font-size:11px;color:var(--ds-accent-text)}
+.sect-h .d{color:var(--ds-ink-4);font-size:12px}
+.panel{position:relative;background:var(--ds-surface-1);border-radius:var(--ds-radius-card);
+  --ds-elev-line:var(--ds-line-2);box-shadow:var(--ds-elev-stroke),0 3px 8px rgba(0,0,0,.03),0 0 20px rgba(0,0,0,.03)}
+html[data-theme=dark] .panel{box-shadow:var(--ds-elev-stroke),0 3px 8px rgba(0,0,0,.18),0 0 20px rgba(0,0,0,.14)}
+
+/* ------- §1 app frame ------- */
+.app{display:grid;grid-template-columns:228px minmax(0,1fr) 276px;height:880px;position:relative;overflow:hidden;
+  border-radius:var(--ds-radius-card)}
+.rail{background:var(--ds-surface-rail);border-right:.5px solid var(--ds-line-2);display:flex;flex-direction:column;min-height:0;position:relative;z-index:2}
+.brand{display:flex;align-items:center;gap:8px;padding:14px 14px 10px}
+/* brand lockup: white pixel mark on the ocean-gradient tile */
+.brand .m{width:24px;height:24px;border-radius:7px;background:var(--ds-gradient-ocean);color:#fff;display:grid;place-items:center;flex:none;
+  box-shadow:0 2px 8px color-mix(in srgb,var(--ds-accent-fill) 35%,transparent)}
+.brand .m svg{width:14px;height:14px;display:block;fill:#fff}
+.brand .w{font-weight:600;font-size:13.5px;letter-spacing:.2px}
+.brand .v{margin-left:auto;font-size:10px;color:var(--ds-ink-5)}
+.nav{padding:2px 8px;display:flex;flex-direction:column;gap:1px}
+.nav button{display:flex;align-items:center;gap:8px;height:28px;padding:0 8px;border:none;border-radius:8px;background:none;
+  color:var(--ds-ink-3);font-size:12.5px;text-align:left;font-family:inherit}
+.nav button.on{background:var(--ds-fill-2);color:var(--ds-ink-1)}
+.rail .h{padding:14px 14px 6px;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ds-ink-5)}
+.sessions{flex:1;padding:2px 8px;display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.sess{display:grid;grid-template-columns:8px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;font-size:12.5px;color:var(--ds-ink-2)}
+.sess .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .ago{font-size:10.5px;color:var(--ds-ink-5)}
+.sess.on{background:var(--ds-accent-soft);color:var(--ds-ink-1)}
+.sess.on .dot{background:var(--ds-accent-fill)}
+/* state language: pixel squares — the loader's vocabulary at furniture scale */
+.dot{width:7px;height:7px;border-radius:2.5px;background:var(--ds-ink-5);position:relative;flex:none}
+.dot[data-s=ok]{background:var(--ds-state-ok)}
+.dot[data-s=warn]{background:var(--ds-state-warn)}
+.dot[data-s=err]{background:var(--ds-state-err)}
+.dot[data-s=run]{background:var(--ds-accent-fill)}
+.dot[data-s=run]::before{content:"";position:absolute;inset:-3.5px;border-radius:3px;
+  border:1.5px solid color-mix(in srgb,var(--ds-accent-fill) 55%,transparent);animation:pixelsweep 1.2s step-end infinite}
+@keyframes pixelsweep{0%{opacity:1}31%{opacity:.35}100%{opacity:.18}}
+@keyframes ping{0%{transform:scale(.6);opacity:1}100%{transform:scale(1.25);opacity:0}}
+.rail .foot{border-top:.5px solid var(--ds-line-1);padding:10px 14px;display:flex;align-items:center;gap:8px;color:var(--ds-ink-4);font-size:11.5px}
+.main{position:relative;min-width:0;display:flex;flex-direction:column;background:var(--ds-surface-0)}
+.scene{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.scene .sea{position:absolute;inset:0;background:var(--ds-sea)}
+/* aurora beams: radial closest-side shafts, hinged like OceanScene's fan;
+   engine-state boost rides --ds-ray-boost/--ds-ray-sat on the .rayEngine host */
+.scene .ray{position:absolute;width:230px;height:150%;top:-25%;border-radius:50%;
+  background:radial-gradient(closest-side,var(--ds-ray-b),transparent 72%);filter:blur(14px);
+  animation:breathe 7s var(--ds-ease) infinite alternate}
+.scene .ray.r1{left:44%;background:radial-gradient(closest-side,var(--ds-ray-a),transparent 72%);transform:rotate(12deg)}
+.scene .ray.r2{left:60%;width:280px;background:radial-gradient(closest-side,var(--ds-ray-b),transparent 72%);transform:rotate(9deg);animation-delay:1.2s}
+.scene .ray.r3{left:78%;width:190px;background:radial-gradient(closest-side,var(--ds-ray-c),transparent 70%);transform:rotate(16deg);animation-delay:2.4s}
+@keyframes breathe{from{opacity:.38}to{opacity:1}}
+.scene .rays,.scene .rayEngine{position:absolute;inset:0;filter:brightness(var(--ds-ray-boost,1)) saturate(var(--ds-ray-sat,1))}
+.rayEngine.boost{--ds-ray-boost:1.28;--ds-ray-sat:1.14}
+@media (prefers-reduced-motion: reduce){.scene .ray{animation:none}}
+.scene .grid{position:absolute;inset:0;background-image:radial-gradient(circle at 1px 1px,var(--ds-grid) 1px,transparent 1.6px);background-size:28px 28px;opacity:.55}
+.scene .veil{position:absolute;inset:0;background:linear-gradient(180deg,transparent,var(--ds-veil) 70%,var(--ds-veil-strong))}
+.tabs{display:flex;gap:4px;align-items:flex-end;height:38px;padding:10px 10px 0;position:relative;z-index:2;flex:none}
+.tab{display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:12px;color:var(--ds-ink-3);
+  font-size:12.5px;border:none;background:none;position:relative;font-family:inherit}
+.tab .x{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;color:var(--ds-ink-4);font-size:10px}
+.tab.on{color:var(--ds-ink-1);background:var(--ds-surface-3)}
+.tab.on::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:2px;border-radius:2px;background:var(--ds-gradient-ocean)}
+.tab .tag{font-size:10px;padding:0 6px;border-radius:99px;background:var(--ds-accent-soft);color:var(--ds-accent-text)}
+.tabs .grow{flex:1}
+.chat{position:relative;z-index:2;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.chat-scroll{flex:1;overflow:hidden;padding:16px 24px 10px;display:flex;justify-content:center}
+.col{width:100%;max-width:700px;display:flex;flex-direction:column;gap:12px}
+.msg-u{align-self:flex-end;max-width:76%;background:var(--ds-accent2-fill);color:var(--ds-ink-1);
+  padding:8px 12px;border-radius:14px;font-size:13.5px;line-height:20px}
+.msg-a{font-size:13.5px;line-height:21px;color:var(--ds-ink-1)}
+.msg-a p{margin:8px 0}
+.msg-a ul{margin:6px 0;padding-left:18px}
+.msg-a li:not(:first-child){margin-top:4px}
+.msg-a a{color:var(--ds-accent-text);font-weight:500;text-decoration:none}
+.hint{display:flex;align-items:center;gap:8px;color:var(--ds-ink-4);font-size:12.5px}
+.hint .tw{width:14px;height:14px;color:var(--ds-accent-text);flex:none;display:grid;place-items:center}
+.hint .tw svg{width:14px;height:14px;display:block;fill:currentColor}
+.hero{position:relative;overflow:hidden;min-height:430px;display:grid;place-items:center;text-align:center;border-radius:var(--ds-radius-card)}
+.hero .scene .ray{animation-duration:5.5s}
+.hero .inner{position:relative;z-index:2;padding:64px 24px 56px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.hero .twl{width:96px;height:96px;color:var(--ds-accent-text)}
+.hero .twl svg{width:96px;height:96px;display:block;fill:currentColor}
+.hero h2{margin:6px 0 0;font-size:38px;line-height:44px;font-weight:500;letter-spacing:-.01em;
+  background:var(--ds-gradient-ocean);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero .sub{max-width:520px;color:var(--ds-ink-3);font-size:14.5px;line-height:22px;margin:0}
+.hero .cta{display:flex;gap:10px;margin-top:8px}
+.hero .btn.ocean{background:var(--ds-gradient-ocean);color:#fff;box-shadow:0 2px 12px color-mix(in srgb,var(--ds-accent-fill) 38%,transparent)}
+.hero .hintline{margin-top:4px;font-size:11px;color:var(--ds-ink-5)}
+.hero .engine{position:absolute;left:18px;bottom:14px;z-index:2;display:flex;gap:8px;align-items:center;
+  font-size:10.5px;color:var(--ds-ink-4);background:color-mix(in srgb,var(--ds-surface-1) 72%,transparent);
+  border:.5px solid var(--ds-line-2);border-radius:8px;padding:3px 8px}
+.hero .engine b{color:var(--ds-accent-text);font-weight:500}
+.hint .chev{display:inline-block;width:14px;height:14px;place-items:center;color:var(--ds-ink-4);font-size:9px}
+icode{font-family:var(--ds-font-code);font-size:.875em;background:var(--ds-surface-2);
+  border:.5px solid var(--ds-line-1);border-radius:6px;padding:0 5px;color:var(--ds-ink-1)}
+pre{margin:8px 0;background:var(--ds-surface-2);border:.5px solid var(--ds-line-1);border-radius:10px;
+  padding:10px 12px;overflow:auto;font-family:var(--ds-font-code);font-size:11.5px;line-height:18px;color:var(--ds-syn-fg)}
+pre .c{color:var(--ds-syn-comment)} pre .k{color:var(--ds-syn-keyword)} pre .s{color:var(--ds-syn-string)}
+pre .n{color:var(--ds-syn-const)} pre .f{color:var(--ds-syn-func)} pre .p{color:var(--ds-syn-punct)}
+pre .v{color:var(--ds-syn-param)}
+/* tool rows */
+.tool{border:.5px solid transparent;border-radius:var(--ds-radius-frame);overflow:hidden}
+.tool>.head{display:flex;align-items:center;gap:8px;min-height:34px;padding:4px 10px}
+.tool>.head .chev{color:var(--ds-ink-4);font-size:9px;width:12px;text-align:center}
+.tool>.head .t{font-size:12.5px;font-weight:500}
+.tool>.head .sum{flex:1;font-family:var(--ds-font-code);font-size:11.5px;color:var(--ds-ink-3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tool>.head .dur{font-size:11px;color:var(--ds-ink-5)}
+.tool:hover{background:var(--ds-fill-hover)}
+.tool .body{border-top:.5px solid var(--ds-line-1);background:var(--ds-surface-2);padding:8px 12px;
+  font-family:var(--ds-font-code);font-size:11.5px;line-height:18px}
+.tool .body .ln-out{color:var(--ds-ink-2)} .tool .body .ln-dim{color:var(--ds-ink-4)}
+.diff-row{display:flex;gap:8px;padding:1px 0}
+.diff-row .g{width:12px;flex:none;text-align:center}
+.diff-row.add .g{color:var(--ds-state-ok)} .diff-row.del .g{color:var(--ds-state-err)}
+.diff-row.add .c{background:var(--ds-state-ok-bg);color:var(--ds-ink-1);width:100%;padding:0 6px;border-radius:4px}
+.diff-row.del .c{background:var(--ds-state-err-bg);width:100%;padding:0 6px;border-radius:4px;color:var(--ds-ink-1)}
+/* attachment chips */
+.chips{display:flex;gap:8px;flex-wrap:wrap}
+.fchip{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;
+  border:.5px solid var(--ds-line-2);background:var(--ds-surface-1);font-size:12px;color:var(--ds-ink-2)}
+.fchip .fx{width:14px;height:14px;border-radius:4px;display:grid;place-items:center;font-size:8px;font-weight:600;color:#fff;flex:none}
+.fchip .fsize{color:var(--ds-ink-5);font-size:11px}
+.fchip.err{border-color:var(--ds-state-err);color:var(--ds-state-err)}
+.fchip.err .fx{background:var(--ds-state-err)}
+.fchip.warn{background:color-mix(in srgb,var(--ds-state-warn) 8%,transparent);color:var(--ds-state-warn);border-color:transparent}
+/* stats pills — separator demo (was --dsw-alias-separator-primary: unset) */
+.pills{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:none;border-radius:12px;
+  font-size:12px;line-height:18px;color:var(--ds-ink-3);background:var(--ds-fill-2);font-family:inherit}
+.pill b{color:var(--ds-ink-1);font-weight:500}
+.pill[data-t=hi]{color:var(--ds-accent-text);background:var(--ds-accent-soft)}
+.pill[data-t=ok]{color:var(--ds-state-ok);background:var(--ds-state-ok-bg)}
+.sep{width:.5px;height:14px;background:var(--ds-separator);flex:none}
+/* composer */
+.composer{position:relative;z-index:2;flex:none;padding:6px 24px 16px;display:flex;justify-content:center}
+.comp{width:100%;max-width:700px;background:var(--ds-surface-2);border-radius:var(--ds-radius-frame);
+  --ds-elev-line:var(--ds-line-3);box-shadow:var(--ds-elev-stroke),0 4px 16px rgba(0,0,0,.05),0 0 24px rgba(0,0,0,.04);
+  padding:12px 12px 10px;display:flex;flex-direction:column;gap:8px}
+.comp .ph{color:var(--ds-ink-4);font-size:13.5px}
+.comp .row{display:flex;align-items:center;gap:6px}
+.comp .kbtn{width:28px;height:28px;border-radius:8px;border:none;background:none;color:var(--ds-ink-3);font-size:13px;display:grid;place-items:center}
+.comp .mpill{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:12px;
+  background:var(--ds-fill-2);color:var(--ds-ink-2);font-size:11.5px;border:none;font-family:inherit}
+.comp .grow{flex:1}
+.send{width:28px;height:28px;border:none;border-radius:10px;background:var(--ds-gradient-ocean);color:#fff;
+  font-size:14px;display:grid;place-items:center;box-shadow:0 2px 10px color-mix(in srgb,var(--ds-accent-fill) 35%,transparent)}
+.send:hover{filter:brightness(1.07) saturate(1.05)}
+/* right rail */
+.side{background:var(--ds-surface-rail);border-left:.5px solid var(--ds-line-2);padding:14px;
+  display:flex;flex-direction:column;gap:12px;min-height:0;position:relative;z-index:2}
+.card{background:var(--ds-surface-1);border-radius:var(--ds-radius-frame);padding:12px;
+  --ds-elev-line:var(--ds-line-2);box-shadow:var(--ds-elev-stroke)}
+.card .ct{font-size:12px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.ag{display:grid;grid-template-columns:14px 1fr;gap:0 8px}
+.ag .row{display:contents;font-size:12px}
+.ag .tick{height:20px;display:grid;place-items:center;color:var(--ds-state-ok);font-size:10px}
+.ag .lbl{line-height:20px;color:var(--ds-ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ag .row.cur .lbl{color:var(--ds-ink-1)}
+.ag .row.todo .lbl{color:var(--ds-ink-4)}
+.ag .row.cur .tick{color:var(--ds-accent-text)}
+.ag .row.todo .tick{color:var(--ds-ink-5)}
+/* subagent seat — the label-quaternary fix */
+.seat{display:flex;align-items:center;gap:10px;padding:2px 0}
+.seat .av{width:26px;height:26px;border-radius:8px;background:var(--ds-accent2-fill);color:var(--ds-accent2-text);
+  display:grid;place-items:center;font-size:11px;font-weight:600;flex:none}
+.seat .nm{font-size:12.5px;font-weight:500;line-height:16px}
+.seat .meta{font-size:11px;color:var(--ds-ink-4);line-height:15px}  /* FIX: --ds-ink-4 = the quaternary rung */
+/* activity rows — the fill-l2 fix */
+.actrow{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;font-size:12px;color:var(--ds-ink-2)}
+.actrow .fill{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:7px;
+  background:var(--ds-fill-2);color:var(--ds-ink-3);font-size:10px;flex:none}   /* FIX: --ds-fill-2 now defined */
+.actrow .tx{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actrow .ago{font-size:10.5px;color:var(--ds-ink-5)}
+.side .legend{margin-top:auto;font-size:10.5px;color:var(--ds-ink-5);display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.side .legend i{display:inline-flex;width:6px;height:6px;border-radius:50%;margin-right:4px;vertical-align:1px}
+</style>
+<style>
+/* ------- §2 gallery ------- */
+.gal{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.gcard{padding:14px;display:flex;flex-direction:column;gap:12px;min-height:124px}
+.gcard .gt{font-size:12px;font-weight:600;color:var(--ds-ink-1)}
+.gcard .gs{font-size:11px;color:var(--ds-ink-4)}
+.rowflex{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:36px;padding:0 14px;
+  border:none;border-radius:999px;cursor:default;font-family:inherit;font-size:13.5px;
+  color:var(--ds-ink-1);background:transparent}
+.btn.sm{height:28px;font-size:12px;padding:0 10px;border-radius:999px}
+.btn.pri{background:var(--ds-accent-fill);color:var(--ds-accent-ink)}
+.btn.pri:hover{background:var(--ds-accent-hover)}
+.btn.gho:hover{background:var(--ds-fill-hover)}
+.btn.gho.hov{background:var(--ds-fill-hover)}
+.btn.out{border:.5px solid var(--ds-line-4);background:transparent;height:35px}
+.btn.tbr{background:color-mix(in srgb,var(--ds-ink-3) 42%,transparent);color:var(--ds-ink-inverted)}
+.btn.dis{opacity:.4;cursor:not-allowed}
+/* tags */
+.tag{display:inline-flex;align-items:center;border-radius:999px;padding:1px 8px;font-size:11px;line-height:17px;font-weight:500;white-space:nowrap}
+.tag[data-t=outline]{border:.5px solid var(--ds-line-4);color:var(--ds-ink-4)}
+.tag[data-t=solid]{background:var(--ds-ink-1);color:var(--ds-surface-1)}
+.tag[data-t=neutral]{background:var(--ds-fill-2);color:var(--ds-ink-2)}
+.tag[data-t=quiet]{color:var(--ds-ink-4);padding:1px 2px}
+.tag[data-t=success]{background:var(--ds-state-ok-bg);color:var(--ds-state-ok)}
+.tag[data-t=info]{background:var(--ds-accent-soft);color:var(--ds-accent-text)}
+.tag[data-t=warning]{background:var(--ds-state-warn-bg);color:var(--ds-state-warn)}
+.tag[data-t=danger]{background:var(--ds-state-err-bg);color:var(--ds-state-err)}
+/* switch */
+.sw{position:relative;width:36px;height:20px;padding:2px;border:0;border-radius:10px;background:var(--ds-line-3);flex:none}
+.sw i{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff}
+.sw[aria-checked=true]{background:var(--ds-accent-fill)}
+.sw[aria-checked=true] i{transform:translateX(16px)}
+.swrow{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ds-ink-2)}
+/* input */
+.inpwrap{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border:.5px solid var(--ds-line-4);
+  border-radius:8px;background:var(--ds-surface-2);color:var(--ds-ink-4);font-size:12.5px;width:100%}
+.inpwrap.focus{border-color:var(--ds-accent-fill);box-shadow:0 0 0 2px var(--ds-accent-soft-2)}
+.inpwrap .pv{flex:1;color:var(--ds-ink-1)}
+.inpwrap .caret{width:1px;height:16px;background:var(--ds-accent-fill)}
+/* menu */
+.menu{padding:4px;border-radius:14px;background:var(--ds-surface-1);width:216px;
+  --ds-elev-line:var(--ds-line-2);box-shadow:var(--ds-elev-stroke),0 4px 20px rgba(0,0,0,.10)}
+.menu .mi{display:flex;align-items:center;gap:8px;min-height:32px;padding:4px 10px;border-radius:9px;
+  font-size:12.5px;color:var(--ds-ink-1)}
+.menu .mi .k{margin-left:auto;font-size:11px;color:var(--ds-ink-4);font-family:var(--ds-font-code)}
+.menu .mi.hov{background:var(--ds-fill-hover)}
+.menu .mi.dgr,.menu .mi.dgr i{color:var(--ds-state-err)}
+.menu .sep2{height:.5px;margin:4px 2px;background:var(--ds-line-2)}
+.menu .lbl{padding:6px 10px 4px;font-size:11px;color:var(--ds-ink-4)}
+.menu .mi i{width:14px;text-align:center;color:var(--ds-ink-4);font-style:normal;font-size:11px}
+/* tooltip & toast */
+.tip{position:relative;background:var(--ds-tooltip-bg);color:#F7F8F8;font-size:12.5px;line-height:18px;
+  border-radius:8px;padding:4px 8px;width:max-content;max-width:240px}
+.tip::before{content:"";position:absolute;left:50%;top:-3px;width:6px;height:6px;background:inherit;
+  transform:translateX(-50%) rotate(45deg)}
+.toast{display:flex;align-items:center;gap:10px;background:var(--ds-toast-bg);color:var(--ds-toast-ink);
+  border-radius:14px;padding:10px 14px;font-size:12.5px;width:max-content;max-width:100%;
+  box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.toast .ti{width:16px;height:16px;color:var(--ds-state-warn);flex:none;font-size:12px}
+/* modal risk */
+.mframe{position:relative;border-radius:14px;padding:22px 0 0;background:
+  linear-gradient(var(--ds-mask),var(--ds-mask)),var(--ds-surface-2)}
+.modal{margin:0 auto;width:min(330px,100%);background:var(--ds-surface-1);border-radius:16px 16px 0 0;
+  padding:16px 16px 12px;box-shadow:var(--ds-elev-stroke),0 12px 32px rgba(0,0,0,.16)}
+.modal .mh{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;margin-bottom:8px}
+.modal .mh .wi{color:var(--ds-state-err);font-size:13px}
+.modal p{margin:0 0 10px;font-size:12.5px;color:var(--ds-ink-2);line-height:1.55}
+.modal .ack{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ds-ink-1);margin-bottom:12px}
+.modal .ack input{margin:3px 0 0;accent-color:var(--ds-accent-fill)}
+.modal .mfoot{display:flex;gap:8px;justify-content:flex-end}
+.modal .mfoot .btn{height:30px;font-size:12.5px;padding:0 12px}
+.btn.dgr{background:var(--ds-state-err);color:#121618}
+html[data-theme=light] .btn.dgr{color:#fff}
+/* pixel loader */
+.ldr{display:flex;align-items:center;gap:14px}
+.ldr svg{width:56px;height:56px;color:var(--ds-accent-text)}
+.ldr .cap{font-size:12px;color:var(--ds-ink-3)}
+.ldr .cap b{display:block;color:var(--ds-ink-1);font-weight:600;font-size:13px}
+/* syntax legend */
+.synx{display:flex;flex-direction:column;gap:4px;font-family:var(--ds-font-code);font-size:11.5px}
+.synx .srow{display:flex;gap:8px;align-items:center}
+.synx .swatch{width:10px;height:10px;border-radius:3px;flex:none}
+.synx .snm{color:var(--ds-ink-3);flex:1}
+.synx .sample{font-family:var(--ds-font-code)}
+/* ------- §3 fixes ------- */
+.fix-grid{display:grid;grid-template-columns:1fr;gap:0}
+.fix{}
+.fix .fx-h{display:flex;align-items:baseline;gap:8px;padding:10px 16px;border-top:.5px solid var(--ds-line-1)}
+.fix:first-child .fx-h{border-top:0}
+.fix .fx-h .tok{font-family:var(--ds-font-code);font-size:11px;color:var(--ds-state-err);
+  background:var(--ds-state-err-bg);padding:0 6px;border-radius:4px}
+.fix .fx-h .nw{font-family:var(--ds-font-code);font-size:11px;color:var(--ds-state-ok);
+  background:var(--ds-state-ok-bg);padding:0 6px;border-radius:4px}
+.fix .fx-h .file{margin-left:auto;font-family:var(--ds-font-code);font-size:10.5px;color:var(--ds-ink-5)}
+.fix .cmp{display:grid;grid-template-columns:1fr 1fr;border-top:.5px solid var(--ds-line-1)}
+.fix .cell{padding:14px 16px;display:flex;flex-direction:column;gap:8px;justify-content:center}
+.fix .cell+.cell{border-left:.5px solid var(--ds-line-1)}
+.fix .cell .lab{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--ds-ink-5)}
+.fix .cell.after .lab{color:var(--ds-state-ok)}
+.fix .cell.before{background:color-mix(in srgb,var(--ds-state-err) 3%,transparent)}
+/* ------- §4 token sheet ------- */
+.tsheet{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;padding:8px 16px 16px}
+.tg{padding:6px 0 2px;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ds-ink-5);
+  grid-column:1/-1;border-top:.5px solid var(--ds-line-1);margin-top:10px}
+.tg:first-of-type{margin-top:0;border-top:0}
+.trow{display:flex;align-items:center;gap:8px;padding:2.5px 0;font-size:11px}
+.trow .nm{font-family:var(--ds-font-code);color:var(--ds-ink-2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trow .sw{width:12px;height:12px;border-radius:3px;box-shadow:inset 0 0 0 .5px rgba(127,127,127,.35);flex:none}
+.trow .wv{font-family:var(--ds-font-code);font-size:10px;color:var(--ds-ink-4);width:96px;text-align:right}
+/* ------- §5 map ------- */
+.map{width:100%;border-collapse:collapse;font-size:12px;margin:0 0 4px}
+.map th{font-weight:600;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ds-ink-5);
+  text-align:left;padding:8px 16px;border-top:.5px solid var(--ds-line-1)}
+.map td{padding:7px 16px;border-top:.5px solid var(--ds-line-1);vertical-align:top}
+.map td code{font-size:11px}
+.map .old{color:var(--ds-ink-2)}
+.map .new{color:var(--ds-accent-text)}
+.map .act{font-size:10.5px;font-weight:600;padding:1px 8px;border-radius:99px;white-space:nowrap}
+.act.rn{background:var(--ds-accent-soft);color:var(--ds-accent-text)}
+.act.dl{background:var(--ds-state-err-bg);color:var(--ds-state-err)}
+.act.kp{background:var(--ds-fill-2);color:var(--ds-ink-3)}
+.foot{margin:26px 0 0;font-size:11.5px;color:var(--ds-ink-4);max-width:920px;line-height:1.6}
+.foot code{font-size:10.5px;background:var(--ds-surface-2);border:.5px solid var(--ds-line-1);border-radius:6px;padding:0 5px}
+</style>
+</head>
+<body>
+<div class="shell">
+  <header class="mock-head">
+    <span class="mark"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.1 0.1h0.8v0.8h-0.8zM11.1 0.1h0.8v0.8h-0.8zM12.1 0.1h0.8v0.8h-0.8zM13.1 0.1h0.8v0.8h-0.8zM10.1 1.1h0.8v0.8h-0.8zM11.1 1.1h0.8v0.8h-0.8zM12.1 1.1h0.8v0.8h-0.8zM13.1 1.1h0.8v0.8h-0.8zM14.1 0.1h0.8v0.8h-0.8zM15.1 0.1h0.8v0.8h-0.8zM10.1 2.1h0.8v0.8h-0.8zM11.1 2.1h0.8v0.8h-0.8zM12.1 2.1h0.8v0.8h-0.8zM13.1 2.1h0.8v0.8h-0.8zM14.1 2.1h0.8v0.8h-0.8zM15.1 2.1h0.8v0.8h-0.8zM16.1 2.1h0.8v0.8h-0.8zM17.1 2.1h0.8v0.8h-0.8zM10.1 3.1h0.8v0.8h-0.8zM11.1 3.1h0.8v0.8h-0.8zM12.1 3.1h0.8v0.8h-0.8zM13.1 3.1h0.8v0.8h-0.8zM14.1 3.1h0.8v0.8h-0.8zM15.1 3.1h0.8v0.8h-0.8zM16.1 3.1h0.8v0.8h-0.8zM17.1 3.1h0.8v0.8h-0.8zM18.1 3.1h0.8v0.8h-0.8zM11.1 4.1h0.8v0.8h-0.8zM12.1 4.1h0.8v0.8h-0.8zM13.1 4.1h0.8v0.8h-0.8zM14.1 4.1h0.8v0.8h-0.8zM15.1 4.1h0.8v0.8h-0.8zM16.1 4.1h0.8v0.8h-0.8zM17.1 4.1h0.8v0.8h-0.8zM18.1 4.1h0.8v0.8h-0.8zM19.1 4.1h0.8v0.8h-0.8zM15.1 5.1h0.8v0.8h-0.8zM16.1 5.1h0.8v0.8h-0.8zM17.1 5.1h0.8v0.8h-0.8zM18.1 5.1h0.8v0.8h-0.8zM19.1 5.1h0.8v0.8h-0.8zM20.1 5.1h0.8v0.8h-0.8zM21.1 5.1h0.8v0.8h-0.8zM17.1 6.1h0.8v0.8h-0.8zM18.1 6.1h0.8v0.8h-0.8zM19.1 6.1h0.8v0.8h-0.8zM20.1 6.1h0.8v0.8h-0.8zM20.1 7.1h0.8v0.8h-0.8zM21.1 7.1h0.8v0.8h-0.8zM22.1 7.1h0.8v0.8h-0.8zM19.1 7.1h0.8v0.8h-0.8zM18.1 8.1h0.8v0.8h-0.8zM19.1 8.1h0.8v0.8h-0.8zM20.1 8.1h0.8v0.8h-0.8zM21.1 8.1h0.8v0.8h-0.8zM22.1 8.1h0.8v0.8h-0.8zM23.1 8.1h0.8v0.8h-0.8zM19.1 9.1h0.8v0.8h-0.8zM20.1 9.1h0.8v0.8h-0.8zM21.1 9.1h0.8v0.8h-0.8zM22.1 9.1h0.8v0.8h-0.8zM23.1 9.1h0.8v0.8h-0.8zM20.1 10.1h0.8v0.8h-0.8zM21.1 10.1h0.8v0.8h-0.8zM22.1 10.1h0.8v0.8h-0.8zM23.1 10.1h0.8v0.8h-0.8zM19.1 11.1h0.8v0.8h-0.8zM20.1 11.1h0.8v0.8h-0.8zM23.1 11.1h0.8v0.8h-0.8zM19.1 12.1h0.8v0.8h-0.8zM20.1 12.1h0.8v0.8h-0.8zM23.1 12.1h0.8v0.8h-0.8zM20.1 13.1h0.8v0.8h-0.8zM19.1 13.1h0.8v0.8h-0.8zM19.1 14.1h0.8v0.8h-0.8zM20.1 14.1h0.8v0.8h-0.8zM21.1 14.1h0.8v0.8h-0.8zM18.1 15.1h0.8v0.8h-0.8zM19.1 15.1h0.8v0.8h-0.8zM20.1 15.1h0.8v0.8h-0.8zM18.1 16.1h0.8v0.8h-0.8zM19.1 16.1h0.8v0.8h-0.8zM18.1 17.1h0.8v0.8h-0.8zM19.1 17.1h0.8v0.8h-0.8zM18.1 18.1h0.8v0.8h-0.8zM18.1 19.1h0.8v0.8h-0.8zM14.1 19.1h0.8v0.8h-0.8zM15.1 19.1h0.8v0.8h-0.8zM14.1 20.1h0.8v0.8h-0.8zM15.1 20.1h0.8v0.8h-0.8zM14.1 21.1h0.8v0.8h-0.8zM15.1 21.1h0.8v0.8h-0.8zM14.1 22.1h0.8v0.8h-0.8zM15.1 22.1h0.8v0.8h-0.8zM11.1 15.1h0.8v0.8h-0.8zM11.1 16.1h0.8v0.8h-0.8zM12.1 15.1h0.8v0.8h-0.8zM12.1 16.1h0.8v0.8h-0.8zM10.1 15.1h0.8v0.8h-0.8zM9.1 16.1h0.8v0.8h-0.8zM10.1 16.1h0.8v0.8h-0.8zM8.1 17.1h0.8v0.8h-0.8zM9.1 17.1h0.8v0.8h-0.8zM8.1 18.1h0.8v0.8h-0.8zM7.1 15.1h0.8v0.8h-0.8zM8.1 15.1h0.8v0.8h-0.8zM9.1 15.1h0.8v0.8h-0.8zM7.1 16.1h0.8v0.8h-0.8zM8.1 16.1h0.8v0.8h-0.8zM12.1 17.1h0.8v0.8h-0.8zM12.1 18.1h0.8v0.8h-0.8zM6.1 20.1h0.8v0.8h-0.8zM6.1 21.1h0.8v0.8h-0.8zM12.1 19.1h0.8v0.8h-0.8zM13.1 19.1h0.8v0.8h-0.8zM12.1 20.1h0.8v0.8h-0.8zM13.1 20.1h0.8v0.8h-0.8zM12.1 21.1h0.8v0.8h-0.8zM13.1 21.1h0.8v0.8h-0.8zM12.1 22.1h0.8v0.8h-0.8zM13.1 22.1h0.8v0.8h-0.8zM14.1 23.1h0.8v0.8h-0.8zM4.1 19.1h0.8v0.8h-0.8zM5.1 19.1h0.8v0.8h-0.8zM4.1 20.1h0.8v0.8h-0.8zM5.1 20.1h0.8v0.8h-0.8zM5.1 22.1h0.8v0.8h-0.8zM4.1 21.1h0.8v0.8h-0.8zM3.1 16.1h0.8v0.8h-0.8zM2.1 16.1h0.8v0.8h-0.8zM1.1 16.1h0.8v0.8h-0.8zM3.1 17.1h0.8v0.8h-0.8zM2.1 17.1h0.8v0.8h-0.8zM1.1 17.1h0.8v0.8h-0.8zM1.1 18.1h0.8v0.8h-0.8zM0.1 10.1h0.8v0.8h-0.8zM1.1 10.1h0.8v0.8h-0.8zM2.1 10.1h0.8v0.8h-0.8zM3.1 10.1h0.8v0.8h-0.8zM0.1 11.1h0.8v0.8h-0.8zM1.1 11.1h0.8v0.8h-0.8zM2.1 11.1h0.8v0.8h-0.8zM3.1 11.1h0.8v0.8h-0.8zM4.1 11.1h0.8v0.8h-0.8zM1.1 12.1h0.8v0.8h-0.8zM2.1 12.1h0.8v0.8h-0.8zM3.1 12.1h0.8v0.8h-0.8zM1.1 6.1h0.8v0.8h-0.8zM2.1 6.1h0.8v0.8h-0.8zM3.1 6.1h0.8v0.8h-0.8zM1.1 7.1h0.8v0.8h-0.8zM2.1 7.1h0.8v0.8h-0.8zM3.1 7.1h0.8v0.8h-0.8zM4.1 7.1h0.8v0.8h-0.8zM0.1 8.1h0.8v0.8h-0.8zM1.1 8.1h0.8v0.8h-0.8zM2.1 8.1h0.8v0.8h-0.8zM3.1 8.1h0.8v0.8h-0.8zM4.1 8.1h0.8v0.8h-0.8zM5.1 8.1h0.8v0.8h-0.8zM0.1 9.1h0.8v0.8h-0.8zM1.1 9.1h0.8v0.8h-0.8zM2.1 9.1h0.8v0.8h-0.8zM3.1 9.1h0.8v0.8h-0.8zM4.1 9.1h0.8v0.8h-0.8zM4.1 10.1h0.8v0.8h-0.8zM5.1 2.1h0.8v0.8h-0.8zM4.1 3.1h0.8v0.8h-0.8zM5.1 3.1h0.8v0.8h-0.8zM3.1 4.1h0.8v0.8h-0.8zM4.1 4.1h0.8v0.8h-0.8zM5.1 4.1h0.8v0.8h-0.8zM6.1 4.1h0.8v0.8h-0.8zM2.1 5.1h0.8v0.8h-0.8zM3.1 5.1h0.8v0.8h-0.8zM4.1 5.1h0.8v0.8h-0.8zM5.1 5.1h0.8v0.8h-0.8zM6.1 5.1h0.8v0.8h-0.8zM7.1 5.1h0.8v0.8h-0.8zM4.1 6.1h0.8v0.8h-0.8zM5.1 6.1h0.8v0.8h-0.8zM6.1 6.1h0.8v0.8h-0.8zM5.1 7.1h0.8v0.8h-0.8zM9.1 0.1h0.8v0.8h-0.8zM6.1 1.1h0.8v0.8h-0.8zM7.1 1.1h0.8v0.8h-0.8zM8.1 1.1h0.8v0.8h-0.8zM9.1 1.1h0.8v0.8h-0.8zM6.1 2.1h0.8v0.8h-0.8zM7.1 2.1h0.8v0.8h-0.8zM8.1 2.1h0.8v0.8h-0.8zM9.1 2.1h0.8v0.8h-0.8zM6.1 3.1h0.8v0.8h-0.8zM7.1 3.1h0.8v0.8h-0.8zM8.1 3.1h0.8v0.8h-0.8zM9.1 3.1h0.8v0.8h-0.8zM7.1 4.1h0.8v0.8h-0.8zM8.1 4.1h0.8v0.8h-0.8zM9.1 4.1h0.8v0.8h-0.8zM10.1 4.1h0.8v0.8h-0.8zM8.1 5.1h0.8v0.8h-0.8z"/></svg></span>
+    <h1>Unified theme — full app mock</h1>
+    <span class="ver">proposal · v1</span>
+    <span class="spacer"></span>
+    <button class="theme-toggle" id="themeToggle" type="button">
+      <span class="tk" id="themeLabel">☾ dark</span>
+      <span>toggle</span>
+    </button>
+  </header>
+
+  <p class="intro">
+    <b>v2 signature pass</b>: Ubuntu face (DO's brand face) · living ocean aurora with engine-state boost · pixel-mark language at every scale · gradient-ocean brand lockups.<br>
+    Renders the audit's end-state (<code>design/THEME_AUDIT.md</code>) as one self-contained page:
+    <b>one blue accent family across light and dark</b> (luminance adapts, hue doesn't),<br>
+    walrus <b>bluish neutral ladder</b> declared once, states re-derived from walrus rungs via <code>color-mix</code>,
+    every token namespaced under a single <code>--ds-*</code> prefix — and all
+    <b>8 broken <code>var()</code> references fixed in place</b> (§3). Everything on this page is token-driven;toggle the theme in the header: one decision, both themes re-paint.
+  </p>
+
+  <div class="sect-h"><h2>The application</h2><span class="n">01</span><span class="d">frame · rail · tabs · conversation · composer · agenda — one accent story end to end</span></div>
+
+  <section class="panel" id="frame">
+    <div class="app">
+      <!-- left rail -->
+      <aside class="rail">
+        <div class="brand">
+          <span class="m"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.1 0.1h0.8v0.8h-0.8zM11.1 0.1h0.8v0.8h-0.8zM12.1 0.1h0.8v0.8h-0.8zM13.1 0.1h0.8v0.8h-0.8zM10.1 1.1h0.8v0.8h-0.8zM11.1 1.1h0.8v0.8h-0.8zM12.1 1.1h0.8v0.8h-0.8zM13.1 1.1h0.8v0.8h-0.8zM14.1 0.1h0.8v0.8h-0.8zM15.1 0.1h0.8v0.8h-0.8zM10.1 2.1h0.8v0.8h-0.8zM11.1 2.1h0.8v0.8h-0.8zM12.1 2.1h0.8v0.8h-0.8zM13.1 2.1h0.8v0.8h-0.8zM14.1 2.1h0.8v0.8h-0.8zM15.1 2.1h0.8v0.8h-0.8zM16.1 2.1h0.8v0.8h-0.8zM17.1 2.1h0.8v0.8h-0.8zM18.1 3.1h0.8v0.8h-0.8zM11.1 4.1h0.8v0.8h-0.8zM12.1 4.1h0.8v0.8h-0.8zM13.1 4.1h0.8v0.8h-0.8zM14.1 4.1h0.8v0.8h-0.8zM15.1 4.1h0.8v0.8h-0.8zM16.1 4.1h0.8v0.8h-0.8zM17.1 4.1h0.8v0.8h-0.8zM18.1 4.1h0.8v0.8h-0.8zM19.1 4.1h0.8v0.8h-0.8zM15.1 5.1h0.8v0.8h-0.8zM17.1 5.1h0.8v0.8h-0.8zM20.1 5.1h0.8v0.8h-0.8zM18.1 6.1h0.8v0.8h-0.8zM20.1 7.1h0.8v0.8h-0.8zM21.1 7.1h0.8v0.8h-0.8zM18.1 8.1h0.8v0.8h-0.8zM19.1 8.1h0.8v0.8h-0.8zM20.1 8.1h0.8v0.8h-0.8zM21.1 8.1h0.8v0.8h-0.8zM19.1 9.1h0.8v0.8h-0.8zM20.1 9.1h0.8v0.8h-0.8zM20.1 10.1h0.8v0.8h-0.8zM21.1 10.1h0.8v0.8h-0.8zM19.1 11.1h0.8v0.8h-0.8zM20.1 11.1h0.8v0.8h-0.8zM20.1 12.1h0.8v0.8h-0.8zM20.1 13.1h0.8v0.8h-0.8zM19.1 13.1h0.8v0.8h-0.8zM19.1 14.1h0.8v0.8h-0.8zM18.1 15.1h0.8v0.8h-0.8zM18.1 16.1h0.8v0.8h-0.8zM18.1 17.1h0.8v0.8h-0.8zM18.1 18.1h0.8v0.8h-0.8zM18.1 19.1h0.8v0.8h-0.8zM14.1 19.1h0.8v0.8h-0.8zM15.1 19.1h0.8v0.8h-0.8zM14.1 20.1h0.8v0.8h-0.8zM14.1 21.1h0.8v0.8h-0.8zM11.1 15.1h0.8v0.8h-0.8zM11.1 16.1h0.8v0.8h-0.8zM10.1 15.1h0.8v0.8h-0.8zM9.1 16.1h0.8v0.8h-0.8zM8.1 17.1h0.8v0.8h-0.8zM7.1 15.1h0.8v0.8h-0.8zM8.1 15.1h0.8v0.8h-0.8zM7.1 16.1h0.8v0.8h-0.8zM6.1 20.1h0.8v0.8h-0.8zM6.1 21.1h0.8v0.8h-0.8zM12.1 19.1h0.8v0.8h-0.8zM13.1 19.1h0.8v0.8h-0.8zM12.1 20.1h0.8v0.8h-0.8zM12.1 21.1h0.8v0.8h-0.8zM12.1 22.1h0.8v0.8h-0.8zM13.1 22.1h0.8v0.8h-0.8zM14.1 23.1h0.8v0.8h-0.8zM4.1 19.1h0.8v0.8h-0.8zM4.1 20.1h0.8v0.8h-0.8zM5.1 22.1h0.8v0.8h-0.8zM3.1 16.1h0.8v0.8h-0.8zM1.1 16.1h0.8v0.8h-0.8zM3.1 17.1h0.8v0.8h-0.8zM1.1 17.1h0.8v0.8h-0.8zM1.1 18.1h0.8v0.8h-0.8zM0.1 10.1h0.8v0.8h-0.8zM1.1 10.1h0.8v0.8h-0.8zM2.1 10.1h0.8v0.8h-0.8zM3.1 10.1h0.8v0.8h-0.8zM0.1 11.1h0.8v0.8h-0.8zM1.1 11.1h0.8v0.8h-0.8zM2.1 11.1h0.8v0.8h-0.8zM4.1 11.1h0.8v0.8h-0.8zM1.1 6.1h0.8v0.8h-0.8zM2.1 6.1h0.8v0.8h-0.8zM3.1 6.1h0.8v0.8h-0.8zM1.1 7.1h0.8v0.8h-0.8zM3.1 7.1h0.8v0.8h-0.8zM0.1 8.1h0.8v0.8h-0.8zM1.1 8.1h0.8v0.8h-0.8zM4.1 8.1h0.8v0.8h-0.8zM5.1 8.1h0.8v0.8h-0.8zM1.1 9.1h0.8v0.8h-0.8zM3.1 9.1h0.8v0.8h-0.8zM4.1 9.1h0.8v0.8h-0.8zM5.1 2.1h0.8v0.8h-0.8zM4.1 3.1h0.8v0.8h-0.8zM5.1 3.1h0.8v0.8h-0.8zM3.1 4.1h0.8v0.8h-0.8zM5.1 4.1h0.8v0.8h-0.8zM6.1 4.1h0.8v0.8h-0.8zM2.1 5.1h0.8v0.8h-0.8zM4.1 5.1h0.8v0.8h-0.8zM6.1 5.1h0.8v0.8h-0.8zM7.1 5.1h0.8v0.8h-0.8zM4.1 6.1h0.8v0.8h-0.8zM5.1 6.1h0.8v0.8h-0.8zM9.1 0.1h0.8v0.8h-0.8zM6.1 1.1h0.8v0.8h-0.8zM8.1 1.1h0.8v0.8h-0.8zM9.1 1.1h0.8v0.8h-0.8zM6.1 2.1h0.8v0.8h-0.8zM8.1 2.1h0.8v0.8h-0.8zM9.1 2.1h0.8v0.8h-0.8zM6.1 3.1h0.8v0.8h-0.8zM9.1 3.1h0.8v0.8h-0.8zM7.1 4.1h0.8v0.8h-0.8zM9.1 4.1h0.8v0.8h-0.8zM10.1 4.1h0.8v0.8h-0.8zM8.1 5.1h0.8v0.8h-0.8z"/></svg></span>
+          <span class="w">DeepSeek Harness</span>
+          <span class="v">0.1.0</span>
+        </div>
+        <nav class="nav">
+          <button class="on" type="button"><span>◍</span><span>Sessions</span></button>
+          <button type="button"><span style="width:13px;text-align:center">⧉</span><span>Agents</span><span class="tag" data-t="quiet" style="margin-left:auto">3</span></button>
+          <button type="button"><span>⛭</span><span>Settings</span></button>
+        </nav>
+        <div class="h">Recent</div>
+        <div class="sessions">
+          <div class="sess on"><i class="dot" data-s="run"></i><span class="t">Unify web + twin theme</span><span class="ago">now</span></div>
+          <div class="sess"><i class="dot" data-s="ok"></i><span class="t">Conversation mode grammar</span><span class="ago">2h</span></div>
+          <div class="sess"><i class="dot" data-s="warn"></i><span class="t">Trajectory table perf</span><span class="ago">1d</span></div>
+          <div class="sess"><i class="dot"></i><span class="t">Twin eager-warm at boot</span><span class="ago">3d</span></div>
+          <div class="sess"><i class="dot" data-s="err"></i><span class="t">E2E flake: composer draft</span><span class="ago">4d</span></div>
+          <div class="sess"><i class="dot"></i><span class="t">Settings: plugins inventory</span><span class="ago">1w</span></div>
+        </div>
+        <div class="foot"><span style="width:14px;text-align:center">◎</span><span>api.us-east · connected</span></div>
+      </aside>
+
+      <!-- main -->
+      <main class="main">
+        <div class="scene"><i class="sea"></i><i class="ray r1"></i><i class="ray r2"></i><i class="ray r3"></i><i class="grid"></i><i class="veil"></i></div>
+        <div class="tabs">
+          <button class="tab on" type="button"><span>theme — unified</span><span class="x">✕</span></button>
+          <button class="tab" type="button"><span>trajectory.perf</span><span class="tag">2</span><span class="x">✕</span></button>
+          <button class="tab" type="button"><span>vscode twin</span><span class="x">✕</span></button>
+          <span class="grow"></span>
+          <span class="kbtn">＋</span>
+        </div>
+        <div class="chat">
+          <div class="chat-scroll">
+            <div class="col">
+              <div class="msg-u">The harness feels like two products glued by a toggle — blue in light, teal in dark, tokens from four other design systems. Can we make it one?</div>
+              <div class="msg-a">
+                <div class="hint"><span class="tw">
+<style>
+.dsh-pl-tw{animation-name:dsh-pl-twinkle;animation-iteration-count:infinite;animation-timing-function:cubic-bezier(.33,0,.25,1)}
+@keyframes dsh-pl-twinkle{0%,62%,100%{opacity:0.22}9%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.dsh-pl-tw{animation:none}}
+</style>
+<rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-1.26s" x="10.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.91s;animation-delay:-1.38s" x="11.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-2.7s" x="12.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.36s;animation-delay:-0.18s" x="13.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.89s;animation-delay:-2.72s" x="10.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-2.3s" x="11.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-1.07s" x="12.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-0.04s" x="13.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.25s;animation-delay:-0.36s" x="10.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.83s;animation-delay:-1.77s" x="11.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.19s;animation-delay:-0.04s" x="12.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.62s;animation-delay:-1.09s" x="13.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.12s;animation-delay:-2.53s" x="10.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-0.13s" x="11.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.22s;animation-delay:-1.81s" x="12.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-2.15s" x="13.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-0.39s" x="11.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.72s;animation-delay:-0.01s" x="12.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.23s;animation-delay:-2.59s" x="14.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-0.63s" x="15.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-0.27s" x="14.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.28s;animation-delay:-1.5s" x="15.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.88s;animation-delay:-1.14s" x="16.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.76s;animation-delay:-2.38s" x="17.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.19s;animation-delay:-0.19s" x="14.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-2.26s" x="15.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-0.09s" x="16.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.57s;animation-delay:-1.57s" x="17.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3s;animation-delay:-0.21s" x="14.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.63s;animation-delay:-2.07s" x="15.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.25s;animation-delay:-1.83s" x="16.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-2.91s" x="17.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.22s;animation-delay:-2.15s" x="13.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-0.36s" x="14.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.31s;animation-delay:-2.6s" x="15.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.66s;animation-delay:-1.66s" x="16.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.21s;animation-delay:-0.57s" x="15.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.76s;animation-delay:-0.76s" x="18.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-1.52s" x="18.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-1.23s" x="19.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-1.55s" x="20.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.05s;animation-delay:-0.39s" x="17.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-0.39s" x="18.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-1.26s" x="19.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.81s;animation-delay:-1.63s" x="20.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.9s;animation-delay:-0.9s" x="16.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.79s;animation-delay:-0.39s" x="17.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-0.52s" x="18.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.36s;animation-delay:-2.92s" x="19.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-1.86s" x="20.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-0.18s" x="21.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.03s;animation-delay:-0.04s" x="17.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-0.77s" x="18.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.61s;animation-delay:-0.9s" x="19.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-1.86s" x="18.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-0.65s" x="20.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.02s;animation-delay:-0.62s" x="21.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-1.36s" x="22.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.37s;animation-delay:-1.15s" x="19.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.99s;animation-delay:-1.38s" x="20.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-2.85s" x="21.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.14s;animation-delay:-0.37s" x="22.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.89s;animation-delay:-1.33s" x="18.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.12s;animation-delay:-1.42s" x="19.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.53s;animation-delay:-1.05s" x="20.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.08s;animation-delay:-0.83s" x="21.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.02s;animation-delay:-1.69s" x="22.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.75s;animation-delay:-0.67s" x="23.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-0.87s" x="19.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-0.83s" x="20.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-1.61s" x="21.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-2.19s" x="22.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.14s;animation-delay:-2.79s" x="23.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-1.29s" x="19.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-0.64s" x="20.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.93s;animation-delay:-2.28s" x="21.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-1.02s" x="22.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-1.59s" x="23.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.32s;animation-delay:-0.59s" x="19.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-0.06s" x="20.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-0.48s" x="21.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-1.48s" x="22.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-1.25s" x="23.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.89s;animation-delay:-1.08s" x="19.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.31s;animation-delay:-1.45s" x="20.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-1.44s" x="21.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-1.05s" x="22.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-1.64s" x="23.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.93s;animation-delay:-1.83s" x="20.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-0.78s" x="21.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.19s" x="22.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-0.22s" x="23.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-1s" x="19.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-2.49s" x="19.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:0s" x="20.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-0.88s" x="21.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-1.51s" x="22.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.46s;animation-delay:-0.46s" x="23.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.13s;animation-delay:-0.97s" x="18.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-2.65s" x="19.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.19s;animation-delay:-2.46s" x="20.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-1.18s" x="21.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.24s" x="22.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.06s;animation-delay:-0.62s" x="19.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-0.79s" x="20.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.09s;animation-delay:-1.67s" x="21.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-1.58s" x="22.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.2s;animation-delay:-1.35s" x="20.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-2.39s" x="21.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.6s;animation-delay:-0.3s" x="22.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.84s;animation-delay:-1.22s" x="18.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.03s" x="17.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-0.2s" x="18.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.23s;animation-delay:-2.09s" x="19.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.96s;animation-delay:-1.64s" x="16.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.63s;animation-delay:-0.54s" x="17.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.48s;animation-delay:-1.82s" x="18.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.06s;animation-delay:-0.79s" x="19.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-1.16s" x="20.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.32s" x="21.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-0.52s" x="17.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.65s;animation-delay:-0.6s" x="18.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-0.1s" x="19.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-2.21s" x="20.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.34s;animation-delay:-2.23s" x="18.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.03s;animation-delay:-0.73s" x="19.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.58s;animation-delay:-2.1s" x="18.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.16s;animation-delay:-2.97s" x="15.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.16s;animation-delay:-0.47s" x="13.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.01s;animation-delay:-1.17s" x="14.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-1.76s" x="15.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-1.76s" x="16.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.41s;animation-delay:-0.47s" x="14.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.09s;animation-delay:-0.01s" x="15.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-0.14s" x="16.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.92s;animation-delay:-1.46s" x="17.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-1.48s" x="14.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-1.07s" x="15.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-0.66s" x="16.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-0.58s" x="17.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.36s;animation-delay:-0.23s" x="14.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.11s;animation-delay:-2.18s" x="15.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.74s;animation-delay:-1s" x="16.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-1.63s" x="17.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-2.08s" x="14.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-0.21s" x="11.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-0.68s" x="11.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.61s;animation-delay:-1.09s" x="11.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.24s;animation-delay:-2.8s" x="11.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.92s;animation-delay:-0.85s" x="12.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.38s;animation-delay:-0.83s" x="12.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.94s;animation-delay:0s" x="13.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.12s;animation-delay:-0.32s" x="12.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.9s;animation-delay:-0.36s" x="13.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.63s;animation-delay:-2.6s" x="12.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.2s;animation-delay:-1.97s" x="13.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.34s;animation-delay:-0.12s" x="12.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.02s;animation-delay:-1.75s" x="13.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.6s;animation-delay:-1.79s" x="10.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.9s;animation-delay:-0.66s" x="9.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3s;animation-delay:-2.9s" x="10.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-0.15s" x="8.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.8s" x="9.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.13s;animation-delay:-2.45s" x="10.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.06s" x="8.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.16s;animation-delay:-1.94s" x="9.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.5s;animation-delay:-2.23s" x="10.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-0.17s" x="6.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-1.63s" x="6.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.15s;animation-delay:-2.97s" x="5.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-2.39s" x="6.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.91s;animation-delay:-2.48s" x="7.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-2.44s" x="8.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-2.39s" x="9.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-2.84s" x="7.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-2.25s" x="8.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.22s;animation-delay:-1.07s" x="7.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-1.5s" x="2.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-0.81s" x="3.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-0.08s" x="7.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-3.03s" x="4.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-1.29s" x="5.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.09s;animation-delay:-1.17s" x="6.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.01s" x="4.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-1.01s" x="5.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.4s;animation-delay:-1.3s" x="4.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.22s;animation-delay:-0.37s" x="5.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.38s;animation-delay:-0.34s" x="4.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.62s;animation-delay:-1.22s" x="1.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.53s" x="2.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.45s;animation-delay:-1.97s" x="3.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-1.87s" x="1.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-0.64s" x="2.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.69s;animation-delay:-0.62s" x="3.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-1.74s" x="1.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.23s;animation-delay:-0.68s" x="0.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-2.11s" x="1.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.74s;animation-delay:-1.41s" x="2.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.56s;animation-delay:-2.37s" x="3.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-2.26s" x="0.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-0.44s" x="1.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.75s;animation-delay:-2.45s" x="2.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-2.24s" x="3.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-1.43s" x="4.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.43s;animation-delay:-0.48s" x="1.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.1s;animation-delay:-1.33s" x="2.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.99s;animation-delay:-0.82s" x="3.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.63s;animation-delay:-1.63s" x="1.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.51s;animation-delay:-1.02s" x="2.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.06s;animation-delay:-0.1s" x="3.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-0.97s" x="4.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.73s;animation-delay:-0.99s" x="0.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.4s;animation-delay:-1.4s" x="1.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-2.5s" x="2.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.04s;animation-delay:-2.35s" x="3.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.82s;animation-delay:-0.36s" x="4.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.98s;animation-delay:-2.8s" x="5.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-0.41s" x="0.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-2.57s" x="1.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-1.57s" x="2.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-1.51s" x="3.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-1.09s" x="4.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.01s;animation-delay:-0.66s" x="4.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-2.38s" x="5.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-2.24s" x="4.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.6s;animation-delay:-0.28s" x="5.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.56s;animation-delay:-2.14s" x="3.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-1.5s" x="4.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.01s;animation-delay:-1.45s" x="5.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.86s;animation-delay:-0.15s" x="6.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-0.34s" x="2.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.89s;animation-delay:-1.08s" x="3.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.87s" x="4.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-0.97s" x="5.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.46s;animation-delay:-2.27s" x="6.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-1.59s" x="7.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.83s;animation-delay:-0.18s" x="4.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.96s;animation-delay:-2.71s" x="5.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.11s;animation-delay:-0.12s" x="6.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-1.06s" x="5.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-2.09s" x="9.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-0.02s" x="6.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.03s;animation-delay:-0.89s" x="7.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.84s;animation-delay:-1.52s" x="8.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.2s;animation-delay:-2.4s" x="9.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.25s;animation-delay:-0.85s" x="6.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.08s;animation-delay:-1.82s" x="7.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2s;animation-delay:-0.24s" x="8.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-1.91s" x="9.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.15s;animation-delay:-2.82s" x="6.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.53s;animation-delay:-0.65s" x="7.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.69s;animation-delay:-2.16s" x="8.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.67s;animation-delay:-0.64s" x="9.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.03s;animation-delay:-0.18s" x="7.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-1.95s" x="8.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-0.42s" x="9.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-0.87s" x="10.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-0.37s" x="8.1" y="5.1" width="0.8" height="0.8" rx="0.18"/>
+</span><span>Thought for <b>&nbsp;4.2s</b>&nbsp;· read theme sheets, token census</span></div>
+                <p>Yes — land one accent family and namespace the sheet. Concretely:</p>
+                <ul>
+                  <li><b>Accent:</b> keep <icode>--ds-accent-fill</icode> blue in both themes; dark gets <icode>#2691EA</icode> fills and <icode>#61C8F9</icode> text instead of teal.</li>
+                  <li><b>Names:</b> collapse <icode>--dsw-*</icode>/<icode>--dsh-*</icode>/<icode>--ds-*</icode> into one <icode>--ds-*</icode> layer set (<code>surface · ink · line · fill · state · syntax</code>).</li>
+                  <li><b>States:</b> derive tints with <icode>color-mix</icode> from walrus rungs — the Tailwind literals in <icode>state-*-bg</icode> disappear.</li>
+                </ul>
+                <p>The semantic layer becomes the only place themes differ — <a href="#">full sheet in §4</a>:</p>
+                <pre><span class="c">/* one family, both themes */</span>
+<span class="k">html</span>[data-theme=light]{ <span class="n">--ds-accent-fill</span>: <span class="s">#0063F8</span>; <span class="n">--ds-accent-text</span>: <span class="s">#1F61AE</span> }
+<span class="k">html</span>[data-theme=dark ]{ <span class="n">--ds-accent-fill</span>: <span class="s">#2691EA</span>; <span class="n">--ds-accent-text</span>: <span class="s">#61C8F9</span> }</pre>
+              </div>
+              <div class="tool">
+                <div class="head"><span class="chev">▸</span><span class="t">Bash</span><span class="sum">pnpm vitest run packages/client/ui-theme</span><span class="dur">18.4s</span><i class="dot" data-s="ok"></i></div>
+              </div>
+              <div class="tool" style="--ds-elev-line:var(--ds-line-2)">
+                <div class="head"><span class="chev">▾</span><span class="t">Read</span><span class="sum">packages/client/ui-theme/src/styles/design-platform.css</span><span class="dur">381 lines</span><i class="dot" data-s="ok"></i></div>
+                <div class="body">
+                  <div class="ln-dim"> 95  }</div>
+                  <div class="ln-dim"> 96</div>
+                  <div class="ln-out"> 97  body[data-ds-dark-theme] {</div>
+                  <div class="ln-dim"> 98    --dsw-static-amber-100: …</div>
+                </div>
+              </div>
+              <div class="tool">
+                <div class="head"><span class="chev">▾</span><span class="t">Edit</span><span class="sum">packages/client/ui-theme/src/styles/design-platform.css</span><span class="dur">+2 −1</span><i class="dot" data-s="ok"></i></div>
+                <div class="body">
+                  <div class="diff-row del"><span class="g">−</span><span class="c">  --dsw-alias-brand-primary: rgb(123, 180, 188); /* teal */</span></div>
+                  <div class="diff-row add"><span class="g">+</span><span class="c">  --ds-accent-fill: #2691EA;  --ds-accent-text: #61C8F9;</span></div>
+                  <div class="diff-row add"><span class="g">+</span><span class="c">  /* same blue family as light — hue no longer flips */</span></div>
+                </div>
+              </div>
+              <div class="chips">
+                <span class="fchip"><i class="fx" style="background:var(--ds-teal-500)">ts</i>design-platform.css<span class="fsize">2 files</span></span>
+                <span class="fchip"><i class="fx" style="background:var(--ds-blue-500)">png</i>unified-theme-mock.png<span class="fsize">312 KB</span></span>
+                <span class="fchip warn"><i class="fx" style="background:var(--ds-state-warn)">!</i>1 unresolved comment</span>
+              </div>
+              <div class="pills">
+                <span class="pill" data-t="hi">tokens <b>18.2k</b></span>
+                <span class="pill">cache <b>91%</b></span>
+                <i class="sep"></i>
+                <span class="pill">cost <b>$0.41</b></span>
+                <span class="pill" data-t="ok">build <b>passing</b></span>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="comp">
+              <span class="ph">Ask anything — <b>@</b> files · <b>/</b> skills · <b>#</b> sessions</span>
+              <div class="row">
+                <span class="kbtn">＋</span><span class="kbtn">⌘K</span>
+                <button class="mpill" type="button">anthropic · claude-sonnet-4.5 ▾</button>
+                <span class="grow"></span>
+                <span class="kbtn" style="font-size:11px">12–17px</span>
+                <button class="send" type="button">↑</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- right rail -->
+      <aside class="side">
+        <div class="card">
+          <div class="ct">‹ checklist › Session agenda</div>
+          <div class="ag">
+            <div class="row"><span class="tick">✓</span><span class="lbl">Audit token sheet (423 defined / 237 used)</span></div>
+            <div class="row"><span class="tick">✓</span><span class="lbl">Find broken var() references → 8</span></div>
+            <div class="row cur"><span class="tick">◐</span><span class="lbl">Unified theme mock</span></div>
+            <div class="row todo"><span class="tick">○</span><span class="lbl">Codemod --dsw → --ds</span></div>
+            <div class="row todo"><span class="tick">○</span><span class="lbl">Fork-clean: twin + boot page</span></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ct">◆ Subagent</div>
+          <div class="seat">
+            <span class="av">FT</span>
+            <span><span class="nm">frontend-theme</span><br><span class="meta">renovate bot · E08-seed · 12 turns</span></span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="ct">≡ Activity</div>
+          <div class="actrow"><span class="fill">◈</span><span class="tx">palette census complete</span><span class="ago">1m</span></div>
+          <div class="actrow"><span class="fill">◇</span><span class="tx">mock rendered — 2 themes</span><span class="ago">4m</span></div>
+          <div class="actrow"><span class="fill">▣</span><span class="tx">audit doc published</span><span class="ago">22m</span></div>
+        </div>
+        <div class="legend"><span><i style="background:var(--ds-state-ok)"></i>done</span><span><i style="background:var(--ds-state-warn)"></i>warn</span><span><i style="background:var(--ds-state-err)"></i>error</span><span><i style="background:var(--ds-accent-fill)"></i>running</span></div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="sect-h"><h2>Signature moment — hero &amp; engine state</h2><span class="n">01·5</span><span class="d">aurora at full voice here; the same <code class="mini">.rayEngine.boost</code> lights up chat while the model works</span></div>
+  <section class="panel hero" id="hero">
+    <div class="scene"><i class="sea"></i><span class="rayEngine boost"><i class="ray r1"></i><i class="ray r2"></i><i class="ray r3"></i></span><i class="grid"></i><i class="veil"></i></div>
+    <div class="inner">
+      <span class="twl">
+<style>
+.dsh-pl-tw{animation-name:dsh-pl-twinkle;animation-iteration-count:infinite;animation-timing-function:cubic-bezier(.33,0,.25,1)}
+@keyframes dsh-pl-twinkle{0%,62%,100%{opacity:0.22}9%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.dsh-pl-tw{animation:none}}
+</style>
+<rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-1.26s" x="10.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.91s;animation-delay:-1.38s" x="11.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-2.7s" x="12.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.36s;animation-delay:-0.18s" x="13.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.89s;animation-delay:-2.72s" x="10.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-2.3s" x="11.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-1.07s" x="12.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-0.04s" x="13.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.25s;animation-delay:-0.36s" x="10.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.83s;animation-delay:-1.77s" x="11.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.19s;animation-delay:-0.04s" x="12.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.62s;animation-delay:-1.09s" x="13.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.12s;animation-delay:-2.53s" x="10.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-0.13s" x="11.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.22s;animation-delay:-1.81s" x="12.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-2.15s" x="13.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-0.39s" x="11.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.72s;animation-delay:-0.01s" x="12.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.23s;animation-delay:-2.59s" x="14.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-0.63s" x="15.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-0.27s" x="14.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.28s;animation-delay:-1.5s" x="15.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.88s;animation-delay:-1.14s" x="16.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.76s;animation-delay:-2.38s" x="17.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.19s;animation-delay:-0.19s" x="14.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-2.26s" x="15.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-0.09s" x="16.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.57s;animation-delay:-1.57s" x="17.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3s;animation-delay:-0.21s" x="14.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.63s;animation-delay:-2.07s" x="15.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.25s;animation-delay:-1.83s" x="16.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-2.91s" x="17.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.22s;animation-delay:-2.15s" x="13.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-0.36s" x="14.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.31s;animation-delay:-2.6s" x="15.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.66s;animation-delay:-1.66s" x="16.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.21s;animation-delay:-0.57s" x="15.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.76s;animation-delay:-0.76s" x="18.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-1.52s" x="18.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-1.23s" x="19.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-1.55s" x="20.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.05s;animation-delay:-0.39s" x="17.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-0.39s" x="18.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-1.26s" x="19.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.81s;animation-delay:-1.63s" x="20.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.9s;animation-delay:-0.9s" x="16.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.79s;animation-delay:-0.39s" x="17.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-0.52s" x="18.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.36s;animation-delay:-2.92s" x="19.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-1.86s" x="20.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-0.18s" x="21.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.03s;animation-delay:-0.04s" x="17.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-0.77s" x="18.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.61s;animation-delay:-0.9s" x="19.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-1.86s" x="18.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-0.65s" x="20.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.02s;animation-delay:-0.62s" x="21.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-1.36s" x="22.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.37s;animation-delay:-1.15s" x="19.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.99s;animation-delay:-1.38s" x="20.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-2.85s" x="21.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.14s;animation-delay:-0.37s" x="22.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.89s;animation-delay:-1.33s" x="18.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.12s;animation-delay:-1.42s" x="19.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.53s;animation-delay:-1.05s" x="20.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.08s;animation-delay:-0.83s" x="21.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.02s;animation-delay:-1.69s" x="22.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.75s;animation-delay:-0.67s" x="23.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-0.87s" x="19.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-0.83s" x="20.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.93s;animation-delay:-1.61s" x="21.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-2.19s" x="22.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.14s;animation-delay:-2.79s" x="23.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-1.29s" x="19.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-0.64s" x="20.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.93s;animation-delay:-2.28s" x="21.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-1.02s" x="22.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-1.59s" x="23.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.32s;animation-delay:-0.59s" x="19.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-0.06s" x="20.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-0.48s" x="21.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-1.48s" x="22.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-1.25s" x="23.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.89s;animation-delay:-1.08s" x="19.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.31s;animation-delay:-1.45s" x="20.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-1.44s" x="21.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-1.05s" x="22.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-1.64s" x="23.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.93s;animation-delay:-1.83s" x="20.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-0.78s" x="21.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.19s" x="22.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-0.22s" x="23.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-1s" x="19.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-2.49s" x="19.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:0s" x="20.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-0.88s" x="21.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.96s;animation-delay:-1.51s" x="22.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.46s;animation-delay:-0.46s" x="23.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.13s;animation-delay:-0.97s" x="18.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-2.65s" x="19.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.19s;animation-delay:-2.46s" x="20.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-1.18s" x="21.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.24s" x="22.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.06s;animation-delay:-0.62s" x="19.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-0.79s" x="20.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.09s;animation-delay:-1.67s" x="21.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-1.58s" x="22.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.2s;animation-delay:-1.35s" x="20.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.47s;animation-delay:-2.39s" x="21.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.6s;animation-delay:-0.3s" x="22.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.84s;animation-delay:-1.22s" x="18.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.03s" x="17.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.65s;animation-delay:-0.2s" x="18.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.23s;animation-delay:-2.09s" x="19.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.96s;animation-delay:-1.64s" x="16.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.63s;animation-delay:-0.54s" x="17.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.48s;animation-delay:-1.82s" x="18.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.06s;animation-delay:-0.79s" x="19.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-1.16s" x="20.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.32s" x="21.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-0.52s" x="17.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.65s;animation-delay:-0.6s" x="18.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-0.1s" x="19.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-2.21s" x="20.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.34s;animation-delay:-2.23s" x="18.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.03s;animation-delay:-0.73s" x="19.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.58s;animation-delay:-2.1s" x="18.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.16s;animation-delay:-2.97s" x="15.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.16s;animation-delay:-0.47s" x="13.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.01s;animation-delay:-1.17s" x="14.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-1.76s" x="15.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.35s;animation-delay:-1.76s" x="16.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.41s;animation-delay:-0.47s" x="14.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.09s;animation-delay:-0.01s" x="15.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-0.14s" x="16.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.92s;animation-delay:-1.46s" x="17.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-1.48s" x="14.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-1.07s" x="15.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.64s;animation-delay:-0.66s" x="16.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-0.58s" x="17.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.36s;animation-delay:-0.23s" x="14.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.11s;animation-delay:-2.18s" x="15.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.74s;animation-delay:-1s" x="16.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.77s;animation-delay:-1.63s" x="17.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-2.08s" x="14.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-0.21s" x="11.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.44s;animation-delay:-0.68s" x="11.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.61s;animation-delay:-1.09s" x="11.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.24s;animation-delay:-2.8s" x="11.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.92s;animation-delay:-0.85s" x="12.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.38s;animation-delay:-0.83s" x="12.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.94s;animation-delay:0s" x="13.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.12s;animation-delay:-0.32s" x="12.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.9s;animation-delay:-0.36s" x="13.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.63s;animation-delay:-2.6s" x="12.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.2s;animation-delay:-1.97s" x="13.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.34s;animation-delay:-0.12s" x="12.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.02s;animation-delay:-1.75s" x="13.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.6s;animation-delay:-1.79s" x="10.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.9s;animation-delay:-0.66s" x="9.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3s;animation-delay:-2.9s" x="10.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-0.15s" x="8.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.66s;animation-delay:-0.8s" x="9.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.13s;animation-delay:-2.45s" x="10.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.06s" x="8.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.16s;animation-delay:-1.94s" x="9.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.5s;animation-delay:-2.23s" x="10.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-0.17s" x="6.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-1.63s" x="6.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.15s;animation-delay:-2.97s" x="5.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-2.39s" x="6.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.91s;animation-delay:-2.48s" x="7.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.52s;animation-delay:-2.44s" x="8.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.05s;animation-delay:-2.39s" x="9.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.37s;animation-delay:-2.84s" x="7.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.84s;animation-delay:-2.25s" x="8.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.22s;animation-delay:-1.07s" x="7.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-1.5s" x="2.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-0.81s" x="3.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.85s;animation-delay:-0.08s" x="7.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.39s;animation-delay:-3.03s" x="4.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.21s;animation-delay:-1.29s" x="5.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.09s;animation-delay:-1.17s" x="6.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.55s;animation-delay:-1.01s" x="4.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-1.01s" x="5.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.4s;animation-delay:-1.3s" x="4.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.22s;animation-delay:-0.37s" x="5.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.38s;animation-delay:-0.34s" x="4.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.62s;animation-delay:-1.22s" x="1.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.53s" x="2.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.45s;animation-delay:-1.97s" x="3.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-1.87s" x="1.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.91s;animation-delay:-0.64s" x="2.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.69s;animation-delay:-0.62s" x="3.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.78s;animation-delay:-1.74s" x="1.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.23s;animation-delay:-0.68s" x="0.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.07s;animation-delay:-2.11s" x="1.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.74s;animation-delay:-1.41s" x="2.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.56s;animation-delay:-2.37s" x="3.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-2.26s" x="0.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-0.44s" x="1.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.75s;animation-delay:-2.45s" x="2.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.59s;animation-delay:-2.24s" x="3.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.72s;animation-delay:-1.43s" x="4.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.43s;animation-delay:-0.48s" x="1.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.1s;animation-delay:-1.33s" x="2.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.99s;animation-delay:-0.82s" x="3.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.63s;animation-delay:-1.63s" x="1.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.51s;animation-delay:-1.02s" x="2.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.06s;animation-delay:-0.1s" x="3.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-0.97s" x="4.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.73s;animation-delay:-0.99s" x="0.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.4s;animation-delay:-1.4s" x="1.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.8s;animation-delay:-2.5s" x="2.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.04s;animation-delay:-2.35s" x="3.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.82s;animation-delay:-0.36s" x="4.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.98s;animation-delay:-2.8s" x="5.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.95s;animation-delay:-0.41s" x="0.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.18s;animation-delay:-2.57s" x="1.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-1.57s" x="2.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-1.51s" x="3.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.78s;animation-delay:-1.09s" x="4.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.01s;animation-delay:-0.66s" x="4.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.42s;animation-delay:-2.38s" x="5.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-2.24s" x="4.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.6s;animation-delay:-0.28s" x="5.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.56s;animation-delay:-2.14s" x="3.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-1.5s" x="4.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.01s;animation-delay:-1.45s" x="5.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.86s;animation-delay:-0.15s" x="6.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.7s;animation-delay:-0.34s" x="2.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.89s;animation-delay:-1.08s" x="3.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.62s;animation-delay:-0.87s" x="4.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.87s;animation-delay:-0.97s" x="5.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.46s;animation-delay:-2.27s" x="6.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.54s;animation-delay:-1.59s" x="7.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.83s;animation-delay:-0.18s" x="4.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.96s;animation-delay:-2.71s" x="5.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.11s;animation-delay:-0.12s" x="6.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-1.06s" x="5.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.3s;animation-delay:-2.09s" x="9.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-0.02s" x="6.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.03s;animation-delay:-0.89s" x="7.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.84s;animation-delay:-1.52s" x="8.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.2s;animation-delay:-2.4s" x="9.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.25s;animation-delay:-0.85s" x="6.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.08s;animation-delay:-1.82s" x="7.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2s;animation-delay:-0.24s" x="8.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.08s;animation-delay:-1.91s" x="9.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.15s;animation-delay:-2.82s" x="6.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.53s;animation-delay:-0.65s" x="7.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.69s;animation-delay:-2.16s" x="8.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:1.67s;animation-delay:-0.64s" x="9.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.03s;animation-delay:-0.18s" x="7.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.33s;animation-delay:-1.95s" x="8.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.81s;animation-delay:-0.42s" x="9.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:3.35s;animation-delay:-0.87s" x="10.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect class="dsh-pl-tw" style="animation-duration:2.97s;animation-delay:-0.37s" x="8.1" y="5.1" width="0.8" height="0.8" rx="0.18"/>
+</span>
+      <h2>DeepSeek Harness</h2>
+      <p class="sub">One accent family, one token prefix, one living scene. The ocean is part of the product, not wallpaper.</p>
+      <div class="cta">
+        <button class="btn ocean" type="button">Start a session</button>
+        <button class="btn out" type="button">Browse skills</button>
+      </div>
+      <span class="hintline">⌘N new session · the scene brightens while agents work</span>
+    </div>
+    <div class="engine"><span class="dot" data-s="run"></span><span>engine: <b>inferencing · rayBoost ×1.28</b></span></div>
+  </section>
+
+  <div class="sect-h"><h2>Components</h2><span class="n">02</span><span class="d">one vocabulary — every control reads from the same tokens</span></div>
+  <div class="gal">
+    <section class="panel gcard">
+      <span class="gt">Buttons</span>
+      <div class="rowflex"><button class="btn pri" type="button">Send</button><button class="btn gho" type="button">Ghost</button><button class="btn out" type="button">Outline</button></div>
+      <div class="rowflex"><button class="btn pri sm" type="button">Apply</button><button class="btn tbr sm" type="button">toolbar</button><button class="btn pri sm dis" type="button">disabled</button></div>
+      <span class="gs">primary rides --ds-accent-fill in both themes — the hue that used to flip</span>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Pills &amp; tags</span>
+      <div class="rowflex"><span class="pill">tokens</span><span class="pill" data-t="hi">148 files</span><span class="pill" data-t="ok">cached</span><i class="sep"></i><span class="pill">idle</span></div>
+      <div class="rowflex"><span class="tag" data-t="outline">outline</span><span class="tag" data-t="solid">solid</span><span class="tag" data-t="neutral">neutral</span><span class="tag" data-t="success">success</span><span class="tag" data-t="info">info</span><span class="tag" data-t="warning">warning</span><span class="tag" data-t="danger">danger</span></div>
+      <span class="gs">state tints = color-mix(walrus rung, 8–14%) — tailwind literals gone</span>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Switch &amp; input</span>
+      <div class="swrow"><button class="sw" aria-checked="true" type="button"><i></i></button><span>Reduced ocean rays</span></div>
+      <div class="swrow"><button class="sw" aria-checked="false" type="button"><i></i></button><span>Telemetry</span></div>
+      <div class="inpwrap focus"><span>⌕</span><span class="pv">theme/</span><span class="caret"></span></div>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Menu</span>
+      <div class="menu">
+        <div class="mi"><i>◳</i><span>New session</span><span class="k">⌘N</span></div>
+        <div class="mi hov"><i>◎</i><span>Appearance</span><span class="k">⌘,</span></div>
+        <div class="mi"><i>⇪</i><span>Export transcript</span></div>
+        <div class="sep2"></div>
+        <div class="mi dgr"><i>✕</i><span>Delete session</span></div>
+      </div>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Tooltip &amp; toast</span>
+      <div class="rowflex" style="padding-top:10px"><span class="tip">runs the command in the session shell</span></div>
+      <div class="rowflex"><span class="toast"><span class="ti">⚠</span><span>OpenAI key missing — models will fall back to anthropic</span></span></div>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Risk confirmation</span>
+      <div class="mframe">
+        <div class="modal">
+          <div class="mh"><span class="wi">⛔</span><span>Reset session state?</span></div>
+          <p>This clears queued runs and cached tool results for <icode>theme-unified</icode>. The transcript is kept.</p>
+          <label class="ack"><input type="checkbox" checked><span>I understand this cannot be undone.</span></label>
+          <div class="mfoot"><button class="btn gho" type="button">Cancel</button><button class="btn dgr" type="button">Reset state</button></div>
+        </div>
+      </div>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Brand loader — pixel mark</span>
+      <div class="ldr">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><g><rect x="10.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="16.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="17.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="16.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="17.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="16.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="17.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="16.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="17.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="17.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="22.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="22.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="23.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="22.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="23.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="22.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="23.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="23.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="23.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="13.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect x="21.1" y="14.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="20.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="19.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="18.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="16.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect x="15.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="11.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="15.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="12.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect x="13.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect x="14.1" y="23.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="19.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="20.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="22.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="21.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="16.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="17.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="18.1" width="0.8" height="0.8" rx="0.18"/><rect x="0.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="10.1" width="0.8" height="0.8" rx="0.18"/><rect x="0.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="11.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="12.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="0.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="8.1" width="0.8" height="0.8" rx="0.18"/><rect x="0.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="1.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="9.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="2.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="3.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="5.1" width="0.8" height="0.8" rx="0.18"/><rect x="4.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="6.1" width="0.8" height="0.8" rx="0.18"/><rect x="5.1" y="7.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="0.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="1.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="2.1" width="0.8" height="0.8" rx="0.18"/><rect x="6.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="3.1" width="0.8" height="0.8" rx="0.18"/><rect x="7.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="9.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="10.1" y="4.1" width="0.8" height="0.8" rx="0.18"/><rect x="8.1" y="5.1" width="0.8" height="0.8" rx="0.18"/></g></svg>
+        <span class="cap"><b>DeepSeek Harness</b>pixel mark in --ds-accent-text · loader sweep rides the same token</span>
+      </div>
+    </section>
+    <section class="panel gcard">
+      <span class="gt">Code &amp; syntax palette</span>
+      <pre style="margin:0"><span class="k">export const</span> <span class="f">stage</span> = (t: <span class="n">Theme</span>) =&gt;
+  t.<span class="v">accent</span>.<span class="f">assertFamily</span>(<span class="s">'blue'</span>) <span class="c">// both themes</span></pre>
+      <div class="synx">
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-keyword)"></i><span class="snm">keyword</span><span class="sample" style="color:var(--ds-syn-keyword)">const</span></div>
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-string)"></i><span class="snm">string</span><span class="sample" style="color:var(--ds-syn-string)">'./twin'</span></div>
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-const)"></i><span class="snm">constant</span><span class="sample" style="color:var(--ds-syn-const)">Theme</span></div>
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-func)"></i><span class="snm">function</span><span class="sample" style="color:var(--ds-syn-func)">stage()</span></div>
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-comment)"></i><span class="snm">comment</span><span class="sample" style="color:var(--ds-syn-comment)">// both themes</span></div>
+        <div class="srow"><i class="swatch" style="background:var(--ds-syn-param)"></i><span class="snm">parameter</span><span class="sample" style="color:var(--ds-syn-param)">accent</span></div>
+      </div>
+      <span class="gs">the twin editor mirrors THIS list — generated, not hand-typed</span>
+    </section>
+  </div>
+
+  <div class="sect-h"><h2>The eight audit fixes, rendered</h2><span class="n">03</span><span class="d">before: var() silently unset · after: defined token</span></div>
+  <section class="panel fix-grid">
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-label-error</span><span>→</span><span class="nw">--ds-state-err</span><span class="file">ui-settings-plugins/*.module.css:43·52·109·78</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · unset → inherits parent</span><div class="card" style="box-shadow:none;background:var(--ds-surface-2)"><span class="ct">plugin install failed</span><span style="font-size:12px">registry returned 409 — nothing signals error tone</span></div></div>
+        <div class="cell after"><span class="lab">after · --ds-state-err</span><div class="card" style="box-shadow:none;background:var(--ds-surface-2)"><span class="ct">plugin install failed</span><span style="font-size:12px;color:var(--ds-state-err)">registry returned 409 — conflict with pinned version</span></div></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-separator-primary</span><span>→</span><span class="nw">--ds-separator</span><span class="file">ui-chat/src/client/chat/StatsPills.module.css:33</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · divider invisible</span><div class="pills"><span class="pill">tokens <b>18.2k</b></span><span style="width:.5px;height:14px"></span><span class="pill">cost <b>$0.41</b></span></div></div>
+        <div class="cell after"><span class="lab">after · bar defined</span><div class="pills"><span class="pill">tokens <b>18.2k</b></span><i class="sep"></i><span class="pill">cost <b>$0.41</b></span></div></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-fill-l2</span><span>→</span><span class="nw">--ds-fill-2</span><span class="file">ui-activity/src/client/ActivityDock.module.css:224·239·285</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · transparent chip</span><div class="actrow" style="padding:6px 0"><span class="fill" style="background:transparent">◈</span><span class="tx">deploy finished</span><span class="ago">1m</span></div></div>
+        <div class="cell after"><span class="lab">after · surface fill</span><div class="actrow" style="padding:6px 0"><span class="fill">◈</span><span class="tx">deploy finished</span><span class="ago">1m</span></div></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-fill-tsp-secondary</span><span>→</span><span class="nw">--ds-fill-tsp-secondary</span><span class="file">ui-agent-preset/src/client/AgentPresetLabel.module.css:11</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · no tint</span><span class="tag" data-t="neutral" style="background:transparent;border:none;padding:1px 2px">preset · review</span></div>
+        <div class="cell after"><span class="lab">after · accent tint</span><span class="tag" data-t="info">preset · review</span></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-label-quaternary</span><span>→</span><span class="nw">--ds-ink-4</span><span class="file">ui-agent-preset/src/client/AgentPresetSeat.module.css:44</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · meta same weight as title</span><div class="seat"><span class="av">FT</span><span><span class="nm">frontend-theme</span><br><span class="meta" style="color:var(--ds-ink-1)">renovate bot · E08-seed</span></span></div></div>
+        <div class="cell after"><span class="lab">after · quaternary rung</span><div class="seat"><span class="av">FT</span><span><span class="nm">frontend-theme</span><br><span class="meta">renovate bot · E08-seed</span></span></div></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-alias-bg-layer-4</span><span>→</span><span class="nw">--ds-surface-3</span><span class="file">ui-settings-plugins/…/SubagentModelSelectionCard.module.css:111</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · transparent card over scene</span><div class="card" style="background:transparent;box-shadow:none;border:.5px dashed var(--ds-line-3)"><span class="ct" style="font-size:12px">model card — background missing, scene leaks through</span></div></div>
+        <div class="cell after"><span class="lab">after · third surface rung</span><div class="card" style="background:var(--ds-surface-3);box-shadow:none"><span class="ct" style="font-size:12px">model card — solid surface</span></div></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-font-sm-13</span><span>→</span><span class="nw">--ds-font-xs-13</span><span class="file">ui-tool/src/client/tool/components/ToolRow.module.css:370</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · font shorthand unset (14/22 inherit)</span><span style="font:inherit;font-size:14px;line-height:22px">pnpm test — 128 passed</span></div>
+        <div class="cell after"><span class="lab">after · 13px/20px</span><span style="font-size:13px;line-height:20px;color:var(--ds-ink-2)">pnpm test — 128 passed</span></div>
+      </div>
+    </div>
+    <div class="fix">
+      <div class="fx-h"><span class="tok">--dsw-interactive-bg-hover-solid</span><span>→</span><span class="nw">--ds-fill-2 (hover)</span><span class="file">ui-tool/src/client/tool/toolviews/bash-row.module.css:274</span></div>
+      <div class="cmp">
+        <div class="cell before"><span class="lab">before · hover state invisible</span><div class="tool" style="background:transparent"><div class="head"><span class="t">Bash</span><span class="sum">pnpm lint</span><span class="dur">4s</span></div></div></div>
+        <div class="cell after"><span class="lab">after · hover reads solid</span><div class="tool" style="background:var(--ds-fill-2)"><div class="head"><span class="t">Bash</span><span class="sum">pnpm lint</span><span class="dur">4s</span></div></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="sect-h"><h2>The proposed sheet</h2><span class="n">04</span><span class="d">~120 semantic tokens — swatches are static hex, values = audit §R4</span></div>
+  <section class="panel">
+    <div class="tsheet">
+      <div class="tg">accent · one family both themes <span style="float:right;text-transform:none">was: blue light / teal dark</span></div>
+      <div class="trow"><span class="nm">--ds-accent-fill</span><i class="sw" style="background:#0063F8"></i><span class="wv">light #0063F8</span><i class="sw" style="background:#2691EA"></i><span class="wv">dark #2691EA</span></div>
+      <div class="trow"><span class="nm">--ds-accent-hover</span><i class="sw" style="background:#0054CC"></i><span class="wv">#0054CC</span><i class="sw" style="background:#3CADF5"></i><span class="wv">#3CADF5</span></div>
+      <div class="trow"><span class="nm">--ds-accent-ink</span><i class="sw" style="background:#FFFFFF"></i><span class="wv">#FFFFFF</span><i class="sw" style="background:#04121D"></i><span class="wv">#04121D</span></div>
+      <div class="trow"><span class="nm">--ds-accent-text</span><i class="sw" style="background:#1F61AE"></i><span class="wv">#1F61AE</span><i class="sw" style="background:#61C8F9"></i><span class="wv">#61C8F9</span></div>
+      <div class="trow"><span class="nm">--ds-accent-soft / soft-2</span><i class="sw" style="background:rgba(0,99,248,.14)"></i><span class="wv">8% / 14%</span><i class="sw" style="background:rgba(38,145,234,.3)"></i><span class="wv">14% / 22%</span></div>
+      <div class="trow"><span class="nm" style="color:var(--ds-ink-5)">(deleted) teal brand flip</span><i class="sw" style="background:#7BB4BC"></i><span class="wv">was #7BB4BC</span><i class="sw" style="opacity:0"></i><span class="wv">→ gone</span></div>
+      <div class="tg">surfaces · depths — sea-0 → sea-3 (bluish ladder)</div>
+      <div class="trow"><span class="nm">--ds-surface-0 (base)</span><i class="sw" style="background:#FFFFFF"></i><span class="wv">#FFFFFF</span><i class="sw" style="background:#121618"></i><span class="wv">#121618</span></div>
+      <div class="trow"><span class="nm">--ds-surface-1</span><i class="sw" style="background:#FFFFFF"></i><span class="wv">#FFFFFF</span><i class="sw" style="background:#1B1F21"></i><span class="wv">#1B1F21</span></div>
+      <div class="trow"><span class="nm">--ds-surface-2</span><i class="sw" style="background:#F7F8F8"></i><span class="wv">#F7F8F8</span><i class="sw" style="background:#202426"></i><span class="wv">#202426</span></div>
+      <div class="trow"><span class="nm">--ds-surface-3</span><i class="sw" style="background:#EEF0F0"></i><span class="wv">#EEF0F0</span><i class="sw" style="background:#25292A"></i><span class="wv">#25292A</span></div>
+      <div class="trow"><span class="nm">--ds-surface-rail</span><i class="sw" style="background:#F7F8F8"></i><span class="wv">#F7F8F8</span><i class="sw" style="background:#171B1D"></i><span class="wv">#171B1D</span></div>
+      <div class="tg">ink · text ladder</div>
+      <div class="trow"><span class="nm">--ds-ink-1 (primary)</span><i class="sw" style="background:rgb(0,12,42)"></i><span class="wv">#000C2A</span><i class="sw" style="background:#F7F8F8"></i><span class="wv">#F7F8F8</span></div>
+      <div class="trow"><span class="nm">--ds-ink-2 (secondary)</span><i class="sw" style="background:rgb(56,65,89)"></i><span class="wv">#384159</span><i class="sw" style="background:#A0A2A3"></i><span class="wv">#A0A2A3</span></div>
+      <div class="trow"><span class="nm">--ds-ink-3 (tertiary)</span><i class="sw" style="background:#5D6C6C"></i><span class="wv">#5D6C6C</span><i class="sw" style="background:#848687"></i><span class="wv">#848687</span></div>
+      <div class="trow"><span class="nm">--ds-ink-4 (quaternary)</span><i class="sw" style="background:#738484"></i><span class="wv">#738484</span><i class="sw" style="background:#738484"></i><span class="wv">#738484</span></div>
+      <div class="trow"><span class="nm">--ds-ink-5 (dimmed)</span><i class="sw" style="background:#919F9E"></i><span class="wv">#919F9E</span><i class="sw" style="background:#5D6C6C"></i><span class="wv">#5D6C6C</span></div>
+      <div class="tg">lines · fills</div>
+      <div class="trow"><span class="nm">--ds-line-1 … --ds-line-4</span><i class="sw" style="background:rgba(0,12,42,.10)"></i><span class="wv">4–16% ink</span><i class="sw" style="background:rgba(247,248,248,.12)"></i><span class="wv">6–20% white</span></div>
+      <div class="trow"><span class="nm">--ds-fill-hover / --ds-fill-active</span><i class="sw" style="background:rgba(57,65,65,.08)"></i><span class="wv">6% / 10%</span><i class="sw" style="background:rgba(255,255,255,.10)"></i><span class="wv">8% / 14%</span></div>
+      <div class="trow"><span class="nm">--ds-fill-2</span><i class="sw" style="background:#EEF0F0"></i><span class="wv">#EEF0F0</span><i class="sw" style="background:#25292A"></i><span class="wv">#25292A</span></div>
+      <div class="trow"><span class="nm">--ds-separator</span><i class="sw" style="background:rgba(0,12,42,.10)"></i><span class="wv">10% ink</span><i class="sw" style="background:rgba(247,248,248,.14)"></i><span class="wv">14% white</span></div>
+      <div class="tg">accent-2 · violet (agents domain)</div>
+      <div class="trow"><span class="nm">--ds-accent2-text</span><i class="sw" style="background:#9C668C"></i><span class="wv">#9C668C</span><i class="sw" style="background:#DDC4D8"></i><span class="wv">#DDC4D8</span></div>
+      <div class="trow"><span class="nm">--ds-accent2-fill</span><i class="sw" style="background:#F6EEF4"></i><span class="wv">#F6EEF4</span><i class="sw" style="background:#37202F"></i><span class="wv">#37202F</span></div>
+      <div class="tg">states · walrus rungs + color-mix tints</div>
+      <div class="trow"><span class="nm">--ds-state-ok / -bg</span><i class="sw" style="background:#397A41"></i><span class="wv">#397A41 / 8%</span><i class="sw" style="background:#71B379"></i><span class="wv">#71B379 / 12%</span></div>
+      <div class="trow"><span class="nm">--ds-state-warn / -bg</span><i class="sw" style="background:#D08730"></i><span class="wv">#D08730 / 10%</span><i class="sw" style="background:#DAA549"></i><span class="wv">#DAA549 / 12%</span></div>
+      <div class="trow"><span class="nm">--ds-state-err / -bg</span><i class="sw" style="background:#B91C1C"></i><span class="wv">#B91C1C / 7%</span><i class="sw" style="background:#FCA5A5"></i><span class="wv">#FCA5A5 / 10%</span></div>
+      <div class="trow"><span class="nm" style="color:var(--ds-ink-5)">(deleted) tailwind tints</span><span class="wv" style="color:var(--ds-state-err)">rgba(34,197,94…)</span><i class="sw" style="background:rgba(34,197,94,.3)"></i><span class="wv">→ color-mix</span></div>
+      <div class="tg">syntax · shiki sheet (twin consumes this list)</div>
+      <div class="trow"><span class="nm">--ds-syn-keyword</span><i class="sw" style="background:#B86827"></i><span class="wv">#B86827</span><i class="sw" style="background:#DAA549"></i><span class="wv">#DAA549</span></div>
+      <div class="trow"><span class="nm">--ds-syn-string</span><i class="sw" style="background:#458995"></i><span class="wv">#458995</span><i class="sw" style="background:#60A5AF"></i><span class="wv">#60A5AF</span></div>
+      <div class="trow"><span class="nm">--ds-syn-const / -func / -param</span><i class="sw" style="background:#1F61AE"></i><span class="wv">#1F61AE …</span><i class="sw" style="background:#61C8F9"></i><span class="wv">#61C8F9 …</span></div>
+      <div class="trow"><span class="nm">--ds-syn-comment</span><i class="sw" style="background:#919F9E"></i><span class="wv">#919F9E</span><i class="sw" style="background:#738484"></i><span class="wv">#738484</span></div>
+      <div class="tg">ocean scene · token-driven (was raw rgba in ui-theme)</div>
+      <div class="trow"><span class="nm">--ds-ray-a / -b / -c</span><i class="sw" style="background:rgba(0,99,248,.10)"></i><span class="wv">accent mixes</span><i class="sw" style="background:rgba(97,200,249,.16)"></i><span class="wv">accent mixes</span></div>
+      <div class="trow"><span class="nm">--ds-sea / --ds-grid / --ds-veil</span><i class="sw" style="background:linear-gradient(180deg,#fff,rgb(243,249,251))"></i><span class="wv">light wash</span><i class="sw" style="background:linear-gradient(180deg,#171B1D,#07090B)"></i><span class="wv">dark wash</span></div>
+    </div>
+  </section>
+
+  <div class="sect-h"><h2>Migration map</h2><span class="n">05</span><span class="d">what the codemod renames, collapses, deletes</span></div>
+  <section class="panel" style="overflow:hidden">
+    <table class="map">
+      <tr><th style="width:42%">current</th><th style="width:36%">proposed</th><th>action</th></tr>
+      <tr><td class="old"><code>--dsw-alias-brand-primary</code></td><td class="new"><code>--ds-accent-fill</code></td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-brand-primary-new-colorprimary-new-color</code></td><td class="new"><code>--ds-accent-fill</code></td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-static-neutral-(bluish-)*</code></td><td class="new"><code>--ds-neutral-*</code> (one scale, declared once)</td><td><span class="act rn">collapse</span></td></tr>
+      <tr><td class="old"><code>--dsw-static-deepseek-*</code></td><td class="new"><code>--ds-teal-*</code> (accent-3, supporting only)</td><td><span class="act kp">demote</span></td></tr>
+      <tr><td class="old"><code>--dsw-static-deepseek-700-delete</code></td><td class="new">—</td><td><span class="act dl">delete</span></td></tr>
+      <tr><td class="old"><code>--dsw-static-deepseek-300 / -400</code> (same rgb)</td><td class="new"><code>--ds-teal-300</code></td><td><span class="act rn">dedupe</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-label-{primary|secondary|…}</code></td><td class="new"><code>--ds-ink-{1…5}</code></td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-bg-{base|layer-1…3}</code></td><td class="new"><code>--ds-surface-{0…3}</code></td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-border-l{1…4}</code></td><td class="new"><code>--ds-line-{1…4}</code></td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-label-error · fill-l2 · fill-tsp-secondary · separator-primary · label-quaternary · bg-layer-4</code></td><td class="new"><code>--ds-state-err · --ds-fill-2 · --ds-fill-tsp-secondary · --ds-separator · --ds-ink-4 · --ds-surface-3</code></td><td><span class="act rn">define + fix</span></td></tr>
+      <tr><td class="old"><code>--dsw-alias-state-*-bg</code> (tailwind literals)</td><td class="new">color-mix(in srgb, var(--ds-state-*) 8–14%, transparent)</td><td><span class="act rn">derive</span></td></tr>
+      <tr><td class="old"><code>--dsh-*</code> geometry &amp; runtime vars</td><td class="new"><code>--ds-*</code> (chat-width, composer-height, content-font-size…)</td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--ds-font-family-code · --ds-ease-in-out</code></td><td class="new"><code>--ds-font-code · --ds-ease</code> (absorbed)</td><td><span class="act kp">absorb</span></td></tr>
+      <tr><td class="old"><code>--shiki-token-*</code></td><td class="new"><code>--ds-syn-*</code> — twin theme generated from this</td><td><span class="act rn">rename</span></td></tr>
+      <tr><td class="old"><code>--dsw-font-markdown-*-*-{family,weight,style,size,line-height}</code></td><td class="new">—(~100 Figma-export decompositions)</td><td><span class="act dl">delete</span></td></tr>
+      <tr><td class="old">packages/api/ide twin-theme.ts hex tables</td><td class="new">build-time generated from the sheet</td><td><span class="act rn">generate</span></td></tr>
+      <tr><td class="old">packages/client/web boot page --dsh-boot-* copy</td><td class="new">same generated entry, boot layer</td><td><span class="act rn">generate</span></td></tr>
+    </table>
+  </section>
+
+  <p class="foot">
+    <b>Rejects nothing the audit found healthy</b>: the single token layer, the
+    body[data-…] attribute switch, the theme service, ui-primitives. What changes is the
+    sheet's internal hygiene (one scale, one prefix, one accent family, no foreign hexes) and the
+    two hand-copied forks (twin, boot page) become generated artifacts of it.
+  </p>
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeToggle');
+  var label = document.getElementById('themeLabel');
+  function sync() { label.textContent = root.dataset.theme === 'dark' ? '☾ dark' : '☀ light'; }
+  btn.addEventListener('click', function () {
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    sync();
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

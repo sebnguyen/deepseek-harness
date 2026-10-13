@@ -1,4 +1,4 @@
-# Conversation modes — investigation & redesign brief
+ our# Conversation modes — investigation & redesign brief
 
 Companion: `quiet-mode-plugin.md` (shipped v2 blueprint), `quiet-mode-mockup.html`,
 `conversation-report-view-mockup.html`. Supersedes the mode taxonomy in

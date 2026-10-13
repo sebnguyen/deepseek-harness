@@ -31,6 +31,8 @@ the reasoning channel always renders.
 
 ## Decision
 
+Partly superseded: the grammar hints returned capability-gated — see [conversation-mode grammar hints](../feature/2026-10-13-conversation-mode-grammar-hints.md). The thoughts-in-every-shape product call and the incident record below still hold.
+
 - **The plugin attaches no request-grammar fields in any form.** The
   `ctx.request-grammar` contribution (strict empty-object shield at the
   `turnShape` priority band) is deleted outright, and with it every

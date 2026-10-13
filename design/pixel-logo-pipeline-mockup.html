@@ -1,0 +1,356 @@
+<!doctype html>
+<!-- Walkthrough mock: derive the pixelized DigitalOcean mark the "right" way —
+     original vector -> hard (nearest-neighbour, no-AA) downsample -> sample over an
+     NxN window -> one vector <rect> per kept cell -> CSS sweep/twinkle on top,
+     gap stored in viewBox units so it scales with the mark.
+     Open directly in a browser; no build step, no network. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pixel logo pipeline — downsample → window sample → vector squares</title>
+<style>
+  :root { color-scheme: light; font-family: system-ui, sans-serif; }
+  body { margin: 0; background: #eef0f4; color: #000c2a; }
+  .stage { display: flex; flex-direction: column; gap: 26px; padding: 30px 40px 60px; max-width: 1120px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #5d6c6c; margin: 0 0 10px; }
+  section { display: flex; flex-direction: column; }
+  .row { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+  .panel { background: #fff; border: 1px solid rgb(0 12 42 / 10%); border-radius: 14px; padding: 22px 26px; display: flex; align-items: center; justify-content: center; }
+  .panel.dark { background: #121618; border-color: rgb(255 255 255 / 12%); }
+  .panel.light svg, .panel.light canvas { color: #0063f8; }
+  .panel.dark svg { color: #7bb4bc; }
+  .frame { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .frame small { color: #5d6c6c; font-size: 11px; }
+  .dark-frame small { color: #919f9e; }
+  .arrow { font-size: 22px; color: #919f9e; }
+  canvas.pix { image-rendering: pixelated; }
+  code.api { display: inline-block; font: 12px/1.6 ui-monospace, monospace; background: #000c2a; color: #9fe8f0; border-radius: 6px; padding: 3px 8px; margin-top: 10px; white-space: pre-wrap; }
+  p.note { font-size: 13px; line-height: 1.65; color: #5d6c6c; margin: 10px 0 0; max-width: 880px; }
+  .verdict { background: #000c2a; color: #f7f8f8; border-radius: 14px; padding: 20px 26px; }
+  .verdict h2 { color: #7bb4bc; }
+  .verdict p, .verdict li { font-size: 13.5px; line-height: 1.65; color: #d9e2e1; }
+  .controls { position: sticky; top: 0; z-index: 2; background: #eef0f4ee; backdrop-filter: blur(6px); padding: 14px 0; display: flex; gap: 22px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid rgb(0 12 42 / 10%); }
+  .controls label { font-size: 12px; font-weight: 600; color: #5d6c6c; display: flex; gap: 8px; align-items: center; }
+  .controls select, .controls input[type=range] { accent-color: #0063f8; }
+  .controls output { font: 12px ui-monospace, monospace; color: #000c2a; min-width: 4ch; }
+  pre.markup { font: 11px/1.5 ui-monospace, monospace; background: #fff; border: 1px solid rgb(0 12 42 / 10%); border-radius: 8px; padding: 10px 12px; max-width: 560px; overflow: hidden; margin: 12px 0 0; color: #33413f; }
+  .stat { font: 12px ui-monospace, monospace; color: #5d6c6c; }
+</style>
+<style id="dsh-pl-style">
+  /* The exact animation recipe the shipped loader uses, imposed on the derived rects. */
+  .dsh-pl{animation:dsh-pl-sweep 1.2s step-end infinite}
+  @keyframes dsh-pl-sweep{0%{opacity:1}6.25%{opacity:0.87}12.5%{opacity:0.74}18.75%{opacity:0.61}25%{opacity:0.48}31.25%{opacity:0.35}37.5%{opacity:0.22}100%{opacity:0.22}}
+  .dsh-pl-tw{animation-name:dsh-pl-twinkle;animation-iteration-count:infinite;animation-timing-function:cubic-bezier(.33,0,.25,1)}
+  @keyframes dsh-pl-twinkle{0%,62%,100%{opacity:0.22}9%{opacity:1}}
+  @media (prefers-reduced-motion: reduce){.dsh-pl,.dsh-pl-tw{animation:none}}
+</style>
+</head>
+<body>
+<div class="stage">
+  <h1>Pixel mark pipeline — original vector → hard downsample → window sample → vector squares</h1>
+
+  <div class="verdict">
+    <h2>Is the method wrong?</h2>
+    <p>No — this page runs exactly that pipeline, live, on the real <code>website/public/favicon.svg</code> path. Three refinements fell out of implementing it:</p>
+    <ul>
+      <li><b>How you sample the window matters once features get small.</b> At 24×24 and 16×16, threshold 50%, a single centre sample and a whole-window alpha average agree to the cell (255 vs 256 cells). They diverge at 12×12 — the detached dot’s cells flip between the two readings — and at high thresholds, where centre sampling turns cells on that window averaging sheds as a few per-cent mass. Coverage is the honest reading.</li>
+      <li><b>The gap needs no per-size bookkeeping.</b> Stored as a fraction of the viewBox unit, it scales with the mark automatically — the ratio is preserved for free. Widening the gap only below ~1px pitch is an optical tuning for tiny renders, not a correction of the method.</li>
+      <li><b>The shipped mark is hand-drawn ASCII, not derived.</b> A true downsample matches <code>GRID24</code> within 3 of 258 cells — close, but every logo tweak means re-eyeballing literals by hand. This pipeline derives the grid from the real path at any N (comparison at the bottom).</li>
+    </ul>
+  </div>
+
+  <div class="controls">
+    <label>grid N
+      <input type="number" id="ctlN" min="4" max="64" step="1" value="24" title="any grid from 4 to 64" style="width:70px;accent-color:#0063f8">
+    </label>
+    <label>window sample
+      <select id="ctlMode"><option value="coverage" selected>coverage (mean over window)</option><option value="nearest">centre / nearest pixel</option></select>
+    </label>
+    <label>fill threshold <input type="range" id="ctlThr" min="5" max="95" value="50"><output id="outThr">50%</output></label>
+    <label>gap <input type="range" id="ctlGap" min="0" max="50" value="20"><output id="outGap">20%</output></label>
+    <span class="stat" id="stat"></span>
+  </div>
+
+  <section>
+    <h2>1 · Source — the real vector logo</h2>
+    <div class="row">
+      <div class="panel light" id="srcPanel"></div>
+      <p class="note">The untouched path from <code>website/public/favicon.svg</code>, drawn through <code>new Path2D(d)</code>. Everything below derives from this geometry — nothing hand-traced.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>2 · Downsample with the no-anti-alias resample (nearest neighbour)</h2>
+    <div class="row">
+      <div class="frame"><div class="panel light" id="hrPanel"></div><small>high-res raster (N×16 supersample)</small></div>
+      <div class="arrow">→</div>
+      <div class="frame"><div class="panel light" id="dnPanel"></div><small id="dnLabel">N×N nearest-neighbour</small></div>
+    </div>
+    <code class="api" id="chip2"></code>
+    <p class="note"><code>imageSmoothingEnabled = false</code> is the “no anti-alias” method: <code>drawImage</code> then picks one source pixel per destination cell, so pixel borders stay hard instead of blending. The enlarged view uses <code>image-rendering: pixelated</code> so you see exactly what the sampler sees.</p>
+  </section>
+
+  <section>
+    <h2>3 · Sample over each x×x window</h2>
+    <div class="row">
+      <div class="frame"><div class="panel light" id="ovPanel"></div><small>window grid over the source — red windows are rejected</small></div>
+      <div class="frame"><div class="panel light" id="cellsPanel"></div><small>kept cells</small></div>
+    </div>
+    <code class="api" id="chip3"></code>
+    <p class="note">Coverage mode averages the high-res alpha across the whole window and keeps the cell when the mean crosses the threshold; centre mode reads the single downsampled pixel instead. At 24/16 and 50% they agree; set N to 12, or raise the threshold into the 70–90% range, and watch the two readings diverge on the dot cells.</p>
+  </section>
+
+  <section>
+    <h2>4 · Emit one vector square per kept cell</h2>
+    <div class="row">
+      <div class="panel light" id="vecPanel"></div>
+    </div>
+    <code class="api" id="chip4"></code>
+    <pre class="markup" id="markup"></pre>
+    <p class="note">Each kept cell becomes one <code>&lt;rect&gt;</code> in a 0 0 N N viewBox. The gap is an inset of <code>gap/2</code> per side <i>in viewBox units</i>, so it is ratioed with the scale by construction — zoom the next sections to any size and the margin keeps its proportion with zero extra logic.</p>
+  </section>
+
+  <section>
+    <h2>5 · Impose CSS animation on the squares</h2>
+    <div class="row">
+      <div class="panel light"><div class="frame"><span id="sweepLight"></span><small>sweep — 16 clockwise buckets, staggered delays</small></div></div>
+      <div class="panel dark"><div class="frame dark-frame"><span id="sweepDark"></span><small>sweep, dark</small></div></div>
+      <div class="panel light"><div class="frame"><span id="twLight"></span><small>twinkle — seeded per-pixel pop &amp; fade</small></div></div>
+      <div class="panel dark"><div class="frame dark-frame"><span id="twDark"></span><small>twinkle, dark</small></div></div>
+    </div>
+    <p class="note">The shipped recipe, imposed on derived rects unchanged: sweep buckets cells by angle into 16 groups, each <code>&lt;g&gt;</code> carries its own clockwise <code>animation-delay</code> on a shared step-end ladder; twinkle gives every rect its own seeded duration and negative delay. Animation targets the generated objects, exactly as the method intends.</p>
+  </section>
+
+  <section>
+    <h2>6 · Scale infinitely — the gap ratio holds</h2>
+    <div class="row" id="scaleRow" style="align-items:end"></div>
+    <p class="note">One markup, many sizes. Because widths, heights <i>and</i> gaps all live in viewBox units, the gap-to-pixel ratio is identical at 12px and at 240px. Drag the gap slider: every size updates in the same proportion.</p>
+  </section>
+
+  <section>
+    <h2>7 · Why the current one feels off — shipped hand-drawn grid vs this downsample</h2>
+    <div class="row">
+      <div class="frame"><div class="panel light" id="shippedPanel"></div><small>shipped GRID24 (hand-drawn ASCII)</small></div>
+      <div class="frame"><div class="panel light" id="derivedPanel"></div><small>derived at 24×24, coverage ≥ 50%</small></div>
+      <span class="stat" id="diffStat"></span>
+    </div>
+    <p class="note">The shipped sweep/twinkle bakes <code>GRID24</code>/<code>GRID16</code> string literals into <code>design/pixel-do-loader-gen.mjs</code>. They agree with a true downsample within 3 cells, so the geometry was never the problem — the literals just have to be redrawn by hand whenever the logo changes. The pipeline above replaces them with derivation.</p>
+  </section>
+</div>
+
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+
+// Injected at finalize time from website/public/favicon.svg (the ground truth).
+const LOGO_D = 'M12.04 0C5.408-.02.005 5.37.005 11.992h4.638c0-4.923 4.882-8.731 10.064-6.855a6.95 6.95 0 014.147 4.148c1.889 5.177-1.924 10.055-6.84 10.064v-4.61H7.391v4.623h4.61V24c7.86 0 13.967-7.588 11.397-15.83-1.115-3.59-3.985-6.446-7.575-7.575A12.8 12.8 0 0012.039 0zM7.39 19.362H3.828v3.564H7.39zm-3.563 0v-2.978H.85v2.978z';
+// Injected from design/pixel-do-loader-gen.mjs GRID24 (the hand-drawn comparison).
+const SHIPPED_24 = ['.........#######........','......############......','.....##############.....','....#################...','...##################...','..#######......#######..','.######..........######.','.#####............#####.','######............######','#####..............#####','#####..............#####','#####..............#####','...................#####','...................#####','...................#####','.......#####......#####.','.###...#####......#####.','.###...#####.....######.','.###...#####...#######..','....###.....#########...','....###.....########....','....###.....#######.....','....###.....######......','............###.........'];
+
+// Shipped animation recipe, reused verbatim so the comparison is apples-to-apples.
+const F = 16, PERIOD = 1.2, DIM = 0.22;
+const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM];
+const round2 = (n) => Math.round(n * 100) / 100;
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const state = { N: 24, mode: 'coverage', thr: 0.5, gap: 20 };
+
+/* Step 1-2: rasterize the vector path at N*16 supersample, then hard-downsample. */
+function highResCanvas(N) {
+  const S = N * 16;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = S;
+  const ctx = cv.getContext('2d', { willReadFrequently: true });
+  const k = S / 24;
+  ctx.scale(k, k);
+  ctx.fillStyle = '#000';
+  ctx.fill(new Path2D(LOGO_D));
+  return cv;
+}
+function downsampledCanvas(hr, N) {
+  const dn = document.createElement('canvas');
+  dn.width = dn.height = N;
+  const ctx = dn.getContext('2d', { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = false; // the no-anti-alias, nearest-neighbour resample
+  ctx.drawImage(hr, 0, 0, N, N);
+  return dn;
+}
+
+/* Step 3: sample each x-by-x window. */
+function sampleCells(hr, dn, N, mode, thr) {
+  const cells = [];
+  if (mode === 'nearest') {
+    const d = dn.getContext('2d').getImageData(0, 0, N, N).data;
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (d[(r * N + c) * 4 + 3] / 255 >= thr) cells.push([c, r]);
+    }
+    return cells;
+  }
+  const S = hr.width;
+  const a = hr.getContext('2d').getImageData(0, 0, S, S).data;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const x0 = Math.floor(c * S / N), x1 = Math.floor((c + 1) * S / N);
+    const y0 = Math.floor(r * S / N), y1 = Math.floor((r + 1) * S / N);
+    let sum = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) sum += a[(y * S + x) * 4 + 3];
+    if (sum / ((x1 - x0) * (y1 - y0)) / 255 >= thr) cells.push([c, r]);
+  }
+  return cells;
+}
+
+/* Step 4: cells -> vector rects; the gap is an inset in viewBox units. */
+function rectsFor(cells, gapPct) {
+  const inset = round2(gapPct / 100 / 2);
+  const side = round2(1 - 2 * inset);
+  const rx = round2(Math.min(0.18, side * 0.2));
+  return cells.map(([c, r]) =>
+    `<rect x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"/>`).join('');
+}
+function svgShell(N, inner, w) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${N} ${N}" width="${w}" height="${w}" fill="currentColor" aria-hidden="true">${inner}</svg>`;
+}
+/* Step 5a: shipped sweep staggering imposed on the derived cells. */
+function sweepInner(cells, N, gapPct) {
+  const groups = Array.from({ length: F }, () => []);
+  for (const [c, r] of cells) {
+    const angle = Math.atan2(r + 0.5 - N / 2, c + 0.5 - N / 2) * 180 / Math.PI;
+    const f = ((((angle + 90) % 360) + 360) % 360) / 360;
+    groups[Math.round(f * F) % F].push([c, r]);
+  }
+  return groups.map((bucket, k) => bucket.length === 0 ? '' :
+    `<g opacity="${DIM}" class="dsh-pl" style="animation-delay:${round2(k / F * PERIOD)}s">${rectsFor(bucket, gapPct)}</g>`).join('');
+}
+/* Step 5b: shipped twinkle, seeded per pixel. */
+function twinkleInner(cells, N, gapPct) {
+  const rand = mulberry32(0xD000 + N);
+  const inset = round2(gapPct / 100 / 2);
+  const side = round2(1 - 2 * inset);
+  const rx = round2(Math.min(0.18, side * 0.2));
+  return cells.map(([c, r]) => {
+    const dur = round2(1.6 + rand() * 1.8);
+    const delay = round2(-rand() * dur);
+    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"/>`;
+  }).join('');
+}
+
+function mount(host, svg) {
+  const t = document.createElement('template');
+  t.innerHTML = svg.trim();
+  host.replaceChildren(t.content.firstElementChild);
+}
+function canvasView(cv, cssSize, pixelated) {
+  const view = document.createElement('canvas');
+  view.width = cv.width; view.height = cv.height;
+  view.getContext('2d').drawImage(cv, 0, 0);
+  view.style.width = view.style.height = cssSize + 'px';
+  if (pixelated) view.className = 'pix';
+  return view;
+}
+
+function render() {
+  const { N, mode, thr, gap } = state;
+  $('#outThr').textContent = Math.round(thr * 100) + '%';
+  $('#outGap').textContent = gap + '%';
+
+  const hr = highResCanvas(N);
+  const dn = downsampledCanvas(hr, N);
+  const cells = sampleCells(hr, dn, N, mode, thr);
+
+  // 1 source
+  mount($('#srcPanel'), svgShell(24, `<path d="${LOGO_D}"/>`, 220));
+
+  // 2 hard downsample
+  $('#hrPanel').replaceChildren(canvasView(hr, 220, false));
+  $('#dnPanel').replaceChildren(canvasView(dn, 220, true));
+  $('#dnLabel').textContent = `${N}×${N} nearest-neighbour`;
+  $('#chip2').textContent = `down.imageSmoothingEnabled = false;\nctx.drawImage(highRes, 0, 0, ${N}, ${N});   // nearest neighbour -> hard pixel borders`;
+
+  // 3 window sampling overlay
+  const D = 320;
+  const ov = document.createElement('canvas');
+  ov.width = ov.height = D;
+  const octx = ov.getContext('2d');
+  octx.drawImage(hr, 0, 0, D, D);
+  const kept = new Set(cells.map(([c, r]) => c + ',' + r));
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (!kept.has(c + ',' + r)) {
+      octx.fillStyle = 'rgb(214 40 40 / 0.28)';
+      octx.fillRect(c * D / N, r * D / N, D / N, D / N);
+    }
+  }
+  octx.strokeStyle = 'rgb(0 12 42 / 0.35)';
+  octx.lineWidth = 1;
+  for (let i = 1; i < N; i++) {
+    octx.beginPath(); octx.moveTo(i * D / N, 0); octx.lineTo(i * D / N, D); octx.stroke();
+    octx.beginPath(); octx.moveTo(0, i * D / N); octx.lineTo(D, i * D / N); octx.stroke();
+  }
+  ov.style.width = ov.style.height = D + 'px';
+  $('#ovPanel').replaceChildren(ov);
+  mount($('#cellsPanel'), svgShell(N, rectsFor(cells, gap), 220));
+  $('#chip3').textContent = mode === 'coverage'
+    ? `keep cell when mean(alpha over the ${Math.round(hr.width / N)}×${Math.round(hr.width / N)} window) >= ${Math.round(thr * 100)}%`
+    : `keep cell when downsampled centre pixel alpha >= ${Math.round(thr * 100)}%`;
+
+  // 4 vector squares
+  const staticSvg = svgShell(N, rectsFor(cells, gap), 220);
+  mount($('#vecPanel'), staticSvg);
+  const inset = round2(gap / 100 / 2);
+  $('#chip4').textContent = `<rect x="c + ${inset}" y="r + ${inset}" width="${round2(1 - 2 * inset)}" height="${round2(1 - 2 * inset)}"/>   // gap in viewBox units -> ratioed with the scale`;
+  $('#markup').textContent = staticSvg.slice(0, 560) + '…';
+  $('#stat').textContent = `${cells.length} cells @ ${N}×${N} · svg ${staticSvg.length} B`;
+
+  // 5 animations imposed
+  mount($('#sweepLight'), svgShell(N, sweepInner(cells, N, gap), 168));
+  mount($('#sweepDark'), svgShell(N, sweepInner(cells, N, gap), 168));
+  mount($('#twLight'), svgShell(N, twinkleInner(cells, N, gap), 168));
+  mount($('#twDark'), svgShell(N, twinkleInner(cells, N, gap), 168));
+
+  // 6 scale row
+  const row = $('#scaleRow');
+  row.replaceChildren();
+  for (const size of [12, 16, 24, 48, 96, 240]) {
+    const frame = document.createElement('div');
+    frame.className = 'frame';
+    const holder = document.createElement('span');
+    mount(holder, svgShell(N, sweepInner(cells, N, gap), size));
+    const label = document.createElement('small');
+    label.textContent = size + 'px';
+    frame.append(holder, label);
+    row.append(frame);
+  }
+
+  // 7 shipped vs derived at 24
+  const shippedCells = [];
+  SHIPPED_24.forEach((line, r) => { for (let c = 0; c < line.length; c++) if (line[c] === '#') shippedCells.push([c, r]); });
+  const derived24 = sampleCells(highResCanvas(24), downsampledCanvas(highResCanvas(24), 24), 24, 'coverage', 0.5);
+  mount($('#shippedPanel'), svgShell(24, rectsFor(shippedCells, gap), 168));
+  mount($('#derivedPanel'), svgShell(24, rectsFor(derived24, gap), 168));
+  const sSet = new Set(shippedCells.map(([c, r]) => c + ',' + r));
+  const dSet = new Set(derived24.map(([c, r]) => c + ',' + r));
+  const added = derived24.filter(([c, r]) => !sSet.has(c + ',' + r)).length;
+  const removed = shippedCells.filter(([c, r]) => !dSet.has(c + ',' + r)).length;
+  $('#diffStat').textContent = `vs the downsample: +${added} cells added, −${removed} missing in the shipped grid`;
+}
+
+for (const [id, fn] of [
+  ['ctlN', (v) => { const n = Math.round(Number(v)); if (Number.isFinite(n) && n >= 4) state.N = Math.min(64, n); }],
+  ['ctlMode', (v) => { state.mode = v; }],
+  ['ctlThr', (v) => { state.thr = Number(v) / 100; }],
+  ['ctlGap', (v) => { state.gap = Number(v); }],
+]) {
+  document.getElementById(id).addEventListener('input', (e) => { fn(e.target.value); render(); });
+}
+render();
+</script>
+</body>
+</html>

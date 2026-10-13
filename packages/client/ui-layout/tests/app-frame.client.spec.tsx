@@ -587,26 +587,40 @@ describe('AppFrame swapped layout', () => {
     expect(frame.style.gridTemplateColumns).toBe('280px 0px minmax(0, 1fr)')
   })
 
-  it('positions the rightbar handle on the panel center-edge and widens with +dx', () => {
+  it('positions the rightbar handle in the gap right of the IDE track and widens with +dx', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
     expect(frame.style.gridTemplateColumns).toBe('280px 1160px minmax(0, 1fr)')
-    expect(handleFor(frame, 'rightbar').style.left).toBe('1452px')
-    drag(handleFor(frame, 'rightbar'), 1452, 1552)
+    expect(handleFor(frame, 'rightbar').style.left).toBe('1460px')
+    drag(handleFor(frame, 'rightbar'), 1460, 1560)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(1260)
     expect(rightOwner().width).toBe(1240)
   })
 
-  it('keeps the swapped handle on the panel edge when the panel hangs over without a track', () => {
+  it('keeps the swapped handle in the gap when the panel hangs over without a track', () => {
     const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, false) })
     resize(1100)
     expect(tracks(frame)).toEqual([280, 0])
     expect(rightOwner().width).toBe(545)
-    expect(handleFor(frame, 'rightbar').style.left).toBe('837px')
-    drag(handleFor(frame, 'rightbar'), 837, 827)
+    expect(handleFor(frame, 'rightbar').style.left).toBe('845px')
+    drag(handleFor(frame, 'rightbar'), 845, 835)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(535)
     expect(rightOwner().width).toBe(535)
+  })
+
+  it('solves the IDE layer beside the panel and spans the viewport in fullscreen', () => {
+    const { frame, instance } = mountFrame()
+    const layer = frame.querySelector('[data-ide-layer]') as HTMLElement
+    // The layer mirrors the panel's resolved width even before the panel opens.
+    expect(layer.style.width).toBe('1160px')
+    expect(frame.dataset.rightbarShown).toBeUndefined()
+    act(() => { instance.actions.openRightbar(true, false) })
+    expect(layer.style.width).toBe('1160px')
+    expect(frame.dataset.rightbarShown).toBe('true')
+    act(() => { instance.actions.openRightbar(true, true) })
+    expect(layer.style.width).toBe('100%')
+    expect(frame.dataset.rightbarFullscreen).toBe('true')
   })
 })
 

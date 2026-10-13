@@ -1,6 +1,6 @@
 /**
  * The vscode tab's body: poll the session twin's state; the ready answer
- * mounts the workspace-keyed keep-alive frame.
+ * publishes the singleton frame's src intent.
  *
  * The component never touches process state directly — it polls the host's
  * `ideBridge.status` on a modest interval, and each ready answer forms
@@ -8,11 +8,10 @@
  * While the host answers not-ready the body shows its progress line; a
  * disabled namespace shows the unavailable line, which is also the state
  * the design note relies on for "no viable twin, no mount" deployments.
- * The iframe element itself outlives this body: `keep-alive.tsx` hosts one
- * frame per workspace root at document level, so a session switch on the
- * same workspace re-shows the live workbench instead of reloading it, and
- * a switch to a different workspace keeps the first frame alive for an
- * instant restore on return.
+ * The iframe element itself outlives this body: `twin.tsx` hosts the
+ * singleton frame in ui-layout's positional `shell.ide` seat, so a session
+ * switch on the same workspace re-shows the live workbench instead of
+ * reloading it; this body only publishes the ready src on its intent store.
  */
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -20,7 +19,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
-import { BootHero, TwinFrameMount } from './keep-alive.tsx'
+import { BootHero, useTwinIntent } from './twin.tsx'
 import type { IdeBridgeStatus } from './rpc.ts'
 
 /** Poll cadence for the status question while the twin warms up. */
@@ -41,15 +40,20 @@ export type VscodeBodyProps =
 /**
  * Last ready answer per session id, kept module-level so a session switch —
  * which remounts this body per the seat's contract — paints the ready
- * branch (and therefore adopts the already-live frame) immediately instead
+ * branch (and therefore re-points the singleton frame) immediately instead
  * of re-showing the boot hero for one poll cycle.
  */
 const readyCache = new Map<string, IdeBridgeStatus>()
 
+/** Drop every cached ready answer; specs start from a cold cache. */
+export function resetVscodeReadyCache(): void {
+  readyCache.clear()
+}
+
 /**
  * The vscode type's body, registered under `sidebar.right.pane.tab`.
  * @param props - composed slot props.
- * @returns the workspace frame mount, or the state line standing in for it.
+ * @returns the state line standing in for the twin, or nothing once ready.
  */
 export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
@@ -82,6 +86,15 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
     }
   }, [sessionId, status])
 
+  // The singleton frame's src, published for as long as this body is mounted:
+  // the release clears only this body's own publication.
+  // dshGlass: the twin runs in glass-frame mode, composited transparent over
+  // the harness page behind its iframe (the chat-window look).
+  const src = state !== undefined && state.ready && state.url !== null && state.tkn !== null
+    ? `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}&dshGlass=1`
+    : null
+  useTwinIntent(src)
+
   if (state === undefined) return <BootHero line={t('state.opening')} spinning />
   if (!state.enabled) return <BootHero line={t('state.unavailable')} />
   if (!state.ready || state.url === null || state.tkn === null) {
@@ -92,14 +105,7 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
       />
     )
   }
-  const folder = state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`
-  // dshGlass: the twin runs in glass-frame mode, composited transparent over
-  // the harness page behind its iframe (the chat-window look).
-  const src = `${state.url}/?tkn=${state.tkn}${folder}&dshGlass=1`
-  return (
-    <TwinFrameMount
-      src={src}
-      spinLine={t('state.opening')}
-    />
-  )
+  // Ready: the singleton in the positional seat shows the workspace frame;
+  // this body owns nothing visible past publication.
+  return null
 }

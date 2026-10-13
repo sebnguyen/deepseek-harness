@@ -2,7 +2,13 @@
  * upstream (deepsuite theme/global.css) — supplied here so the composite
  * --dsw-font-* variables resolve and motion rides the upstream curve. Code
  * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
- * back to SimSun otherwise). */
+ * back to SimSun otherwise).
+ *
+ * The --dsh-z-* band is the frame's single stacking vocabulary: a surface
+ * negotiates its level here instead of minting a package-local magic number
+ * (the right panel, drag handles, and frame-level hosts previously carried
+ * hand-tuned literals that silently re-broke each other).
+ */
 :root {
   --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -12,4 +18,17 @@
   --ds-transition-duration: 0.2s;
   --ds-transition-duration-fast: 0.1s;
   --ds-transition-duration-slow: 0.3s;
+
+  /* Frame stacking layers: content surfaces (the right panel, then the IDE
+     layer in document order) stay in the content band below the interactive
+     chrome (drag handles, panel chrome floats); the frame-wide overlay and
+     fullscreen presentations climb above. */
+  --dsh-z-panel: 10;
+  --dsh-z-ide: 10;
+  --dsh-z-handle: 11;
+  --dsh-z-panel-chrome: 11;
+  --dsh-z-shell-overlay: 20;
+  --dsh-z-panel-fullscreen: 40;
+  --dsh-z-fullscreen-ide: 45;
+  --dsh-z-float-host: 60;
 }

@@ -48,7 +48,7 @@
    hidden and empty Seats do not contribute spacing. */
 .column > :not([hidden]):not(.flowItem:empty)
   ~ :not([hidden]):not(.flowItem:empty) {
-  margin-top: var(--dsh-chat-flow-gap, 8px);
+  margin-top: var(--dsh-chat-flow-gap, 4px);
 }
 
 /* Settled-flow identity boundary and the row window's mount unit: shells
@@ -65,7 +65,7 @@
 }
 
 /* The completed-turn tail captions the message above it, so it rides a
-   caption offset instead of the 8px gap that separates messages. */
+   caption offset instead of the 4px gap that separates messages. */
 .flowItem[data-chat-flow-kind='turn-tail'] {
   --dsh-chat-flow-gap: 2px;
 }
@@ -74,7 +74,7 @@
    completed-turn tail does this when it owns neither actions nor extensions,
    the span boundaries once their step settles). An empty flex item must not
    consume the column gap; the slot shell around a declined view counts as
-   empty too, so multi-step turns stack no blank 8px gaps. */
+   empty too, so multi-step turns stack no blank 4px gaps. */
 .flowItem:empty,
 .flowItem:has(> *:only-child:empty) {
   display: none;

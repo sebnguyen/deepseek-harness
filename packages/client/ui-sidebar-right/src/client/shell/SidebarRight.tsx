@@ -310,6 +310,7 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
       className={css.panel}
       style={{ width: fullscreen ? '100%' : width }}
       data-sidebar-right-panel={fullscreen ? 'fullscreen' : 'push'}
+      data-vscode-mounted={vsMounted || undefined}
       data-sidebar-right-open={expanded || undefined}
       // Off-edge is out of reach: the stylesheet's visibility flip takes the
       // hidden panel out of the tab order, and this takes it out of the
