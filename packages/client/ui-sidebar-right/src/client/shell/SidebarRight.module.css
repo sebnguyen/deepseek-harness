@@ -39,6 +39,8 @@
   overflow: hidden;
   border-radius: var(--dsh-frame-card-radius, 14px);
   box-shadow: var(--dsw-elevation-panel);
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
   transform: translateX(100%);
   visibility: hidden;
   transition:
