@@ -64,11 +64,13 @@
     - id: user-questions
       name: '@deepseek-ai/dsh-user-questions'
 
-    # Turn-shape selector + host reminder: the logged per-session turn-shape/mode
-    # selection folds through the turnShape projection; quiet/tools inject a
-    # one-line per-turn reminder — request grammar stays untouched.
+    # Turn-shape selector: the logged per-session turn-shape/mode selection folds
+    # through the turnShape projection. quiet/tools inject a one-line reminder
+    # and the request-grammar hints. grammarHints is the deployment switch.
     - id: conversation-mode
       name: '@deepseek-ai/dsh-client-conversation-mode'
+      config:
+        grammarHints: true
 
     # Model Provider rail window: routes, format, endpoint, key, per-model
     # tuning, and rates over the settings mirror. Pure UI plugin — the host
@@ -529,6 +531,11 @@
     # itself, and clamps the file and shell fences narrow-only.
     - id: staged-escalation
       name: '@deepseek-ai/dsh-staged-escalation'
+
+    # Readable-answers conversation rules: four core rules as one static
+    # system-prompt section (no tools, no state, no config).
+    - id: readability-rules
+      name: '@deepseek-ai/dsh-readability-rules'
 
     # The shared base enables the stable model-facing web_search and web_fetch
     # tools. The Web app disables this host row and composes both tools per agent
