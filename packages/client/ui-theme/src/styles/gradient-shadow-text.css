@@ -18,7 +18,7 @@ body {
   /* Transparent-glass motif: one blur recipe for every background-less
      surface (the transparent fill tokens live in design-platform.css's
      dark block; surfaces reference this single template token). */
-  --dsh-glass-blur: blur(14px);
+  --dsh-glass-blur: blur(24px) saturate(1.35);
   /* blur filter */
   --dsw-mask-blur: blur(2px);
 }
