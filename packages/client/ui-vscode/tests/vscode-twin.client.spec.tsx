@@ -271,34 +271,67 @@ describe('the twin frame cache', () => {
     second.unmount()
   })
 
-  it('returns a boot-time focus steal to its owner, and leaves a settled frame alone', async () => {
+  it('hands an automated focus grab back forever, and honors only a pointed or tabbed entry', async () => {
     vi.useFakeTimers()
     const a = await mount('f1', ready('/wF'))
     await act(async () => { await vi.advanceTimersByTimeAsync(0) })
     const frame = currentFrame()
     if (frame === null) throw new Error('frame missing')
-    // The composer stand-in: whatever held the document's focus at boot time.
+    // The composer stand-in: whatever held the document's focus before.
     const composer = document.createElement('div')
     composer.tabIndex = 0
     document.body.appendChild(composer)
     try {
+      // No owner on record at all: the grab is dumped onto <body> — the
+      // frame never holds a focus it took itself.
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(document.body)
+
       composer.focus()
       expect(document.activeElement).toBe(composer)
 
       // The booting workbench focuses its restored editor; browser-level
-      // focus lands on the iframe element. While the record is unsettled the
-      // boot cover makes any such focus automated, so it is handed back.
+      // focus lands on the iframe element. No gesture stands behind the
+      // move, so the composer gets the keyboard back.
       frame.focus()
       fireEvent.blur(window)
       expect(document.activeElement).toBe(composer)
 
-      // Settled, the cover is up: entering the frame is the user's own act.
+      // The guard never ages out: an editor-restore focus landing past the
+      // settle margin is handed back all the same.
       fireEvent.load(frame)
       await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
       composer.focus()
       frame.focus()
       fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      // A pointer over the frame marks the user's click-through: the frame
+      // owns the keyboard, and blurs that move nothing stand down — until
+      // the pointer is back out and an ungestured grab lands again.
+      frame.dispatchEvent(new Event('pointerover', { bubbles: true }))
+      frame.focus()
+      fireEvent.blur(window)
       expect(document.activeElement).toBe(frame)
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(frame)
+      composer.focus()
+      frame.dispatchEvent(new Event('pointerout', { bubbles: true }))
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      // A Tab keydown grants the same entry for the keyboard; once the
+      // user is back in the document, an ungestured grab is barred again.
+      fireEvent.keyDown(window, { key: 'Tab' })
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(frame)
+      composer.focus()
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
     } finally {
       composer.remove()
       a.unmount()

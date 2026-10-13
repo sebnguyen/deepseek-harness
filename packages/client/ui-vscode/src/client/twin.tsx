@@ -36,6 +36,15 @@ import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primit
 const BOOT_SETTLE_MS = 1_200
 
 /**
+ * Keyboard-entry grace: a focus move into a frame landing within this many
+ * milliseconds of a Tab keydown counts as the key's default action — the
+ * user tabbing into the frame — never as an automated grab. The move is
+ * the keydown's synchronous outcome, so the window needs only to bridge
+ * dispatch jitter, not human reaction time.
+ */
+const TAB_ENTRY_GRACE_MS = 300
+
+/**
  * Live records cap: one visible plus one parked spare. The single most
  * common switch shape is the A↔B flip; unbounded maps would park a
  * heavyweight workbench document per visited workspace, and the host
@@ -289,42 +298,91 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
     if (created) bump()
   }, [src])
 
-  // Focus guard: the booting workbench auto-focuses its restored editor as
-  // the document loads, and focusing inside an iframe promotes browser-level
-  // focus to the <iframe> element — the composer loses the keyboard while
-  // the frame opens. The workbench's own don't-steal guard can never trip in
-  // a never-focused browsing context (the active element is <body> before
-  // and after its restore), and the frame is cross-origin, so all the parent
-  // can do is hand the focus back. While the boot cover seals the records
-  // no gesture can reach the frame, so any focus a record holds is
-  // automated; return it to wherever it was. Once the document settled, the
-  // cover is up and entering the frame is the user's own act.
+  // Focus guard, holding for the frame's whole life — a mount and every
+  // boot past the settle margin included. The workbench auto-focuses its
+  // restored editor whenever its deferred restore lands, and focusing
+  // inside an iframe promotes browser-level focus to the <iframe> element,
+  // pulling the keyboard out of the composer or wherever it was. The
+  // workbench's own don't-steal guard can never trip in a never-focused
+  // browsing context (the active element is <body> before and after its
+  // restore), and the frame is cross-origin, so all the parent can do is
+  // hand the focus back. The hand-back fires only on an automated grab: a
+  // pointer inside the frame's box or a Tab just pressed marks the user's
+  // own entry, after which the frame legitimately owns the focus — and a
+  // window blur that moved nothing (alt-tab away, then back) stands down.
   const lastFocus = useRef<HTMLElement | null>(null)
+  // The frame the user deliberately entered and that still owns the focus.
+  const frameHolder = useRef<HTMLIFrameElement | null>(null)
+  // The frame under the pointer: a click's entry lands on the inner
+  // document before the parent sees anything, so the boundary crossings
+  // are the only click-through signal a cross-origin frame gives us.
+  const frameHover = useRef<HTMLIFrameElement | null>(null)
+  // The latest Tab keydown: a focus move inside the grace is the key's
+  // default action. Nothing pressed yet — never pre-arm the grace.
+  const frameTabAt = useRef(Number.NEGATIVE_INFINITY)
   useEffect(() => {
-    // Track our document's focus so a steal has somewhere to be returned to;
-    // focus inside the seat (cover, frames) is never a valid restore target.
+    // Track our document's focus so a grab has somewhere to be handed
+    // back; focus inside the seat (cover, frames) is never a valid restore
+    // target, and focus landing back here ends a frame's verified hold.
     const onFocusIn = (event: FocusEvent): void => {
       const host = hostRef.current
       if (!(event.target instanceof HTMLElement)) return
       if (host !== null && host.contains(event.target)) return
+      frameHolder.current = null
       lastFocus.current = event.target
+    }
+    const onPointerOver = (event: PointerEvent): void => {
+      if (event.target instanceof HTMLIFrameElement) frameHover.current = event.target
+    }
+    const onPointerOut = (event: PointerEvent): void => {
+      if (frameHover.current !== null && event.target === frameHover.current) frameHover.current = null
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Tab') frameTabAt.current = performance.now()
     }
     // A frame's own focus() surfaces here only as a window blur whose
     // activeElement is the frame element — the same signal Menu.tsx uses.
     const onBlur = (): void => {
       const thief = document.activeElement
       if (!(thief instanceof HTMLIFrameElement)) return
-      for (const record of records.current.values()) {
-        if (record.frame !== thief || record.settled) continue
-        const prior = lastFocus.current
-        if (prior !== null && prior.isConnected) prior.focus({ preventScroll: true })
+      // The verified holder's own blurs (the window itself losing focus)
+      // moved nothing; only a dead grab needs a hand-back.
+      if (frameHolder.current === thief) return
+      let owned = false
+      for (const record of records.current.values()) owned ||= record.frame === thief
+      if (!owned) return
+      // The user's own entry: the pointer rests inside this frame's box,
+      // or a Tab just landed. The frame owns the keyboard from here on.
+      if (frameHover.current === thief || performance.now() - frameTabAt.current < TAB_ENTRY_GRACE_MS) {
+        frameHolder.current = thief
+        // A Tab arms exactly one move; the entry it explained consumes it,
+        // so a later grab waits for a fresh key.
+        frameTabAt.current = Number.NEGATIVE_INFINITY
         return
+      }
+      // Automated grab: hand the focus back — to the frame the user was
+      // working in when another one grabbed, else wherever the document
+      // last had it (the composer). Returned lastFocus focus clears the
+      // hold itself through the focusin above. Nothing on record to hand
+      // back, and the frame drops the focus itself onto <body>: a frame
+      // never holds a focus it took.
+      const prior = frameHolder.current ?? lastFocus.current
+      if (prior !== null && prior.isConnected) {
+        prior.focus({ preventScroll: true })
+      } else {
+        thief.blur()
       }
     }
     window.addEventListener('focusin', onFocusIn)
+    window.addEventListener('pointerover', onPointerOver)
+    window.addEventListener('pointerout', onPointerOut)
+    window.addEventListener('keydown', onKeyDown)
     window.addEventListener('blur', onBlur)
     return () => {
       window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('pointerover', onPointerOver)
+      window.removeEventListener('pointerout', onPointerOut)
+      window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('blur', onBlur)
     }
   }, [])
