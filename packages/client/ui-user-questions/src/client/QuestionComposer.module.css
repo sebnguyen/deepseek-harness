@@ -23,8 +23,6 @@
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l2-darkmode-thin);
   border-radius: 20px;
   background: var(--dsw-specific-input-major);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   box-shadow: var(--dsw-elevation-panel);
   color: var(--dsw-alias-label-primary);
   overflow: hidden;
@@ -216,8 +214,6 @@
   margin-top: 2px;
   border-radius: 6px;
   background: var(--dsw-alias-bg-overlay);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
   font-weight: 500;
@@ -397,8 +393,6 @@
   border: 0.5px solid var(--dsw-alias-border-l4);
   border-radius: 10px;
   background: var(--dsw-alias-bg-module-platform);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   --dsh-answer-field-padding: 8px 12px;
 }
 

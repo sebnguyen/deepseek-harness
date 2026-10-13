@@ -290,20 +290,18 @@ body[data-ds-dark-theme] {
   --dsw-alias-accent-bg: var(--dsw-static-violet-950);
   --dsw-alias-accent-border: var(--dsw-static-violet-800);
   --dsw-alias-accent-text: var(--dsw-static-violet-300);
-  /* Transparent-glass motif: windows/cards paint no fill — the ambient
-     ocean scene is the ground (chat-window treatment app-wide). */
-  --dsw-alias-bg-base: transparent;
-  --dsw-alias-bg-layer-1: transparent;
-  --dsw-alias-bg-layer-2: transparent;
-  --dsw-alias-bg-layer-3: transparent;
+  --dsw-alias-bg-base: var(--dsw-static-neutral-bluish-950);
+  --dsw-alias-bg-layer-1: var(--dsw-static-neutral-bluish-875);
+  --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+  --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-bg-mask-1: rgba(0, 0, 0, 0.5);
   --dsw-alias-bg-mask-2: rgba(0, 0, 0, 0.2);
   --dsw-alias-bg-mask-3: rgba(0, 0, 0, 0.48);
   --dsw-alias-bg-mask-drop: rgba(46, 50, 52, 0.7);
   --dsw-alias-bg-mask-photo: rgba(0, 0, 0, 0.88);
   --dsw-alias-bg-module-platform: transparent;
-  --dsw-alias-bg-multi-select: transparent;
-  --dsw-alias-bg-overlay: transparent;
+  --dsw-alias-bg-multi-select: rgb(46, 67, 75);
+  --dsw-alias-bg-overlay: var(--dsw-static-neutral-bluish-700);
   --dsw-alias-bg-skeleton: rgba(255, 255, 255, 0.08);
   --dsw-alias-border-inverted: rgba(247, 248, 248, 0.06);
   --dsw-alias-border-inverted2: rgba(247, 248, 248, 0.08);
@@ -361,15 +359,18 @@ body[data-ds-dark-theme] {
   --dsw-alias-scrollbar-hover-l2: var(--dsw-static-neutral-550);
   --dsw-specific-bubble: var(--dsw-alias-button-info-fill);
   --dsw-specific-bubble-highlight: var(--dsw-alias-button-info-hover);
-  --dsw-specific-input-major: transparent;
-  --dsw-specific-login-input: transparent;
-  --dsw-specific-menu: transparent;
-  --dsw-specific-selector: transparent;
+  --dsw-specific-input-major: var(--dsw-static-neutral-bluish-850);
+  --dsw-specific-login-input: var(--dsw-static-neutral-bluish-900);
+  --dsw-specific-menu: var(--dsw-alias-bg-layer-3);
+  --dsw-specific-selector: var(--dsw-static-neutral-bluish-800);
+  /* Slot-level windows stay transparent (+ elevation outline): the
+     sidebar fill is the only surface token the transparent-slot motif
+     keeps — every other surface is DO walrus black/grey again. */
   --dsw-specific-sidebar-fill: transparent;
   --dsw-specific-sidebar-nav-item-active: rgb(46, 67, 75);
   --dsw-specific-sidebar-nav-item-active-accent: var(--dsw-static-violet-800);
   --dsw-specific-sidebar-nav-item-hover: var(--dsw-static-neutral-bluish-850);
-  --dsw-specific-tip: transparent;
+  --dsw-specific-tip: var(--dsw-static-neutral-bluish-800);
   --dsw-alias-state-business-primary: var(--dsw-static-deepseek-300);
   --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-800);
   --dsw-alias-state-error-primary: var(--dsw-static-red-400);
@@ -384,6 +385,6 @@ body[data-ds-dark-theme] {
   --dsw-alias-state-success-bg: rgba(34, 197, 94, 0.12);
   --dsw-alias-state-warn-bg: rgba(245, 158, 11, 0.12);
   --dsw-alias-state-error-bg: rgba(239, 68, 68, 0.12);
-  --dsw-alias-toast-bg: transparent;
-  --dsw-alias-tooltip-bg: transparent;
+  --dsw-alias-toast-bg: var(--dsw-static-neutral-bluish-750);
+  --dsw-alias-tooltip-bg: var(--dsw-static-neutral-bluish-700);
 }

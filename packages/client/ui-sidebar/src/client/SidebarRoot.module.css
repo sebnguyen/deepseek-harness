@@ -14,8 +14,6 @@
   padding: 6px var(--dsh-sidebar-inline-padding);
   box-sizing: border-box;
   background: var(--dsw-specific-sidebar-fill);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   color: var(--dsw-alias-label-primary);
   font-size: 14px;
   /* The sidebar is elevated above the conversation surface, so a revealed

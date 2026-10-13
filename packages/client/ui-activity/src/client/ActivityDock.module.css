@@ -114,8 +114,6 @@
   border: 0.5px solid var(--dsw-alias-border-l1);
   border-radius: 12px;
   background: var(--dsw-specific-menu);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
 }
 
 .tree {

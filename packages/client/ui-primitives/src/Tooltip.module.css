@@ -9,8 +9,6 @@
   padding: 3px 7px;
   border-radius: 8px;
   background: var(--dsw-alias-tooltip-bg);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   color: var(--dsw-static-neutral-bluish-00);
   font-size: 13px;
   line-height: 20px;
