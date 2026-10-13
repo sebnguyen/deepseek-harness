@@ -13,6 +13,7 @@ import { HostConnectionService } from './rpc-host.ts'
 import { ConnectionRecoveryConfigSchema, resolveConnectionConfig, type ConnectionRecoveryConfig } from './recovery-config.ts'
 
 export type {
+  ConnectionBearerRule,
   ConnectionFetchMethod,
   ConnectionFetchHandler,
   ConnectionFetchRoute,

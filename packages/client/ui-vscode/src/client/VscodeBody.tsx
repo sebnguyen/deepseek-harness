@@ -20,7 +20,8 @@ import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-cli
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { BootHero, useTwinIntent } from './twin.tsx'
-import type { IdeBridgeStatus } from './rpc.ts'
+import { useVscodeAddressForward, type VscodeForwardRequest } from './forward.ts'
+import type { IdeBridgeStatus, IdeOpenRequest } from './rpc.ts'
 
 /** Poll cadence for the status question while the twin warms up. */
 const POLL_MS = 1_500
@@ -29,6 +30,12 @@ const POLL_MS = 1_500
 export interface VscodeInjected {
   /** Ask the host for the session twin's state. */
   readonly status: (sessionId: SessionId, signal: AbortSignal) => Promise<RemoteResult<IdeBridgeStatus>>
+  /**
+   * Fire-and-forget: open one workspace file in the session twin. Optional
+   * so mount-time guards and legacy compositions without the forwarding
+   * channel degrade silently to status-only.
+   */
+  readonly forwardFile?: (sessionId: SessionId, request: IdeOpenRequest) => void
 }
 
 /** The body's composed props: the tab runtime, the injected face, and copy. */
@@ -55,7 +62,7 @@ export function resetVscodeReadyCache(): void {
  * @param props - composed slot props.
  * @returns the state line standing in for the twin, or nothing once ready.
  */
-export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }: VscodeBodyProps): ReactNode {
+export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forwardFile, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
   // Resource addresses (file rows) carry their session in the URL; page
   // tabs (`sidebar://<kind>`) don't — those take the scope's session, which
@@ -94,6 +101,20 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, t }:
     ? `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}&dshGlass=1`
     : null
   useTwinIntent(src)
+
+  // File forwarding: the tab's current file address arrives at the twin's
+  // editor while the twin is ready. State misses (not-ready, no root) are
+  // dropped on the floor — the extension-side seat would have no twin to
+  // address anyway.
+  const ready = state !== undefined && state.ready && state.tkn !== null
+  const workspaceRoot = ready ? state.workspaceRoot : null
+  const sendForward = useMemo(
+    () => (request: VscodeForwardRequest) => {
+      forwardFile?.(request.sessionId, { path: request.path })
+    },
+    [forwardFile],
+  )
+  useVscodeAddressForward(tab.contentId, ready, workspaceRoot, sendForward)
 
   if (state === undefined) return <BootHero line={t('state.opening')} spinning />
   if (!state.enabled) return <BootHero line={t('state.unavailable')} />

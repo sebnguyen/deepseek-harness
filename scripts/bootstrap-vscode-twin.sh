@@ -177,6 +177,13 @@ git -C "$SRC" checkout --detach FETCH_HEAD
 COMMIT=$(git -C "$SRC" rev-parse HEAD)
 log "$COMMIT ready (${REPO##*/} @$REF, lane $LANE)"
 
+# Materialize whatever the fork checks out as submodules (today: none; the
+# twin lane must still self-heal when the fork grows one, so pnpm install's
+# postinstall fetch-only run and the root postbuild run arrive at the same
+# fully-populated tree either way). `--init` is idempotent and never fetches
+# beyond the superproject's pinned commits.
+retry git -C "$SRC" submodule update --init || die "git submodule update --init failed repeatedly"
+
 # --- server-web strip: root natives never compile ---------------------------
 # Root allowScripts is already false on dsh-build. Rewrite only the matching
 # booleans so a checkout that still has them true is stripped without

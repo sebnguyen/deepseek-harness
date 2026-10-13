@@ -12,6 +12,27 @@ import { randomUUID } from '@deepseek-ai/dsh-util-crypto'
 
 const INTERNAL_BASE = 'http://dsh.internal'
 
+/**
+ * Optional decorator applied to the mux URL at open time.
+ *
+ * Non-page seats — the twin's vscode bridge extension, which runs in a Node
+ * extension host with no `location` and no browser cookie — use it to point
+ * the socket at the host origin and to append the credential the plain
+ * WHATWG WebSocket handshake cannot carry in headers (`?tkn=…`). Exported
+ * at the package's client face; setting `undefined` restores page-default
+ * hostname resolution. Page seats never install one.
+ */
+let remoteStreamUrlDecorator: ((url: URL) => void) | undefined
+
+/**
+ * Install (or clear, with `undefined`) the mux-URL decorator. Process-wide,
+ * so call it before the first Remote client boot exists.
+ * @param decorator - mutator that retargets/credentials the mux URL.
+ */
+export function setRemoteStreamUrlDecorator(decorator: ((url: URL) => void) | undefined): void {
+  remoteStreamUrlDecorator = decorator
+}
+
 /** Physical Remote stream socket failure that may be retried by a domain transport. */
 export class RemoteStreamCarrierError extends Error {
   /**
@@ -209,8 +230,6 @@ export class RemoteStreamMuxClient {
         },
         reject: (error) => {
           cleanup()
-          // AbortSignal.reason belongs to the caller and may intentionally be a non-Error sentinel.
-          // oxlint-disable-next-line typescript/prefer-promise-reject-errors
           reject(error)
         },
       }
@@ -301,10 +320,12 @@ class StreamInbox {
   }
 }
 
-function remoteStreamUrl(): string {
+/** The current mux URL, post-decoration; exported so seats and specs observe what the socket would dial. */
+export function remoteStreamUrl(): string {
   const location = (globalThis as { location?: { origin?: string } }).location
   const base = location?.origin !== undefined && location.origin !== 'null' ? location.origin : INTERNAL_BASE
   const url = new URL(REMOTE_STREAM_MUX_PATH, base)
+  remoteStreamUrlDecorator?.(url)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return url.href
 }

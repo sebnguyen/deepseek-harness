@@ -52,6 +52,7 @@ export function apply(ctx: ClientContext): void {
   const remote = ctx.remote as unknown as VscodeIdeRemote
   const face: VscodeInjected = {
     status: (sessionId, signal) => remote.ideBridge.status(sessionId, signal),
+    forwardFile: (sessionId, request) => { void remote.ideBridge.open(sessionId, request) },
   }
   ctx.effect(() => ctx.sidebarRightTabs.register(vscodeDefinition()), 'ui-vscode: vscode type')
   ctx.effect(() => ctx.locale.register('vscode', { zh, en }), 'ui-vscode: dictionaries')

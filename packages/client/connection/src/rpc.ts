@@ -79,6 +79,22 @@ export type RpcMessage = ClientRequest | ServerResponse
 export interface ConnectionTrustRequest {
   /** Request headers supplied by either the Fetch or node:http representation. */
   readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
+  /** Request URL when available (node:http); bearer rules need it to name the endpoint. */
+  readonly url?: string | undefined
+}
+
+/**
+ * One bearer capability: a token grants access to a closed list of `/api`
+ * endpoints (and the shared stream upgrades those endpoints ride), after
+ * the Host/Origin fence. Registered by a Host feature that mints scoped
+ * process tokens (e.g. `api/ide` per-twin tokens); the browser-session
+ * cookie path is untouched.
+ */
+export interface ConnectionBearerRule {
+  /** Exact endpoint names on the shared `/api` channel this rule admits, e.g. `ideBridge/report`. */
+  readonly endpoints: readonly string[]
+  /** Whether one presented token authenticates this rule right now. */
+  readonly validate: (token: string) => boolean
 }
 
 /** HTTP status returned before dispatch, or undefined when the request may proceed. */
@@ -182,6 +198,20 @@ export interface HostConnectionHandle {
    * @returns rejection status, or undefined when the route may accept the request.
    */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection
+
+  /**
+   * Register one bearer capability checked by {@link HostConnectionHandle.requestRejection}
+   * before requests fall to the 401 branch. The rule admits requests carrying
+   * a matching token — `Authorization: Bearer <token>` header, or the `tkn`
+   * query parameter (the WebSocket shape that cannot attach headers) — but
+   * only to the endpoints the rule names, and only after the Host/Origin
+   * fence. Shared `/api/*` WebSocket upgrades are admitted to any matching
+   * token holder regardless of endpoints (the mux is endpoint-bound at
+   * stream-open, not at upgrade).
+   * @param rule - the capability to register.
+   * @returns disposer withdrawing the rule; pending requests keep none.
+   */
+  registerBearerRule(rule: ConnectionBearerRule): () => void
 
   /**
    * Authenticate one frontend index request, owning a token redirect or 401.

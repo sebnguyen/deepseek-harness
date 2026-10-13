@@ -17,6 +17,12 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../client/connection/tsconfig.host.json"
+    },
+    {
+      "path": "../../host/webserver/tsconfig.json"
+    },
+    {
       "path": "../../util/home-paths"
     },
     {

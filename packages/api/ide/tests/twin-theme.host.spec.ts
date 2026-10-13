@@ -9,7 +9,11 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DO_THEME_COLORS,
+  stageTwinBridgeExtension,
+  stageTwinBridgeIdentity,
   stageTwinTheme,
+  TWIN_BRIDGE_EXTENSION_DIR_NAME,
+  TWIN_BRIDGE_IDENTITY_BASENAME,
   TWIN_CONFIGURATION_DEFAULTS,
   TWIN_THEME_DIR_NAME,
   TWIN_THEME_EXTENSION_ID,
@@ -26,6 +30,52 @@ async function extsDir(): Promise<string> {
 
 afterEach(async () => {
   await Promise.all(mounted.splice(0).map(dir => rm(dir, { recursive: true, force: true })))
+})
+
+describe('stageTwinBridgeExtension', () => {
+  it('copies the compiled bundle verbatim alongside its vscode manifest', async () => {
+    const dir = await extsDir()
+    const bundle = join(dir, 'bundle.cjs')
+    await writeFile(bundle, "'use strict';module.exports={activate:function(){},deactivate:function(){}}", 'utf8')
+    const staged = await stageTwinBridgeExtension(dir, bundle)
+    expect(staged).toBe(join(dir, TWIN_BRIDGE_EXTENSION_DIR_NAME))
+    const manifest = JSON.parse(await readFile(join(staged!, 'package.json'), 'utf8')) as {
+      publisher: string
+      name: string
+      main: string
+      activationEvents: string[]
+    }
+    expect(`${manifest.publisher}.${manifest.name}`).toBe('dsh.do-harness-bridge')
+    expect(manifest.main).toBe('./extension.cjs')
+    expect(manifest.activationEvents).toContain('onStartupFinished')
+    const bytes = await readFile(join(staged!, 'extension.cjs'), 'utf8')
+    expect(bytes).toContain('module.exports')
+  })
+
+  it('reports null and stages nothing when the workspace build has not emitted the bundle yet', async () => {
+    const dir = await extsDir()
+    const staged = await stageTwinBridgeExtension(dir, join(dir, 'not-built.cjs'))
+    expect(staged).toBeNull()
+  })
+})
+
+describe('stageTwinBridgeIdentity', () => {
+  it('writes the per-spawn facts beside the twin state dirs, schema-shaped', async () => {
+    const dir = await extsDir()
+    const identity = { dshOrigin: 'http://127.0.0.1:4455', token: 'tok-abc', workspaceKey: '/repo' }
+    await stageTwinBridgeIdentity(dir, identity)
+    const staged = JSON.parse(await readFile(join(dir, TWIN_BRIDGE_IDENTITY_BASENAME), 'utf8')) as unknown
+    expect(staged).toEqual(identity)
+  })
+
+  it('rewrites in place on respawn so a stale origin or token never survives', async () => {
+    const dir = await extsDir()
+    await stageTwinBridgeIdentity(dir, { dshOrigin: 'http://127.0.0.1:1', token: 'a', workspaceKey: '/one' })
+    const next = { dshOrigin: 'http://127.0.0.1:4455', token: 'tok-b', workspaceKey: '/two' }
+    await stageTwinBridgeIdentity(dir, next)
+    const staged = JSON.parse(await readFile(join(dir, TWIN_BRIDGE_IDENTITY_BASENAME), 'utf8')) as unknown
+    expect(staged).toEqual(next)
+  })
 })
 
 describe('stageTwinTheme', () => {

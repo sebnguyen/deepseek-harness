@@ -6791,6 +6791,24 @@ importers:
         specifier: ^18.2.0
         version: 18.3.1
 
+  packages/extensions/vscode-bridge:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-api-gateway':
+        specifier: workspace:^
+        version: link:../../api/gateway
+      '@deepseek-ai/dsh-api-ide':
+        specifier: workspace:^
+        version: link:../../api/ide
+      '@deepseek-ai/dsh-client-connection':
+        specifier: workspace:^
+        version: link:../../client/connection
+      '@deepseek-ai/dsh-typert-registry':
+        specifier: workspace:^
+        version: link:../../typert/registry
+
   packages/feedback/command-feedback:
     dependencies:
       zod:

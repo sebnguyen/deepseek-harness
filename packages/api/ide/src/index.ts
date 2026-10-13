@@ -1,12 +1,14 @@
 /**
  * VS Code twin spawner and the `ideBridge` Remote namespace.
  *
- * Scope note: this is the scaffold row for the embedded-editor effort
- * (deepseek-harness `.agents/notes/proposed/architecture/2026-10-09-embedded-vscode-reh-editor-frame.md`).
- * It carries exactly one Remote method — `status` — because everything the
- * client needs to decide "mount the iframe or stay on the fallback" is one
- * ready/URL/token answer. Downlink events, the `vscode` namespace, and the
- * packaged bridge extension are later layers in the same note.
+ * The namespace serves two public consumers: the web UI's twin-state reads
+ * (`status`) plus its file-forward calls (`open`, enqueued as downlink
+ * frames), and the staged bridge extension inside the twin itself (`downlink`
+ * for its private frame stream, `report` for the uplink). The twin
+ * authenticates with its per-spawn token on the Connection bearer boundary;
+ * the web UI presents the ordinary browser cookie. Downlink frame verbs are
+ * `'<extensionId>/<verb>'`-namespaced so sibling twin planes can own their
+ * prefixes without a runtime contract change.
  * @module @deepseek-ai/dsh-api-ide
  */
 
@@ -20,17 +22,37 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type { SubprocessHandle } from '@deepseek-ai/dsh-subprocess'
 import type {} from '@deepseek-ai/dsh-sandbox-policy'
 import type {} from '@deepseek-ai/dsh-session'
-import type { IdeBridgeStatus } from './types.ts'
+import type {} from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@deepseek-ai/dsh-client-connection'
+import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
+import type {
+  IdeBridgeDownlinkFrame,
+  IdeBridgeHelloMeta,
+  IdeBridgeOpenRequest,
+  IdeBridgeReportRequest,
+  IdeBridgeStatus,
+  IdeBridgeTwinCall,
+} from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
 import { pickStablePort } from './twin-port.ts'
-import { stageTwinTheme } from './twin-theme.ts'
+import { stageTwinBridgeExtension, stageTwinBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
-export type { IdeBridgeStatus } from './types.ts'
+export type {
+  IdeBridgeDownlinkFrame,
+  IdeBridgeFaultDetails,
+  IdeBridgeHelloMeta,
+  IdeBridgeOpenRequest,
+  IdeBridgeReportEvent,
+  IdeBridgeReportRequest,
+  IdeBridgeStatus,
+  IdeBridgeTwinCall,
+} from './types.ts'
 export { findTwinDist, resolveTwinDist, twinDistCandidates } from './twin-dist.ts'
 export { pickStablePort } from './twin-port.ts'
 export {
   DO_THEME_COLORS,
   DO_TOKEN_COLORS,
+  stageTwinBridgeIdentity,
   stageTwinTheme,
   TWIN_CONFIGURATION_DEFAULTS,
   TWIN_THEME_DIR_NAME,
@@ -39,6 +61,7 @@ export {
   twinThemeFile,
   twinThemeManifest,
 } from './twin-theme.ts'
+export type { TwinBridgeIdentity } from './types.ts'
 
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
@@ -69,7 +92,53 @@ export const Config: z<Config> = z.object({
 interface IdeTwin {
   readonly handle: SubprocessHandle
   readonly url: string
+  /** The spawn token: twin identity on the bearer boundary. */
   readonly tkn: string
+}
+
+/** Downlink queue backlog held for an unconnected seat (oldest frames drop past it). */
+const DOWNLINK_QUEUE_CAP = 256
+
+/**
+ * One twin's bridge state: what it told us about itself, the frames headed
+ * its way, and the one active downlink publisher. The seat is keyed by the
+ * twin's spawn token, which is the bearer-token identity the connection
+ * package checks — the twin knows nothing of sessions or workspace keys.
+ */
+interface SeatState {
+  /** The connect-time `hello` metadata, or null until the seat reports in. */
+  hello: IdeBridgeHelloMeta | null
+  /** Bounded backlog awaiting publication; the publish cursor is `flushed`. */
+  queue: IdeBridgeDownlinkFrame[]
+  /** Frames already handed to a downlink publisher (the backlog start index). */
+  flushed: number
+  /**
+   * The current publisher generation: bumped each time a new downlink
+   * attaches, which supersedes a stale (reconnecting) loop trying to
+   * publish on the same twin.
+   */
+  generation: number
+  /** Consumer-resume hooks, woken by {@link Ide.queueFrame}. */
+  readonly waiters: Set<() => void>
+  /** Uplink projection: saved-file paths, bounded at 128 newest. */
+  readonly saved: Set<string>
+  /** Uplink projection: the last reported active editor, null when none. */
+  activeEditor: string | null
+  /** Uplink projection: per-path diagnostic summary, bounded at 256. */
+  readonly diagnostics: Map<string, { readonly errors: number; readonly warnings: number }>
+}
+
+function emptySeat(): SeatState {
+  return {
+    hello: null,
+    queue: [],
+    flushed: 0,
+    generation: 0,
+    waiters: new Set(),
+    saved: new Set(),
+    activeEditor: null,
+    diagnostics: new Map(),
+  }
 }
 
 /**
@@ -81,6 +150,8 @@ interface IdeTwin {
 interface IdeTwinManager {
   readonly dispose: () => void
   readonly ensure: (workspaceKey: string) => Promise<IdeTwin>
+  /** Resolve a live twin by its spawn token, or undefined for stale/dead tokens. */
+  readonly twinOfToken: (token: string) => IdeTwin | undefined
 }
 
 /**
@@ -143,15 +214,32 @@ async function waitReady(url: string, timeoutMs: number, pollMs: number, signal?
  * @param config - deployment config (`dist` plus tuning).
  * @returns the spawn manager.
  */
-function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
+function createTwinManager(
+  ctx: Context,
+  config: Config,
+  onTokenDropped: (token: string) => void,
+  dshOrigin: () => string,
+): IdeTwinManager {
   const twins = new Map<string, Promise<IdeTwin>>()
+  const tokenToWorkspace = new Map<string, string>()
+  const twinByToken = new Map<string, IdeTwin>()
+  const forgetToken = (token: string): void => {
+    const workspaceKey = tokenToWorkspace.get(token)
+    if (workspaceKey === undefined) return
+    tokenToWorkspace.delete(token)
+    twinByToken.delete(token)
+    onTokenDropped(token)
+  }
   return {
     dispose(): void {
       for (const pending of twins.values()) {
         void pending.then((twin) => { twin.handle.terminate() }, () => undefined)
       }
       twins.clear()
+      tokenToWorkspace.clear()
+      twinByToken.clear()
     },
+    twinOfToken: token => twinByToken.get(token),
     ensure(workspaceKey: string): Promise<IdeTwin> {
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
@@ -170,6 +258,16 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
         // The DO identity ships as a staged extension: configurationDefaults
         // the workbench actually reads, plus the DO Harness Dark theme.
         await stageTwinTheme(join(stateDir, 'exts'))
+        // The compiled connection bridge, when the client build produced it;
+        // absent it the twin stays theme-only and `dsh/frame/*` never fires.
+        await stageTwinBridgeExtension(join(stateDir, 'exts'))
+        // The bridge binds the files its extension reads before it dials: the
+        // host origin, this spawn's token, and the twin key it belongs to.
+        await stageTwinBridgeIdentity(stateDir, {
+          dshOrigin: dshOrigin(),
+          token,
+          workspaceKey,
+        })
         return await new Promise<IdeTwin>((resolve, reject) => {
           const setup = new AbortController()
           const handle = ctx.subprocess.spawn({
@@ -199,11 +297,14 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
             url: `http://127.0.0.1:${port}`,
             tkn: token,
           }
+          tokenToWorkspace.set(token, workspaceKey)
+          twinByToken.set(token, twin)
           void handle.done.then((outcome) => {
             // The child fell over before or during readiness: drop the full
             // collected stderr into the rejection so the client detail line
             // carries substance instead of a bare "spawn failed".
             if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
+            forgetToken(token)
             setup.abort()
             const stderr = handle.collected.stderr?.readFrom(0).text.trim() ?? ''
             reject(new Error(
@@ -214,6 +315,7 @@ function createTwinManager(ctx: Context, config: Config): IdeTwinManager {
             .then(() => { resolve(twin) })
             .catch((error: unknown) => {
               handle.terminate()
+              forgetToken(token)
               reject(error instanceof Error ? error : new Error(String(error)))
             })
         })
@@ -235,6 +337,8 @@ export class Ide extends TypertRemoteService {
 
   private readonly twins: IdeTwinManager
 
+  private readonly seats = new Map<string, SeatState>()
+
   /** The resolved twin dist: the config value, else the discovery winner, else ''. */
   private readonly dist: string
 
@@ -248,7 +352,12 @@ export class Ide extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'ideBridge')
     this.dist = resolveTwinDist(config.dist)
-    this.twins = createTwinManager(ctx, { ...config, dist: this.dist })
+    this.twins = createTwinManager(
+      ctx,
+      { ...config, dist: this.dist },
+      (token) => { this.seats.delete(token) },
+      () => this.dshOrigin,
+    )
     ctx.effect(() => () => { this.twins.dispose() })
     ctx.inject(['sessions', 'sandboxPolicy'], (scope) => {
       this.scope = scope
@@ -260,7 +369,25 @@ export class Ide extends TypertRemoteService {
       }
       return () => { this.scope = undefined }
     })
+    // The twin-token bearer branch: strictly scoped to the namespace's two
+    // twin-facing endpoints; the browser-cookie path for every other endpoint
+    // is byte-identical. Absent `connection` (non-web profiles) the bridge
+    // simply has no absorb point, which matches the twin lane being web-only.
+    ctx.inject(['connection'], (scope) => {
+      const withdraw = scope.connection.registerBearerRule({
+        endpoints: ['ideBridge/downlink', 'ideBridge/report'],
+        validate: token => this.twins.twinOfToken(token) !== undefined,
+      })
+      return () => { withdraw() }
+    })
+    ctx.inject(['webServer'], (scope) => {
+      this.dshOrigin = `http://127.0.0.1:${scope.webServer.port}`
+      return () => { this.dshOrigin = '' }
+    })
   }
+
+  /** Loopback origin of the host web server, when the web profile resolved it ('' otherwise). */
+  private dshOrigin = ''
 
   /**
    * Pre-spawn the freshest session's twin; failures stay quiet because the
@@ -300,6 +427,97 @@ export class Ide extends TypertRemoteService {
   }
 
   /**
+   * Queue one downlink file-open frame for the session's twin.
+   *
+   * Frames wait for the seat: an unconnected twin accumulates a bounded
+   * backlog its next attach drains in order. A session whose twin cannot be
+   * started surfaces the same detail its `status` would — `open` is
+   * reachable only from a tab that already reports ready.
+   * @param sessionId - the session whose twin takes the frame.
+   * @param request - the file and optional reveal line.
+   * @param signal - caller cancellation (spawn readiness races it).
+   */
+  @Remote
+  async open(sessionId: string, request: IdeBridgeOpenRequest, signal: AbortSignal): Promise<void> {
+    assertOpenRequest(request)
+    const { tkn } = await this.ready(sessionId, signal)
+    this.queueFrame(tkn, { type: 'ideBridge/open', path: request.path, ...(request.line === undefined ? {} : { line: request.line }) })
+  }
+
+  /**
+   * The twin's private frame stream: attach by spawn token and follow frames.
+   *
+   * Re-attaching (a reconnecting client) supersedes the stale publisher; a
+   * modest backlog replays at attach. The token is validated again here —
+   * the bearer gate admits by rule shape, but identity resolution happens
+   * per call so a revoked twin is answered within one frame.
+   * @param request - the twin's spawn token.
+   * @param signal - stream lifetime (gate aborts on disconnect).
+   */
+  @Remote({ mode: 'stream' })
+  async *downlink(request: IdeBridgeTwinCall, signal: AbortSignal): AsyncIterable<IdeBridgeDownlinkFrame> {
+    const seat = this.seatOf(request.token)
+    const generation = ++seat.generation
+    while (!signal.aborted && seat.generation === generation) {
+      while (seat.flushed < seat.queue.length) {
+        // Mark delivery at emit time: a consumer that returns after receiving
+        // frame N must leave `flushed == N`, not restart from N-1 at re-attach.
+        const frame = seat.queue[seat.flushed] as IdeBridgeDownlinkFrame
+        seat.flushed += 1
+        yield frame
+      }
+      if (signal.aborted || seat.generation !== generation) return
+      await this.frameWait(seat, signal)
+    }
+  }
+
+  /**
+   * The twin's uplink: its connect-time `hello` identity, then projection
+   * events (save, active editor, diagnostics) as they happen. Events before
+   * hello are refused — the projections are keyed outside the event's own
+   * payload only by an already-established identity.
+   * @param request - the twin token plus the event.
+   * @param signal - caller cancellation.
+   */
+  @Remote
+  async report(request: IdeBridgeReportRequest, signal: AbortSignal): Promise<void> {
+    void signal
+    const seat = this.seatOf(request.token)
+    const { event } = request
+    if (event.type === 'hello') {
+      seat.hello = { extensionId: event.extensionId, version: event.version, workspaceRoot: event.workspaceRoot }
+      return
+    }
+    if (seat.hello === null) {
+      throw new RemoteError('ide/seat-not-helloed', `ide: event '${event.type}' reported before the seat hello`, { reason: 'before-hello' })
+    }
+    switch (event.type) {
+      case 'save':
+        if (seat.saved.size >= 128 && !seat.saved.has(event.path)) seat.saved.delete(seat.saved.values().next().value as string)
+        seat.saved.add(event.path)
+        return
+      case 'activeEditor':
+        seat.activeEditor = event.path
+        return
+      case 'diagnostics':
+        if (event.errors === 0 && event.warnings === 0) {
+          seat.diagnostics.delete(event.path)
+          return
+        }
+        if (seat.diagnostics.size >= 256 && !seat.diagnostics.has(event.path)) {
+          seat.diagnostics.delete(seat.diagnostics.keys().next().value as string)
+        }
+        seat.diagnostics.set(event.path, { errors: event.errors, warnings: event.warnings })
+        return
+      default: {
+        // Unknown verbs must not pass a logged-and-forgotten gate silently.
+        const UNKNOWN = (e: never): never => { throw new Error(String((e as { type?: unknown }).type)) }
+        UNKNOWN(event)
+      }
+    }
+  }
+
+  /**
    * Spawn-and-wait for one session's twin, resolving its workspace root from
    * the session header with the sandbox root as the static fallback.
    * @param sessionId - session identity, already beyond the gateway boundary.
@@ -316,6 +534,55 @@ export class Ide extends TypertRemoteService {
     // is already up and re-probing costs one cheap round trip at worst.
     await waitReady(twin.url, this.config.readinessTimeoutMs, this.config.readinessPollMs, signal)
     return { ready: true, url: twin.url, tkn: twin.tkn, workspaceRoot: root }
+  }
+
+  /**
+   * Resolve a live seat by spawn token, creating its state on first sight.
+   * An unknown token names a dead or revoked twin — a stable failure over a
+   * parallel rejection channel, so the caller surfaces it as a Remote error.
+   * @param token - the twin spawn token.
+   * @returns the seat owning this twin's queue and projections.
+   */
+  private seatOf(token: string): SeatState {
+    if (typeof token !== 'string' || token === '' || this.twins.twinOfToken(token) === undefined) {
+      throw new RemoteError('ide/token-unknown', 'ide: token names no live twin', { reason: 'unknown-token' })
+    }
+    const existing = this.seats.get(token)
+    if (existing !== undefined) return existing
+    const created = emptySeat()
+    this.seats.set(token, created)
+    return created
+  }
+
+  /**
+   * Append one frame to a seat's backlog and wake its publishers. Twin-dead
+   * tokens drop nothing here — unknown tokens got their seat earlier only
+   * when the twin lived, and this method silently no-ops for the dead so
+   * `open` races exit cleanly.
+   */
+  private queueFrame(tkn: string, frame: IdeBridgeDownlinkFrame): void {
+    const seat = this.seats.get(tkn) ?? (this.twins.twinOfToken(tkn) === undefined ? undefined : this.seatOf(tkn))
+    if (seat === undefined) return
+    seat.queue.push(frame)
+    if (seat.queue.length > DOWNLINK_QUEUE_CAP) {
+      const excess = seat.queue.length - DOWNLINK_QUEUE_CAP
+      seat.queue.splice(0, excess)
+      seat.flushed = Math.max(0, seat.flushed - excess)
+    }
+    for (const wake of [...seat.waiters]) wake.call(undefined)
+  }
+
+  /** Sleep until any frame lands (or the stream's signal aborts). */
+  private frameWait(seat: SeatState, signal: AbortSignal): Promise<void> {
+    if (signal.aborted) return Promise.resolve()
+    return new Promise<void>((resolve) => {
+      const wake = (): void => {
+        seat.waiters.delete(wake)
+        resolve()
+      }
+      seat.waiters.add(wake)
+      signal.addEventListener('abort', wake, { once: true })
+    })
   }
 
   /**
@@ -337,6 +604,24 @@ export class Ide extends TypertRemoteService {
     if (scope === undefined) return null
     return Promise.resolve(
       scope.sessions.get(sessionId as never)?.header?.cwd ?? (scope.sandboxPolicy.workspaceRoot as string | null) ?? null,
+    )
+  }
+}
+
+/** Defensive arg shape check — the codec catches type errors, this guards semantic edge cases. */
+function assertOpenRequest(request: IdeBridgeOpenRequest): void {
+  if (typeof request !== 'object' || request === null || typeof request.path !== 'string' || request.path === '') {
+    throw new RemoteError(
+      'ide/open-invalid',
+      'ide/open: request.path must be a non-empty string',
+      { reason: 'path-missing' },
+    )
+  }
+  if (request.line !== undefined && (!Number.isInteger(request.line) || request.line < 1)) {
+    throw new RemoteError(
+      'ide/open-invalid',
+      'ide/open: request.line must be a positive integer',
+      { reason: 'line-invalid' },
     )
   }
 }

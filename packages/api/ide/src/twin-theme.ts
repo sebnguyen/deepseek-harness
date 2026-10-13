@@ -19,8 +19,10 @@
  * @module @deepseek-ai/dsh-api-ide/twin-theme
  */
 
-import { mkdir, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 /** The staged extension's stable directory name inside `--extensions-dir`. */
 export const TWIN_THEME_EXTENSION_ID = 'dsh.do-harness'
@@ -227,6 +229,73 @@ export function twinThemeFile(): unknown {
  * @param extensionsDir - the twin's `--extensions-dir` (`dist/.dsh/exts`).
  * @returns the staged extension directory path.
  */
+/** The identity contract lives with the other wire contracts in `./types.ts`. */
+import type { TwinBridgeIdentity } from './types.ts'
+export type { TwinBridgeIdentity }
+
+/** Filename the bridge extension looks up at activation (`__dirname/../../bridge.json`). */
+export const TWIN_BRIDGE_IDENTITY_BASENAME = 'bridge.json'
+
+/** The staged bridge extension's directory name inside the twin `exts/` dir. */
+export const TWIN_BRIDGE_EXTENSION_DIR_NAME = 'dsh-do-harness-bridge'
+
+/** Repo-local path of the compiled bridge bundle, produced by the workspace client build. */
+function twinBridgeBundlePath(): string {
+  return resolve(
+    fileURLToPath(import.meta.url),
+    '..', '..', '..', '..',
+    'extensions', 'vscode-bridge',
+    'dist-extension',
+    'extension.cjs',
+  )
+}
+
+function twinBridgeManifest(): Record<string, unknown> {
+  return {
+    name: 'do-harness-bridge',
+    publisher: 'dsh',
+    version: '0.1.0',
+    engines: { vscode: '^1.50.0' },
+    main: './extension.cjs',
+    activationEvents: ['onStartupFinished'],
+  }
+}
+
+/**
+ * Stage the compiled connection bridge beside the theme extension when the
+ * workspace build produced it. Absent (no client build yet / bundle miss),
+ * the twin launches with theme only and no error — file forwarding stays
+ * unavailable until a build lands, matching the extension's idle nature.
+ * @param extensionsDir - the twin's `--extensions-dir` (`dist/.dsh/exts`).
+ * @param bundlePath - explicit bundle to stage; resolved repo-locally by default.
+ * @returns the staged extension dir, or null when the bundle wasn't yet built.
+ */
+export async function stageTwinBridgeExtension(
+  extensionsDir: string,
+  bundlePath?: string,
+): Promise<string | null> {
+  const bundle = bundlePath ?? twinBridgeBundlePath()
+  if (!existsSync(bundle)) return null
+  const dir = join(extensionsDir, TWIN_BRIDGE_EXTENSION_DIR_NAME)
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'package.json'), `${JSON.stringify(twinBridgeManifest(), null, 2)}\n`, 'utf8')
+  await copyFile(bundle, join(dir, 'extension.cjs'))
+  return dir
+}
+
+/**
+ * Stage the bridge identity beside the twin's state dirs.
+ * @param stateDir - the twin-local `.dsh` dir (parent of `exts/`, `user/`, `server/`).
+ * @param identity - spawn-resolved facts.
+ */
+export async function stageTwinBridgeIdentity(stateDir: string, identity: TwinBridgeIdentity): Promise<void> {
+  await writeFile(
+    join(stateDir, TWIN_BRIDGE_IDENTITY_BASENAME),
+    `${JSON.stringify(identity, null, 2)}\n`,
+    'utf8',
+  )
+}
+
 export async function stageTwinTheme(extensionsDir: string): Promise<string> {
   const dir = join(extensionsDir, TWIN_THEME_DIR_NAME)
   await mkdir(join(dir, 'themes'), { recursive: true })

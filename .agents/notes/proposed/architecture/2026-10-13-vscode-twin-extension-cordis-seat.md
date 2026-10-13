@@ -1,5 +1,7 @@
 # Agent Note: VS Code twin bridge — the vscode extension mounts the minimal client Cordis seat; the host owns every signature
 
+
+
 Status: proposed
 
 ## Problem
@@ -15,15 +17,15 @@ Ship a first-party harness package — `packages/extensions/vscode-bridge` — a
 1. **The seat.** On activation the extension builds the same minimal client Context the browser builds: `typert` registry + `gateway` client (`packages/api/gateway/src/client`) + injectable connection (`createWebConnectionRpc(doFetch)`), with the base URL pointing at the host origin and the twin token carried as the credential. It mounts the same generated `…/remote` artifacts the web app mounts, so calling the host reads identically in both UIs.
 2. **The wire additions (all host-side).** `ideBridge` gains three signatures, following `WorkspaceController.follow` as the stream analog (`packages/api/workspace-controller/src/index.ts:117-120`):
    - `open(sessionId, { path, line? })` — unary; enqueues a file-open downlink frame.
-   - `downlink({ sessionId }, signal)` — `@Remote({ mode: 'stream' })`; the extension's one consumer loop; the host writes `{ type: '<extId>/<verb>', payload }` frames into exactly that stream.
-   - `hello(meta)` | `report(evt)` — unary uplink (seat identity on connect; save/active-editor/diagnostics events as features arrive).
+   - `downlink(request: { token }, signal)` — `@Remote({ mode: 'stream' })`; the extension's one consumer loop; the host keys the seat by the twin's per-spawn `tkn` (not a session id — the token IS the twin identity), writes `{ type: '<extId>/<verb>', payload }` frames into exactly that stream, and drops the seat when the twin exits.
+   - `report(evt)` — the single unary uplink; seat identity on connect rides as the first event in its union (`{type:'hello', …}`), feature-grade events (save/active-editor/diagnostics) as they arrive. No dedicated `hello` signature — one uplink entry point keeps the auth branch and the future event catalog at one surface.
 
    Client-visible calls go `remote.ideBridge.open(...)` from the web UI as today; the `ui-vscode` forwarder is the only new caller (per the feature note), and the vscode seat receives `{type:'ideBridge/open', …}` on its private stream — not the broadcast `$events` fan-out, which `API_REMOTE_FORWARDED_EVENTS` keeps for app-wide state.
-3. **The reusable bridge contract (how other extensions build on it).** The twin plane grows by sibling extensions composing the bridge, not by the bridge growing feature code:
-   - Sibling extensions declare `"extensionDependencies": ["dsh.do-harness-bridge"]` — the vanilla VS Code composition point — and read its `exports` in `activate`. The bridge exports a typed facade: `call(namespace, method, args)` (the mounted generated client), `onFrame(pattern, handler)` (downlink subscription), `report(evt)` (uplink helper).
-   - Frame verbs are namespaced as `'<extensionId>/<verb>'` (`ideBridge/open`, `timeline/scrub`, `lineNote/show`), so each sibling owns its prefix and the host's queue is one append point per verb-owner.
-   - The client runtime is a shared workspace library the bridge lists as a dependency and bundles — future extensions consume the runtime as a build-time dep of *their* source; nothing crosses the wire that isn't already a declared Remote signature.
-   - Versioning rides the existing staging contract: every spawn rewrites the staged bundle bit-for-bit, so bridge and host roll forward together; sibling extensions feature-detect facade fields rather than pinning versions.
+3. **Sibling composition as Cordis plugins (the harness's own plugin design, not a facade).** The bridge's seat Context IS the twin plane's root: on activation the bridge mounts a `Loader` over a staged `cordis.yml`-style manifest (spawner-authored beside the staged extensions) listing dsh twin plugins by name — the same composition entry both the host `boot()` (`packages/boot/app-boot/src/index.ts:787-794`) and the web `bootClient` use — so sibling planes ship as **Cordis plugins**, not VS Code extensions:
+   - A sibling is a plain Cordis plugin that reuses the **engine's own faces**, not a hand-written bridge API. Calling the host is `ctx.remote.ideBridge.open(...)` after `remote.$mount` of the generated contributions — `inject: ['remote', 'remote.ideBridge']` exactly as web plugins declare — and listening to downlink frames is `ctx.on('dsh/frame/<plane>/<verb>', handler)` on the Context's event bus. The only piece the engine does not already provide — and the only hand-written runtime contract here — is **single-owner fan-out** of the `downlink` stream: every plugin opening it independently would mint one stream per subscribe, so the bridge owns the sole loop and re-emits each `{type:'<extId>/<verb>'}` frame as exactly that local `dsh/frame/…` event. Nothing else is an API: there is no `getExtension(...).exports` handshake and no facade contract to version; the identity scheme (`inject` keys = Cordis service keys, `dsh/frame/…` event names) matches all three planes (host, web, twin) verbatim.
+   - The `vscode` module is provided through the loader's module map (the host/web loaders already inject builtin faces the same way), so plugins consume it as an ordinary dependency.
+   - Frame verbs stay namespaced as `'<extensionId>/<verb>'` (`ideBridge/open`, `timeline/scrub`), each plugin owning its prefix; the host's queue is one append point per verb-owner.
+   - Plugins needing only dynamic `vscode.*` contributions (commands, decorations, comment controllers — all runtime-registrable) mount with zero formal vscode packaging; plugins needing **static** `contributes` (views containers, themes, keybindings, which vscode reads only from scanned package.json files) are covered by the spawner merging their declared `contributes` into the bridge's staged `package.json` — the staging routine already rewrites that file bit-for-bit per spawn, so imports land as data edits, not formal wraps. A heavyweight escape hatch remains: a plugin may stay a thin formal vscode extension `extensionDependencies`-linked to the bridge, whose `activate` just registers itself into the seat Context.
 
 ### The cast — what is built where, under which key
 
@@ -31,12 +33,13 @@ Ship a first-party harness package — `packages/extensions/vscode-bridge` — a
 
 | Component | Location | Kind | Identity / key |
 |---|---|---|---|
-| Bridge extension | `packages/extensions/vscode-bridge`, built in-repo and staged to `dist/.dsh/exts/` per spawn | VS Code extension (REH's server-side Node 24 ext host) | vscode id `dsh.do-harness-bridge` (package.json `publisher.name`) |
+| Bridge extension | `packages/extensions/vscode-bridge`, built in-repo and staged to `dist/.dsh/exts/` per spawn | VS Code extension (REH's server-side Node 24 ext host) **and** Cordis-seat root + Loader + sole downlink owner | vscode id `dsh.do-harness-bridge`; defines no new Cordis API — fans the stream out as local `dsh/frame/…` events |
+| Sibling twin planes (timeline, line notes, …) | `packages/extensions/vscode-<plane>` | Cordis plugins mounted by the bridge's Loader — no own vscode package.json | `inject = ['remote.ideBridge', …]`; Cordis event prefix `dsh/frame/<plane>/*` |
 | Boot/theme extension (exists today) | `packages/api/ide/src/twin-theme.ts` (`TWIN_EXTENSION_BOOT`) | VS Code extension | id `dsh.do-harness` — keeps theme/settings; the bridge sits beside it |
 | Host service (`Ide`) | `packages/api/ide/src/index.ts` | Cordis `Service` on the host Context | Cordis key **and** Typert namespace `ideBridge` |
 | Web forwarder | `packages/client/ui-vscode/…/forward.ts` | Cordis client plugin (existing plugin, new code) | `inject: ['remote', 'remote.ideBridge', …]` |
 
-### Wire and facade sketch
+### Wire and composition sketch
 
 Host side — `Ide` in `api/ide` — gains four signatures; these are the only `@Remote` declarations the bridge design adds:
 
@@ -58,46 +61,61 @@ export class Ide extends TypertRemoteService {
   /** Twin extension → this host: the one consumer loop; frames arrive privately. */
   @Remote({ mode: 'stream' })
   async *downlink(
-    request: { sessionId: SessionId },
+    request: IdeBridgeTwinCall /* { token: string } */,
     signal: AbortSignal,
   ): AsyncIterable<IdeBridgeDownlinkFrame>
 
-  /** Uplink: seat identity on connect; feature-grade events as they arrive. */
+  /** The single uplink; the connect-time `hello` is one event in its union. */
   @Remote
-  async hello(meta: IdeBridgeHello, signal: AbortSignal): Promise<void>
-  @Remote
-  async report(evt: IdeBridgeReportEvent, signal: AbortSignal): Promise<void>
+  async report(
+    request: IdeBridgeReportRequest /* { token, event } */,
+    signal: AbortSignal,
+  ): Promise<void>
 }
 
 type IdeBridgeDownlinkFrame =
   | { type: 'ideBridge/open'; path: string; line?: number }
   | { type: `${string}/${string}`; payload: unknown } // extId-namespaced sibling frames
 
-type IdeBridgeHello = { extensionId: string; version: string; workspaceRoot: string }
 type IdeBridgeReportEvent =
+  | { type: 'hello'; extensionId: string; version: string; workspaceRoot: string } // connect-time identity
   | { type: 'save'; path: string }
   | { type: 'activeEditor'; path: string | null }
   | { type: 'diagnostics'; path: string; errors: number; warnings: number }
 ```
 
-The bridge extension's vscode-facing surface — what sibling extensions get by declaring `"extensionDependencies": ["dsh.do-harness-bridge"]` and reading `getExtension('dsh.do-harness-bridge').exports`:
+What a sibling plane uses — only faces the client engine already ships (`ctx.remote` from the api-gateway client assembly, `ctx.on/emit` from Cordis); nothing bespoke:
 
 ```ts
-// packages/extensions/vscode-bridge — the facade siblings consume in activate()
-export interface DshBridgeFacade {
-  /** One hop to any host @Remote: the same mounted generated client shape the web app uses. */
-  call(ns: 'ideBridge', method: string, args: unknown): Promise<unknown>
-
-  /** Private downlink subscription, frame-verbs namespaced as `<extensionId>/<verb>`. */
-  onFrame(pattern: `${string}/*` | `${string}/${string}`, handler: (frame: IdeBridgeDownlinkFrame) => void): vscode.Disposable
-
-  /** Convenience over `call('ideBridge', 'report', …)`. */
-  report(evt: IdeBridgeReportEvent): Promise<void>
+// packages/extensions/vscode-timeline — a sibling plane: cordis-shaped, no vscode package.json
+export const inject = ['remote.ideBridge', 'connection'] // identical shape to a web plugin
+export function apply(ctx: Context): void {
+  ctx.on('dsh/frame/timeline/scrub', frame => { /* open the timeline at frame.stop */ })
+  ctx.remote.ideBridge.report({ type: 'activeEditor', path: currentPath() })
 }
+```
 
-export async function activate(context: vscode.ExtensionContext) {
-  // … mounts the minimal seat (typert registry + gateway client + injected fetch)
-  return facade satisfies DshBridgeFacade // this object IS the extension's `exports`
+What the bridge itself keeps — the seat assembly, plus the one residual responsibility, single-owner fan-out (~30 lines, the whole new API surface):
+
+```ts
+// packages/extensions/vscode-bridge/src/seat.ts — the twin plane's only engine-free piece
+export async function runSeatLoop(deps: SeatLoopDeps): Promise<void> {
+  for await (const frame of remote.downlink({ token }, signal)) {
+    emit('dsh/frame/' + frame.type, frame) // one cordis event per '<extId>/<verb>'
+  }
+}
+```
+
+The bridge activation — seat Context, engine client faces, generated-remote `$mount` (exactly as the web app). As landed, the seat composes its three engine faces programmatically — the same calls `bootClient` makes; the Loader over the staged manifest rows arrives with the sibling milestone (acceptance row 4), at exactly this same composition point:
+
+```ts
+export async function spawnBridgeSeat({ identity, workbench }) {
+  const seat = new Context()
+  await seat.plugin({ name: 'typert/registry', inject: [], apply: typertRegistry.apply })
+  await seat.plugin({ name: 'connection', inject: [], apply: connectionClient.apply })
+  await seat.plugin({ name: 'gateway', inject: ['typert', 'connection'], apply: gatewayClient.apply })
+  await seat.remote.$mount(ideRemote) // generated contributions, identical to the web lift
+  void runSeatLoop({ remote, identity, emit }) // sole downlink loop → one dsh/frame/… per verb
 }
 ```
 
@@ -105,12 +123,12 @@ Credential passing — the only secret is the one the spawner already mints:
 
 ```
 POST /api/ideBridge/downlink
-Authorization: Bearer <tkn>     # accepted for ideBridge.hello | downlink | report only
+Authorization: Bearer <tkn>     # accepted for ideBridge.downlink | report only
 cookie: …                        # every other endpoint keeps the cookie path, byte-identical
 ```
 ### Auth — the one new protocol surface
 
-`Connection.requestRejection` today fences Host/Origin then the browser-session cookie (`packages/client/connection/src/rpc-host.ts:97-100`). The extension presents the twin token instead: `api/ide` already mints a per-twin `tkn` at spawn; the bridge adds one narrow branch — requests to `ideBridge.hello`/`downlink`/`report` (and those endpoints only) accept `Authorization: Bearer <tkn>` alongside the cookie path. The token is minted process-local, loopback-bound, and revoked with the twin child, mirroring the REH's own `tkn` posture; browser cookies never leave the browser.
+`Connection.requestRejection` today fences Host/Origin then the browser-session cookie (`packages/client/connection/src/rpc-host.ts:97-100`). The extension presents the twin token instead: `api/ide` already mints a per-twin `tkn` at spawn; the bridge adds one narrow branch — requests to `ideBridge.downlink`/`report` (and those endpoints only) accept `Authorization: Bearer <tkn>` alongside the cookie path. The token is minted process-local, loopback-bound, and revoked with the twin child, mirroring the REH's own `tkn` posture; browser cookies never leave the browser.
 
 ### Lift estimate
 
@@ -118,8 +136,8 @@ Fuller-path analogs measured in-repo: `WorkspaceController.follow` (stream Remot
 
 | Piece | Analog | est. LOC |
 |---|---|---|
-| `packages/extensions/vscode-bridge` (seat assembly + facade + downlink loop) | `sdk/client` minus subprocess ownership | 500–800 |
-| `api/ide` wire additions (`open`, `downlink`, `hello`, `report` + twin-token auth branch) | `workspace-controller` + one auth branch in the connection seam | 250–400 |
+| `packages/extensions/vscode-bridge` (seat assembly + Loader + generated-client mount + one downlink fan-out loop) | `sdk/client` minus subprocess ownership | 400–650 |
+| `api/ide` wire additions (`open`, `downlink`, `report` + twin-token auth branch + seats + per-twin identity staging) | `workspace-controller` + one auth branch in the connection seam | ~600 landed incl. specs |
 | `ui-vscode` forwarder (tab address/params → `ideBridge.open`) | tab-kind body update + one effect | 120–200 |
 | `twin-theme.ts` stages compiled package (replaces `TWIN_EXTENSION_BOOT` inline string) | existing `stageTwinTheme` | 60–120 |
 | **new source** | | **~950–1,500** |
@@ -133,19 +151,21 @@ The per-file coverage gate roughly doubles the repo diff on every new `src/`; ha
 - **Broadcast `emit` event as the downlink (`API_REMOTE_FORWARDED_EVENTS` entry).** Mechanically works but fans every vscode frame out to every browser tab, has no delivery lifecycle, and spreads vscode-plane verbs into the app-wide allowlist. The per-session stream carries the same frame privately; the allowlist stays for app-state events.
 - **Extension as a `remote.<ns>` provider.** Protocol-star means clients cannot advertise services; "solve"ing that is a new protocol direction, not a feature, and buys nothing the star + downlink stream doesn't already give.
 - **Submodule the harness into the vscode repo so the extension compiles there.** The extension never needs the vscode tree: it builds in the harness monorepo where `typertPlugin()` is wired workspace-wide, and stages as data. Submoduling inverts the settled overlay lane (no vendored tree, 414 MiB checkout stays out of-repository) and still wouldn't remove the star topology — that's protocol, not packaging.
+- **Facade via `getExtension(...).exports`, or a bespoke `DshBridge` Cordis service with `call/onFrame` methods.** Two earlier drafts of this note: first a formal vscode-extension wiring (`extensionDependencies` + `exports`), then a hand-typed Cordis service on the seat Context wrapping the remote calls. Both lose on the same axis: they hand-write an API the client engine already supplies verbatim — `ctx.remote.<ns>.<method>` for host calls, `ctx.on` for local delivery — so the seat's only engine-free responsibility is single-owner fan-out of the one downlink stream, expressed as Cordis events every consumer already uses. Superseded in this revision.
+- **A formal vscode extension per sibling, each owning its own seat.** Duplicates the mux connection, the bearer credential handling, and reconnect bookkeeping per plane, with no capability gain — one seat owns the twin's one gateway conversation; siblings ride it as plugins.
 - **Do nothing until the architecture note's `dsh-vscode-bridge` lands.** This note IS that bridge's carrier, descoped to a deliverable first slice; deferring leaves every shipped twin surface read-only with no smaller correct first step.
 
 ## Acceptance criteria
 
-- The vscode extension connects to the host over `/api` + `/api/remote.mux` using the twin token and the same generated `ideBridge` client the web app uses; `hello` completes within the first poll window; killing and respawning the twin reconnects without host restart.
+- The vscode extension connects to the host over `/api` + `/api/remote.mux` using the twin token and the same generated `ideBridge` client the web app uses; the connect-time `{type:'hello'}` `report` lands within the first poll window; killing and respawning the twin reconnects without host restart.
 - `remote.ideBridge.open(sessionId, { path, line })` from the web UI lands `{type:'ideBridge/open', path, line}` on that session's downlink stream and the workbench opens the file at the line (the feature note's forwarder consumes it); a tab with no ready twin answers not-ready and keeps today's degradation.
-- The bearer branch authenticates `ideBridge.hello|downlink|report` only; cookie rules for every other endpoint are byte-identical (negative test: twin token against `workspaceController.follow` is 401).
-- A sibling test extension declaring `extensionDependencies` on the bridge receives its exports, subscribes `onFrame('test/*')`, and receives a frame the host enqueued — proving the facade without waiting for a real second feature.
+- The bearer branch authenticates `ideBridge.downlink|report` only; cookie rules for every other endpoint are byte-identical (negative test: twin token against `workspaceController.follow` is 401).
+- A sibling test plugin (a manifest row like timeline/reload) mounts through the bridge's Loader, and `ctx.on('dsh/frame/test/poke', …)` receives a frame the host enqueued on that session's downlink — proving the cordis composition and the single-owner fan-out without waiting for a real second plane.
 - `verify-agent-note-format` stays green; no change required in the vscode fork tree.
 
 ## Risks
 
-The seat duplicates ~1/10 of the web client's boot slice inside an extension host; the shared workspace library mitigates, but Node-vs-browser drift (WebSocket surface, base URL, timers) is a standing integration-test burden, not a one-time port. The bearer branch is the protocol's first non-cookie credential: keeping it endpoint-scoped is the entire security argument, so expansion beyond the three vscode-plane endpoints must open its own note. Frame-verb namespacing is convention-enforced, not type-enforced — acceptable while verbs are host-authored near their consumers, and worth revisiting if sibling extensions start owning host-side packages. Abandoning the star later is the one unrecoverable direction: this note deliberately adds zero client-advertisement support, and the `downlink` shape keeps even the frame-delivery channel caller-initiated.
+The seat duplicates ~1/10 of the web client's boot slice inside an extension host; the shared workspace library mitigates, but Node-vs-browser drift (WebSocket surface, base URL, timers) is a standing integration-test burden, not a one-time port. The bearer branch is the protocol's first non-cookie credential: keeping it endpoint-scoped is the entire security argument, so expansion beyond the two vscode-plane endpoints (`downlink`, `report`) must open its own note. Frame-verb namespacing is convention-enforced, not type-enforced — acceptable while verbs are host-authored near their consumers, and worth revisiting if sibling planes start owning host-side packages. The Loader-in-extension-host seat is a third composition runtime beside host and web: the staged `cordis.yml`-style manifest is spawner-authored, so a stale or malformed row fails the whole twin plane — the launch surface must surface that error the way `dsh web` boot failures do. Abandoning the star later is the one unrecoverable direction: this note deliberately adds zero client-advertisement support, and the `downlink` shape keeps even the frame-delivery channel caller-initiated.
 
 ## Related
 

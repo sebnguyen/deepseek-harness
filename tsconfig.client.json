@@ -67,6 +67,7 @@
     { "path": "./packages/api/remotes/tsconfig.client.json" },
     { "path": "./packages/extensions/cordis-client-runner" },
     { "path": "./packages/extensions/ui-cordis" },
+    { "path": "./packages/extensions/vscode-bridge" },
     { "path": "./packages/test-support/client-runtime" },
     { "path": "./packages/test-support/remote-mock" },
     { "path": "./packages/client/ui-layout" },

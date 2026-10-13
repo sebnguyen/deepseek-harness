@@ -13,6 +13,7 @@ import { isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
 import type { BrowserAuth } from './browser-auth.ts'
 import type {
+  ConnectionBearerRule,
   ConnectionIndexRequest,
   ConnectionIndexResponse,
   ConnectionFetchRoute,
@@ -49,6 +50,44 @@ interface ConnectionServerResponse {
   readonly result: ConnectionRpcResult<unknown>
 }
 
+interface RegisteredBearerClaim {
+  readonly endpoints: ReadonlySet<string>
+  readonly validate: (token: string) => boolean
+}
+
+/** Case-tolerant header reader shared by the HTTP and Fetch request shapes. */
+function headersGet(headers: ConnectionTrustRequest['headers'], name: string): string | undefined {
+  if (headers instanceof Headers) return headers.get(name) ?? undefined
+  const value = headers[name]
+  return typeof value === 'string' ? value : undefined
+}
+
+/** Parse the optional request URL; assumes a path (node:http) or absolute form. */
+function parseRequestUrl(request: ConnectionTrustRequest): URL | undefined {
+  if (request.url === undefined) return undefined
+  try {
+    return new URL(request.url, 'http://dsh.invalid')
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Read the presented bearer token: the `Authorization: Bearer <token>` header
+ * first; the `tkn` query parameter second, which is the only channel a
+ * WHATWG WebSocket handshake can carry (it accepts no headers).
+ */
+function bearerTokenOf(request: ConnectionTrustRequest): string | undefined {
+  const authorization = headersGet(request.headers, 'authorization')
+  if (authorization !== undefined) {
+    const match = /^Bearer\s+(.+)$/i.exec(authorization)
+    const token = match?.[1]?.trim()
+    if (token !== undefined && token !== '') return token
+  }
+  const param = parseRequestUrl(request)?.searchParams.get('tkn')
+  return param === null || param === '' ? undefined : param
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** Host Connection transport and RPC registrations. */
@@ -60,6 +99,7 @@ declare module '@deepseek-ai/cordis' {
 export class HostConnectionService extends Service implements HostConnectionHandle {
   private readonly interceptors = new Map<string, ConnectionRpcInterceptor>()
   private readonly fetchRoutes = new Map<string, RegisteredFetchRoute>()
+  private readonly bearerClaims = new Set<RegisteredBearerClaim>()
 
   /**
    * Provide the Host half over the active HTTP server.
@@ -93,10 +133,52 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
+  /**
+   * Register one Host-feature bearer capability: scoped process token(s)
+   * admitted for a closed endpoint list, after the Host/Origin fence.
+   * @param rule - the capability to register.
+   * @returns disposer withdrawing the rule.
+   */
+  registerBearerRule(rule: ConnectionBearerRule): () => void {
+    const claim: RegisteredBearerClaim = { ...rule, endpoints: new Set(rule.endpoints) }
+    this.bearerClaims.add(claim)
+    return () => { this.bearerClaims.delete(claim) }
+  }
+
+  /** Apply the configured Host/Origin fence, then browser authentication, then any live bearer rule. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
-    return this.browserAuth.isAuthenticated(request) ? undefined : 401
+    return this.browserAuth.isAuthenticated(request) ? undefined
+      : this.bearerAllowed(request) ? undefined
+        : 401
+  }
+
+  /**
+   * Whether any registered bearer claim admits this request: the presented
+   * token must validate, and the request must target one of the claim's
+   * endpoints — a `POST /api/<endpoint>` against the endpoint list, or any
+   * shared `/api/*` WebSocket upgrade (the mux binds endpoints at
+   * stream-open, so the upgrade is rule-wide). The upgrade credential rides
+   * in the `tkn` query parameter because the browser-standard WebSocket
+   * handshake cannot attach headers.
+   * @param request - the request under evaluation.
+   * @returns true when a matching claim authenticates the request.
+   */
+  private bearerAllowed(request: ConnectionTrustRequest): boolean {
+    if (this.bearerClaims.size === 0) return false
+    const token = bearerTokenOf(request)
+    if (token === undefined) return false
+    const requestUrl = parseRequestUrl(request)
+    if (requestUrl === undefined) return false
+    const upgrade = headersGet(request.headers, 'upgrade')?.toLowerCase() === 'websocket'
+    const endpoint = upgrade ? undefined : endpointFromPath(API_PATH, requestUrl.pathname)
+    if (!upgrade && endpoint === undefined) return false
+    for (const claim of this.bearerClaims) {
+      if (claim.validate(token) && (upgrade === true || (endpoint !== undefined && claim.endpoints.has(endpoint)))) {
+        return true
+      }
+    }
+    return false
   }
 
   /** Authenticate an index request through the process-token exchange or cookie. */

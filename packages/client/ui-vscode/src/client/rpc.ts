@@ -26,7 +26,15 @@ export interface IdeBridgeStatus {
   readonly detail: string | null
 }
 
-/** The slice of the client Remote this package calls: twin status reads. */
+/** One `ide/open` request, mirroring the host's `@Remote` shape for the call's second argument. */
+export interface IdeOpenRequest {
+  /** Absolute workspace-rooted path the twin should open. */
+  readonly path: string
+  /** Optional 1-based line to select. */
+  readonly line?: number
+}
+
+/** The slice of the client Remote this package calls: twin status reads + file forwarding. */
 export interface VscodeIdeRemote {
   readonly ideBridge: {
     /**
@@ -36,5 +44,12 @@ export interface VscodeIdeRemote {
      * @returns the twin state; failures arrive in-band with `ready: false`.
      */
     status(sessionId: SessionId, signal?: AbortSignal): Promise<RemoteResult<IdeBridgeStatus>>
+    /**
+     * Forward one file address into the session twin's editor.
+     * @param sessionId - session identity at the address boundary.
+     * @param request - absolute path + optional line.
+     * @param signal - cancels the call.
+     */
+    open(sessionId: SessionId, request: IdeOpenRequest, signal?: AbortSignal): Promise<RemoteResult<void>>
   }
 }
