@@ -289,6 +289,46 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
     if (created) bump()
   }, [src])
 
+  // Focus guard: the booting workbench auto-focuses its restored editor as
+  // the document loads, and focusing inside an iframe promotes browser-level
+  // focus to the <iframe> element — the composer loses the keyboard while
+  // the frame opens. The workbench's own don't-steal guard can never trip in
+  // a never-focused browsing context (the active element is <body> before
+  // and after its restore), and the frame is cross-origin, so all the parent
+  // can do is hand the focus back. While the boot cover seals the records
+  // no gesture can reach the frame, so any focus a record holds is
+  // automated; return it to wherever it was. Once the document settled, the
+  // cover is up and entering the frame is the user's own act.
+  const lastFocus = useRef<HTMLElement | null>(null)
+  useEffect(() => {
+    // Track our document's focus so a steal has somewhere to be returned to;
+    // focus inside the seat (cover, frames) is never a valid restore target.
+    const onFocusIn = (event: FocusEvent): void => {
+      const host = hostRef.current
+      if (!(event.target instanceof HTMLElement)) return
+      if (host !== null && host.contains(event.target)) return
+      lastFocus.current = event.target
+    }
+    // A frame's own focus() surfaces here only as a window blur whose
+    // activeElement is the frame element — the same signal Menu.tsx uses.
+    const onBlur = (): void => {
+      const thief = document.activeElement
+      if (!(thief instanceof HTMLIFrameElement)) return
+      for (const record of records.current.values()) {
+        if (record.frame !== thief || record.settled) continue
+        const prior = lastFocus.current
+        if (prior !== null && prior.isConnected) prior.focus({ preventScroll: true })
+        return
+      }
+    }
+    window.addEventListener('focusin', onFocusIn)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('focusin', onFocusIn)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
+
   // Seat teardown is test-side only in practice (the root scope lives for the
   // app): drop every record and its pending settle with the host.
   useEffect(() => () => {

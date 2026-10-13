@@ -271,6 +271,40 @@ describe('the twin frame cache', () => {
     second.unmount()
   })
 
+  it('returns a boot-time focus steal to its owner, and leaves a settled frame alone', async () => {
+    vi.useFakeTimers()
+    const a = await mount('f1', ready('/wF'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    const frame = currentFrame()
+    if (frame === null) throw new Error('frame missing')
+    // The composer stand-in: whatever held the document's focus at boot time.
+    const composer = document.createElement('div')
+    composer.tabIndex = 0
+    document.body.appendChild(composer)
+    try {
+      composer.focus()
+      expect(document.activeElement).toBe(composer)
+
+      // The booting workbench focuses its restored editor; browser-level
+      // focus lands on the iframe element. While the record is unsettled the
+      // boot cover makes any such focus automated, so it is handed back.
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      // Settled, the cover is up: entering the frame is the user's own act.
+      fireEvent.load(frame)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
+      composer.focus()
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(frame)
+    } finally {
+      composer.remove()
+      a.unmount()
+    }
+  })
+
   it('re-seals a fresh document when the workspace actually changes', async () => {
     vi.useFakeTimers()
     const a = await mount('r1', ready('/wR'))
