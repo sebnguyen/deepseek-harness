@@ -70,6 +70,12 @@ const PARKED_STYLE = {
   height: '0',
   display: 'none',
   overflow: 'hidden',
+  // Floating-window card clip: the float is portalled to document level,
+  // outside the panel card's own overflow:hidden, so it carries the frame's
+  // published card radius itself — the mounted workbench rounds with the
+  // card it covers instead of squaring over it. The var only resolves when
+  // the float is nested under a frame; at document level the fallback wins.
+  borderRadius: 'var(--dsh-frame-card-radius, 14px)',
 } as const
 
 /** Box the body renders: it reserves the pane area the float covers. */
@@ -366,8 +372,10 @@ export function TwinFrameMount({ src, spinLine }: TwinFrameMountProps): ReactNod
     }
   }, [box, src])
 
+  // The data attribute lets the enclosing panel card drop its surface
+  // while the glass twin covers it (SidebarRight.module.css :has()).
   return (
-    <div ref={setBox} style={STACK_STYLE}>
+    <div ref={setBox} data-twin-stake="" style={STACK_STYLE}>
       {settled || container === null ? null : createPortal(
         <div style={COVER_STYLE}><BootHero line={spinLine} spinning /></div>,
         container,

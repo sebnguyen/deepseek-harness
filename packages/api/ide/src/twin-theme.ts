@@ -149,11 +149,11 @@ export const DO_TOKEN_COLORS: unknown = [
  */
 export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   'workbench.colorTheme': 'DO Harness Dark',
-  // Classic full-bleed layout: floating-card modern UI paints opaque dark
-  // shell gutters (#0e1214) between parts, which reads as a black
-  // window-in-window inside the harness pane; the classic layout fills the
-  // iframe completely and composes with dshGlass transparency over the host.
-  'workbench.experimental.modernUI': false,
+  // Everything-is-a-floating-window layout: the modern UI renders every
+  // part as a floating card, and the dsh-build twin keeps the shell and
+  // its gutters glass-transparent (dshGlass), so the cards float over the
+  // harness ocean instead of reading as an opaque window-in-window.
+  'workbench.experimental.modernUI': true,
   // Chrome hush: no Welcome walkthrough, no second trust gate (the harness
   // sandbox owns trust), no telemetry or update prompts, calm window title.
   'workbench.startupEditor': 'none',

@@ -51,6 +51,17 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
+/* The mounted vscode twin stakes its box inside this card and floats its
+   glass workbench over it (keep-alive.tsx): the card's own surface would
+   show through the transparent workbench as a second, flat fill with square
+   corners, so while the twin is mounted the panel drops its chrome and the
+   ocean reads straight through to the twin's floating windows. */
+.panel:has([data-twin-stake]) {
+  background: transparent;
+  box-shadow: none;
+}
+
+
 /* Fullscreen is no card: it covers the frame, so the float chrome comes off. */
 .panel[data-sidebar-right-panel='fullscreen'] {
   position: fixed;
