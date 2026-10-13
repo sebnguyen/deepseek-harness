@@ -24,6 +24,8 @@
   object-fit: contain;
   border-radius: 12px;
   background: var(--dsw-specific-input-major);
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
   box-shadow: var(--dsw-shadow-lv3);
 }
 
@@ -40,6 +42,8 @@
   border-radius: 999px;
   corner-shape: round;
   background: var(--dsw-specific-input-major);
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
 }

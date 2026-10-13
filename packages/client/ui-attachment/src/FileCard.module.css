@@ -9,6 +9,8 @@
   border: 0.5px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.12));
   border-radius: 16px;
   background: var(--dsw-specific-input-major, transparent);
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
   box-sizing: border-box;
   text-align: left;
 }

@@ -36,6 +36,8 @@
      the panel renders away from the frame. Content corners are clipped to the
      card; dockkit menus portal out, so nothing clips that must escape. */
   background: var(--dsw-alias-bg-base);
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
   overflow: hidden;
   border-radius: var(--dsh-frame-card-radius, 14px);
   box-shadow: var(--dsw-elevation-panel);
@@ -172,6 +174,8 @@
   padding: 2px;
   border-radius: 8px;
   background: var(--dsw-alias-bg-opaque-translucent-l1, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base)));
+  backdrop-filter: var(--dsh-glass-blur);
+  -webkit-backdrop-filter: var(--dsh-glass-blur);
 }
 
 .unavailable {
