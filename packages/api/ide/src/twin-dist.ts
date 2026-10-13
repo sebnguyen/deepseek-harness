@@ -3,29 +3,18 @@
  * leaves `dist` empty.
  *
  * The twin dist is a ~485MB build output, so it is never vendored into
- * the repository: the vscode gulp lane lands it beside the sibling
- * `vscode` checkout, `scripts/bootstrap-vscode-twin.sh` builds it
- * from the pinned vscode fork into the harness-home cache, and the
- * discovery below finds all of those without an exported
- * `DSH_VSCODE_TWIN_DIST`, which is what lets a plain `dsh web` boot mount
- * the editor tab. Discovery candidates deliberately sit outside and inside
- * the repo root first, then the machine: the host's fresh gulp lane
- * (`vscode-reh-web-<platform>-<arch>`) beside the sibling `vscode` checkout
- * leads, so a development checkout serves the
- * build it just produced without restaging, then the sibling staging slot
- * shared by every worktree of the same clone (each worktree's `..` is the
- * checkout pool), then the in-repo slot of the self-contained single-clone
- * layout, and finally the machine-wide `$DSH_HOME/cache/vscode-twin/dist`
- * source-build cache — the only candidate shared across every clone on the
- * machine, so it ranks last and never shadows a developer's local staging.
- * An explicit deployment `dist` — the `DSH_VSCODE_TWIN_DIST` row — always
- * wins over every candidate.
+ * the repository: `scripts/bootstrap-vscode-twin.sh` builds it from the
+ * pinned vscode fork into the one machine-wide pipeline slot —
+ * `$DSH_HOME/cache/vscode-twin/dist` (default `~/.dsh/cache/vscode-twin/dist`)
+ * — and that cache is the only discovered location, so every clone on the
+ * machine serves the same freshly built twin without an exported
+ * `DSH_VSCODE_TWIN_DIST`. An explicit deployment `dist` — the
+ * `DSH_VSCODE_TWIN_DIST` row — always wins over the cache.
  * @module @deepseek-ai/dsh-api-ide/twin-dist
  */
 
 import { dshCachePath } from '@deepseek-ai/dsh-home-paths'
 import { existsSync, realpathSync } from 'node:fs'
-import { arch as hostArch, platform as hostPlatform } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -45,31 +34,14 @@ export function twinCacheDist(): string {
 }
 
 /**
- * The gulp lane the host's vscode checkout builds:
- * `vscode-reh-web-<platform>-<arch>`, matching the task matrix of
- * `build/gulpfile.reh.ts` (linux-x64/arm64, darwin-x64/arm64, win32-x64/
- * arm64). Its output lands beside the vscode checkout under this name.
+ * The twin dist pipeline: the machine-wide source-build cache only (see
+ * {@link twinCacheDist}), so a stale or half-built sibling lane beside a
+ * checkout can never shadow the bootstrap product. `repoRoot` stays on the
+ * signature for call compatibility; the pipeline location is machine-wide,
+ * not repo-relative.
  */
-export function twinLaneName(): string {
-  return `vscode-reh-web-${hostPlatform()}-${hostArch()}`
-}
-
-/**
- * Twin dist candidates under one repository root, in precedence order: the
- * freshly built gulp lane beside the sibling `vscode` checkout first — the
- * direct output of the host's `vscode-reh-web-<platform>-<arch>` task, so
- * dev dsh runs ride the last local build as-is — then the staged sibling
- * slot shared by every worktree of the clone, then the self-contained
- * in-repo slot, and finally the machine-wide source-build cache (see
- * {@link twinCacheDist}).
- */
-export function twinDistCandidates(repoRoot: string): string[] {
-  return [
-    join(repoRoot, '..', twinLaneName()),
-    join(repoRoot, '..', '.vscode-twin', 'dist'),
-    join(repoRoot, '.vscode-twin', 'dist'),
-    twinCacheDist(),
-  ]
+export function twinDistCandidates(_repoRoot?: string): string[] {
+  return [twinCacheDist()]
 }
 
 /**

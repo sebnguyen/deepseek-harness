@@ -1,13 +1,13 @@
 /**
- * Twin dist discovery: candidate order, the launcher sentinel, and the
- * config-beats-discovery rule — pinned against throwaway layouts so the
- * real machine's staging never leaks into the assertions.
+ * Twin dist discovery: the single machine-wide cache pipeline, the launcher
+ * sentinel, and the config-beats-discovery rule — pinned against throwaway
+ * layouts so the real machine's staging never leaks into the assertions.
  */
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { climbToRepoRoot, findTwinDist, resolveTwinDist, twinCacheDist, twinDistCandidates, twinLaneName } from '../src/twin-dist.ts'
+import { climbToRepoRoot, findTwinDist, resolveTwinDist, twinCacheDist, twinDistCandidates } from '../src/twin-dist.ts'
 
 /** Lay out one absolute candidate slot with (or without) the twin launcher. */
 async function stageAbs(path: string, armed: boolean): Promise<string> {
@@ -16,22 +16,17 @@ async function stageAbs(path: string, armed: boolean): Promise<string> {
   return path
 }
 
-/** Lay out one repo-relative candidate slot; see {@link stageAbs}. */
-async function stage(root: string, relative: string, armed: boolean): Promise<string> {
-  return stageAbs(join(root, relative), armed)
-}
-
 const mounted: string[] = []
 
 /** Harness home each case inherited, for restore during teardown. */
 let prevDshHome: string | undefined
 
 /**
- * One throwaway repo root per case: a `repo` child of a fresh base, so a
- * sibling `.vscode-twin` slot lands inside the same base and teardown
- * sweeps both — cases cannot see each other's staging. DSH_HOME is rebound
- * to an empty child of the same base, so the machine's real harness-home
- * cache never leaks into the assertions.
+ * One throwaway repo root per case: a `repo` child of a fresh base, so stray
+ * repo-relative slots land inside the same base and teardown sweeps both —
+ * cases cannot see each other's staging. DSH_HOME is rebound to an empty
+ * child of the same base, so the machine's real harness-home cache never
+ * leaks into the assertions.
  */
 async function fakeRepo(): Promise<string> {
   const base = await mkdtemp(join(tmpdir(), 'ide-twin-dist-'))
@@ -50,70 +45,38 @@ afterEach(async () => {
 })
 
 describe('twinDistCandidates', () => {
-  it('orders the fresh sibling lane first and the home cache last', async () => {
+  it('resolves exactly the machine-wide cache slot, whatever the repo root', async () => {
     const root = await fakeRepo()
-    expect(twinDistCandidates(root)).toEqual([
-      join(root, '..', twinLaneName()),
-      join(root, '..', '.vscode-twin', 'dist'),
-      join(root, '.vscode-twin', 'dist'),
-      twinCacheDist(),
-    ])
+    expect(twinDistCandidates(root)).toEqual([twinCacheDist()])
+    expect(twinDistCandidates()).toEqual([twinCacheDist()])
     expect(twinCacheDist()).toBe(join(process.env.DSH_HOME!, 'cache', 'vscode-twin', 'dist'))
   })
 })
 
 describe('findTwinDist', () => {
-  it('answers null when no candidate was staged', async () => {
+  it('answers null when the cache slot was not staged', async () => {
     expect(findTwinDist(await fakeRepo())).toBeNull()
   })
 
-  it('finds the sibling dist shared by every worktree of the clone', async () => {
-    const root = await fakeRepo()
-    const candidate = await stage(root, join('..', '.vscode-twin', 'dist'), true)
-    expect(findTwinDist(root)).toBe(candidate)
-  })
-
-  it('finds the in-repo dist when only that slot was staged', async () => {
-    const root = await fakeRepo()
-    const candidate = await stage(root, join('.vscode-twin', 'dist'), true)
-    expect(findTwinDist(root)).toBe(candidate)
-  })
-
-  it('prefers the sibling slot when both exist', async () => {
-    const root = await fakeRepo()
-    const sibling = await stage(root, join('..', '.vscode-twin', 'dist'), true)
-    await stage(root, join('.vscode-twin', 'dist'), true)
-    expect(findTwinDist(root)).toBe(sibling)
-  })
-
-  it('prefers the fresh sibling lane over a staged sibling slot', async () => {
-    const root = await fakeRepo()
-    const lane = await stage(root, join('..', twinLaneName()), true)
-    await stage(root, join('..', '.vscode-twin', 'dist'), true)
-    expect(findTwinDist(root)).toBe(lane)
-  })
-
-  it('names the lane for the host platform and arch', () => {
-    expect(twinLaneName()).toBe(`vscode-reh-web-${process.platform}-${process.arch}`)
-  })
-
-  it('rejects a slot that lacks the twin launcher', async () => {
-    const root = await fakeRepo()
-    await stage(root, join('..', '.vscode-twin', 'dist'), false)
-    expect(findTwinDist(root)).toBeNull()
-  })
-
-  it('finds the harness-home source-build cache slot when nothing local was staged', async () => {
+  it('finds the harness-home source-build cache slot', async () => {
     const root = await fakeRepo()
     const slot = await stageAbs(twinCacheDist(), true)
     expect(findTwinDist(root)).toBe(slot)
   })
 
-  it('prefers any repo-local slot over the harness-home cache', async () => {
+  it('rejects a cache slot that lacks the twin launcher', async () => {
     const root = await fakeRepo()
-    await stageAbs(twinCacheDist(), true)
-    const local = await stage(root, join('.vscode-twin', 'dist'), true)
-    expect(findTwinDist(root)).toBe(local)
+    await stageAbs(twinCacheDist(), false)
+    expect(findTwinDist(root)).toBeNull()
+  })
+
+  it('ignores repo-relative slots — they never shadow or reappear beside the checkout', async () => {
+    const root = await fakeRepo()
+    const slot = await stageAbs(twinCacheDist(), true)
+    await stageAbs(join(root, '..', 'vscode-reh-web-placeholder'), true)
+    await stageAbs(join(root, '..', '.vscode-twin', 'dist'), true)
+    await stageAbs(join(root, '.vscode-twin', 'dist'), true)
+    expect(findTwinDist(root)).toBe(slot)
   })
 })
 
@@ -147,14 +110,13 @@ describe('climbToRepoRoot', () => {
 describe('resolveTwinDist', () => {
   it('never overrides an explicitly configured dist', async () => {
     const root = await fakeRepo()
-    await stage(root, join('..', '.vscode-twin', 'dist'), true)
     expect(resolveTwinDist('/pinned/twin', root)).toBe('/pinned/twin')
   })
 
-  it('discovers when the config is empty, and disables when nothing is staged', async () => {
+  it('discovers the cache when the config is empty, and disables when it is unstaged', async () => {
     const root = await fakeRepo()
     expect(resolveTwinDist('', root)).toBe('')
-    const candidate = await stage(root, join('..', '.vscode-twin', 'dist'), true)
-    expect(resolveTwinDist('', root)).toBe(candidate)
+    const slot = await stageAbs(twinCacheDist(), true)
+    expect(resolveTwinDist('', root)).toBe(slot)
   })
 })

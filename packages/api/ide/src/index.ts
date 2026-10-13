@@ -66,14 +66,12 @@ export type { TwinBridgeIdentity } from './types.ts'
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
   /**
-   * Absolute path of the combined VS Code twin dist: the host's
-   * `vscode-reh-web-<platform>-<arch>` lane product. Empty puts the namespace on
-   * discovery: the fresh lane beside a sibling `vscode` checkout, then the
-   * sibling, then the in-repo `.vscode-twin/dist`, then the machine-wide
+   * Absolute path of the combined VS Code twin dist. Empty puts the namespace
+   * on the single discovery pipeline: the machine-wide
    * `$DSH_HOME/cache/vscode-twin/dist` source-build cache that `pnpm run
-   * vscode:twin` fills (see `twin-dist.ts`) — the candidates stand in, and
-   * only when none exists does `status` answer `enabled: false` and the
-   * client tab stay on the fallback text editor.
+   * vscode:twin` fills (see `twin-dist.ts`) — when no dist exists there,
+   * `status` answers `enabled: false` and the client tab stays on the
+   * fallback text editor.
    */
   dist: string
   /** Milliseconds one `status` call waits for a spawn to answer HTTP before reporting not-ready. */
