@@ -16,7 +16,7 @@ body {
      传给真正消费投影的后代。 */
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l4);
   /* Transparent-slot glass: one blur recipe shared by every background-less
-     slot window (sidebar column, chat column, vscode slot, right panel). */
+     slot window (the .frameslot card class and the rightbar panel). */
   --dsh-glass-blur: blur(24px) saturate(1.35);
   /* blur filter */
   --dsw-mask-blur: blur(2px);

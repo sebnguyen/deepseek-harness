@@ -42,7 +42,7 @@ export type AppFrameProps =
 
 /** Center column grid item (session-body building block). */
 function CenterColumn(props: { children?: ReactNode }) {
-  return <div className={css.centerCol}>{props.children}</div>
+  return <div className={`${css.frameslot} ${css.centerCol}`}>{props.children}</div>
 }
 
 /** Subscribe to the main key without subscribing the column frame to each panel id. */
@@ -63,7 +63,7 @@ function RightbarColumn(props: { children?: ReactNode; ide?: ReactNode; ideWidth
       {props.children}
       {/* The singleton IDE layer: shares the panel's anchor and slide
           (AppFrame.module.css); its width mirrors the resolved panel width. */}
-      <div className={css.ideLayer} style={{ width: props.ideWidth }} data-ide-layer>{props.ide}</div>
+      <div className={`${css.frameslot} ${css.ideLayer}`} style={{ width: props.ideWidth }} data-ide-layer>{props.ide}</div>
     </div>
   )
 }
@@ -266,7 +266,7 @@ export function AppFrame({
         useSessions={useSessions}
         usePanelInfo={usePanelInfo}
       />
-      <div className={css.sidebarCol}>
+      <div className={`${css.frameslot} ${css.sidebarCol}`}>
         {sidebar}
       </div>
       {swapped

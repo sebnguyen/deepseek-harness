@@ -37,19 +37,23 @@
   }
 }
 
-/* Every column is a floating card: the old 0.5px inter-column rules are
-   replaced by a rounded card edge — ui-theme's elevation pair (hairline
-   stroke + soft shadow), clipped corners included since each column already
-   claims overflow: hidden. The ground between cards is the frame's base
-   fill; the stack needs no explicit z-levels. */
-.sidebarCol {
-  min-width: 0;
-  overflow: hidden;
-  background: var(--dsw-specific-sidebar-fill);
+/* The registered-slot surface: one shared transparent-glazed outline card
+   composed onto every slot that registers onto the .frame grid (sidebar,
+   chat, IDE mount). The frame below keeps rendering the ocean view; the
+   frameslot frosts it uniformly and only draws the elevation outline, so
+   the slots themselves stay completely transparent and unstyled. The
+   rightbar panel keeps the paired copy in ui-sidebar-right. */
+.frameslot {
+  background: transparent;
   border-radius: var(--dsh-frame-card-radius);
   box-shadow: var(--dsw-elevation-panel);
   backdrop-filter: var(--dsh-glass-blur);
   -webkit-backdrop-filter: var(--dsh-glass-blur);
+}
+
+.sidebarCol {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .centerCol {
@@ -57,10 +61,6 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-radius: var(--dsh-frame-card-radius);
-  box-shadow: var(--dsw-elevation-panel);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
 }
 
 /* Drag handles are frame children (columns clip overflow): an 8px hit strip
@@ -103,13 +103,6 @@
   z-index: var(--dsh-z-ide);
   visibility: hidden;
   transform: translateX(100%);
-  border-radius: var(--dsh-frame-card-radius);
-  /* The vscode slot carries the same card chrome as the other columns
-     (elevation-pair outline) so it reads as a framed floating window
-     exactly like the chat window. */
-  box-shadow: var(--dsw-elevation-panel);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   overflow: hidden;
   pointer-events: none;
   transition:
