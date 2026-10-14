@@ -5,11 +5,42 @@
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { resolvedPathsFromMeta } from '@deepseek-ai/dsh-client-ui-tool/src/client/tool/models/tool-call-model.ts'
+
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PresentedFile } from '@deepseek-ai/dsh-tool-present/types'
 import { basename, isPresentedData, isPresentedFile } from '../presented.ts'
+
+/**
+ * The backend-resolved absolute file paths a settled call's persisted `meta`
+ * names: the tool-owned projections every fs tool stamps at return time
+ * (`read`/`read_image` `path`, batched read/write `frames[].path`, write
+ * `diffs[0].path`). A local value-copy of ui-tool's resolver — client
+ * plugins may not import one another's values (bundle purity gate), and a
+ * cordis service for one narrowing pass would be worse coupling.
+ */
+export function resolvedPathsFromMeta(meta: unknown): string[] {
+  if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return []
+  const record = meta as Record<string, unknown>
+  const paths: string[] = []
+  const push = (value: unknown): void => {
+    if (typeof value === 'string' && value !== '' && !paths.includes(value)) paths.push(value)
+  }
+  push(record.path)
+  const frames = record.frames
+  if (Array.isArray(frames)) {
+    for (const frame of frames) {
+      if (typeof frame !== 'object' || frame === null || Array.isArray(frame)) continue
+      const entry = frame as Record<string, unknown>
+      push(entry.path)
+      const frameDiffs = entry.diffs
+      if (Array.isArray(frameDiffs)) push((frameDiffs[0] as Record<string, unknown> | undefined)?.path)
+    }
+  }
+  const diffs = record.diffs
+  if (Array.isArray(diffs)) push((diffs[0] as Record<string, unknown> | undefined)?.path)
+  return paths
+}
 
 /** A declared file with its authorized open coordinates. */
 export interface PresentedPath extends PresentedFile {
