@@ -1554,7 +1554,7 @@ function projectionFramesOf(
 
 /**
  * Event-band paging mirrors the Host contract: the page is the last
- * `maxEvents` events, extended down through cited sourceEventSeqs.
+ * `maxEvents` events — a plain positional cut; citations never widen it.
  */
 function pageOf(
   log: readonly SessionEvent[],
@@ -1562,16 +1562,7 @@ function pageOf(
   maxEvents: number,
 ): { records: FixtureHistoryRecord[]; hasMore: boolean } {
   const end = beforeSeq === undefined ? log.length : Math.max(0, Math.min(beforeSeq, log.length))
-  let start = Math.max(0, end - maxEvents)
-  for (let i = start; i < end; i++) {
-    const event = log[i]
-    /* v8 ignore next -- dense-array guard: log seqs are array indexes, i stays within [0, end). */
-    const sources = event === undefined ? undefined : event.sourceEventSeqs
-    if (sources === undefined) continue
-    for (const source of sources) {
-      if (source < start) start = source
-    }
-  }
+  const start = Math.max(0, end - maxEvents)
   const records = log.slice(start, end).map((event): FixtureHistoryRecord => ({ type: 'event', event }))
   return { records, hasMore: start > 0 }
 }

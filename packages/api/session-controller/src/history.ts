@@ -383,10 +383,11 @@ function rejectNotFound(address: SessionAddress): never {
 
 /**
  * Cut one tail page out of a log window on an EVENT budget: the page is the
- * last `maxEvents` events before `beforeSeq`/`throughSeq`, extended downward
- * through sourceEventSeqs so a message's cited envelope (compaction chains,
- * sourced context) never splits across pages. Tool-heavy turns therefore
- * paginate like everything else instead of hiding behind a message count.
+ * last `maxEvents` events before `beforeSeq`/`throughSeq`, a plain positional
+ * cut on the append-only log. Citations (sourceEventSeqs) never widen the
+ * cut: the chat window mounts events in seq order and needs no citation
+ * envelope, and transitive descent through compaction chains unrolled nearly
+ * the whole log into every page (history-journal paging).
  */
 function paginate(
   events: readonly SessionEvent[],
@@ -395,21 +396,7 @@ function paginate(
   throughSeq: SessionSeqCursor = events.at(-1)?.seq ?? -1,
 ): { readonly events: SessionEvent[]; readonly hasMore: boolean } {
   const end = SessionLogOffset(Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1))
-  let cut = SessionLogOffset(Math.max(0, end - maxEvents))
-  let previous = end
-  // Events dragged in from below the band can cite still-earlier envelopes
-  // (a compaction shadowing an earlier compaction), so descend until the
-  // cut's own envelope is whole.
-  while (cut < previous) {
-    previous = cut
-    for (let index = cut; index < end; index++) {
-      const sources = (events[index] as SessionEvent).sourceEventSeqs
-      if (sources === undefined) continue
-      for (const source of sources) {
-        if (source < cut) cut = SessionLogOffset(source)
-      }
-    }
-  }
+  const cut = SessionLogOffset(Math.max(0, end - maxEvents))
   return { events: events.slice(cut, end), hasMore: cut > 0 }
 }
 

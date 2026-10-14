@@ -697,7 +697,7 @@ describe('SessionHistoryController', () => {
     expect(childSnapshot).toHaveBeenCalledWith(childSession)
   })
 
-  it('keeps event-band pagination contiguous across replacement provenance', async () => {
+  it('cuts event-band pages positionally across replacement provenance', async () => {
     const { ctx, transport } = await setup()
     const session = ctx.sessions.create(SessionId('pagination'), { meta: { cwd: '/workspace' } })
     session.append('turn/start', { turn: 1 })
@@ -711,13 +711,13 @@ describe('SessionHistoryController', () => {
       sourceEventSeqs: [SessionSeq(1), firstReply.seq, SessionSeq(3), SessionSeq(4), summary.seq],
     })
 
-    // A 3-event band would stop inside the replacement's own chain; source
-    // extension pulls the whole compaction group into the page instead.
+    // The 3-event band is positional only: the replacement's sourceEventSeqs
+    // stay in-band references and never widen the cut into the shadowed group.
     const page = await transport.page({
       address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, maxEvents: 3,
     }, signal())
     expect(page.records.map(entry => entry.event.seq))
-      .toEqual([1, firstReply.seq, 3, 4, summary.seq, replacement.seq])
+      .toEqual([replacement.seq - 2, summary.seq, replacement.seq])
     expect(page.hasMore).toBe(true)
     const before = await transport.page({
       address: { kind: 'session', sessionId: session.id }, throughSeq: replacement.seq, beforeSeq: 3, maxEvents: 1,
@@ -725,7 +725,7 @@ describe('SessionHistoryController', () => {
     expect(before.records.map(entry => entry.event.seq)).toEqual([2])
   })
 
-  it('keeps cited source events in the page that owns their appended message', async () => {
+  it('does not widen an event page to keep a cited source', async () => {
     const { ctx, transport } = await setup()
     const session = ctx.sessions.create(SessionId('pagination-sources'), { meta: { cwd: '/workspace' } })
     const source = append(session, 'fixture/source', {})
@@ -736,8 +736,8 @@ describe('SessionHistoryController', () => {
     const page = await transport.page({
       address: { kind: 'session', sessionId: session.id }, throughSeq: 1, maxEvents: 1,
     }, signal())
-    expect(page.records.map(entry => entry.event.seq)).toEqual([0, 1])
-    expect(page.hasMore).toBe(false)
+    expect(page.records.map(entry => entry.event.seq)).toEqual([1])
+    expect(page.hasMore).toBe(true)
   })
 
 })

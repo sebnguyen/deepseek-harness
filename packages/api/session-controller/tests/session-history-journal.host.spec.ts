@@ -741,7 +741,7 @@ describe('Session history raw journal', () => {
     ])
   })
 
-  it('cuts pages on an event budget and keeps each compaction summary with its replacement through source extension', async () => {
+  it('cuts pages on an event budget without widening for in-band citations', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
@@ -781,22 +781,17 @@ describe('Session history raw journal', () => {
     })
     if (!response.ok) throw new Error('unreachable')
     const page = pageEvents(response.value)
-    // The 3-event band would stop at the second reply, but the checkpoint's
-    // sourceEventSeqs extend the cut through the whole compaction chain:
-    // the page stays contiguous from the first prompt and exceeds the band.
-    expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => first.seq + index))
-    expect(page.some(event => event.seq === first.seq)).toBe(true)
-    expect(page.some(event => event.seq === third.seq)).toBe(true)
-    expect(page.length).toBeGreaterThan(3)
+    // The 3-event band is the last three log events — the checkpoint's
+    // sourceEventSeqs stay in-band references; they never widen the cut
+    // (compaction chains paged the whole log at once; see paginate's note).
+    expect(page.map(event => event.seq)).toEqual([summary.seq - 1, summary.seq, summary.seq + 1])
+    expect(page.some(event => event.seq === first.seq)).toBe(false)
+    expect(page.some(event => event.seq === third.seq)).toBe(false)
+    expect(page.length).toBe(3)
     expect(response.value.hasMore).toBe(true)
-    // The range stays contiguous, so the checkpoint's summary record is readable on
-    // the same page as the checkpoint itself.
-    const summaryIndex = page.findIndex(event => event.seq === summary.seq)
-    expect(summaryIndex).toBeGreaterThan(-1)
-    expect(page[summaryIndex + 1]?.seq).toBe(summary.seq + 1)
   })
 
-  it('extends a page cut transitively so stacked compaction envelopes stay whole', async () => {
+  it('pages past stacked compaction citations as plain positional cuts', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
@@ -848,10 +843,10 @@ describe('Session history raw journal', () => {
       sourceEventSeqs: [...outer, outerSummary.seq],
     })
 
-    // The 3-event band tops out inside the outer envelope. Source extension
-    // pulls the outer chain in, and the inner checkpoint it drags along cites
-    // the first compaction's envelope further down; a single extension pass
-    // would split that inner envelope across pages.
+    // Regression for load-earlier vanishing: with stacked compactions in the
+    // band (outer checkpoint citing the inner envelope), a transitively
+    // extended cut reached seq ~0 in one page and flipped hasMore off. The
+    // cut is positional only: the page is exactly the last 3 events.
     const response = await remote.page({
       address: { kind: 'session', sessionId: session.id },
       throughSeq: session.seq - 1,
@@ -859,11 +854,14 @@ describe('Session history raw journal', () => {
     })
     if (!response.ok) throw new Error('unreachable')
     const page = pageEvents(response.value)
-    expect(page[0]?.seq).toBe(first.seq)
+    expect(page.map(event => event.seq)).toEqual([
+      outerCheckpoint.seq - 2,
+      outerCheckpoint.seq - 1,
+      outerCheckpoint.seq,
+    ])
     expect(page.at(-1)?.seq).toBe(outerCheckpoint.seq)
-    expect(page.map(event => event.seq)).toEqual(page.map((_event, index) => first.seq + index))
-    expect(page.some(event => event.seq === innerCheckpoint.seq)).toBe(true)
-    expect(page.some(event => event.seq === innerSummary.seq)).toBe(true)
+    expect(page.some(event => event.seq === first.seq)).toBe(false)
+    expect(page.some(event => event.seq === innerCheckpoint.seq)).toBe(false)
     expect(response.value.hasMore).toBe(true)
   })
 
@@ -905,7 +903,7 @@ describe('Session history raw journal', () => {
     }
   })
 
-  it('keeps an earlier declared source on the same event-banded page', async () => {
+  it('does not widen an event-banded page for a declared source', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
     const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
@@ -921,8 +919,8 @@ describe('Session history raw journal', () => {
       maxEvents: 1,
     })
     if (!response.ok) throw new Error('unreachable')
-    expect(pageEvents(response.value).map(event => event.seq)).toEqual([source.seq, laterSource.seq, message.seq])
-    expect(response.value.hasMore).toBe(false)
+    expect(pageEvents(response.value).map(event => event.seq)).toEqual([message.seq])
+    expect(response.value.hasMore).toBe(true)
     await ctx.fiber.dispose()
   })
 
