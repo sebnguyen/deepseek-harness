@@ -19,7 +19,8 @@ import { PresentRow } from './PresentRow.tsx'
 import { Deliverables, selectDeliverables, type DeliverablesInjected } from './Deliverables.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
-  deliverablesDefinition, presentedForClosing, producedFileMentions, selectProducedFiles,
+  deliverablesDefinition, presentedForClosing, producedFileMentions,
+  selectObservedFiles, selectProducedFiles,
 } from './turn-deliverables.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -67,10 +68,16 @@ export function apply(ctx: ClientContext): void {
   const mentions: ChatFileMentions = {
     forClosing(owner) {
       const paths = selectProducedFiles(owner)
+      // Files the turn read resolve exactly like files it wrote: a mention of
+      // a read-only path (e.g. a ~/.dsh config) opens the real resolved file.
+      const observed = selectObservedFiles(owner)
       const presented = presentedForClosing(owner)
-      if (paths === null && presented.length === 0) return undefined
-      return producedFileMentions([...new Set([...paths ?? [], ...presented.map(file => file.path)])], owner.openFile,
-        path => t('presented.previewButton', { name: path }))
+      if (paths === null && observed.length === 0 && presented.length === 0) return undefined
+      return producedFileMentions(
+        [...new Set([...(paths ?? []), ...observed, ...presented.map(file => file.path)])],
+        owner.openFile,
+        path => t('presented.previewButton', { name: path }),
+      )
     },
   }
   ctx.provide('chatFileMentions', mentions)

@@ -91,23 +91,16 @@ describe('readCardModel', () => {
     expect(model?.lines[0]).not.toBe(sampleLines[0])
   })
 
-  it('relativizes a workspace-rooted path label, and leaves others as authored', () => {
-    // A workspace-rooted absolute path shows its short form.
+  it('displays the backend-resolved path verbatim, never a relativized spelling', () => {
+    // A workspace-rooted absolute path shows the full resolved form: the file
+    // the card names is the file the row opens; relativizing lost which root
+    // a path resolved under (the dev/digitalocean vs dev/digitalocean.idk trap).
     expect(readCardModel(settled({ meta: readMeta({ path: '/w/app/src/a.ts' }) }), '/w/app')?.label)
-      .toBe('src/a.ts')
-    // A path outside the workspace stays as authored.
+      .toBe('/w/app/src/a.ts')
     expect(readCardModel(settled({ meta: readMeta({ path: '/srv/other.ts' }) }), '/w/app')?.label)
       .toBe('/srv/other.ts')
-    // With no session cwd there is nothing to relativize against.
-    expect(readCardModel(settled({ meta: readMeta({ path: '/w/app/src/a.ts' }) }))?.label)
-      .toBe('/w/app/src/a.ts')
-  })
-
-  it('abbreviates a leftover POSIX home path label', () => {
     expect(readCardModel(settled({ meta: readMeta({ path: '/Users/u/notes.md' }) }), '/tmp/ws', '/Users/u')?.label)
-      .toBe('~/notes.md')
-    expect(readCardModel(settled({ meta: readMeta({ path: '/Users/u/app/src/a.ts' }) }), '/Users/u/app', '/Users/u')?.label)
-      .toBe('src/a.ts')
+      .toBe('/Users/u/notes.md')
     expect(readCardModel(settled({ meta: readMeta({ path: 'C:\\Users\\u\\a.ts' }) }), '/tmp/ws', '/Users/u')?.label)
       .toBe('C:\\Users\\u\\a.ts')
   })
@@ -247,9 +240,8 @@ describe('ReadRow keyed toolview', () => {
     const openFile = vi.fn()
     const view = render(<ReadRow {...{ ...rowProps(settled()), openFile }} />)
     fireEvent.click(view.getByRole('button', { name: 'src/a.ts' }))
-    // The row derives the file path and the `offset` line from args; the chat
-    // view resolves the path against the cwd before this callback opens it, so
-    // the arg path is what arrives.
+    // The fixture's resolved path equals the authored one; a settled row
+    // forwards that resolved path to the callback.
     expect(openFile).toHaveBeenCalledWith('src/a.ts', { line: 41 })
   })
 

@@ -24,6 +24,16 @@ describe('forwardRequestOf', () => {
     })
   })
 
+  it('forwards an out-of-workspace absolute session path verbatim, not root-prefixed', () => {
+    // dsh-resource://file/session/<sid>//abs/path: fileAddressFor keeps an
+    // out-of-root absolute path inside the session-scoped address; the twin
+    // must receive that path exactly (anything else names no real file).
+    expect(forwardRequestOf('dsh-resource://file/session/sid-7//home/user/.dsh/settings.yaml', '/repo/worktree')).toEqual({
+      sessionId: 'sid-7',
+      path: '/home/user/.dsh/settings.yaml',
+    })
+  })
+
   it('refuses page tabs, absolute-scope addresses, and empty file paths', () => {
     expect(forwardRequestOf('sidebar://vscode', '/repo')).toBeNull()
     expect(forwardRequestOf('dsh-resource://absolute/etc/hosts', '/repo')).toBeNull()

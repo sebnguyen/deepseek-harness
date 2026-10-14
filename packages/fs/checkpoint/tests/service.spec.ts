@@ -70,7 +70,9 @@ async function harness(options: {
         before = null
       }
       await writeFile(join(root, 'a.txt'), content, 'utf8')
-      await ctx.get('checkpoint')?.captureWrite(exec, { path: 'a.txt', before, after: content })
+      // Mirror production: capture hands over the backend-resolved absolute
+      // path, which the event relativizes for display and keeps as fsPath.
+      await ctx.get('checkpoint')?.captureWrite(exec, { path: join(root, 'a.txt'), before, after: content })
       return 'written'
     },
   }))
@@ -116,12 +118,12 @@ describe('checkpoint capture', () => {
     const stack = await harness()
     await stack.run('writer', 'c1', { content: 'one', [PURPOSE_KEY]: 'first write' })
     expect(stack.rows()).toEqual([
-      { path: 'a.txt', callId: 'c1', toolName: 'writer', purpose: 'first write', after: digestOf('one') },
+      { path: 'a.txt', fsPath: join(stack.root, 'a.txt'), callId: 'c1', toolName: 'writer', purpose: 'first write', after: digestOf('one') },
     ])
 
     await stack.run('writer', 'c2', { content: 'two' })
     expect(stack.rows()[1]).toEqual({
-      path: 'a.txt', callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two'),
+      path: 'a.txt', fsPath: join(stack.root, 'a.txt'), callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two'),
     })
   })
 
@@ -159,7 +161,7 @@ describe('checkpoint capture', () => {
     const second = await harness({ home: first.home, sessionId: 'resumed', root: first.root })
     await second.run('writer', 'c2', { content: 'two!' })
     expect(second.rows()).toEqual([
-      { path: 'a.txt', callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two!') },
+      { path: 'a.txt', fsPath: join(second.root, 'a.txt'), callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two!') },
     ])
   })
 
@@ -213,7 +215,7 @@ describe('checkpoint slot register', () => {
     const service = stack.ctx.get('checkpoint') as CheckpointService
     const [timeline] = await service.slots(stack.session)
     expect(timeline?.slots).toEqual([{
-      slotId: 'c1', kind: 'worktree', path: 'a.txt', label: 'stated', turn: 2, callId: 'c1',
+      slotId: 'c1', kind: 'worktree', path: 'a.txt', fsPath: join(stack.root, 'a.txt'), label: 'stated', turn: 2, callId: 'c1',
       after: digestOf('one'), createdAt: expect.any(Number), detail: { toolName: 'writer', purpose: 'stated' },
     }])
 

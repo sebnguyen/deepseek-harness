@@ -369,15 +369,22 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
         },
       },
       render: (_args, value) => [{ type: 'text', text: renderWriteFrames(value.frames) }],
-      // Persist one diff hunk set per committed element so the Web diff card
-      // survives replay; previews and failures carry no diffs.
+      // Persist one diff hunk set and the backend-resolved path per settled
+      // element, so the Web diff card and the row's file link survive replay
+      // with the real path; failed elements carry no diffs.
       presentationMeta: (_args, value) => ({
         frames: value.frames.flatMap((frame) => {
-          if (frame.kind !== 'written' || frame.before === null || frame.before === undefined || frame.after === undefined) return []
+          if (frame.kind !== 'written') return []
+          const diffs = frame.before === null || frame.before === undefined || frame.after === undefined
+            ? []
+            // Diffs ride the backend-resolved display path the write
+            // committed, never the argument spelling.
+            : computeHunkDiffs(frame.path ?? frame.file_path, frame.before, frame.after)
+              .map(({ path, oldText, newText }) => ({ path, oldText, newText }))
           return [{
             index: frame.index,
-            diffs: computeHunkDiffs(frame.file_path, frame.before, frame.after)
-              .map(({ path, oldText, newText }) => ({ path, oldText, newText })),
+            ...frame.path !== undefined ? { path: frame.path } : {},
+            diffs,
           }]
         }),
       }),
@@ -592,10 +599,13 @@ function applyLegacyWriteTool(ctx: Context, sandbox: FsSandboxController, gate: 
         type: 'text',
         text: formatWriteOutput(value.path, formatOutcomeLine(value)),
       }],
-      presentationMeta: (args, value) => ({
+      presentationMeta: (_args, value) => ({
+        // The backend-resolved display path, and the diff hunks under the
+        // same spelling — the file that exists, not the argument's root one.
+        path: value.path,
         diffs: value.before === null
           ? []
-          : computeHunkDiffs(args.file_path, value.before, value.after)
+          : computeHunkDiffs(value.path, value.before, value.after)
             .map(({ path, oldText, newText }) => ({ path, oldText, newText })),
       }),
     },

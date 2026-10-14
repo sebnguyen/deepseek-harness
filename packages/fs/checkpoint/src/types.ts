@@ -19,6 +19,12 @@ export type SnapshotDigest = string & { readonly __snapshotDigest: never }
 export interface CheckpointRow {
   /** Session-relative path, slash-separated. */
   readonly path: string
+  /**
+   * The backend-resolved absolute path the write committed, as the fs gate
+   * resolved it. Out-of-workspace writes relativize into a `../…` (or
+   * unchanged-relative) `path` that names nothing real; this is the file.
+   */
+  readonly fsPath?: string
   /** The write call that committed this file; join `tool/call` for turn/step. */
   readonly callId: ToolCallId
   readonly toolName: string
@@ -71,6 +77,8 @@ export interface CheckpointSlot {
   readonly kind: string
   /** Session-relative path, slash-separated, relativized like CheckpointRow.path. */
   readonly path: string
+  /** The backend-resolved absolute path captured when the slot was recorded. */
+  readonly fsPath?: string
   /** Producer-supplied one-liner: tooltip and transcript chip text. */
   readonly label: string
   /** Optional turn scope; the remote fold joins `tool/call` for absent turns. */
@@ -104,6 +112,8 @@ export interface CheckpointSlotPut {
   readonly slotId: string
   readonly kind: string
   readonly path: string
+  /** The backend-resolved absolute path, persisted beside the relativized `path`. */
+  readonly fsPath?: string
   readonly label: string
   readonly turn?: number
   readonly callId?: string

@@ -27,6 +27,17 @@ export interface VscodeForwardRequest {
  * (page tabs, local addresses, cross-session roots) or the root is
  * unknown — those never translate.
  */
+/**
+ * An absolute path in any separator spelling the file-address codec preserves:
+ * POSIX root, a Windows drive letter, or a UNC share. Session addresses carry
+ * absolute paths verbatim (out-of-workspace reads/writes), and an absolute
+ * path must forward as-is — prefixing the workspace root would fabricate a
+ * `<root>//abs/path` that names no file the user clicked.
+ */
+export function isAbsoluteFilePath(path: string): boolean {
+  return path.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(path) || path.startsWith('\\\\')
+}
+
 export function forwardRequestOf(
   address: string,
   workspaceRoot: string,
@@ -34,7 +45,11 @@ export function forwardRequestOf(
   const parsed = parseFileAddress(address)
   if (parsed === undefined || parsed.scope !== 'session') return null
   const root = workspaceRoot.endsWith('/') ? workspaceRoot.slice(0, -1) : workspaceRoot
-  const path = parsed.path === '' ? null : `${root}/${parsed.path}`
+  const path = parsed.path === ''
+    ? null
+    : isAbsoluteFilePath(parsed.path)
+      ? parsed.path
+      : `${root}/${parsed.path}`
   if (path === null) return null
   return { sessionId: parsed.sessionId as SessionId, path }
 }

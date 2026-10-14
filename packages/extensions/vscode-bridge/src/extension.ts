@@ -95,6 +95,11 @@ export async function spawnBridgeSeat(deps: {
       if (!isOpenFrame(frame)) return
       void deps.workbench.showTextDocument(frame.path, {
         ...(frame.line === undefined ? {} : { line: frame.line }),
+      }).then(undefined, (error: unknown) => {
+        // An open failure must never die as an unobserved rejection: the host
+        // forwarded this path as authoritative, and a silent drop is the
+        // "click, nothing happens" ghost the user cannot report.
+        deps.logger?.('ideBridge/open failed for %s:', frame.path, error)
       })
     }
     // Dynamic seat-local frame events live outside any declared Events map;

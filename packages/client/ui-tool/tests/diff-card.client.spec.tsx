@@ -309,12 +309,25 @@ describe('FileMutationRow diff card', () => {
   })
 
   it('renders a plain summary span when the call carries no file path', () => {
-    // Empty args leave deriveFilePath undefined, so the summary is not a link.
+    // Empty args and no resolved-path meta leave the summary unlinked.
     const view = render(<FileMutationRow {...rowProps(settled({
-      call: { name: 'edit', argsRaw: '' },
+      call: { name: 'edit', argsRaw: '' }, meta: undefined,
     }))} />)
     expect(view.container.querySelector('[class*="_fileLink_"]')).toBeNull()
     expect(view.container.querySelector('[class*="_summary_"]')).not.toBeNull()
+  })
+
+  it('a settled write link opens the resolved path even when args are empty', () => {
+    // The row's open target comes from the result meta, not the args: a stale
+    // or empty argument string can't hide the file the call committed.
+    const openFile = vi.fn()
+    const view = render(<FileMutationRow {...{ ...rowProps(settled({
+      call: { name: 'write', argsRaw: '' },
+    })), openFile }} />)
+    const link = view.container.querySelector('[class*="_fileLink_"]')
+    expect(link).not.toBeNull()
+    fireEvent.click(link!)
+    expect(openFile).toHaveBeenCalledWith('notes/demo.txt')
   })
 })
 

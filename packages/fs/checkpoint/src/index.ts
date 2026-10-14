@@ -165,7 +165,10 @@ export class CheckpointService extends TypertRemoteService {
     const after = await store.put(file.after)
     session.append('checkpoint/scan', {
       rows: [{
+        // The relativized display keeps the client fold contract, while the
+        // backend-resolved absolute path records the file the write touched.
         path: relativizeToCwd(file.path, session.header.cwd),
+        fsPath: file.path,
         callId: call.callId as ToolCallId,
         toolName: call.name,
         ...call.purpose !== undefined ? { purpose: call.purpose } : {},
@@ -181,6 +184,7 @@ export class CheckpointService extends TypertRemoteService {
       slotId: call.callId,
       kind: 'worktree',
       path: file.path,
+      fsPath: file.path,
       label: call.purpose ?? call.name,
       callId: call.callId,
       ...before !== undefined ? { before } : {},
@@ -223,6 +227,7 @@ export class CheckpointService extends TypertRemoteService {
       slotId: slot.slotId as CheckpointSlotId,
       kind: slot.kind,
       path: relativizeToCwd(slot.path, session.header.cwd),
+      ...slot.fsPath !== undefined ? { fsPath: slot.fsPath } : {},
       label: slot.label,
       ...slot.turn !== undefined ? { turn: slot.turn } : {},
       ...slot.callId !== undefined ? { callId: slot.callId } : {},
@@ -252,7 +257,8 @@ export class CheckpointService extends TypertRemoteService {
   /**
    * The register as a file-to-live-slot map, oldest first, paths in path order:
    * `slots.jsonl` rows folded over tombstones, with each slot's turn joined
-   * from its `tool/call` event when the producer stamped none. Register state
+   * from its `tool/call` event when the producer stamped none; slot records
+   * persist the backend-resolved absolute `fsPath` beside the relativized path. Register state
    * is store-only: the fold reads no slot event, and a session whose log never
    * mentions slots still lists them after a restart.
    * @param session - the owning session whose register is folded.

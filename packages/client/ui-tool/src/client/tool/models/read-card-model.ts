@@ -1,6 +1,5 @@
 /** Pure read-card derivation from raw result content and metadata. @module */
 import type { ReadBlockLine, ReadBlockProps } from '@deepseek-ai/dsh-client-ui-primitives'
-import { abbreviateHomePath, relativizeToCwd } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ToolCallBlock } from './tool-call-model.ts'
 import { parsedToolCall, singleResultText } from './raw-tool-call.ts'
 
@@ -214,9 +213,10 @@ function frameSectionBody(text: string, filesLength: number, index: number, file
  * `files` calls render the first successful frame's window (the row is a
  * one-card summary surface, the raw sections stay in the generic body).
  * @param block - running or settled Tool block.
- * @param sessionCwd - the session workspace root; a workspace-rooted absolute
- *   path label displays relative to it. Absent leaves the path as authored.
- * @param home - host account home; a leftover POSIX home path displays as `~`.
+ * @param sessionCwd - retained for the call-site shape; the label is the
+ *   resolved path verbatim, no longer relativized.
+ * @param home - retained with `sessionCwd`; home abbreviation is gone with
+ *   relativization.
  * @returns the read-card props, or null for the generic path.
  */
 export function readCardModel(
@@ -224,6 +224,8 @@ export function readCardModel(
   sessionCwd?: string,
   home?: string,
 ): ReadCardModel | null {
+  void sessionCwd
+  void home
   if (block.parentCallId !== undefined || !('kind' in block) || block.isError) return null
   const call = parsedToolCall(block)
   if (call?.name !== 'read' && call?.name !== 'multi_read') return null
@@ -236,8 +238,10 @@ export function readCardModel(
     if (text === undefined) return null
     const body = /^<path>[^\n]*<\/path>\n<type>file<\/type>\n<content>\n([\s\S]*)\n<\/content>$/u.exec(text)?.[1]
     if (body === undefined) return null
+    // The label is the backend-resolved absolute path the read touched,
+    // verbatim — the file the row links to is the file the card names.
     return {
-      label: abbreviateHomePath(relativizeToCwd(meta.path, sessionCwd), home),
+      label: meta.path,
       lines: meta.lines,
       totalLines: meta.totalLines,
       lang: meta.lang,
@@ -253,7 +257,7 @@ export function readCardModel(
   if (text === undefined) return null
   if (frameSectionBody(text, batch.length, first.index, filePath) === undefined) return null
   return {
-    label: abbreviateHomePath(relativizeToCwd(first.window.path, sessionCwd), home),
+    label: first.window.path,
     lines: first.window.lines,
     totalLines: first.window.totalLines,
     lang: first.window.lang,

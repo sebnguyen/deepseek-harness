@@ -165,6 +165,31 @@ describe('tool-call-model', () => {
       .toBe('/Users/u/a.ts')
   })
 
+  it('a settled file call shows and opens the backend-resolved path from its meta', () => {
+    const resolved = (meta: unknown, over?: Partial<ToolResultNode>): ToolResultNode => result({
+      call: { name: 'read', argsRaw: '{"file_path":"src/a.ts"}' },
+      meta,
+      ...over,
+    })
+    // Tool-owned projections: singular read/write `path` — even an
+    // out-of-workspace path arrives full, so `~/.dsh` spells itself out.
+    expect(toolRowModel('read', resolved({ path: '/home/u/.dsh/config.yaml' })).summary)
+      .toBe('/home/u/.dsh/config.yaml')
+    expect(toolRowModel('read', resolved({ path: '/home/u/.dsh/config.yaml' })).filePath)
+      .toBe('/home/u/.dsh/config.yaml')
+    expect(toolRowModel('write', resolved({ path: '/w/app/src/a.ts', diffs: [] })).summary)
+      .toBe('/w/app/src/a.ts')
+    // Batched frames and write diffs carry their own resolved path.
+    expect(toolRowModel('read', resolved({ frames: [{ index: 0, path: '/w/app/src/a.ts' }] })).summary)
+      .toBe('/w/app/src/a.ts')
+    expect(toolRowModel('write', resolved({ diffs: [{ path: '/w/app/src/a.ts', oldText: null, newText: 'x' }] })).summary)
+      .toBe('/w/app/src/a.ts')
+    // The agent's own args fallback holds when the result carried nothing.
+    expect(toolRowModel('read', resolved(undefined)).summary).toBe('src/a.ts')
+    // Failed calls keep the argument spelling: nothing real was touched.
+    expect(toolRowModel('read', resolved({ path: '/abs/x' }, { isError: true })).summary).toBe('src/a.ts')
+  })
+
   it('body pretty-prints JSON args, keeps raw non-JSON, null when empty', () => {
     expect(formatToolBody('bash', toolRowModel('bash', running({ argsRaw: '{"a":1}' })).bodyRaw ?? ''))
       .toBe('{\n  "a": 1\n}')

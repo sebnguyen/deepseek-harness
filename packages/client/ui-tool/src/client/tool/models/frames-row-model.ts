@@ -130,12 +130,13 @@ export function readFramesRowModel(
         kind: 'read',
         read: {
           card: {
-            label: abbreviateHomePath(relativizeToCwd(record.window.path, sessionCwd), home),
+            // The resolved absolute path the read actually touched, verbatim.
+            label: record.window.path,
             lines: record.window.lines,
             totalLines: record.window.totalLines,
             lang: record.window.lang,
           },
-          filePath: element.file_path,
+          filePath: record.window.path,
           ...positiveInteger(record.window.offset) ? { line: record.window.offset } : {},
         },
       })
@@ -151,11 +152,14 @@ export function readFramesRowModel(
       },
     })
   }
+  // The collapsed summary opens and names the first file the read resolved,
+  // never an argument spelling the backend resolved elsewhere.
+  const firstResolved = records.find(record => record.kind === 'read')?.window?.path
   return {
     items,
     count: batch.length,
-    firstPath: first.file_path,
-    firstLabel: abbreviateHomePath(relativizeToCwd(first.file_path, sessionCwd), home),
+    firstPath: firstResolved ?? first.file_path,
+    firstLabel: firstResolved ?? abbreviateHomePath(relativizeToCwd(first.file_path, sessionCwd), home),
     stat: null,
   }
 }
@@ -188,8 +192,12 @@ export function writeFramesRowModel(
   let removed = 0
   for (const [index, element] of batch.entries()) {
     const filePath = typeof element.file_path === 'string' ? element.file_path : ''
-    const display = abbreviateHomePath(relativizeToCwd(filePath, sessionCwd), home)
     const record = byIndex?.get(index)
+    // A committed element shows the backend-resolved absolute path it wrote;
+    // pending and failed elements fall back to the argument label.
+    const display = record?.path !== undefined
+      ? record.path
+      : abbreviateHomePath(relativizeToCwd(filePath, sessionCwd), home)
     if (record !== undefined && record.kind !== 'written') {
       items.push({
         kind: 'failure',
@@ -226,12 +234,13 @@ export function writeFramesRowModel(
   }
   const first = batch[0]
   if (first === undefined) return null
-  const firstPath = typeof first.file_path === 'string' ? first.file_path : ''
+  const firstArgPath = typeof first.file_path === 'string' ? first.file_path : ''
+  const firstResolved = byIndex?.get(0)?.path
   return {
     items,
     count: batch.length,
-    firstPath,
-    firstLabel: abbreviateHomePath(relativizeToCwd(firstPath, sessionCwd), home),
+    firstPath: firstResolved ?? firstArgPath,
+    firstLabel: firstResolved ?? abbreviateHomePath(relativizeToCwd(firstArgPath, sessionCwd), home),
     stat: { added, removed },
   }
 }

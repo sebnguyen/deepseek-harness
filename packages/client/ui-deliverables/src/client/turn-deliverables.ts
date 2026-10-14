@@ -5,6 +5,7 @@
  */
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { resolvedPathsFromMeta } from '@deepseek-ai/dsh-client-ui-tool/src/client/tool/models/tool-call-model.ts'
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PresentedFile } from '@deepseek-ai/dsh-tool-present/types'
@@ -16,7 +17,8 @@ export interface PresentedPath extends PresentedFile {
   readonly index: number
 }
 
-interface ProducedPath {
+/** A path a successful call resolved or committed, stamped with its event seq. */
+export interface ProducedPath {
   readonly seq: number
   readonly path: string
 }
@@ -24,6 +26,12 @@ interface ProducedPath {
 /** Immutable produced-file facts published against one Turn. */
 export interface DeliverablesTurnData {
   readonly produced: readonly ProducedPath[]
+  /**
+   * Resolved absolute paths of files the turn's successful tools observed
+   * (read, listed, imaged), lifted from each `tool/result` `meta` — never
+   * treated as produce data: reads do not enter the turn-tail chips.
+   */
+  readonly observed?: readonly ProducedPath[]
   readonly presented?: readonly PresentedPath[]
 }
 
@@ -37,6 +45,7 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 interface DeliverablesState extends DeliverablesTurnData {
   readonly turn: number
   readonly calls: ReadonlyMap<string, string | null>
+  readonly observed: readonly ProducedPath[]
 }
 
 /**
@@ -153,6 +162,26 @@ export function selectProducedFiles(owner: TurnTailOwnerProps): readonly string[
   return paths.length === 0 ? null : paths
 }
 
+/**
+ * Resolved read-file paths named by the closing turn's settled tool results.
+ * Always returns a list so the mention vocabulary merges produced, observed,
+ * and presented uniformly; emptiness is the usual state.
+ * @param owner - Turn-tail owner currency for the closing assistant.
+ * @returns Resolved absolute paths of read-observed files, in first-seen order.
+ */
+export function selectObservedFiles(owner: TurnTailOwnerProps): readonly string[] {
+  const data = owner.turn.data.get('deliverables')
+  const observed = data?.observed ?? []
+  const paths: string[] = []
+  const seen = new Set<string>()
+  for (const entry of observed) {
+    if (entry.seq > owner.seq || seen.has(entry.path)) continue
+    seen.add(entry.path)
+    paths.push(entry.path)
+  }
+  return paths
+}
+
 /** Turn-local successful mutation accumulator; it publishes no view Node. */
 export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesState> = {
   kind: 'deliverables',
@@ -167,7 +196,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
   },
   start: (_context, match) => {
     if (match.event.type !== 'turn/start') throw new Error('deliverables start requires turn/start')
-    return { turn: match.event.data.turn, calls: new Map(), produced: [] }
+    return { turn: match.event.data.turn, calls: new Map(), produced: [], observed: [] }
   },
   update: (context, match) => {
     if (match.event.type === 'deliverables/presented') {
@@ -192,11 +221,23 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
     if (match.event.type !== 'tool/result') return context.state
     const result = match.event.data.message.content[0]
     if (result.isError === true) return context.state
+    // Every settled fs call names the real file it resolved: read/write
+    // `meta.path`, batched `frames[].path`, write `diffs[].path`.
+    const observedPaths = resolvedPathsFromMeta(match.event.data.meta)
+    const observed = observedPaths.length === 0
+      ? context.state.observed
+      : [
+        ...context.state.observed,
+        ...observedPaths.map(observedPath => ({ seq: match.event.seq, path: observedPath })),
+      ]
     const callId = String(match.event.data.message.source.callId)
     const path = context.state.calls.get(callId)
-    return path === null || path === undefined
+    const produced = path === null || path === undefined
+      ? context.state.produced
+      : [...context.state.produced, { seq: match.event.seq, path }]
+    return produced === context.state.produced && observed === context.state.observed
       ? context.state
-      : { ...context.state, produced: [...context.state.produced, { seq: match.event.seq, path }] }
+      : { ...context.state, produced, observed }
   },
   buildLocationData: (context, scope, previous) => {
     if (scope !== 'turn' || context.state === undefined) return null
@@ -204,12 +245,17 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       && previous.turn === context.state.turn
       && previous.key === 'deliverables'
       && previous.value.produced === context.state.produced
+      && previous.value.observed === context.state.observed
       && previous.value.presented === context.state.presented) return previous
     return {
       kind: 'turn',
       turn: context.state.turn,
       key: 'deliverables',
-      value: { produced: context.state.produced, ...context.state.presented === undefined ? {} : { presented: context.state.presented } },
+      value: {
+        produced: context.state.produced,
+        observed: context.state.observed,
+        ...context.state.presented === undefined ? {} : { presented: context.state.presented },
+      },
     }
   },
 }
@@ -246,7 +292,9 @@ export function producedFileMentions(
 ): MarkdownFileMentions {
   return {
     resolve(value) {
-      const path = paths.includes(value) ? value : onlyPathWithBasename(paths, value)
+      const path = paths.includes(value) ? value
+        : onlyPathWithBasename(paths, value)
+        ?? onlyPathWithTailSuffix(paths, value)
       if (path === undefined) return undefined
       return { open: () => { openFile(path) }, label: label(path), title: path }
     },
@@ -256,5 +304,19 @@ export function producedFileMentions(
 /** The single supplied path whose basename is exactly `value`, else undefined. */
 function onlyPathWithBasename(paths: readonly string[], value: string): string | undefined {
   const matches = paths.filter(path => basename(path) === value)
+  return matches.length === 1 ? matches[0] : undefined
+}
+
+/**
+ * The single supplied path ending at the mention, else undefined. A mention
+ * spelled `~/.dsh/x.yaml` or `dev/foo/x.yaml` names the one candidate whose
+ * absolute path carries that tail; abbreviations stay ambiguity-safe, a bare
+ * basename keeps riding the basename rule instead.
+ */
+function onlyPathWithTailSuffix(paths: readonly string[], value: string): string | undefined {
+  const relative = value.startsWith('~/') ? value.slice(2) : value
+  if (relative === '' || relative.startsWith('/') || !relative.includes('/')) return undefined
+  const needle = `/${relative}`
+  const matches = paths.filter(path => path.endsWith(needle))
   return matches.length === 1 ? matches[0] : undefined
 }

@@ -25,7 +25,8 @@ import { Deliverables, selectDeliverables, type DeliverablesInjected } from '../
 import { PresentedOpenController } from '../src/client/present-open.ts'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
-  basename, deliverablesDefinition, presentedForClosing, producedFileMentions, producedForClosing, selectProducedFiles,
+  basename, deliverablesDefinition, presentedForClosing, producedFileMentions, producedForClosing,
+  selectObservedFiles, selectProducedFiles,
   type DeliverablesTurnData,
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
@@ -170,7 +171,7 @@ function rawCall(
   )
 }
 
-function result(seq: number, callId: string, isError = false, turn = 1): SessionLiveEventEntry {
+function result(seq: number, callId: string, isError = false, turn = 1, meta?: unknown): SessionLiveEventEntry {
   return at(seq, 'tool/result', {
     turn,
     step: 1,
@@ -178,6 +179,7 @@ function result(seq: number, callId: string, isError = false, turn = 1): Session
       source: { type: 'tool-result', callId },
       content: [{ type: 'tool-result', content: [], isError }],
     },
+    ...meta !== undefined ? { meta } : {},
   })
 }
 
@@ -479,6 +481,45 @@ describe('ProducedFiles row', () => {
   })
 })
 
+describe('observed-file Turn data', () => {
+  it('accumulates resolved paths from result meta without entering produced', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'read-cfg', 'read', { file_path: '~/.dsh/settings.yaml' }),
+      result(3, 'read-cfg', false, 1, { path: '/home/u/.dsh/settings.yaml', offset: 1, lines: [], totalLines: 0 }),
+      call(4, 'batch', 'multi_read', { files: [{ file_path: 'a.ts' }] }),
+      result(5, 'batch', false, 1, { frames: [{ index: 0, path: '/w/app/src/a.ts', offset: 1, lines: [], totalLines: 0 }] }),
+      call(6, 'write', 'write', { file_path: 'out.html', content: 'x' }),
+      result(7, 'write', false, 1, { path: '/w/app/out.html', diffs: [{ path: '/w/app/out.html', oldText: null, newText: 'x' }] }),
+      call(8, 'boom', 'read', { file_path: 'gone.ts' }),
+      result(9, 'boom', true),
+    ])
+    // The resolved spelling clicks home for reads and writes alike; a failed
+    // result contributes nothing.
+    expect(selectObservedFiles(tailOwner(deliverablesOf(value), Number.POSITIVE_INFINITY))).toEqual([
+      '/home/u/.dsh/settings.yaml',
+      '/w/app/src/a.ts',
+      '/w/app/out.html',
+    ])
+    // Reads never become turn-tail chips: produced keeps its mutation-only law.
+    expect(producedForClosing(deliverablesOf(value))).toEqual(['out.html'])
+  })
+
+  it('deduplicates in first-seen order and stops at the closing Assistant seq', () => {
+    const owner = tailOwner({
+      produced: [],
+      observed: [
+        { seq: 2, path: '/w/app/src/a.ts' },
+        { seq: 4, path: '/home/u/.dsh/x.yaml' },
+        { seq: 4, path: '/w/app/src/a.ts' },
+        { seq: 8, path: '/w/app/late.ts' },
+      ],
+    }, 6)
+    expect(selectObservedFiles(owner)).toEqual(['/w/app/src/a.ts', '/home/u/.dsh/x.yaml'])
+    expect(selectObservedFiles(tailOwner(undefined, 9))).toEqual([])
+  })
+})
+
 describe('producedFileMentions resolver', () => {
   const label = (path: string) => `打开 ${path}`
 
@@ -503,6 +544,21 @@ describe('producedFileMentions resolver', () => {
     expect(resolver.resolve('style.css')).toBeUndefined()
     expect(resolver.resolve('notes.md')).toBeUndefined()
     expect(basename('a\\b\\c.txt')).toBe('c.txt')
+  })
+
+  it('resolves tilde- and partial-path mentions against the unique observed tail', () => {
+    const resolver = producedFileMentions(
+      ['/home/u/.dsh/settings.yaml', '/w/app/src/a.ts', '/other/app/src/a.ts'],
+      () => {},
+      label,
+    )
+    // Absolute meta paths match the tail-spelled prose mention.
+    expect(resolver.resolve('~/.dsh/settings.yaml')?.title).toBe('/home/u/.dsh/settings.yaml')
+    // An ambiguity the tail cannot break stays unresolved, and a bare basename
+    // keeps its own rule's exclusivity.
+    expect(resolver.resolve('app/src/a.ts')).toBeUndefined()
+    expect(resolver.resolve('~/.dsh/missing.yaml')).toBeUndefined()
+    expect(resolver.resolve('~')).toBeUndefined()
   })
 })
 
@@ -572,7 +628,18 @@ describe('plugin registration', () => {
     expect(face.hooks.presentedHost.getSnapshot()).toBeNull()
     await face.openPresented(SessionId('child-session'), 2, 0)
     expect(face.hooks.presentedOpen.getSnapshot()['/api/present.open?sessionId=child-session&seq=2&index=0']).toBe('opened')
-    // A turn that produced nothing yields no vocabulary at all.
+    // A turn that read but produced nothing still yields a resolver: the
+    // resolved path is what a tilde-spelled mention opens.
+    const configOpened: string[] = []
+    const readOnlyOwner = tailOwner(
+      { produced: [], observed: [{ seq: 2, path: '/home/u/.dsh/settings.yaml' }] },
+      3,
+      (path) => { configOpened.push(path) },
+    )
+    const readOnlyMentions = service?.forClosing(readOnlyOwner, SessionId('viewed-session'))
+    readOnlyMentions?.resolve('~/.dsh/settings.yaml')?.open()
+    expect(configOpened).toEqual(['/home/u/.dsh/settings.yaml'])
+    // A turn that neither wrote nor read of known files yields no vocabulary.
     expect(service?.forClosing(tailOwner(undefined, 2), SessionId('viewed-session'))).toBeUndefined()
 
     fetcher.mockResolvedValueOnce(Response.json({ name: 'last-host', available: true, fileManager: 'finder' }))

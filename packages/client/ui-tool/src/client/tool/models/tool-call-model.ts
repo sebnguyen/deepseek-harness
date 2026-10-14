@@ -98,9 +98,10 @@ export interface ToolRowModel {
   titleKey: ToolTitleKey
   summary: string
   /**
-   * Filesystem path from args (`path` / `file_path`) when the row is a file
-   * tool; absent for URL reads and non-file tools. The chat view resolves
-   * relative values against the session cwd before opening.
+   * Filesystem path the row opens: the backend-resolved absolute path from the
+   * settled result's meta when one exists, else the authored `path` /
+   * `file_path` argument; absent for URL reads and non-file tools. The chat
+   * view resolves relative values against the session cwd before opening.
    */
   filePath: string | undefined
   /** Original argument JSON retained for expansion-time body formatting. */
@@ -184,6 +185,37 @@ function deriveSummary(variant: ToolRowVariant, argsRaw: string): string {
 /** Path keys only — never `url` (web_fetch lands on the read variant). */
 const FILE_PATH_KEYS = ['path', 'file_path'] as const
 
+/**
+ * The backend-resolved absolute file paths a settled call touched, read from
+ * its persisted result `meta`: the tool-owned projections every fs tool
+ * stamps at return time (`read`/`read_image` `path`, batched read/write
+ * `frames[].path`, write `diffs[0].path`).
+ * @param meta - the opaque persisted result payload.
+ * @returns the resolved paths in arrival order, deduped.
+ */
+export function resolvedPathsFromMeta(meta: unknown): string[] {
+  if (typeof meta !== 'object' || meta === null || Array.isArray(meta)) return []
+  const record = meta as Record<string, unknown>
+  const paths: string[] = []
+  const push = (value: unknown): void => {
+    if (typeof value === 'string' && value !== '' && !paths.includes(value)) paths.push(value)
+  }
+  push(record.path)
+  const frames = record.frames
+  if (Array.isArray(frames)) {
+    for (const frame of frames) {
+      if (typeof frame !== 'object' || frame === null || Array.isArray(frame)) continue
+      const entry = frame as Record<string, unknown>
+      push(entry.path)
+      const frameDiffs = entry.diffs
+      if (Array.isArray(frameDiffs)) push((frameDiffs[0] as Record<string, unknown> | undefined)?.path)
+    }
+  }
+  const diffs = record.diffs
+  if (Array.isArray(diffs)) push((diffs[0] as Record<string, unknown> | undefined)?.path)
+  return paths
+}
+
 /** File-tool variants whose summary may be an openable workspace path. */
 const FILE_PATH_VARIANTS: ReadonlySet<ToolRowVariant> = new Set(['read', 'write', 'edit'])
 
@@ -264,9 +296,18 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
   const toolTitleKey = TOOL_TITLE_KEYS[toolName]
   // Others keeps the static "Tool call" title (figma literal); the real tool
   // name rides the mutable summary slot unless the tool owns a specific title.
-  const summary = variant === 'others' && toolName !== '' && toolTitleKey === undefined
+  const argsSummary = variant === 'others' && toolName !== '' && toolTitleKey === undefined
     ? `${toolName} · ${base}`
     : base
+  // A settled file call shows the backend-resolved absolute path it actually
+  // acted on, never the authored argument spelling: the path that exists, so
+  // clicking and reading agree about which file this row was about. Failed
+  // calls keep the arguments (nothing real was touched); error text replaces
+  // the summary row anyway.
+  const resolved = done && state !== 'error' && FILE_PATH_VARIANTS.has(variant)
+    ? resolvedPathsFromMeta(block.meta)[0]
+    : undefined
+  const summary = resolved ?? argsSummary
   // The empty string is "no text" for both derived result fields: a settled
   // call with blank content has nothing to expand, and a blank first line
   // would erase the collapsed error row's summary slot.
@@ -277,7 +318,7 @@ export function toolRowModel(toolName: string, block: ToolCallBlock, cwd?: strin
     variant,
     titleKey: toolTitleKey ?? VARIANT_TITLE_KEYS[variant],
     summary,
-    filePath: deriveFilePath(variant, argsRaw),
+    filePath: resolved ?? deriveFilePath(variant, argsRaw),
     bodyRaw,
     output,
     errorSummary,
