@@ -20,30 +20,17 @@
      content + 32px at every width. Declared on the root because the
      transcript and the composer seat are sibling subtrees.
 
-     W adapts to the column, not the viewport (a collapsed sidebar widens the
-     column without resizing the window): the component publishes the column's
-     live width as --dsh-conversation-column-width (px, via ResizeObserver —
-     container-type would re-anchor the subtree's portal-free position:fixed
-     descendants). No magic pixel constant shapes the default: the cap is
-     the readable paragraph measure — 55 characters, a comfortable value
-     inside the 45–75 characters-per-line band typography guidance keeps
-     body text within — at the content face's 0.56em average advance
-     (--dsh-content-font-size × 30.8), and the adaptive term takes
-     64% of the column under that cap. Font size and width are both CSS
-     px, so the default holds its character count at any browser zoom and
-     rides the Settings font-size axis. A dragged user preference
-     (--dsh-chat-user-width, published by the width handles) replaces the
-     adaptive term wholesale, bounded only by the column's handle budget
-     and the layout column minimum — an explicit choice outranks the
-     measure. */
-  --dsh-chat-readable-cap: calc(var(--dsh-content-font-size, 14px) * 30.8);
-  --dsh-chat-content-width: var(
-    --dsh-chat-user-width,
-    min(
-      calc(var(--dsh-conversation-column-width, 0px) * 0.64),
-      var(--dsh-chat-readable-cap)
-    )
-  );
+     W fills the column by default — no side-margin cap and no adaptive share
+     ([decision](../../../../../../.agents/notes/implemented/feature/2026-10-14-chat-axis-fills-the-column.md)).
+     A dragged user preference (--dsh-chat-user-width, published by the width
+     handles) replaces the default wholesale, bounded only by the column's
+     handle budget and the layout column minimum — an explicit choice outranks
+     the default. At the full-width default the handle strips resolve to zero
+     width and vanish; they re-engage as soon as a preference narrows the
+     axis. The component still publishes the column's live width as
+     --dsh-conversation-column-width (px, via ResizeObserver) as a layout-done
+     readout the width-handle clamp and the e2e layout gates consume. */
+  --dsh-chat-content-width: var(--dsh-chat-user-width, 100%);
   --dsh-composer-card-max-width: calc(var(--dsh-chat-content-width) + 32px);
   --dsh-composer-side-clearance: 16px;
   --dsh-composer-dock-inset: 8px;

@@ -641,13 +641,12 @@ describe('ConversationRoot resident composer', () => {
     const b = mount(sessionSnapshotOf())
     const root = b.view.container.querySelector('[data-phase]') as HTMLElement
     // jsdom offsetWidth is 0 until faked: the observer publishes whatever the
-    // layout reports, and the CSS min() caps the axis at the readable
-    // measure (431px at the default face) either way.
+    // layout reports, and the CSS axis fills the column by default either way.
     Object.defineProperty(root, 'offsetWidth', { value: 1200, configurable: true })
     act(() => { fireResize(root) })
     expect(root.style.getPropertyValue('--dsh-conversation-column-width')).toBe('1200px')
     // No dragged preference: the user-width override stays absent so the
-    // adaptive default (64% of the column under the readable measure) applies.
+    // full-column default applies.
     expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('')
   })
 
@@ -659,34 +658,37 @@ describe('ConversationRoot resident composer', () => {
     const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
     expect(handle).not.toBeNull()
     withPointerCapture(() => {
-      // Base resolves from the readable measure cap at the default 14px
-      // content size: 55 × 0.56 × 14 ≈ 431.
-      // Dragging the right handle outward by 25px widens by 2×25 = 50 → 481,
-      // inside both bounds (max = 1600 − 176 = 1424 keeps the handles on-column).
+      // Base resolves from the full column width: 1600.
+      // Dragging the right handle inward by 100px narrows by 2×100 = 200 → 1400,
+      // inside both bounds (floor 640, max = 1600 − 176 = 1424 keeps the
+      // handles on-column).
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 825, clientY: 300 })
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
-      // Window shrinks: 481 still fits the re-clamped max (900 − 176 = 724), so
-      // the displayed width and the preference agree.
+      fireEvent.pointerUp(handle, { pointerId: 1, clientX: 700, clientY: 300 })
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('1400px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('1400')
+      // Window shrinks: 1400 exceeds the re-clamped max (900 − 176 = 724), so
+      // the display clamps to the column's geometry while the stored
+      // preference keeps the asked-for width.
       Object.defineProperty(root, 'offsetWidth', { value: 900, configurable: true })
       act(() => { fireResize(root) })
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('1400')
       // A press without travel (a real double-click delivers two such
       // press/release rounds) must not commit the clamped display value over
       // the stored preference.
       fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
       fireEvent.pointerUp(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
-      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('481px')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('1400')
+      expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('724px')
       // No reset affordance on the handle: double-click leaves the preference alone.
       fireEvent.doubleClick(handle)
-      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('481')
+      expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('1400')
     })
   })
 
-  it('re-derives the drag base from the content font-size setting', () => {
+  it('bases the first drag on the column width, not the content font-size setting', () => {
+    // The font-size axis once shaped the width default; the full-column
+    // default must not read it, so a non-default setting changes nothing.
     document.body.style.setProperty('--dsh-content-font-size', '17px')
     try {
       const b = mount(sessionSnapshotOf())
@@ -696,12 +698,12 @@ describe('ConversationRoot resident composer', () => {
       const handle = b.view.container.querySelector('[data-width-handle="right"]') as HTMLElement
       expect(handle).not.toBeNull()
       withPointerCapture(() => {
-        // Cap at 17px content size is 55 × 0.56 × 17 ≈ 524; dragging the right
-        // handle outward by 30px widens by 2×30 = 60 → 584.
+        // Base is the column (1600); dragging the right handle inward by 100px
+        // narrows by 2×100 = 200 → 1400.
         fireEvent.pointerDown(handle, { pointerId: 1, clientX: 800, clientY: 300 })
-        fireEvent.pointerUp(handle, { pointerId: 1, clientX: 830, clientY: 300 })
-        expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('584px')
-        expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('584')
+        fireEvent.pointerUp(handle, { pointerId: 1, clientX: 700, clientY: 300 })
+        expect(root.style.getPropertyValue('--dsh-chat-user-width')).toBe('1400px')
+        expect(localStorage.getItem('dsh.conversation.contentWidth')).toBe('1400')
       })
     } finally {
       document.body.style.removeProperty('--dsh-content-font-size')

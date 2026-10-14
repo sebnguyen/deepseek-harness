@@ -34,42 +34,17 @@ function readWidthPreference(): number | null {
   return Number.isFinite(value) && value > 0 ? value : null
 }
 
-/** Readable paragraph measure: 55 characters, a comfortable value inside
- * the 45–75 characters-per-line band typography guidance keeps body text
- * within, at the content face's 0.56em average advance (55 × 0.56 ≈ 30.8,
- * mirroring the CSS axis `--dsh-chat-readable-cap`).
- * Font-derived on purpose: font size and width are both CSS px, so the
- * measure holds its character count at any browser zoom and rides the
- * Settings font-size axis.
- * @param fontSizePx - the content font-size setting in px.
- * @returns the readable content width in px. */
-function readableContentCap(fontSizePx: number): number {
-  return Math.round(fontSizePx * 30.8)
-}
-
-/** The content font-size setting ui-theme publishes as a body inline
- * variable; the theme default when no preference has been written.
- * @returns the content font size in px. */
-function contentFontSizePx(): number {
-  const raw = document.body.style.getPropertyValue('--dsh-content-font-size').trim()
-  const parsed = Number.parseFloat(raw)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 14
-}
-
 /** Resolves the content width the CSS axis would show for a column width.
- * A dragged preference is bounded only by the geometry — the layout
- * column minimum and the width-handle budget — never by the measure: an
- * explicit choice outranks the rule. Without one the default is the
- * smaller of the adaptive 64% column share and the readable measure.
+ * The default fills the column — no cap, no adaptive share; a dragged
+ * preference is bounded only by the geometry — the layout column minimum
+ * and the width-handle budget — an explicit choice outranking the default.
  * @param columnWidth - the conversation column's rendered width in px.
- * @param preference - the dragged preference, or null for the adaptive default.
- * @param cap - the readable measure from {@link readableContentCap}.
+ * @param preference - the dragged preference, or null for the full-column default.
  * @returns the resolved content width in px (mirrors the CSS axis). */
-function resolveContentWidth(columnWidth: number, preference: number | null, cap: number): number {
-  const floor = Math.min(CONTENT_MIN, cap)
-  const max = Math.max(floor, columnWidth - CONTENT_EDGE_BUDGET)
-  if (preference !== null) return Math.min(Math.max(preference, floor), max)
-  return Math.min(columnWidth * 0.64, cap)
+function resolveContentWidth(columnWidth: number, preference: number | null): number {
+  if (preference === null) return columnWidth
+  const max = Math.max(CONTENT_MIN, columnWidth - CONTENT_EDGE_BUDGET)
+  return Math.min(Math.max(preference, CONTENT_MIN), max)
 }
 
 /** One transcript width handle: pointer capture + rAF-throttled symmetric
@@ -200,11 +175,11 @@ export function ConversationRoot({
     disposeSeatMetrics.current = syncSeatMetrics(seat, scroller)
   }, [])
 
-  // Publishes the column's live width as --dsh-conversation-column-width so
-  // the shared width axis can adapt (see the .root CSS), and re-clamps a
-  // dragged preference against the shrunken column WITHOUT rewriting the
-  // stored preference — widening the window restores it (the AppFrame
-  // sidebar-drag rule). Same callback-ref pattern as the seat observer.
+  // Publishes the column's live width as --dsh-conversation-column-width
+  // (the layout-done readout the e2e gates wait on, see the .root CSS), and
+  // re-clamps a dragged preference against the shrunken column WITHOUT
+  // rewriting the stored preference — widening the window restores it (the
+  // AppFrame sidebar-drag rule). Same callback-ref pattern as the seat observer.
   const rootEl = useRef<HTMLDivElement | null>(null)
   const rootObserver = useRef<ResizeObserver | null>(null)
   const publishWidths = useCallback((root: HTMLDivElement): void => {
@@ -214,7 +189,7 @@ export function ConversationRoot({
     if (preference === null) {
       root.style.removeProperty('--dsh-chat-user-width')
     } else {
-      const width = resolveContentWidth(column, preference, readableContentCap(contentFontSizePx()))
+      const width = resolveContentWidth(column, preference)
       root.style.setProperty('--dsh-chat-user-width', `${width}px`)
     }
   }, [])
@@ -237,21 +212,21 @@ export function ConversationRoot({
   const onHandleStart = useCallback((): number => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
-    if (root === null) return readableContentCap(contentFontSizePx())
-    return resolveContentWidth(root.offsetWidth, readWidthPreference(), readableContentCap(contentFontSizePx()))
+    if (root === null) return 0
+    return resolveContentWidth(root.offsetWidth, readWidthPreference())
   }, [])
   const onHandleDrag = useCallback((width: number): void => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
     if (root === null) return
-    const clamped = resolveContentWidth(root.offsetWidth, width, readableContentCap(contentFontSizePx()))
+    const clamped = resolveContentWidth(root.offsetWidth, width)
     root.style.setProperty('--dsh-chat-user-width', `${clamped}px`)
   }, [])
   const onHandleCommit = useCallback((width: number): void => {
     const root = rootEl.current
     /* v8 ignore next -- handles render inside the root, so the ref is always attached. */
     if (root === null) return
-    const resolved = resolveContentWidth(root.offsetWidth, width, readableContentCap(contentFontSizePx()))
+    const resolved = resolveContentWidth(root.offsetWidth, width)
     localStorage.setItem(WIDTH_PREF_KEY, `${resolved}`)
   }, [])
   const onHandleEnd = useCallback((): void => {

@@ -26,7 +26,7 @@ const FIXTURE = createChatScrollFixture({
 })
 const SEED_ID = 'composer-tab-geometry-web-e2e'
 
-/** Viewport widths the scenario measures at: the card capped, and the card shrinking with the column. */
+/** Viewport widths the scenario measures at: the card spanning the column, and the card shrinking with it. */
 const WIDE_VIEWPORT = { width: 1680, height: 1000 }
 const NARROW_VIEWPORT = { width: 800, height: 1000 }
 
@@ -229,7 +229,7 @@ function renderGeometry(wide: TabComparison, narrow: TabComparison, control: Tab
   return [
     '# Input card position across the Chat and Trajectory tabs',
     '',
-    ...section(`Wide viewport (${String(WIDE_VIEWPORT.width)}px, card at its cap)`, wide),
+    ...section(`Wide viewport (${String(WIDE_VIEWPORT.width)}px, card spanning the column)`, wide),
     ...section(`Narrow viewport (${String(NARROW_VIEWPORT.width)}px, card shrinking with the column)`, narrow),
     ...section('Wide viewport, seat compensation removed in the page (control)', control),
   ].join('\n').trimEnd()
@@ -296,9 +296,8 @@ describe('web e2e: input card position across view tabs', () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-composer-tab-geometry-wide'))
     await setMeasuredViewport(page, WIDE_VIEWPORT, false)
     const comparison = await compareTabs(page)
-    // The reported symptom as a number. At this viewport the card sits at its
-    // width cap, so the uncompensated cascade's shift shows up as a centring
-    // difference — half the band on each edge — rather than as a width change.
+    // The reported symptom as a number: with the compensation in place the
+    // card fills its seat identically in both tabs, so no edge may move.
     expect(comparison.leftShift).toBe(0)
     expect(comparison.rightShift).toBe(0)
     expect(comparison.widthShift).toBe(0)
@@ -311,11 +310,9 @@ describe('web e2e: input card position across view tabs', () => {
     const capped = await measureTab(page)
     await setMeasuredViewport(page, NARROW_VIEWPORT, true)
     const comparison = await compareTabs(page)
-    // The other geometry, and a different failure: below the cap the card takes
-    // the column's width, so an unreserved gutter changes its WIDTH by the whole
-    // band instead of shifting it by half. Asserted against the capped
-    // measurement rather than against the cap's pixel value, which belongs to
-    // the stylesheet.
+    // The other geometry: the card always follows its column, so a narrower
+    // column narrows the card. Asserted against the wide measurement rather
+    // than a pixel value, which belongs to the stylesheet.
     expect(comparison.chat.cardWidth).toBeLessThan(capped.cardWidth)
     expect(comparison.leftShift).toBe(0)
     expect(comparison.rightShift).toBe(0)
@@ -329,15 +326,17 @@ describe('web e2e: input card position across view tabs', () => {
     await setMeasuredViewport(page, WIDE_VIEWPORT, false)
     // The control: without it, equal rectangles could also mean the tab switch
     // never reached the layout. Under the uncompensated cascade the overlay seat
-    // loses its `right` compensation and measures the full padding box, so the
-    // card moves by half the band on each edge. Chat's own reservation is
+    // loses its `right` compensation and measures the full padding box; with the
+    // card filling its seat at every width, the extra band lands on the card's
+    // right edge and width, not as a centred drift. Chat's own reservation is
     // untouched — that is the side that must not change.
     const comparison = await compareTabsWithoutCompensation(page)
     expect(comparison.chat.gutter).toBe('stable')
     expect(comparison.chat.band).toBeGreaterThan(0)
     expect(comparison.trajectory.band).toBe(0)
-    expect(comparison.leftShift).toBe(comparison.chat.band / 2)
-    expect(comparison.rightShift).toBe(comparison.chat.band / 2)
+    expect(comparison.leftShift).toBe(0)
+    expect(comparison.rightShift).toBe(comparison.chat.band)
+    expect(comparison.widthShift).toBe(comparison.chat.band)
     // Restoring the sheet restores the compensation, so the control cannot leak
     // into the remaining measurements.
     const restored = await compareTabs(page)

@@ -1,13 +1,14 @@
 // Web e2e scenario: markdown tables in the message column, deepsuite-chat
-// parity. Tables under four columns (and long-cell tables) fill the 748px
-// message column and wrap; four-or-more-column tables keep their natural
-// width, scroll horizontally inside their wrapper, and — through the
-// renderer's `md-table-wide` hook plus AssistantMarkdown's container-query
-// breakout — span the whole transcript width instead of clipping at the
-// message column, with the table content still starting at the message
-// column's left edge. When the transcript is narrower than the message
-// column the breakout clamps to neutral and the plain in-column scroll
-// remains.
+// parity. Tables under four columns (and long-cell tables) fill the message
+// column and wrap; four-or-more-column tables keep their natural width and
+// scroll horizontally inside their wrapper. The renderer's `md-table-wide`
+// hook plus AssistantMarkdown's container-query breakout would let a wide
+// table span past the content column whenever spare horizontal room exists —
+// the vector reads (transcript width − content width)/2 — but the content
+// axis fills the column by default, so the spare clamps to zero and the
+// tables simply span the column directly with no breakout offset. The hook
+// re-opens the breakout only while a dragged width preference narrows the
+// column.
 //
 // Only a real engine lays out CSS tables and resolves container-query
 // units, so the fill/scroll/breakout relations, the lead-padding alignment,
@@ -61,13 +62,12 @@ const MARKERS = [FILL_MARKER, WIDE_MARKER, LONG_CELL_MARKER]
 const TABLE_NAMES = ['fill', 'wide', 'long-cell']
 
 /**
- * Viewport sweep. The wide stops leave the transcript far wider than the
- * readable-measure content column (431px at the default face), so the
- * breakout relation holds with a fat margin on every platform; the narrow
- * stop drops the transcript below the content column, which must clamp the
- * breakout to neutral. The sidebar is collapsed for the whole sweep (see
- * beforeAll), so the transcript width follows the viewport identically on
- * overlay- and classic-scrollbar platforms.
+ * Viewport sweep across wide and narrow columns. The content axis fills the
+ * column at every stop, so the breakout's spare vector is zero throughout —
+ * the sweep verifies the neutral clamp and the wrap relations at multiple
+ * widths rather than a breakpoint split. The sidebar is collapsed for the
+ * whole sweep (see beforeAll), so the transcript width follows the viewport
+ * identically on overlay- and classic-scrollbar platforms.
  */
 const WIDTHS = [1680, 1100, 640]
 
@@ -328,19 +328,11 @@ describe('web e2e: markdown tables fill the column, wide ones break out and scro
       expect(wide!.wideHook).toBe(true)
       expect(fill!.wideHook).toBe(false)
       expect(longCell!.wideHook).toBe(false)
-      if (stop.width > 748) {
-        // Breakout: the wide wrapper spans past the message column, and its
-        // lead padding keeps the table content starting at the message
-        // column's left edge (compared to the fill table's content).
-        expect(wide!.clientWidth, `wide breakout at ${String(stop.width)}`).toBeGreaterThan(columnWidth + 8)
-        expect(wide!.paddingLeft, `lead at ${String(stop.width)}`).toBeGreaterThan(0)
-        expect(Math.abs(wide!.tableLeft - fill!.tableLeft), `alignment at ${String(stop.width)}`).toBeLessThan(1.5)
-      } else {
-        // Below the message column there is no spare width: the breakout
-        // clamps to neutral and the wrapper stays the column's width.
-        expect(Math.abs(wide!.clientWidth - columnWidth), `neutral at ${String(stop.width)}`).toBeLessThan(1.5)
-        expect(wide!.paddingLeft, `no lead at ${String(stop.width)}`).toBeLessThan(1.5)
-      }
+      // The content axis fills the column, so there is no spare width: the
+      // breakout clamps to neutral and the wrapper stays the column's width.
+      expect(Math.abs(wide!.clientWidth - columnWidth), `neutral at ${String(stop.width)}`).toBeLessThan(1.5)
+      expect(wide!.paddingLeft, `no lead at ${String(stop.width)}`).toBeLessThan(1.5)
+      expect(Math.abs(wide!.tableLeft - fill!.tableLeft), `alignment at ${String(stop.width)}`).toBeLessThan(1.5)
     }
     // Wrap-first engaged for real: the filling tables grow taller as the
     // column narrows (the wide table only scrolls, so it is exempt).

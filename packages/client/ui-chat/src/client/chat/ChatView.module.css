@@ -32,9 +32,10 @@
   min-height: auto;
 }
 
-/* Message column: shared chat width (ConversationRoot --dsh-chat-content-width),
-   centered on the same axis as the input box (which caps at chat + 16px); the
-   scroller itself stays full-bleed. */
+/* Message column: rides the shared chat width axis (ConversationRoot
+   --dsh-chat-content-width) — full column width by default, narrower and
+   re-centered on the input box's axis only while a dragged width preference
+   applies; the scroller itself stays full-bleed either way. */
 .column {
   max-width: var(--dsh-chat-content-width);
   width: 100%;

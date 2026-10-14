@@ -1,6 +1,6 @@
 # Input card position across the Chat and Trajectory tabs
 
-## Wide viewport (1680px, card at its cap)
+## Wide viewport (1680px, card spanning the column)
 
 - Chat: scrollbar-gutter stable, overflow auto/auto
 - Chat scroller scrolls: true
@@ -32,6 +32,6 @@
 - Trajectory: scrollbar-gutter auto, overflow hidden/auto
 - Trajectory scroller scrolls: false
 - Trajectory reserved band: 0px
-- input card left edge moves between tabs: 4px
-- input card right edge moves between tabs: 4px
-- input card width changes between tabs: 0px
+- input card left edge moves between tabs: 0px
+- input card right edge moves between tabs: 8px
+- input card width changes between tabs: 8px
