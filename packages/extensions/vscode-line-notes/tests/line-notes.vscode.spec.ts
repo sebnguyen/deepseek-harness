@@ -9,6 +9,6 @@ describe('vscode-line-notes plane', () => {
   })
 
   it('mounts without a vscode workbench in front of it', () => {
-    expect(() => apply({} as never)).not.toThrow()
+    expect(() => { apply({} as never) }).not.toThrow()
   })
 })
