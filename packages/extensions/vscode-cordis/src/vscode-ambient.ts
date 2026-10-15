@@ -27,9 +27,11 @@ declare module 'vscode' {
 
   export const workspace: {
     readonly workspaceFolders?: ReadonlyArray<{ readonly uri: VsCodeUri }>
+    onDidSaveTextDocument(listener: unknown): unknown
   }
 
   export const window: {
     showTextDocument(target: unknown, options?: unknown): PromiseLike<unknown>
+    onDidChangeActiveTextEditor(listener: unknown): unknown
   }
 }

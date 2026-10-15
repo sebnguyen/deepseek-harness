@@ -6,7 +6,7 @@
  * `transport.ts`, the pump in `seat.ts`. The seat's default consumer
  * handles `ideBridge/open` frames — file forwarding, the bridge's first
  * concrete contract.
- * @module @deepseek-ai/dsh-vscode-bridge/extension
+ * @module @deepseek-ai/dsh-vscode-cordis/extension
  */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -19,15 +19,16 @@ import type {
   IdeBridgeDownlinkFrame,
   IdeBridgeReportRequest,
   IdeBridgeTwinCall,
-  TwinBridgeIdentity,
+  VscodeBridgeIdentity,
 } from '@deepseek-ai/dsh-api-ide/types'
 
-import { armTwinTransport, twinFetch } from './transport.ts'
+import { armVscodeTransport, vscodeFetch } from './transport.ts'
 import { runSeatLoop, SEAT_EVENT_PREFIX } from './seat.ts'
+import { apply as vscodeApi } from './vscode-api.ts'
 import { readBridgeIdentity, bridgeIdentityPath, type BridgeConfigError } from './config.ts'
 
 /** The extension's stable vscode id — `publisher.name`; the hello's extensionId. */
-export const TWIN_BRIDGE_EXTENSION_ID = 'dsh.do-harness-bridge'
+export const VSCODE_EXTENSION_ID = 'dsh.do-harness-bridge'
 
 /** Structural vscode surface the seat depends on (so the module stays testable offline). */
 export interface VsCodeWorkbenchLike {
@@ -55,20 +56,20 @@ interface IdeasSeatRemote {
  * then the seat pump stays until stopped.
  */
 export async function spawnBridgeSeat(deps: {
-  identity: TwinBridgeIdentity
+  identity: VscodeBridgeIdentity
   workbench: VsCodeWorkbenchLike
   fetchLike?: RpcFetch
   logger?: (...args: unknown[]) => void
 }): Promise<BridgeSeat> {
   const { identity } = deps
-  const unarm = armTwinTransport(identity)
+  const unarm = armVscodeTransport(identity)
 
   // The connection plugin's own carrier hook: `createWebConnectionRpc`'s
   // default fetch has no notion `of` the twin token — this page-global
   // makes the injected fetch the carrier, and marks the page privileged
   // (extension processes have no equivalent of a general web audience).
   const transport = {
-    fetch: twinFetch(identity, deps.fetchLike),
+    fetch: vscodeFetch(identity, deps.fetchLike),
     ownsHost: true,
   }
   const globalCarrier = globalThis as { __DSH_TRANSPORT__?: unknown }
@@ -85,6 +86,7 @@ export async function spawnBridgeSeat(deps: {
     await seat.plugin({ name: 'typert/registry', inject: [] as string[], apply: typertRegistry.apply })
     await seat.plugin({ name: 'connection', inject: [] as string[], apply: connectionClient.apply })
     await seat.plugin({ name: 'gateway', inject: ['typert', 'connection'], apply: gatewayClient.apply })
+    vscodeApi(seat)
     const remote = seat.remote
 
     const unload = await remote.$mount(ideRemote)
@@ -120,7 +122,7 @@ export async function spawnBridgeSeat(deps: {
       identity: {
         token: identity.token,
         hello: {
-          extensionId: TWIN_BRIDGE_EXTENSION_ID,
+          extensionId: VSCODE_EXTENSION_ID,
           version: '0.1.0',
           workspaceRoot: deps.workbench.workspaceRoot,
         },

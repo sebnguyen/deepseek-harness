@@ -1,0 +1,23 @@
+{
+  "name": "@deepseek-ai/dsh-vscode-timeline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js",
+    "./vscode": "./lib/vscode.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "vscode": {
+      "platform": "vscode",
+      "inject": ["vscodeApi", "remote.timeline"]
+    }
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:^"
+  }
+}

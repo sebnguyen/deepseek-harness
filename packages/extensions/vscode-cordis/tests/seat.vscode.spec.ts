@@ -1,9 +1,9 @@
 /** The seat pump: hello regurgitation, namespaced fan-out, and reconnection backoff. */
 
 import { describe, expect, it } from 'vitest'
-import { runSeatLoop, SEAT_EVENT_PREFIX, type TwinRemoteFace } from '../src/seat.ts'
+import { runSeatLoop, SEAT_EVENT_PREFIX, type VscodeRemoteFace } from '../src/seat.ts'
 
-class RemoteFake implements TwinRemoteFace {
+class RemoteFake implements VscodeRemoteFace {
   readonly reports: unknown[] = []
   downlinkOpens = 0
   reportErrors: unknown[] = []

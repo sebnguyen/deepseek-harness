@@ -1,0 +1,24 @@
+{
+  // vscode-web-client aggregate (the third check unit beside host and
+  // client, per the vscode-platform-mirror note). Owns every vscode package's
+  // composite project under packages/extensions/vscode-* plus their specs,
+  // which name the vscode face by filename: *.vscode.spec.ts. The host
+  // aggregate's test catch-all excludes that suffix, the client aggregate
+  // never globs it, so vscode specs type-check exactly once — here.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rewriteRelativeImportExtensions": false,
+    "types": ["node"]
+  },
+  "include": [
+    "packages/*/*/tests/**/*.vscode.spec.ts",
+    "packages/*/*/tests/**/*.vscode.ts"
+  ],
+  "references": [
+    { "path": "./packages/extensions/vscode-cordis" },
+    { "path": "./packages/extensions/vscode-modules" },
+    { "path": "./packages/extensions/vscode-timeline" },
+    { "path": "./packages/extensions/vscode-line-notes" }
+  ]
+}

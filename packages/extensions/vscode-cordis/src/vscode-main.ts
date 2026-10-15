@@ -2,7 +2,7 @@
  * The vscode entry the REH extension host loads. It only adapts vscode's
  * objects to the structural shapes `extension.ts`'s tested `activate`
  * consumes; the seat itself does not import the vscode module.
- * @module @deepseek-ai/dsh-vscode-bridge/vscode-main
+ * @module @deepseek-ai/dsh-vscode-cordis/vscode-main
  */
 
 import { type ExtensionContext, Position, Range, Uri, window, workspace } from 'vscode'

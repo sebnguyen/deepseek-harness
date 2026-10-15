@@ -35,7 +35,7 @@ import type {
 } from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
 import { pickStablePort } from './twin-port.ts'
-import { stageTwinBridgeExtension, stageTwinBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
+import { stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
 export type {
   IdeBridgeDownlinkFrame,
@@ -52,16 +52,16 @@ export { pickStablePort } from './twin-port.ts'
 export {
   DO_THEME_COLORS,
   DO_TOKEN_COLORS,
-  stageTwinBridgeIdentity,
+  stageVscodeBridgeIdentity,
   stageTwinTheme,
   TWIN_CONFIGURATION_DEFAULTS,
-  TWIN_THEME_DIR_NAME,
-  TWIN_THEME_EXTENSION_ID,
-  TWIN_THEME_EXTENSION_VERSION,
+  VSCODE_THEME_DIR_NAME,
+  VSCODE_THEME_EXTENSION_ID,
+  VSCODE_THEME_EXTENSION_VERSION,
   twinThemeFile,
   twinThemeManifest,
 } from './twin-theme.ts'
-export type { TwinBridgeIdentity } from './types.ts'
+export type { VscodeBridgeIdentity } from './types.ts'
 
 /** Plugin config, filled by the deployment row in the bundle's cordis.patch.yml. */
 export interface Config {
@@ -258,14 +258,19 @@ function createTwinManager(
         await stageTwinTheme(join(stateDir, 'exts'))
         // The compiled connection bridge, when the client build produced it;
         // absent it the twin stays theme-only and `dsh/frame/*` never fires.
-        await stageTwinBridgeExtension(join(stateDir, 'exts'))
+        await stageVscodeBridgeExtension(join(stateDir, 'exts'))
         // The bridge binds the files its extension reads before it dials: the
         // host origin, this spawn's token, and the twin key it belongs to.
-        await stageTwinBridgeIdentity(stateDir, {
+        await stageVscodeBridgeIdentity(stateDir, {
           dshOrigin: dshOrigin(),
           token,
           workspaceKey,
         })
+        // The vscode roster registry is an optional plane package: when it
+        // is mounted this spawn also stages the plane manifest; without it
+        // the twin stays bridge-only and the step is skipped.
+        const vscodeModules = (ctx as unknown as { vscodeModules?: { stageToSpawn(dir: string): Promise<void> } }).vscodeModules
+        if (vscodeModules) await vscodeModules.stageToSpawn(stateDir)
         return await new Promise<IdeTwin>((resolve, reject) => {
           const setup = new AbortController()
           const handle = ctx.subprocess.spawn({

@@ -3,14 +3,14 @@
  *
  * The spawner (`@deepseek-ai/dsh-api-ide`) writes `bridge.json` next to the
  * twin's `.dsh/exts` directory on every spawn — see
- * `stageTwinBridgeIdentity` in `packages/api/ide/src/twin-theme.ts` — and
+ * `stageVscodeBridgeIdentityBridgeIdentity` in `packages/api/ide/src/twin-theme.ts` — and
  * the extension discovers it relative to its own staging dir.
- * @module @deepseek-ai/dsh-vscode-bridge/config
+ * @module @deepseek-ai/dsh-vscode-cordis/config
  */
 
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { TwinBridgeIdentity } from '@deepseek-ai/dsh-api-ide/types'
+import type { VscodeBridgeIdentity } from '@deepseek-ai/dsh-api-ide/types'
 
 /** The basename the spawner uses; mirrored from `api/ide/src/twin-theme.ts`. */
 export const TWIN_BRIDGE_IDENTITY_BASENAME = 'bridge.json'
@@ -28,12 +28,12 @@ export class BridgeConfigError extends Error {
  * @param value - unknown parsed JSON.
  * @returns the validated identity.
  */
-export function parseBridgeIdentity(value: unknown): TwinBridgeIdentity {
+export function parseBridgeIdentity(value: unknown): VscodeBridgeIdentity {
   if (typeof value !== 'object' || value === null) {
     throw new BridgeConfigError('bridge.json must be a JSON object', 'shape-invalid')
   }
   const record = value as Record<string, unknown>
-  const str = (key: keyof TwinBridgeIdentity): string | undefined => {
+  const str = (key: keyof VscodeBridgeIdentity): string | undefined => {
     const part = record[key]
     return typeof part === 'string' ? part : undefined
   }
@@ -67,7 +67,7 @@ export function bridgeIdentityPath(extensionDir: string): string {
  * @param path - the absolute bridge.json path to read.
  * @returns the validated identity.
  */
-export async function readBridgeIdentity(path: string): Promise<TwinBridgeIdentity> {
+export async function readBridgeIdentity(path: string): Promise<VscodeBridgeIdentity> {
   let text: string
   try {
     text = await readFile(path, 'utf8')

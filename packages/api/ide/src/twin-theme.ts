@@ -25,9 +25,9 @@ import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** The staged extension's stable directory name inside `--extensions-dir`. */
-export const TWIN_THEME_EXTENSION_ID = 'dsh.do-harness'
-export const TWIN_THEME_EXTENSION_VERSION = '0.0.1'
-export const TWIN_THEME_DIR_NAME = `${TWIN_THEME_EXTENSION_ID}-${TWIN_THEME_EXTENSION_VERSION}`
+export const VSCODE_THEME_EXTENSION_ID = 'dsh.do-harness'
+export const VSCODE_THEME_EXTENSION_VERSION = '0.0.1'
+export const VSCODE_THEME_DIR_NAME = `${VSCODE_THEME_EXTENSION_ID}-${VSCODE_THEME_EXTENSION_VERSION}`
 
 /** Workbench colors, walking the harness bluish scale like the app chrome. */
 export const DO_THEME_COLORS: Record<string, string> = {
@@ -196,7 +196,7 @@ export function twinThemeManifest(): unknown {
     publisher: 'dsh',
     displayName: 'DO Harness',
     description: 'DigitalOcean harness identity for the twin editor: the DO palette, fonts, and a hushed chrome.',
-    version: TWIN_THEME_EXTENSION_VERSION,
+    version: VSCODE_THEME_EXTENSION_VERSION,
     engines: { vscode: '^1.85.0' },
     categories: ['Themes'],
     main: './extension.cjs',
@@ -230,8 +230,8 @@ export function twinThemeFile(): unknown {
  * @returns the staged extension directory path.
  */
 /** The identity contract lives with the other wire contracts in `./types.ts`. */
-import type { TwinBridgeIdentity } from './types.ts'
-export type { TwinBridgeIdentity }
+import type { VscodeBridgeIdentity } from './types.ts'
+export type { VscodeBridgeIdentity }
 
 /** Filename the bridge extension looks up at activation (`__dirname/../../bridge.json`). */
 export const TWIN_BRIDGE_IDENTITY_BASENAME = 'bridge.json'
@@ -244,7 +244,7 @@ function twinBridgeBundlePath(): string {
   return resolve(
     fileURLToPath(import.meta.url),
     '..', '..', '..', '..',
-    'extensions', 'vscode-bridge',
+    'extensions', 'vscode-cordis',
     'dist-extension',
     'extension.cjs',
   )
@@ -270,7 +270,7 @@ function twinBridgeManifest(): Record<string, unknown> {
  * @param bundlePath - explicit bundle to stage; resolved repo-locally by default.
  * @returns the staged extension dir, or null when the bundle wasn't yet built.
  */
-export async function stageTwinBridgeExtension(
+export async function stageVscodeBridgeExtension(
   extensionsDir: string,
   bundlePath?: string,
 ): Promise<string | null> {
@@ -288,7 +288,7 @@ export async function stageTwinBridgeExtension(
  * @param stateDir - the twin-local `.dsh` dir (parent of `exts/`, `user/`, `server/`).
  * @param identity - spawn-resolved facts.
  */
-export async function stageTwinBridgeIdentity(stateDir: string, identity: TwinBridgeIdentity): Promise<void> {
+export async function stageVscodeBridgeIdentity(stateDir: string, identity: VscodeBridgeIdentity): Promise<void> {
   await writeFile(
     join(stateDir, TWIN_BRIDGE_IDENTITY_BASENAME),
     `${JSON.stringify(identity, null, 2)}\n`,
@@ -297,7 +297,7 @@ export async function stageTwinBridgeIdentity(stateDir: string, identity: TwinBr
 }
 
 export async function stageTwinTheme(extensionsDir: string): Promise<string> {
-  const dir = join(extensionsDir, TWIN_THEME_DIR_NAME)
+  const dir = join(extensionsDir, VSCODE_THEME_DIR_NAME)
   await mkdir(join(dir, 'themes'), { recursive: true })
   await writeFile(join(dir, 'package.json'), `${JSON.stringify(twinThemeManifest(), null, 2)}\n`, 'utf8')
   await writeFile(join(dir, 'themes', 'do-harness-dark-color-theme.json'), `${JSON.stringify(twinThemeFile(), null, 2)}\n`, 'utf8')

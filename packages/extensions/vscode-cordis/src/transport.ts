@@ -6,14 +6,14 @@
  * twin's bearer credential, and the gateway client mux-URL decorator that
  * carries the same credential on the WebSocket upgrade — the handshake
  * that cannot go through headers.
- * @module @deepseek-ai/dsh-vscode-bridge/transport
+ * @module @deepseek-ai/dsh-vscode-cordis/transport
  */
 
 import type { RpcFetch } from '@deepseek-ai/dsh-client-connection/client'
 import { setRemoteStreamUrlDecorator } from '@deepseek-ai/dsh-api-gateway/client'
 
 /** The two spawn facts the carriers consume; kept inline so this module stays client-face-clean. */
-interface TwinCarrierIdentity {
+interface VscodeCarrierIdentity {
   readonly dshOrigin: string
   readonly token: string
 }
@@ -32,8 +32,8 @@ interface TwinCarrierIdentity {
  * @param doFetch - transport override (tests inject a recorder).
  * @returns the fetch conformance overload used by `createWebConnectionRpc`.
  */
-export function twinFetch(
-  identity: TwinCarrierIdentity,
+export function vscodeFetch(
+  identity: VscodeCarrierIdentity,
   doFetch?: RpcFetch,
 ): RpcFetch {
   const origin = identity.dshOrigin
@@ -62,8 +62,8 @@ export function twinFetch(
   * @param identity - the spawn facts.
   * @returns the decorator consumed by `setRemoteStreamUrlDecorator`.
   */
-export function twinStreamUrlDecorator(
-  identity: TwinCarrierIdentity,
+export function vscodeStreamUrlDecorator(
+  identity: VscodeCarrierIdentity,
 ): (url: URL) => void {
   return (url) => {
     if (identity.dshOrigin === '') return
@@ -80,10 +80,9 @@ export function twinStreamUrlDecorator(
  * @param identity - spawn facts; empty dshOrigin removes the decorator.
  * @returns restores the no-decorator state.
  */
-export function armTwinTransport(identity: TwinCarrierIdentity): () => void {
-  setRemoteStreamUrlDecorator(identity.dshOrigin === '' ? undefined : twinStreamUrlDecorator(identity))
-  // The pending supporession discipline says the seat restores nothing at
-  // disposal except the global decorator itself.
+export function armVscodeTransport(identity: VscodeCarrierIdentity): () => void {
+  setRemoteStreamUrlDecorator(identity.dshOrigin === '' ? undefined : vscodeStreamUrlDecorator(identity))
+  // The seat restores nothing at disposal except the global decorator itself.
   return () => setRemoteStreamUrlDecorator(undefined)
 }
 

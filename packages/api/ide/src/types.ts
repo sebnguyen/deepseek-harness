@@ -75,9 +75,9 @@ export interface IdeBridgeReportRequest extends IdeBridgeTwinCall {
  * loopback origin, the twin's spawn token, and the twin key the spawner
  * booked. Written per spawn beside the twin's state dirs (not inside
  * `exts/`, which only carries scanned extension payloads). Mirrored by
- * the twin's client side in `packages/extensions/vscode-bridge`.
+ * the twin's client side in `packages/extensions/vscode-cordis`.
  */
-export interface TwinBridgeIdentity {
+export interface VscodeBridgeIdentity {
   /** Loopback origin of the hosting dsh web server ('' while webServer is unknown). */
   readonly dshOrigin: string
   /** Per-twin spawn token the bridge presents as its bearer credential. */

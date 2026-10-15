@@ -8,13 +8,13 @@
  * remotest high layers call. Lifecycle (signal abort) is the caller's;
  * backoff here is unbounded-but-throttled, because a twin's seat lives
  * with its host process.
- * @module @deepseek-ai/dsh-vscode-bridge/seat
+ * @module @deepseek-ai/dsh-vscode-cordis/seat
  */
 
 import type { IdeBridgeHelloMeta, IdeBridgeReportRequest, IdeBridgeTwinCall } from '@deepseek-ai/dsh-api-ide/types'
 
 /** The mounted generated-remote slice the loop consumes (testable sans engine). */
-export interface TwinRemoteFace {
+export interface VscodeRemoteFace {
   report(request: IdeBridgeReportRequest): Promise<unknown>
   downlink(request: IdeBridgeTwinCall, signal: AbortSignal): AsyncIterable<unknown>
 }
@@ -50,7 +50,7 @@ const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTi
  * host down in backoff.
  */
 export async function runSeatLoop(deps: {
-  remote: TwinRemoteFace
+  remote: VscodeRemoteFace
   identity: { token: string; hello: IdeBridgeHelloMeta }
   signal: AbortSignal
   emit: SeatEmit
