@@ -6,7 +6,7 @@
  * @module dsh-llm/call-config
  */
 
-import type { GenerateOptions } from './types.ts'
+import type { GenerateOptions, StructuredOutputSchema, ToolChoice } from './types.ts'
 import type { ReasoningEffortId } from './brand.ts'
 
 /** Process-local identities of request objects assembled by dsh-agent-loop. */
@@ -27,6 +27,13 @@ export interface LlmCallConfig {
   temperature?: number
   maxTokens?: number
   stop?: string[]
+  /**
+   * Ephemeral per-request grammar; a contribution may attach it, but the
+   * loop deletes it from the durable request/header state (EPHEMERAL_CONFIG_FIELDS).
+   */
+  structuredOutput?: StructuredOutputSchema
+  /** Same ephemeral regime as {@link structuredOutput}. */
+  toolChoice?: ToolChoice
 }
 
 /**

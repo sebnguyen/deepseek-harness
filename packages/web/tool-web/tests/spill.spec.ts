@@ -68,7 +68,7 @@ afterEach(async () => {
 /** A web_fetch call carrying a session owner (so the policy can scope the spill). */
 function fetchCall(): Promise<{ isError: boolean; content: { type: string; text?: string }[] }> {
   const agent = { session: { header: { id: SessionId('web-sess') } } }
-  const exec = { callId: ToolCallId('call-1'), name: 'web_fetch', arguments: { url: base }, agent, signal: testToolSignal } as unknown as ToolExecution
+  const exec = { callId: ToolCallId('call-1'), name: 'web_fetch', arguments: { url: base, description: 'test purpose' }, agent, signal: testToolSignal } as unknown as ToolExecution
   return ctx.tools.execute(exec)
 }
 

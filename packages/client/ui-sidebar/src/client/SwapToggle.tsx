@@ -8,7 +8,7 @@ import type { ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { LayoutInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import clsx from 'clsx'
-import { IconCodeOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconSwapHorizontalOutline16, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './SwapToggle.module.css'
 
 /** Registrant-private injected share: the layout action the button fires. */
@@ -37,7 +37,7 @@ export function SwapToggle({ wide, useLayoutInfo, toggleSwap, t }: SwapTogglePro
         aria-label={t('layout.swap')}
         onClick={() => { toggleSwap() }}
       >
-        <IconCodeOutline16 size={wide ? 13 : 14} />
+        <IconSwapHorizontalOutline16 size={wide ? 13 : 14} />
       </button>
     </Tooltip>
   )

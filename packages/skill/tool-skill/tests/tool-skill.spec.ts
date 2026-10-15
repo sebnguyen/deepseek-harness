@@ -658,7 +658,7 @@ describe('dsh-tool-skill', () => {
       signal: testToolSignal,
       callId: ToolCallId('body-refresh'),
       name: 'skill',
-      arguments: { name: 'body-skill' },
+      arguments: { name: 'body-skill', description: 'exercise the body-skill skill fixture' },
       agent,
     })
     expect(result.isError).toBe(false)
@@ -686,7 +686,7 @@ describe('dsh-tool-skill', () => {
       signal: testToolSignal,
       callId: ToolCallId('scoped-load'),
       name: 'skill',
-      arguments: { name: 'preset-only-skill' },
+      arguments: { name: 'preset-only-skill', description: 'exercise the preset-only-skill skill fixture' },
       agent,
     })
     expect(scoped.isError).toBe(false)
@@ -696,7 +696,7 @@ describe('dsh-tool-skill', () => {
       signal: testToolSignal,
       callId: ToolCallId('foreign-load'),
       name: 'skill',
-      arguments: { name: 'preset-only-skill' },
+      arguments: { name: 'preset-only-skill', description: 'exercise the preset-only-skill skill fixture' },
       agent: agentForCwd('/workspace/other'),
     })
     expect(foreign.isError).toBe(true)
@@ -794,7 +794,7 @@ describe('dsh-tool-skill', () => {
       signal: testToolSignal,
       callId: ToolCallId('c1'),
       name: 'skill',
-      arguments: { name: 'project-skill' },
+      arguments: { name: 'project-skill', description: 'load the project skill through the fixture' },
       agent: { session: { header: { cwd: project } } } as never,
     })
 
@@ -851,9 +851,9 @@ describe('dsh-tool-skill', () => {
       content: 'Provider instructions.',
     })
 
-    const opaque = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c2'), name: 'skill', arguments: { name: 'opaque-skill' } })
-    const url = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c3'), name: 'skill', arguments: { name: 'url-skill' } })
-    const provider = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c4'), name: 'skill', arguments: { name: 'provider-skill' } })
+    const opaque = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c2'), name: 'skill', arguments: { name: 'opaque-skill', description: 'exercise the opaque-skill skill fixture' } })
+    const url = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c3'), name: 'skill', arguments: { name: 'url-skill', description: 'render the url-skill base-URL resource hint' } })
+    const provider = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c4'), name: 'skill', arguments: { name: 'provider-skill', description: 'render the provider-managed skill resource hint' } })
 
     if (opaque.content[0]?.type !== 'text' || url.content[0]?.type !== 'text' || provider.content[0]?.type !== 'text') {
       throw new Error('expected text tool results')
@@ -875,7 +875,7 @@ describe('dsh-tool-skill', () => {
       content: 'Rogue instructions.',
     })
 
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c5'), name: 'skill', arguments: { name: 'rogue-resource-skill' } })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c5'), name: 'skill', arguments: { name: 'rogue-resource-skill', description: 'exercise the unknown resource-base output guard' } })
 
     expect(result.isError).toBe(true)
     expect(result.error?.info?.code).toBe('INVALID_TOOL_OUTPUT')
@@ -897,10 +897,10 @@ describe('dsh-tool-skill', () => {
       content: 'Model-only instructions.',
     })
 
-    const unknown = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'skill', arguments: { name: 'missing' } })
-    const invalid = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c2'), name: 'skill', arguments: { name: 'Bad_Name' } })
-    const disabled = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c3'), name: 'skill', arguments: { name: 'hidden-skill' } })
-    const modelOnly = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c4'), name: 'skill', arguments: { name: 'model-only-skill' } })
+    const unknown = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c1'), name: 'skill', arguments: { name: 'missing', description: 'look up a skill that does not exist' } })
+    const invalid = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c2'), name: 'skill', arguments: { name: 'Bad_Name', description: 'reject an invalid skill name' } })
+    const disabled = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c3'), name: 'skill', arguments: { name: 'hidden-skill', description: 'reject a model-disabled skill' } })
+    const modelOnly = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c4'), name: 'skill', arguments: { name: 'model-only-skill', description: 'load a model-invocable skill' } })
 
     expect(unknown.isError).toBe(true)
     expect(invalid.isError).toBe(true)
@@ -959,9 +959,9 @@ describe('dsh-tool-skill', () => {
       },
     }))
 
-    const denied = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c6'), name: 'skill', arguments: { name: 'denied-skill' } })
-    const raced = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c7'), name: 'skill', arguments: { name: 'policy-race-skill' } })
-    const vanished = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c8'), name: 'skill', arguments: { name: 'vanishing-skill' } })
+    const denied = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c6'), name: 'skill', arguments: { name: 'denied-skill', description: 'reject a provider skill denied to the model' } })
+    const raced = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c7'), name: 'skill', arguments: { name: 'policy-race-skill', description: 'recheck a skill whose policy flips after loading' } })
+    const vanished = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c8'), name: 'skill', arguments: { name: 'vanishing-skill', description: 'handle a skill vanishing before it loads' } })
 
     expect(denied.isError).toBe(true)
     expect(raced.isError).toBe(true)

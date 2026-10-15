@@ -84,3 +84,5 @@ export class Timeline extends TypertRemoteService {
     return { rows: [...this.rowsOf(request.sessionId).slice(request.from, request.to)] }
   }
 }
+
+export default Timeline

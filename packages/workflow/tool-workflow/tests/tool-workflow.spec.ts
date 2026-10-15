@@ -100,7 +100,7 @@ function execute(ctx: Context, args: unknown, extra?: {
     signal: testToolSignal,
     callId: ToolCallId('call-1'),
     name: 'workflow',
-    arguments: args,
+    arguments: { description: 'exercise the workflow tool fixture', ...(args as Record<string, unknown>) },
     ...extra?.agent ? { agent: extra.agent } : {},
     ...extra?.signal ? { signal: extra.signal } : {},
     ...extra?.parent ? { parent: extra.parent } : {},

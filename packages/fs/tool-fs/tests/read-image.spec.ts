@@ -144,7 +144,7 @@ function call(ctx: Context, name: string, args: unknown, agent?: object) {
     signal: testToolSignal,
     callId: ToolCallId(`img-call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the read_image modality gate', ...(args as Record<string, unknown>) },
     ...agent ? { agent: agent as never } : {},
   })
 }

@@ -105,7 +105,7 @@ function execute(
     signal: extra?.signal ?? testToolSignal,
     callId: ToolCallId('ralph-call'),
     name: 'ralph',
-    arguments: args,
+    arguments: { description: 'exercise the ralph tool fixture', ...(args as Record<string, unknown>) },
     ...extra?.agent === undefined ? {} : { agent: extra.agent },
   })
 }

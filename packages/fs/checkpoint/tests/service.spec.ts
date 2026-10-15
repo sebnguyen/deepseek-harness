@@ -108,7 +108,7 @@ async function harness(options: {
     home,
     rows,
     run: async (name, callId, args) => {
-      await ctx.tools.execute({ signal: SIGNAL, callId: ToolCallId(callId), name, arguments: args, agent })
+      await ctx.tools.execute({ signal: SIGNAL, callId: ToolCallId(callId), name, arguments: { description: 'checkpoint spec fixture call', ...args }, agent })
     },
   }
 }
@@ -123,7 +123,7 @@ describe('checkpoint capture', () => {
 
     await stack.run('writer', 'c2', { content: 'two' })
     expect(stack.rows()[1]).toEqual({
-      path: 'a.txt', fsPath: join(stack.root, 'a.txt'), callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two'),
+      path: 'a.txt', fsPath: join(stack.root, 'a.txt'), callId: 'c2', toolName: 'writer', purpose: 'checkpoint spec fixture call', before: digestOf('one'), after: digestOf('two'),
     })
   })
 
@@ -144,7 +144,8 @@ describe('checkpoint capture', () => {
   it('captures nothing without an owning agent', async () => {
     const stack = await harness()
     await stack.ctx.tools.execute({
-      signal: SIGNAL, callId: ToolCallId('c1'), name: 'writer', arguments: { content: 'one' },
+      signal: SIGNAL, callId: ToolCallId('c1'), name: 'writer',
+      arguments: { content: 'one', description: 'verify the capture skips an agentless call' },
     })
     expect(stack.rows()).toEqual([])
   })
@@ -161,7 +162,7 @@ describe('checkpoint capture', () => {
     const second = await harness({ home: first.home, sessionId: 'resumed', root: first.root })
     await second.run('writer', 'c2', { content: 'two!' })
     expect(second.rows()).toEqual([
-      { path: 'a.txt', fsPath: join(second.root, 'a.txt'), callId: 'c2', toolName: 'writer', before: digestOf('one'), after: digestOf('two!') },
+      { path: 'a.txt', fsPath: join(second.root, 'a.txt'), callId: 'c2', toolName: 'writer', purpose: 'checkpoint spec fixture call', before: digestOf('one'), after: digestOf('two!') },
     ])
   })
 
@@ -351,7 +352,7 @@ describe('checkpoint stops remote', () => {
       turn: 3, step: 1, callId: ToolCallId('c2'), name: 'writer', arguments: '{}',
     })
     stack.session.append('session/end-seed', {})
-    await stack.run('writer', 'c1', { content: 'one' })
+    await stack.run('writer', 'c1', { content: 'one', [PURPOSE_KEY]: 'stated' })
     await stack.run('writer', 'c2', { content: 'two' })
     const service = stack.ctx.get('checkpoint') as CheckpointService
     const [timeline] = await service.stops(stack.session)
@@ -360,7 +361,7 @@ describe('checkpoint stops remote', () => {
       callId: stop.callId, turn: stop.turn, purpose: stop.purpose, after: stop.after,
     }))).toEqual([
       { callId: 'c1', turn: 1, purpose: 'stated', after: digestOf('one') },
-      { callId: 'c2', turn: 3, purpose: undefined, after: digestOf('two') },
+      { callId: 'c2', turn: 3, purpose: 'checkpoint spec fixture call', after: digestOf('two') },
     ])
     const [only] = await service.stops(stack.session, 'a.txt')
     expect(only?.stops).toHaveLength(2)
@@ -420,7 +421,7 @@ describe('checkpoint restore surface', () => {
     // A dispatch without an owning agent normalizes the refusal into a tool error.
     const agentless = await stack.ctx.tools.execute({
       signal: SIGNAL, callId: ToolCallId('c4'), name: 'checkpoint_restore',
-      arguments: { path: 'a.txt', digest: digestOf('one') },
+      arguments: { path: 'a.txt', digest: digestOf('one'), description: 'verify agentless restore is refused' },
     })
     expect(agentless.isError).toBe(true)
     expect(JSON.stringify(agentless.content)).toContain('owning agent session')

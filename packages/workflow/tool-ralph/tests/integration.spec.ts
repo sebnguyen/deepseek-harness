@@ -53,8 +53,8 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
     const ctx = new Context()
     const adapter = new MockAdapter([
       textResponse('PARENT_HISTORY_MARKER'),
-      toolCallResponse('round-1', STRUCTURED_OUTPUT_TOOL, firstReport),
-      toolCallResponse('round-2', STRUCTURED_OUTPUT_TOOL, finalReport),
+      toolCallResponse('round-1', STRUCTURED_OUTPUT_TOOL, { ...firstReport, description: 'script the round-one worker report' }),
+      toolCallResponse('round-2', STRUCTURED_OUTPUT_TOOL, { ...finalReport, description: 'script the final worker report' }),
     ])
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
@@ -85,7 +85,7 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
       signal: testToolSignal,
       callId: ToolCallId('ralph-integration'),
       name: 'ralph',
-      arguments: { objective: 'Complete both migration slices.', maxRounds: 2 },
+      arguments: { objective: 'Complete both migration slices.', maxRounds: 2, description: 'run the ralph workflow over a scripted two-round objective' },
       agent: parent,
     })
 
@@ -125,7 +125,7 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
       blocker: '',
     }
     const { ctx, parent, parentHandle } = await mountRalph([
-      toolCallResponse('round-1', STRUCTURED_OUTPUT_TOOL, firstReport),
+      toolCallResponse('round-1', STRUCTURED_OUTPUT_TOOL, { ...firstReport, description: 'script the round-one worker report' }),
       maxTokensResponse('unfinished child output'),
     ], { maxRounds: 2 })
     const children: Agent[] = []
@@ -138,7 +138,7 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
       signal: testToolSignal,
       callId: ToolCallId('ralph-child-failure'),
       name: 'ralph',
-      arguments: { objective: 'Complete both migration slices.', maxRounds: 2 },
+      arguments: { objective: 'Complete both migration slices.', maxRounds: 2, description: 'run the ralph workflow over a scripted two-round objective' },
       agent: parent,
     })
 
@@ -220,14 +220,14 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
     },
   ])('enforces the fixed script for $name', async ({ report, config, expectedError, expectedText }) => {
     const { ctx, parent, parentHandle } = await mountRalph([
-      toolCallResponse('round-report', STRUCTURED_OUTPUT_TOOL, report),
+      toolCallResponse('round-report', STRUCTURED_OUTPUT_TOOL, { ...report, description: 'script the worker round report for this table entry' }),
     ], config)
 
     const result = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('ralph-script-enforcement'),
       name: 'ralph',
-      arguments: { objective: 'Complete the scoped work.', maxRounds: config.maxRounds },
+      arguments: { objective: 'Complete the scoped work.', maxRounds: config.maxRounds, description: 'exercise the fixed-script enforcement for this table entry' },
       agent: parent,
     })
 
@@ -254,7 +254,7 @@ describe('dsh-tool-ralph over the real spawn and worker-thread stack', () => {
     const pending = ctx.tools.execute({
       callId: ToolCallId('ralph-real-cancel'),
       name: 'ralph',
-      arguments: { objective: 'Keep working until cancelled.', maxRounds: 2 },
+      arguments: { objective: 'Keep working until cancelled.', maxRounds: 2, description: 'start the ralph workflow that the test then cancels' },
       agent: parent,
       signal: controller.signal,
     })

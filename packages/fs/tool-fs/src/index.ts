@@ -13,7 +13,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-user-approval'
-import { applyReadTool, MAX_FILES_PER_CALL, READ_LIMIT, STREAM_MIN_SIZE } from './read.ts'
+import { applyReadTool, READ_LIMIT, STREAM_MIN_SIZE } from './read.ts'
 import { applyWriteTool } from './write.ts'
 import { applyReadImageTool } from './read-image.ts'
 import { READ_MAX_BYTES, READ_MAX_LINE_LENGTH } from './read-render.ts'
@@ -36,8 +36,6 @@ export interface Config {
   readMaxBytes?: number
   /** Files at or above this size stream instead of loading whole into memory. */
   readStreamMinSize?: number
-  /** Maximum elements one batched `read` or `write` call accepts. */
-  maxFilesPerCall?: number
   /**
    * Register the pre-batch singular `read`/`write` calls instead of the `files`
    * batch faces. Reserved for recorded-session replay compositions whose
@@ -52,7 +50,6 @@ export const Config: z<Config> = z.object({
   readMaxLineLength: z.number().default(READ_MAX_LINE_LENGTH),
   readMaxBytes: z.number().default(READ_MAX_BYTES),
   readStreamMinSize: z.number().default(STREAM_MIN_SIZE),
-  maxFilesPerCall: z.number().default(MAX_FILES_PER_CALL),
   legacyFaces: z.boolean().default(false),
 })
 
@@ -74,13 +71,11 @@ export function apply(ctx: Context, config: Config): void {
   assertPositiveInteger('readMaxLineLength', resolved.readMaxLineLength)
   assertPositiveInteger('readMaxBytes', resolved.readMaxBytes)
   assertPositiveInteger('readStreamMinSize', resolved.readStreamMinSize)
-  assertPositiveInteger('maxFilesPerCall', resolved.maxFilesPerCall)
   applyReadTool(ctx, {
     limit: resolved.readLimit,
     maxLineLength: resolved.readMaxLineLength,
     maxBytes: resolved.readMaxBytes,
     streamMinSize: resolved.readStreamMinSize,
-    maxFiles: resolved.maxFilesPerCall,
   }, resolved.legacyFaces)
   // read_image is composition-conditional: without a mounted attachment store
   // the deployment cannot durably commit image bytes, so the tool never
@@ -98,5 +93,5 @@ export function apply(ctx: Context, config: Config): void {
     // Drop recorded state on disposal so a reloaded plugin starts clean (HMR).
     gate.clear()
   }, 'tool-fs observed-state teardown')
-  applyWriteTool(ctx, sandbox, gate, resolved.maxFilesPerCall, resolved.legacyFaces)
+  applyWriteTool(ctx, sandbox, gate, resolved.legacyFaces)
 }

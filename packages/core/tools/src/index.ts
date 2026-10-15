@@ -26,9 +26,9 @@ import type { CodeSdkLanguage } from './ptc.ts'
 import { renderToolsSdk } from './ts-types.ts'
 import type { ToolSdkSchema } from './ts-types.ts'
 import { renderToolsSdkPy } from './py-types.ts'
-import { assertNoReservedSquat, derivePurpose, withPurpose } from './purpose.ts'
+import { assertNoReservedSquat, declaresPurposeKey, derivePurpose, withPurpose } from './purpose.ts'
 
-export { PURPOSE_KEY, RESERVED_PREFIX, PURPOSE_DESCRIPTION, isReservedKey, assertNoReservedSquat, withPurpose, derivePurpose } from './purpose.ts'
+export { PURPOSE_KEY, RESERVED_PREFIX, PURPOSE_DESCRIPTION, isReservedKey, assertNoReservedSquat, declaresPurposeKey, withPurpose, derivePurpose } from './purpose.ts'
 export type { PurposeDerivation } from './purpose.ts'
 
 /**
@@ -54,6 +54,8 @@ export type { PurposeDerivation } from './purpose.ts'
  */
 const PTC_ONLY_INSTRUCTION = `\`${RUN_CODE_NAME}\` is the only tool you can call directly — a tool call naming any other tool fails. Reach every tool the SDK declares below from inside the program.`
 
+import { ToolArgsError } from './schema.ts'
+
 const SDK_RENDERERS: Record<string, (schemas: ToolSdkSchema[]) => string> = {
   typescript: renderToolsSdk,
   python: renderToolsSdkPy,
@@ -61,6 +63,7 @@ const SDK_RENDERERS: Record<string, (schemas: ToolSdkSchema[]) => string> = {
 
 export {
   defineTool,
+  wrapSingletonArgs,
   valueSchemaSpecToJsonSchema,
   parameterSchemaSpecToJsonSchema,
   validateArgs,
@@ -379,9 +382,12 @@ export interface ToolExecution extends ToolExecutionInput {
   /** Registry-assigned identity shared with nested calls only as their opaque `parent` token. */
   readonly token: ToolExecutionToken
   /**
-   * Harness-injected purpose line lifted from the model's argument block at
-   * materialization. The raw log string keeps the key; guards, approval, and
-   * bodies observe only the stripped arguments plus this sibling.
+   * Purpose line lifted from the model's argument block at materialization:
+   * the harness-injected `description`, or the tool's own declared
+   * `description` where one exists. The raw log string keeps the key; guards,
+   * approval, and bodies observe the injected key stripped plus this sibling
+   * (a tool-declared `description` stays in the dispatch view as that tool's
+   * own argument).
    */
   readonly purpose?: string
 }
@@ -1263,7 +1269,7 @@ export class ToolRuntime extends Service {
     return {
       name,
       description,
-      parameters: withPurpose(detached as unknown as Record<string, unknown>),
+      parameters: withPurpose(detached),
     }
   }
 
@@ -1415,10 +1421,26 @@ export class ToolRuntime extends Service {
         throw new TypeError('tool execution arguments must be losslessly JSON-serializable')
       }
       const derivation = derivePurpose(detached)
+      // Exposed as required, and enforced: a purpose-less call fails at this
+      // dispatch handoff. Absent, empty, and non-string purposes fail
+      // identically, like any other missing required argument.
+      if (derivation.purpose === null) {
+        throw new ToolArgsError([
+          'missing required property "description" — one sentence why this '
+          + 'call is being made: it is shown to the human reviewing this session and '
+          + 'cited in critiques of the change it produces',
+        ])
+      }
+      // Dedup-aware strip: a tool that DECLARES `description` itself keeps
+      // it in the dispatch view as its own argument (its body reads it);
+      // every other tool received the harness-injected key, which is stripped
+      // before policy and bodies so it never reaches remote schemas via MCP.
+      const keepsDeclaredDescription = visible !== undefined
+        && declaresPurposeKey(visible.parameters)
       const execution: MutableToolRunContext = {
         ...base,
-        arguments: deepFreeze(derivation.clean),
-        ...derivation.purpose !== null ? { purpose: derivation.purpose } : {},
+        arguments: deepFreeze(keepsDeclaredDescription ? detached : derivation.clean),
+        purpose: derivation.purpose,
       }
       this.deferredContexts.set(execution, deferredContexts)
       this.contentFinalizers.set(execution, finalizerFor())

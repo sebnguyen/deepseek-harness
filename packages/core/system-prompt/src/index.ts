@@ -194,6 +194,9 @@ const SECTION_ORDERS = {
   TOOL_GREP: 1030,
   TOOL_BASH: 1050,
   TOOL_PWSH: 1060,
+  // Installed-CLI availability: host-probed tools (playwright-cli & co.) as
+  // advertised by dsh-cli-detection; follows the shell tool paragraphs.
+  CLI_DETECTION: 1070,
   TOOL_PTY: 1700,
   TOOL_WEB_SEARCH: 2000,
   TOOL_WEB_FETCH: 2100,
@@ -562,14 +565,14 @@ export class SystemPrompt extends Service {
           name: rule.name,
           order: this.getSectionOrder(orderName),
           text: rule.name === CORE_RULE_EXPLORE_THROUGH_EXPLORERS_SECTION
-              ? (assemblyContext) => {
-                const names = assemblyContext.registeredToolNames
-                if (names === undefined) return ''
-                return names.has('subagent') || names.has('explore') || names.has('delegate')
-                  ? CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT
-                  : ''
-              }
-              : rule.text,
+            ? (assemblyContext) => {
+              const names = assemblyContext.registeredToolNames
+              if (names === undefined) return ''
+              return names.has('subagent') || names.has('explore') || names.has('delegate')
+                ? CORE_RULE_EXPLORE_THROUGH_EXPLORERS_TEXT
+                : ''
+            }
+            : rule.text,
         })
       }
     }

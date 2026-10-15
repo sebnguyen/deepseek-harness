@@ -3,9 +3,9 @@
  * `bash` tool carries the `commands` batch face as its only call shape: one
  * invocation fans out across independent shell jobs, each settling into its own
  * labeled frame while the wire contract stays one tool call to one tool result.
- * `run_in_background` and the sandbox escalation pair ride single elements, so
- * one element starts as a background job or runs under an approved wider mode
- * without affecting its siblings.
+ * `run_in_background` rides single elements, so one element starts as a
+ * background job without affecting its siblings. Sandboxing stays with the
+ * session's own policy: the tool takes no per-call escalation fields.
  *
  * TODO(permissions): deployment policy belongs in `tools/pre-execute` and
  * sandboxing executors; see docs/architecture.md § Where new behavior goes.
@@ -19,17 +19,15 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool, TOOL_ABORTED } from '@deepseek-ai/dsh-tools'
+import { defineTool, TOOL_ABORTED, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolExecution, ToolResult, ToolResultView } from '@deepseek-ai/dsh-tools'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
-import type { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { } from '@deepseek-ai/dsh-jobs'
 import type { } from '@deepseek-ai/dsh-user-approval'
 import type { } from '@deepseek-ai/dsh-shell-env'
-import type { SandboxExecutionPolicy, SandboxMode } from '@deepseek-ai/dsh-sandbox'
-import type { EscalationApproval } from '@deepseek-ai/dsh-sandbox'
-import { ESCALATION_TARGETS, approveEscalation, canonicalPath, validateEscalationArgs } from '@deepseek-ai/dsh-sandbox'
+import type { SandboxExecutionPolicy } from '@deepseek-ai/dsh-sandbox'
+import { canonicalPath } from '@deepseek-ai/dsh-sandbox'
 import type { SandboxPolicyService } from '@deepseek-ai/dsh-sandbox-policy'
 import { DSH_ENV_PREFIX } from '@deepseek-ai/dsh-shell'
 import type { ShellRunResult } from '@deepseek-ai/dsh-shell'
@@ -46,7 +44,6 @@ export interface Config {
   /** Expose element `run_in_background` (default true); disabled elements are also rejected. */
   enableRunInBackground?: boolean
   /** Maximum elements one `commands` invocation may carry (default 8). */
-  maxCommandsPerCall?: number
   /** Register under the legacy `bash` name for recorded-session replay instead of the shipped `multi_bash` name (default false). */
   legacyName?: boolean
 }
@@ -54,7 +51,6 @@ export interface Config {
 /** Runtime configuration schema for the frames bash tool plugin. */
 export const Config: z<Config> = z.object({
   enableRunInBackground: z.boolean().default(true),
-  maxCommandsPerCall: z.number().step(1).min(1).default(8),
   legacyName: z.boolean().default(false),
 })
 
@@ -67,22 +63,14 @@ function isAborted(signal: AbortSignal): boolean {
 /** One element of a `commands` invocation before validation defaults it. */
 interface FramesCommandArgs {
   command: string
-  description?: string
   workdir?: string
   timeoutMs?: number
   run_in_background?: boolean
-  sandbox_permissions?: string
-  justification?: string
 }
 
 /** Parsed tool args; execute validates value constraints absent from ParameterSchemaSpec. */
 interface BashToolArgs {
   commands?: FramesCommandArgs[]
-  description: string
-  timeoutMs?: number
-  workdir?: string
-  sandbox_permissions?: string
-  justification?: string
 }
 
 /** Validate a positive finite timeout value; the label names the failing argument. */
@@ -92,37 +80,19 @@ function validateTimeoutMs(value: number | undefined, label: string): void {
   }
 }
 
-function validateBashArgs(args: BashToolArgs, maxCommandsPerCall: number): void {
-  if (args.description.trim().length === 0) {
-    throw new Error('invalid description: expected a non-empty string')
-  }
-  // The escalation pair moved onto elements with the singular face's removal;
-  // a root-level pairing is a stale call shape, not a live override.
-  if (args.sandbox_permissions !== undefined || args.justification !== undefined) {
-    throw new Error('invalid args: sandbox_permissions and justification apply per commands element')
-  }
+function validateBashArgs(args: BashToolArgs): void {
   if (!Array.isArray(args.commands) || args.commands.length === 0) {
     throw new Error('invalid commands: expected a non-empty array of command objects')
   }
-  if (args.commands.length > maxCommandsPerCall) {
-    throw new Error(`invalid commands: at most ${maxCommandsPerCall} elements, got ${args.commands.length}`)
-  }
-  validateTimeoutMs(args.timeoutMs, 'timeoutMs')
   for (const element of args.commands) {
     if (typeof element.command !== 'string' || element.command.trim().length === 0) {
       throw new Error('invalid commands element: expected a non-empty command string')
     }
-    if (element.description !== undefined && element.description.trim().length === 0) {
-      throw new Error('invalid commands element description: expected a non-empty string')
-    }
     validateTimeoutMs(element.timeoutMs, 'commands element timeoutMs')
-    // The escalation pairing (sandbox_permissions ⇔ justification, non-empty) is
-    // the shared rule both enforcing families validate identically.
-    validateEscalationArgs(element.sandbox_permissions, element.justification)
   }
 }
 
-function bashDescription(backgroundEnabled: boolean, escalationModes: readonly SandboxMode[]): string {
+function bashDescription(backgroundEnabled: boolean): string {
   const background = backgroundEnabled
     ? 'Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.'
     : 'Background execution is not available; elements must finish within the timeout.'
@@ -136,64 +106,7 @@ function bashDescription(backgroundEnabled: boolean, escalationModes: readonly S
     + 'Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. '
     + 'Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. '
     + background
-  if (escalationModes.length === 0) return base
-  return base + ' Attempting a command the sandbox may deny is safe and expected: run it and read the '
-    + 'marker rather than assuming the denial. When a command is denied and a wider mode would let it '
-    + 'succeed, escalate immediately in the same turn — the one sanctioned exception to a denial: retry '
-    + 'the exact same command once with `sandbox_permissions` and a one-sentence `justification` on that '
-    + 'element (the wider mode applies to that element alone). Do not detour through chat to ask permission '
-    + 'first — the approval prompt raised by that retry is how the user consents. If the session states '
-    + 'approval prompts are disabled, there is no exception: a denial is final — do not set `sandbox_permissions`. '
-    + 'Never escalate speculatively: ground the request in a real denial — normally the one this command '
-    + 'just hit; escalating up front is fine only when this session already denied the same access. '
-    + 'A rejected escalation is final for that command — stop and explain, never work around '
-    + 'it — but it does not forbid attempting or escalating other commands later.'
-}
-
-/**
- * The frames tool's contribution to the shared escalation sequence:
- * reject `sandbox_permissions` in compositions whose executor never
- * advertised sandboxing (schema validation checks advertised keys only,
- * so an unadvertised field still reaches execute), then delegate strict
- * widening, channel resolution, and outcome mapping to
- * {@link approveEscalation}. Module-level so the composition guard is
- * testable directly instead of only through the schema-gated execute.
- * @param facts - the composition's escalation targets plus the approval route
- *   (approver, agent, call id, abort signal).
- * @param requestedMode - the wider sandbox mode this one-shot retry asks for.
- * @param justification - the one-sentence user-facing reason.
- * @param standingPolicy - the call's resolved sandbox policy, whose mode is the
- *   strict-widening baseline; required whenever escalation is composed.
- * @returns the granted mode, consumed by the one element that asked.
- */
-export async function requestBashEscalation(
-  facts: {
-    escalationModes: readonly SandboxMode[]
-    approver: EscalationApproval<Agent, ToolCallId>['approver']
-    agent: Agent | undefined
-    callId: ToolCallId
-    signal: AbortSignal
-    /** The registered tool name the approval prompt shows; defaults to `bash`. */
-    toolName?: string
-  },
-  requestedMode: string,
-  justification: string,
-  standingPolicy: SandboxExecutionPolicy | undefined,
-): Promise<SandboxMode> {
-  if (facts.escalationModes.length === 0) {
-    throw new Error('sandbox_permissions is not available in this composition (no sandboxing executor to escalate)')
-  }
-  const effectiveMode = (standingPolicy as SandboxExecutionPolicy).mode
-  return approveEscalation<Agent, ToolCallId>(
-    { requestedMode, justification, effectiveMode, subject: 'command' },
-    {
-      approver: facts.approver,
-      agent: facts.agent,
-      callId: facts.callId,
-      toolName: facts.toolName ?? 'bash',
-      signal: facts.signal,
-    },
-  )
+  return base
 }
 
 /** The frames-only arms of the canonical output union, with this tool's
@@ -305,12 +218,10 @@ const OUTPUT_STREAM_SCHEMA = {
 
 export function apply(ctx: Context, config: Config = {}): void {
   const backgroundEnabled = config.enableRunInBackground ?? true
-  const maxCommandsPerCall = config.maxCommandsPerCall ?? 8
   // The shipped name is `multi_bash`; `legacyName` re-registers as `bash` so
   // recorded-session compositions resolve their recorded calls.
   const toolName = config.legacyName === true ? 'bash' : 'multi_bash'
   const defaultMode = ctx.shell.sandboxMode
-  const escalationModes: readonly SandboxMode[] = defaultMode === undefined ? [] : ESCALATION_TARGETS
   const sandboxPolicy: SandboxPolicyService | undefined = defaultMode === undefined ? undefined : ctx.get('sandboxPolicy')
   if (defaultMode !== undefined && sandboxPolicy === undefined) {
     throw new Error('tool-bash-frames: the mounted bash executor confines but ctx.sandboxPolicy is missing')
@@ -318,32 +229,6 @@ export function apply(ctx: Context, config: Config = {}): void {
   /** Resolve the complete per-call policy (clamped by any narrowing listener) when a confining executor is mounted. */
   const resolveSandboxPolicy = async (exec: ToolExecution): Promise<SandboxExecutionPolicy | undefined> =>
     sandboxPolicy === undefined ? undefined : sandboxPolicy.resolveClamped(exec.agent === undefined ? {} : { session: exec.agent.session })
-
-  /**
-   * Resolve one element's sandbox-escalation request through `ctx.approval`
-   * BEFORE that element executes: composition guard and fail-closed sequence
-   * live in {@link requestBashEscalation}; this plugin supplies only the approval
-   * ingredients and the standing mode.
-   */
-  const approveBashEscalation = (
-    mode: string,
-    justification: string,
-    exec: ToolExecution,
-    standingPolicy: SandboxExecutionPolicy | undefined,
-  ): Promise<SandboxMode> =>
-    requestBashEscalation(
-      {
-        escalationModes,
-        approver: ctx.get('approval'),
-        agent: exec.agent,
-        callId: exec.callId,
-        signal: exec.signal,
-        toolName,
-      },
-      mode,
-      justification,
-      standingPolicy,
-    )
 
   // Cross-call guidance belongs in the prompt rather than one-call schema prose.
   ctx.systemPrompt.section({
@@ -356,7 +241,12 @@ export function apply(ctx: Context, config: Config = {}): void {
 
   ctx.tools.register(defineTool({
     name: toolName,
-    description: bashDescription(backgroundEnabled, escalationModes),
+    description: bashDescription(backgroundEnabled),
+    // Shape tolerance, not type tolerance: a model remembering the pre-batch
+    // singleton `"{command: "…"}"` root receives one wrapped element, then
+    // strict validation evaluates the wrapped form. String containers and
+    // other non-conforming payloads fail validation outright.
+    normalizeArgs: args => wrapSingletonArgs(args, 'commands', 'command'),
     parameters: {
       commands: {
         type: 'array',
@@ -364,41 +254,20 @@ export function apply(ctx: Context, config: Config = {}): void {
         items: {
           type: 'object',
           // Permissive like the root schema: undeclared element keys reach
-          // execute, where the opt-outs (background disabled, escalation
-          // pairing) are enforced at dispatch time.
+          // execute, where the background-disabled opt-out is enforced at
+          // dispatch time.
           additionalProperties: true,
           properties: {
             command: { type: 'string', required: true, description: 'The bash command this element runs in its own fresh shell.' },
-            description: { type: 'string', description: 'One-line active-voice UI label for this element; defaults to the command text.' },
-            workdir: { type: 'string', description: 'Working directory for this element; overrides the call-level workdir.' },
-            timeoutMs: { type: 'number', description: 'Timeout in milliseconds for this element; overrides the call-level timeoutMs.' },
+            workdir: { type: 'string', description: 'Working directory for this element; defaults to the session workspace, and a relative path is resolved against it.' },
+            timeoutMs: { type: 'number', description: 'Timeout in milliseconds for this element; the executor applies its configured default and cap, and kills the element on expiry.' },
             ...backgroundEnabled ? {
               run_in_background: { type: 'boolean' as const, description: 'Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output.' },
-            } : {},
-            ...escalationModes.length > 0 ? {
-              sandbox_permissions: {
-                type: 'string' as const,
-                enum: [...escalationModes],
-                description: 'The wider sandbox mode this element needs. Only valid as a one-shot retry of a command the sandbox just denied; requires justification and widens this element alone.',
-              },
-              justification: {
-                type: 'string' as const,
-                description: 'Required with sandbox_permissions: one sentence for the user explaining why this exact element needs the wider access.',
-              },
             } : {},
           },
         },
         description: 'The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other\'s output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.',
       },
-      description: {
-        type: 'string',
-        required: true,
-        description: 'Clear, concise description of what this call does in active voice, '
-          + '5-10 words (shown in the UI). Examples: "ls" → "List files in current directory"; '
-          + '"git status" → "Show working tree status"; "npm install" → "Install package dependencies".',
-      },
-      timeoutMs: { type: 'number', description: 'Timeout in milliseconds for elements without their own; the executor applies its configured default and cap, and kills the element on expiry.' },
-      workdir: { type: 'string', description: 'Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it.' },
     },
     output: {
       schema: {
@@ -468,7 +337,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       },
       render: (_args, value) => [{
         type: 'text',
-        text: renderFrames((value as FramesValue).frames as ShellFrameRecord[], escalationModes),
+        text: renderFrames((value as FramesValue).frames as ShellFrameRecord[]),
       }],
       presentationMeta: (_args, value) => ({
         frames: (value as FramesValue).frames.map(frame => ({
@@ -478,7 +347,7 @@ export function apply(ctx: Context, config: Config = {}): void {
       }),
     },
     async execute(args: BashToolArgs, exec) {
-      validateBashArgs(args, maxCommandsPerCall)
+      validateBashArgs(args)
       // Description is display metadata; workdir defaults to the caller's session.
       const standingPolicy = await resolveSandboxPolicy(exec)
       const dshEnv = ctx.shellEnv.collect(exec)
@@ -507,7 +376,7 @@ export function apply(ctx: Context, config: Config = {}): void {
         return {
           cancel: () => void proc.kill(),
           done: proc.done.then(() => processOutcome(proc)),
-          readOutput: () => renderProcessRead(proc.readOutput(), proc.sandbox, escalationModes),
+          readOutput: () => renderProcessRead(proc.readOutput(), proc.sandbox),
         }
       },
     })
@@ -520,7 +389,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     standingPolicy: SandboxExecutionPolicy | undefined,
     dshEnv: ReturnType<typeof ctx.shellEnv.collect>,
   ): Promise<FramesValue> {
-    const baseWorkdir = resolveWorkdir(args.workdir, exec, standingPolicy?.workspaceRoot)
+    const baseWorkdir = resolveWorkdir(undefined, exec, standingPolicy?.workspaceRoot)
     const elements = args.commands as FramesCommandArgs[]
     const frames: FramesValue['frames'] = []
     for (const [index, element] of elements.entries()) {
@@ -528,14 +397,9 @@ export function apply(ctx: Context, config: Config = {}): void {
         frames.push({ index, command: element.command, outcome: { kind: 'not-run', reason: 'call aborted' } })
         continue
       }
-      // An escalated element resolves its one-shot approval before dispatch so
-      // widened authority never outlives the single element that asked.
-      const approvedMode = element.sandbox_permissions !== undefined && element.justification !== undefined
-        ? await approveBashEscalation(element.sandbox_permissions, element.justification, exec, standingPolicy)
-        : undefined
-      // A cancellation landing during the approval must not detach work the
+      // A cancellation landing between elements must not detach work the
       // caller stopped asking for; read the flag through a call so the
-      // compiler's property narrowing cannot elide a cancel that lands mid-await.
+      // compiler's property narrowing cannot elide a cancel that lands mid-batch.
       if (isAborted(exec.signal)) {
         if (element.run_in_background === true) {
           const error = new HarnessError('tool call aborted', TOOL_ABORTED)
@@ -545,19 +409,15 @@ export function apply(ctx: Context, config: Config = {}): void {
         frames.push({ index, command: element.command, outcome: { kind: 'not-run', reason: 'call aborted' } })
         continue
       }
-      const policy = approvedMode === undefined
-        ? standingPolicy
-        : { ...(standingPolicy as SandboxExecutionPolicy), mode: approvedMode }
       const workdir = element.workdir !== undefined
         ? resolveWorkdir(element.workdir, exec, standingPolicy?.workspaceRoot)
         : baseWorkdir
-      const timeoutMs = element.timeoutMs ?? args.timeoutMs
       const request = {
         command: element.command,
         ...workdir !== undefined ? { workdir } : {},
-        ...timeoutMs !== undefined ? { timeoutMs } : {},
+        ...element.timeoutMs !== undefined ? { timeoutMs: element.timeoutMs } : {},
         dshEnv,
-        ...policy !== undefined ? { sandboxPolicy: policy } : {},
+        ...standingPolicy !== undefined ? { sandboxPolicy: standingPolicy } : {},
       }
       if (element.run_in_background === true) {
         if (!backgroundEnabled) {

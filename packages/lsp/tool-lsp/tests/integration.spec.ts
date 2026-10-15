@@ -76,7 +76,7 @@ function call(ctx: Context, args: unknown) {
     signal: testToolSignal,
     callId: `int-${++seq}` as never,
     name: 'lsp',
-    arguments: args,
+    arguments: { description: 'round-trip lsp requests through the real provider', ...(args as Record<string, unknown>) },
     agent: { session: { header: { cwd: ws } } } as never,
   })
 }

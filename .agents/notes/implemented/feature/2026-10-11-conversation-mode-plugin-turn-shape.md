@@ -166,7 +166,7 @@ turn ended silently. The `quiet_finish` escape hatch and the `pendingFinish`
 module state are deleted outright, because both existed only to repair the
 damage `toolChoice: 'required'` caused in the first place.
 
-Each turn snapshots the shape on its first request (turn-context stamped by
+Each turn snapshot the shape on its first request ([superseded: resolution mints per step boundary](2026-10-14-turn-shape-step-boundary-resolution.md); the text below records the turn-scoped semantics as first shipped). Each turn snapshot applied per turn-context stamped by
 the agent loop, keyed by exec session), which deletes the mid-turn settings
 race and the multi-session flag leak at once.
 

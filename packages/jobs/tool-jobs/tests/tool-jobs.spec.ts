@@ -11,6 +11,16 @@ import { bindScopeParent, createScope, scopeOf } from '@deepseek-ai/dsh-scope'
 import { JobId } from '@deepseek-ai/dsh-jobs'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import type { JobHooks, JobOutcome, JobSnapshot, JobStart } from '@deepseek-ai/dsh-jobs'
+
+// The pty producer's package moved to _archive/ with the terminal tool; this
+// spec keeps pinning generic producer-kind machinery against the non-builtin
+// kind it declared, which the spec re-declares here (the union is
+// merge-extensible for exactly this).
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    'pty-send': 'pty-send'
+  }
+}
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import { statusLine } from '@deepseek-ai/dsh-tool-jobs'
 
@@ -92,7 +102,7 @@ function producer(overrides: Partial<Omit<JobStart, 'run'> & JobHooks> = {}) {
 
 let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: Agent) {
-  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++callCounter}`), name, arguments: args, ...agent ? { agent } : {} })
+  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++callCounter}`), name, arguments: { description: 'tool-jobs.spec coverage', ...(args as Record<string, unknown>) }, ...agent ? { agent } : {} })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {

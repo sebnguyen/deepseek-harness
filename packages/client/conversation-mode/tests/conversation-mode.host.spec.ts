@@ -323,26 +323,52 @@ describe('conversation-mode host', () => {
     expect(stockDecision.messages).toHaveLength(1)
   })
 
-  it('snapshots the shape per turn: a mid-turn switch applies from the next turn', async () => {
-    const { ctx } = await harness()
+  it('a mid-turn selection applies at the next step boundary', async () => {
+    const { ctx } = await grammarHarness(true)
     const agent = createAgent('cm-midturn')
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
 
-    // Turn 1 opens as quiet and stays quiet for its rest.
+    // Step 1 opens under quiet: one epoch reminder, and the fold carries the shield.
     const first = await preStep(ctx, agent, 1, 1)
     if (first.kind !== 'enter') throw new Error('expected an enter decision')
     expect(first.messages).toHaveLength(2)
+    expect(await foldedRequest(ctx, agent, 1, 1)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
 
-    // A mid-turn selection commits to the log but not the open turn.
-    agent.session.append('turn-shape/mode', { shape: 'narrate' })
+    // A same-step re-admission shares the step's epoch: nothing injects twice.
     const retried = await preStep(ctx, agent, 1, 1)
     if (retried.kind !== 'enter') throw new Error('expected an enter decision')
-    expect(retried.messages).toHaveLength(2)
+    expect(retried.messages).toHaveLength(1)
 
-    // Turn 2 opens on the new folded state.
-    const second = await preStep(ctx, agent, 2, 1)
-    if (second.kind !== 'enter') throw new Error('expected an enter decision')
-    expect(second.messages).toHaveLength(1)
+    // A mid-turn pick commits to the log and resolves at the next step
+    // boundary: step 2 runs narrate — the epoch erases, no hint on its fold.
+    agent.session.append('turn-shape/mode', { shape: 'narrate' })
+    const narrateStep = await preStep(ctx, agent, 1, 2)
+    if (narrateStep.kind !== 'enter') throw new Error('expected an enter decision')
+    expect(narrateStep.messages).toHaveLength(1)
+    expect(await foldedRequest(ctx, agent, 1, 2)).toEqual({ provider: 'test-route', model: 'test-model' })
+
+    // Re-entering quiet re-mints a shaped epoch: the reminder re-notifies at
+    // step 3's admission, and that step's fold carries the shield again.
+    agent.session.append('turn-shape/mode', { shape: 'quiet' })
+    const quietStep = await preStep(ctx, agent, 1, 3)
+    if (quietStep.kind !== 'enter') throw new Error('expected an enter decision')
+    expect(quietStep.messages).toHaveLength(2)
+    expect(await foldedRequest(ctx, agent, 1, 3)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
+  })
+
+  it('a quiet turn flipped to narrate mid-turn closes without the wrap-up steer', async () => {
+    const { ctx } = await grammarHarness(true)
+    const steered: UserMessage[] = []
+    const agent = createAgent('cm-rescue', steered)
+    agent.session.append('turn-shape/mode', { shape: 'quiet' })
+
+    await preStep(ctx, agent, 1, 1)
+
+    // The rescue path: the narrate pick commits before the natural stop, so
+    // the stop-moment projection read folds narrate and no wrap-up cue leaves.
+    agent.session.append('turn-shape/mode', { shape: 'narrate' })
+    await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
+    expect(steered).toHaveLength(0)
   })
 })
 

@@ -153,8 +153,8 @@ function observedRpcIds(
   return observed
 }
 
-/** Matches the harness purpose field inside a tool call's raw arguments. */
-const PURPOSE_RE = /"_dsh_harness_purpose"\s*:\s*"((?:[^"\\]|\\.)*)"/
+/** Matches the harness purpose field (`description`) inside a tool call's raw arguments. */
+const PURPOSE_RE = /"description"\s*:\s*"((?:[^"\\]|\\.)*)"/
 
 /**
  * @param argsRaw - raw tool-call argument text.

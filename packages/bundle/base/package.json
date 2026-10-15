@@ -42,6 +42,7 @@
     "@deepseek-ai/dsh-attachment-local": "workspace:^",
     "@deepseek-ai/dsh-claim": "workspace:^",
     "@deepseek-ai/dsh-claim-settlement": "workspace:^",
+    "@deepseek-ai/dsh-cli-detection": "workspace:^",
     "@deepseek-ai/dsh-tool-claim": "workspace:^",
     "@deepseek-ai/dsh-shell-env": "workspace:^",
     "@deepseek-ai/dsh-shell-search": "workspace:^",

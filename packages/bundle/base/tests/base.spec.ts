@@ -53,6 +53,7 @@ describe('dsh-base bundle', () => {
     expect(rows.find(row => row.id === 'knowledge-notes')).toBeUndefined()
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-knowledge-notes')
     expect(rows.find(row => row.id === 'shell-search')?.name).toBe('@deepseek-ai/dsh-shell-search')
+    expect(rows.find(row => row.id === 'cli-detection')?.name).toBe('@deepseek-ai/dsh-cli-detection')
     // The LSP rows: the seam and its provider are services, the two tools are
     // the agent plane a preset re-mounts. The provider resolves its commands at
     // load, so the shipped map names only the default server.
@@ -78,6 +79,7 @@ describe('dsh-base bundle', () => {
       expect(manifest.dependencies, name).toHaveProperty(name)
     }
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-shell-search')
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-cli-detection')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-codex')
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
     expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-web-fetch-http')

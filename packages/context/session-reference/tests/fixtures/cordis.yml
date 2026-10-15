@@ -3,6 +3,10 @@
 - name: '@deepseek-ai/dsh-tools'
 - name: '@deepseek-ai/dsh-fs-local'
 - name: '@deepseek-ai/dsh-tool-fs'
+  config:
+    # singular `read` face for the spill retrieval hint; batch `multi_read` is
+    # this package's default otherwise.
+    legacyFaces: true
 - name: '@deepseek-ai/dsh-session-query-sqlite'
   config:
     path: ':memory:'

@@ -29,7 +29,10 @@ export function maxTokensResponse(text: string): StreamChunk[] {
 
 export function toolCallResponse(rawCallId: string, name: string, args: object, text?: string): StreamChunk[] {
   const callId = ToolCallId(rawCallId)
-  const argumentsJson = JSON.stringify(args)
+  // Strict-purpose enforcement rejects dispatched calls lacking a purpose; inject a default
+  // unless the caller already supplied one.
+  const argsWithPurpose = 'description' in args ? args : { ...args, description: 'test purpose' }
+  const argumentsJson = JSON.stringify(argsWithPurpose)
   const chunks: StreamChunk[] = []
   let index = 0
   if (text) {

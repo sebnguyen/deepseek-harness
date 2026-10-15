@@ -1952,7 +1952,9 @@ describe('continuable review regressions', () => {
     expect(ends[0]!.stopReason).toBe('max-tokens')
     expect(ends[0]!.lastAssistantMessage).toEqual([
       { type: 'text', text: 'partial one' },
-      { type: 'tool-call', id: 't1', name: 'noop', arguments: '{}' },
+      // The durable log keeps the RAW wire arguments verbatim, including the
+      // purpose key the strict-purpose mock adapter injected at dispatch.
+      { type: 'tool-call', id: 't1', name: 'noop', arguments: '{"description":"test purpose"}' },
     ])
   })
 

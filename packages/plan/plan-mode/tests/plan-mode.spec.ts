@@ -158,11 +158,18 @@ function registerNamedTools(ctx: Context, names: string[]): void {
   }
 }
 
+/**
+ * Every schema-mapped SDK binding carries the strict-purpose key the dispatch
+ * handoff enforces; the execution still sees only the remaining arguments.
+ */
+const SDK_STRICT_ARGS =
+  '{\n    /** One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Required on every call: the execution sees only the remaining arguments. */\n    description: string;\n  } & Record<string, JsonValue>;'
+
 /** Assert the mapped PTC mode SDK includes the stable plan exit binding and test tools. */
 function expectPlanCodeSdkBindings(sdk: string): void {
   expect(sdk).toContain('interface ToolArgsMap {')
-  expect(sdk).toContain('read: Record<string, JsonValue>;')
-  expect(sdk).toContain('write: Record<string, JsonValue>;')
+  expect(sdk).toContain(`read: ${SDK_STRICT_ARGS}`)
+  expect(sdk).toContain(`write: ${SDK_STRICT_ARGS}`)
   expect(sdk).toContain('interface ToolOutputMap {')
   expect(sdk).toContain('exit_plan_mode: {\n    approved: true;\n  };')
   expect(sdk).toContain('[K in ToolName]: (args: ToolArgsMap[K]) => Promise<ToolOutputMap[K]>;')
@@ -173,7 +180,7 @@ function execute(ctx: Context, name: string, agent?: Agent) {
   return ctx.tools.execute({
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: {},
+    arguments: { description: 'exercise the plan-mode tool fixture' },
     signal: new AbortController().signal,
     ...agent ? { agent } : {},
   })
@@ -825,7 +832,7 @@ describe('exit_plan_mode', () => {
     return ctx.tools.execute({
       callId: ToolCallId(`call-exit-${++callCounter}`),
       name: EXIT_PLAN_MODE,
-      arguments: { plan },
+      arguments: { plan, description: 'submit the plan for review through the fixture' },
       signal: new AbortController().signal,
       ...agent ? { agent } : {},
     })
@@ -836,8 +843,8 @@ describe('exit_plan_mode', () => {
     const schema = ctx.tools.schemas().find(entry => entry.name === EXIT_PLAN_MODE)
     const parameters = schema?.parameters as { required?: string[]; properties?: Record<string, unknown> }
     expect(schema?.description).toMatch(/^Use only in plan mode\./)
-    expect(Object.keys(parameters.properties ?? {})).toEqual(['plan'])
-    expect(parameters.required).toEqual(['plan'])
+    expect(Object.keys(parameters.properties ?? {}).filter(key => key !== 'description')).toEqual(['plan'])
+    expect(parameters.required?.filter(key => key !== 'description')).toEqual(['plan'])
   })
 
   it('rejects an agent-less call', async () => {
@@ -1104,7 +1111,7 @@ describe('exit_plan_mode', () => {
     const result = await ctx.tools.execute({
       callId: ToolCallId(`call-exit-${++callCounter}`),
       name: EXIT_PLAN_MODE,
-      arguments: { plan: '# P' },
+      arguments: { plan: '# P', description: 'submit the plan while the abort probe watches' },
       agent,
       signal: controller.signal,
     })

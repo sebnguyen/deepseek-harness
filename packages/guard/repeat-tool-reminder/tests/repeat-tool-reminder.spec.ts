@@ -58,7 +58,7 @@ describe('threshold escalation', () => {
   it('reminds gently at the first default threshold (3) and in detail at the second (5)', async () => {
     const ctx = await harness()
     const adapter = new MockAdapter([
-      ...Array.from({ length: 5 }, (_, i) => toolCallResponse(`c${i}`, 'probe', { q: 'same' })),
+      ...Array.from({ length: 5 }, (_, i) => toolCallResponse(`c${i}`, 'probe', { q: 'same', description: 'repeat the identical probe call to count the streak' })),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -79,7 +79,7 @@ describe('threshold escalation', () => {
   it('keys the gentle text to thresholds[0], not the literal 3', async () => {
     const ctx = await harness({ thresholds: [4, 2] }) // unsorted on purpose: normalized ascending
     const adapter = new MockAdapter([
-      ...Array.from({ length: 4 }, (_, i) => toolCallResponse(`c${i}`, 'probe', {})),
+      ...Array.from({ length: 4 }, (_, i) => toolCallResponse(`c${i}`, 'probe', { description: 'repeat the identical empty probe call to count the streak' })),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -99,9 +99,9 @@ describe('chain semantics', () => {
     const ctx = await harness({ thresholds: [2, 3], argumentsPreviewChars: 24 })
     const bigPayload = 'x'.repeat(400)
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { body: bigPayload }),
-      toolCallResponse('c2', 'probe', { body: bigPayload }),
-      toolCallResponse('c3', 'probe', { body: bigPayload }),
+      toolCallResponse('c1', 'probe', { body: bigPayload, description: 'repeat the identical large probe call' }),
+      toolCallResponse('c2', 'probe', { body: bigPayload, description: 'repeat the identical large probe call' }),
+      toolCallResponse('c3', 'probe', { body: bigPayload, description: 'repeat the identical large probe call' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -120,12 +120,12 @@ describe('chain semantics', () => {
   it('a different tracked call resets the chain', async () => {
     const ctx = await harness()
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'probe', { q: 1 }),
-      toolCallResponse('c3', 'other', {}), // tracked, different → reset
-      toolCallResponse('c4', 'probe', { q: 1 }),
-      toolCallResponse('c5', 'probe', { q: 1 }),
-      toolCallResponse('c6', 'probe', { q: 1 }), // 3rd consecutive AFTER the reset
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c3', 'other', { description: 'drive the untracked reset call between streaks' }), // tracked, different → reset
+      toolCallResponse('c4', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c5', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c6', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }), // 3rd consecutive AFTER the reset
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -139,11 +139,11 @@ describe('chain semantics', () => {
   it('excluded calls are transparent: they neither count nor reset', async () => {
     const ctx = await harness({ exclude: ['other'] })
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'other', {}), // excluded → invisible to the chain
-      toolCallResponse('c3', 'probe', { q: 1 }),
-      toolCallResponse('c4', 'other', {}),
-      toolCallResponse('c5', 'probe', { q: 1 }), // 3rd consecutive probe
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'other', { description: 'drive the untracked reset call between streaks' }), // excluded → invisible to the chain
+      toolCallResponse('c3', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c4', 'other', { description: 'drive the untracked reset call between streaks' }),
+      toolCallResponse('c5', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }), // 3rd consecutive probe
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -159,12 +159,12 @@ describe('chain semantics', () => {
   it('include patterns track only matching tools (wildcard star)', async () => {
     const ctx = await harness({ include: ['pro*'] })
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'other', {}),
-      toolCallResponse('c2', 'other', {}),
-      toolCallResponse('c3', 'other', {}), // 3 identical, but untracked
-      toolCallResponse('c4', 'probe', {}),
-      toolCallResponse('c5', 'probe', {}),
-      toolCallResponse('c6', 'probe', {}), // 3 identical, tracked
+      toolCallResponse('c1', 'other', { description: 'drive the untracked reset call between streaks' }),
+      toolCallResponse('c2', 'other', { description: 'drive the untracked reset call between streaks' }),
+      toolCallResponse('c3', 'other', { description: 'drive the untracked reset call between streaks' }), // 3 identical, but untracked
+      toolCallResponse('c4', 'probe', { description: 'repeat the identical empty probe call to count the streak' }),
+      toolCallResponse('c5', 'probe', { description: 'repeat the identical empty probe call to count the streak' }),
+      toolCallResponse('c6', 'probe', { description: 'repeat the identical empty probe call to count the streak' }), // 3 identical, tracked
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -180,7 +180,7 @@ describe('chain semantics', () => {
   it('escapes regex metacharacters in patterns (a dot matches only a literal dot)', async () => {
     const ctx = await harness({ exclude: ['pr.be'] }) // would match 'probe' as a regex; must not as a wildcard
     const adapter = new MockAdapter([
-      ...Array.from({ length: 3 }, (_, i) => toolCallResponse(`c${i}`, 'probe', {})),
+      ...Array.from({ length: 3 }, (_, i) => toolCallResponse(`c${i}`, 'probe', { description: 'repeat the identical empty probe call to count the streak' })),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -194,9 +194,9 @@ describe('chain semantics', () => {
   it('canonicalization ignores property order, deeply', async () => {
     const ctx = await harness()
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { a: 1, nested: { x: [1, 2], y: null } }),
-      toolCallResponse('c2', 'probe', { nested: { y: null, x: [1, 2] }, a: 1 }),
-      toolCallResponse('c3', 'probe', { a: 1, nested: { x: [1, 2], y: null } }),
+      toolCallResponse('c1', 'probe', { a: 1, nested: { x: [1, 2], y: null }, description: 'exercise canonical argument identity across key order' }),
+      toolCallResponse('c2', 'probe', { nested: { y: null, x: [1, 2] }, a: 1, description: 'exercise canonical argument identity across key order' }),
+      toolCallResponse('c3', 'probe', { a: 1, nested: { x: [1, 2], y: null }, description: 'exercise canonical argument identity across key order' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -210,14 +210,14 @@ describe('chain semantics', () => {
   it('keys chains per agent: one agent repeating never trips another', async () => {
     const ctx = await harness()
     ctx.llm.registerAdapter(['mock-a'], new MockAdapter([
-      toolCallResponse('a1', 'probe', { q: 1 }),
-      toolCallResponse('a2', 'probe', { q: 1 }),
+      toolCallResponse('a1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('a2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
     ]))
     ctx.llm.registerAdapter(['mock-b'], new MockAdapter([
-      toolCallResponse('b1', 'probe', { q: 1 }),
-      toolCallResponse('b2', 'probe', { q: 1 }),
-      toolCallResponse('b3', 'probe', { q: 1 }),
+      toolCallResponse('b1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('b2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('b3', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
     ]))
     const agentA = await ctx.agentLoop.create(SessionId('a'), { provider: 'mock-a', model: 'model-a' })
@@ -233,10 +233,10 @@ describe('chain semantics', () => {
   it('a new user prompt resets the chain', async () => {
     const ctx = await harness()
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'probe', { q: 1 }),
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('turn one done'),
-      toolCallResponse('c3', 'probe', { q: 1 }), // without the reset this would be the 3rd
+      toolCallResponse('c3', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }), // without the reset this would be the 3rd
       textResponse('turn two done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -252,9 +252,9 @@ describe('chain semantics', () => {
   it('drops an agent chain on disposal', async () => {
     const ctx = await harness({ thresholds: [2] })
     ctx.llm.registerAdapter(['mock'], new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
-      toolCallResponse('c2', 'probe', { q: 1 }), // same id, fresh agent: count 1, not 2
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }), // same id, fresh agent: count 1, not 2
       textResponse('done'),
     ]))
     // Loop agents are torn down by disposing the scope that created them
@@ -279,8 +279,8 @@ describe('chain semantics', () => {
     const ctx = await harness({ thresholds: [2] })
     ctx.on('tools/pre-execute', async () => ({ kind: 'deny' as const, reason: 'sealed' }))
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'probe', { q: 1 }),
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -293,11 +293,11 @@ describe('chain semantics', () => {
 
   it('ignores direct executes with no agent (they neither crash nor advance any chain)', async () => {
     const ctx = await harness({ thresholds: [2] })
-    const direct = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('d1'), name: 'probe', arguments: { q: 1 } })
+    const direct = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('d1'), name: 'probe', arguments: { q: 1, description: 'probe whether an agentless direct execute advances the chain' } })
     expect(direct.isError).toBe(false)
 
     ctx.llm.registerAdapter(['mock'], new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }), // if the direct call had counted, this would be #2
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }), // if the direct call had counted, this would be #2
       textResponse('done'),
     ]))
     const agent = await ctx.agentLoop.create(SessionId('a1'), { provider: 'mock', model: 'mock' })
@@ -319,8 +319,8 @@ describe('fold onto the downstream decision', () => {
       })],
     }))
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'probe', { q: 1 }),
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)
@@ -349,8 +349,8 @@ describe('fold onto the downstream decision', () => {
       value: [{ type: 'text' as const, text: 'replaced' }],
     }))
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'probe', { q: 1 }),
-      toolCallResponse('c2', 'probe', { q: 1 }),
+      toolCallResponse('c1', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
+      toolCallResponse('c2', 'probe', { q: 1, description: 'repeat the identical probe call to count the streak' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)

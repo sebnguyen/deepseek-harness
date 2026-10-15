@@ -55,7 +55,7 @@ function call(ctx: Context, args: unknown, cwd: string | null = workspaceRoot) {
     signal: testToolSignal,
     callId: `c-${++seq}` as never,
     name: 'lsp',
-    arguments: args,
+    arguments: { description: 'exercise the lsp tool over a stub provider', ...(args as Record<string, unknown>) },
     ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
   })
 }

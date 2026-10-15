@@ -28,6 +28,7 @@ import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
 import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
+import { EPHEMERAL_CONFIG_FIELDS } from './constants.ts'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -61,11 +62,31 @@ type PreparedStep =
 
 /** Remove adapter-derived values before plugins propose the next request config. */
 function requestProposal(header: EpochHeader): LlmCallConfig {
-  if (header.adapterDefaults === undefined) return header.config
   const proposal = { ...header.config }
-  if (header.adapterDefaults.reasoningEffort === true) delete proposal.reasoningEffort
-  if (header.adapterDefaults.maxTokens === true) delete proposal.maxTokens
+  if (header.adapterDefaults?.reasoningEffort === true) delete proposal.reasoningEffort
+  if (header.adapterDefaults?.maxTokens === true) delete proposal.maxTokens
+  // The grammar fold owns these fields per request; a persisted header is a
+  // record, not a re-seeding source. Sessions whose historic headers carry
+  // them heal here, on the next proposal.
+  for (const field of EPHEMERAL_CONFIG_FIELDS) {
+    // oxlint-disable-next-line typescript/no-dynamic-delete -- headers arrive as plain records; field list is our const.
+    delete (proposal as Record<string, unknown>)[field]
+  }
   return proposal
+}
+
+/**
+ * Strip per-request grammar from a header before it becomes durable: the log
+ * records durable intent only. The live request keeps its grammar — only the
+ * persisted snapshot and its equality baseline are cleaned.
+ */
+function stripEphemeralHeaderGrammar(header: EpochHeader): EpochHeader {
+  const config = { ...header.config }
+  for (const field of EPHEMERAL_CONFIG_FIELDS) {
+    // oxlint-disable-next-line typescript/no-dynamic-delete -- headers arrive as plain records; field list is our const.
+    delete (config as Record<string, unknown>)[field]
+  }
+  return { ...header, config }
 }
 
 /** Drives one session through turn and step boundaries. */
@@ -564,20 +585,21 @@ export class ReactLoopAgent implements Agent {
       ...preparedCall === undefined ? {} : { adapterDefaults: preparedCall.adapterDefaults },
       ...tools.length > 0 ? { tools } : {},
     })
+    const persistedHeader = stripEphemeralHeaderGrammar(header)
     const baseline = this.session.requestHeader()
     const startsSeries = startsRequestSeries
       || this.requestSurfaceGeneration !== surfaceGeneration
     if (!this.requestHeaderLogged) {
-      this.session.append('request/header', { header, reason: baseline === undefined ? 'initial' : 'resume' })
+      this.session.append('request/header', { header: persistedHeader, reason: baseline === undefined ? 'initial' : 'resume' })
       this.requestHeaderLogged = true
-    } else if (baseline === undefined || !headerEquals(baseline, header)) {
+    } else if (baseline === undefined || !headerEquals(baseline, persistedHeader)) {
       this.session.append('request/header', {
-        header,
+        header: persistedHeader,
         reason: 'change',
         ...startsSeries ? { startsSeries: true } : {},
       })
     } else if (startsSeries) {
-      this.session.append('request/header', { header, reason: 'series' })
+      this.session.append('request/header', { header: persistedHeader, reason: 'series' })
     }
     this.requestSurfaceGeneration = surfaceGeneration
 

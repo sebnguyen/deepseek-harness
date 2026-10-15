@@ -4,7 +4,7 @@ import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import type { ToolDefinition, ToolExecution, ToolExecutionResult, ToolRunContext, ToolResult } from './index.ts'
-import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, JsonSchemaError, validateJsonSchemaValue } from './json-schema.ts'
+import { assertSupportedJsonSchema, isJsonSchemaRecord, isPlainJsonArray, isPlainJsonRecord, JsonSchemaError, validateJsonSchemaValue } from './json-schema.ts'
 import type { JsonSchemaNode, JsonSchemaScalar, ObjectJsonSchema } from './json-schema.ts'
 import type { ToolCallView, ToolResultView } from './presentation.ts'
 
@@ -476,7 +476,93 @@ export class ToolArgsError extends HarnessError {
  * @returns Path-qualified violations; empty means valid.
  */
 export function validateArgs(spec: ParameterSchemaSpec, args: unknown): string[] {
-  return validateJsonSchemaValue(parameterSchemaSpecToJsonSchema(spec), args, '')
+  return compiledArgsViolations(parameterSchemaSpecToJsonSchema(spec), args)
+}
+
+/**
+ * Validate parsed arguments against a compiled parameter schema, reporting
+ * model-side corruption accurately. A raw-string argument is only reachable
+ * when the upstream parse failed (or recovery declined to touch it), so it
+ * reports as a JSON parse failure rather than an object-type violation; a
+ * `must be an array|object` mismatch whose live value is a string gets the
+ * stringified-payload hint. Both surfaces share this: `defineTool`'s execute
+ * validation and the exported `validateArgs`.
+ */
+function compiledArgsViolations(parameters: JsonSchemaNode, args: unknown): string[] {
+  if (typeof args === 'string') {
+    // `parseArguments` (packages/core/agent-loop/src/tool-calls.ts) preserves
+    // unparseable argument text instead of failing the call, so a string here
+    // means the model's JSON never parsed — a truncated or mis-escaped
+    // payload, not a real schema mismatch. Report the parse failure itself so
+    // the model retries with valid JSON instead of chasing the phantom
+    // `"arguments" must be an object` violation a bare string produced.
+    return [
+      `arguments are not valid JSON: ${args.length} raw bytes arrived unparsed `
+      + '(the payload was likely truncated or mis-escaped). Re-emit the call with '
+      + 'valid JSON; split large payloads across several calls.',
+    ]
+  }
+  return validateJsonSchemaValue(parameters, args, '')
+    .map(violation => withContainerValueHint(violation, args))
+}
+
+/** A `"path" must be an array|an object` container-type violation. */
+const CONTAINER_MISMATCH = /^"(.+)" must be (an array|an object)$/
+
+/** Resolve a validator path (`files`, `files[0].edits`) against parsed arguments. */
+function valueAtHintPath(args: unknown, path: string): { found: boolean; value: unknown } {
+  let current = args
+  const segments = path.split('.').flatMap((part) => {
+    const segment: Array<string | number> = [part.replace(/\[\d+\]/g, '')]
+    for (const [, index] of part.matchAll(/\[(\d+)\]/g)) segment.push(Number(index))
+    return segment
+  })
+  for (const segment of segments) {
+    if (typeof current !== 'object' || current === null || !Object.hasOwn(current, segment)) {
+      return { found: false, value: undefined }
+    }
+    current = (current as Record<string | number, unknown>)[segment]
+  }
+  return { found: true, value: current }
+}
+
+/**
+ * Append the stringified-payload hint to a container-type violation when the
+ * live value is a string. Large stringified arrays and objects are the common
+ * large-payload corruption (the model emits `"files": "[{...}]"`), and the bare
+ * mismatch sentence alone led transcripts to retry the same broken shape.
+ */
+function withContainerValueHint(violation: string, args: unknown): string {
+  const mismatch = CONTAINER_MISMATCH.exec(violation)
+  if (mismatch === null) return violation
+  const pathHint = mismatch[1]
+  if (pathHint === undefined) return violation
+  const resolved = valueAtHintPath(args, pathHint)
+  if (!resolved.found || typeof resolved.value !== 'string') return violation
+  const shape = mismatch[2] === 'an array' ? 'array' : 'object'
+  return `${violation}; received a string instead — if the payload was stringified `
+    + `to fit one call, emit the ${shape} literal, and split large payloads across several calls`
+}
+/**
+ * Batch-tool {@link DefineToolOptions.normalizeArgs} for the pre-batch singleton
+ * shape: a model that still remembers `{command: "…"}`- or `{file_path: "…"}`-
+ * rooted roots receives a single wrapper element built from every root key
+ * except the declared batch field, then strict validation evaluates the
+ * wrapped result byte-for-byte. Two-shape coexistence never lands here: when
+ * the batch field is present, or the trigger key is absent or not a non-empty
+ * string, the arguments pass through untouched and strict validation names
+ * what is actually wrong.
+ * @param args - parsed model arguments after harness-meta stripping.
+ * @param batchKey - the batch array field name (`commands`, `files`).
+ * @param triggerKey - the singleton root key that disambiguates the legacy shape.
+ * @returns the wrapped arguments, or the input untouched.
+ */
+export function wrapSingletonArgs(args: unknown, batchKey: string, triggerKey: string): unknown {
+  if (!isPlainJsonRecord(args) || args[batchKey] !== undefined) return args
+  const trigger = args[triggerKey]
+  if (typeof trigger !== 'string' || trigger === '') return args
+  const { [batchKey]: _unused, ...element } = args
+  return { [batchKey]: [element] }
 }
 
 /** Options for {@link defineTool}. */
@@ -496,6 +582,18 @@ export interface DefineToolOptions<S extends ParameterSchemaSpec, O extends Valu
     /** Pure replayable presentation metadata for direct top-level calls. */
     presentationMeta?(args: InferArgs<S>, value: InferValue<NoInfer<O>>): JsonValue
   }
+  /**
+   * Optional pure argument normalization applied BEFORE validation at the
+   * dispatch boundary. Its charter is shape coercion only: a batch tool may
+   * wrap a singleton call object into its element array when the model
+   * remembered the pre-batch root. Types still fail strictly — never repair,
+   * unstringify, or guess content here. The raw logged arguments remain the
+   * model's own emission; normalization is a dispatch-time handoff.
+   *
+   * @param args - parsed model arguments after harness-meta stripping.
+   * @returns the normalized arguments to validate and execute against.
+   */
+  normalizeArgs?(args: unknown): unknown
   /** Optional positive cooperative timeout budget in milliseconds. */
   readonly timeoutMs?: number
   /**
@@ -565,7 +663,7 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
   }
   const parameters = parameterSchemaSpecToJsonSchema(options.parameters)
   const outputSchema = valueSchemaSpecToJsonSchema(options.output.schema)
-  const validate = (args: unknown): string[] => validateJsonSchemaValue(parameters, args, '')
+  const validate = (args: unknown): string[] => compiledArgsViolations(parameters, args)
   const tool: ToolDefinition = {
     name: options.name,
     description: options.description,
@@ -583,9 +681,11 @@ export function defineTool<const S extends ParameterSchemaSpec, const O extends 
     },
     ...(options.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     async execute(args: unknown, exec: ToolRunContext): Promise<JsonValue> {
-      const violations = validate(args)
+      // oxlint-disable-next-line typescript/prefer-optional-chain -- options itself is in-scope; the hook is a maybe-method on options.
+      const materialized = options.normalizeArgs !== undefined ? options.normalizeArgs(args) : args
+      const violations = validate(materialized)
       if (violations.length > 0) throw new ToolArgsError(violations)
-      return userExecute(args as InferArgs<S>, exec) as Promise<JsonValue>
+      return userExecute(materialized as InferArgs<S>, exec) as Promise<JsonValue>
     },
   }
   if (userFinalizeContent) {

@@ -7,7 +7,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import { ShellExecutor } from '@deepseek-ai/dsh-shell'
 import type { ShellExecRequest, ShellExecSpec, ShellProcess, ShellProcessRead, ShellRunResult } from '@deepseek-ai/dsh-shell'
 import SystemPrompt, { BUILT_IN_CORE_GUIDANCE_SECTION_NAMES } from '@deepseek-ai/dsh-system-prompt'
-import ToolRuntime, { PURPOSE_KEY, TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
+import ToolRuntime, { TOOL_ABORTED, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
@@ -81,7 +81,7 @@ function registerFakeAgent(ctx: Context, sessionId: string, inject: (...args: un
 }
 let callCounter = 0
 function call(ctx: Context, name: string, args: unknown, agent?: Agent) {
-  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++callCounter}`), name, arguments: args, ...agent ? { agent } : {} })
+  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++callCounter}`), name, arguments: { description: 'tool-bash tools.spec coverage', ...(args as Record<string, unknown>) }, ...agent ? { agent } : {} })
 }
 
 function text(result: { content: { type: string; text?: string }[] }): string {
@@ -332,13 +332,14 @@ describe('bash tool', () => {
     })
   })
 
-  // Type and required-key violations are rejected by the harness
-  // (defineTool validates against the ParameterSchemaSpec — the arg-validation Agent Note) before execute.
+  // Type and required-key violations are rejected by the harness: the registry
+  // enforces the `description` purpose key first (absent or non-string), then
+  // defineTool validates against the ParameterSchemaSpec — the arg-validation Agent Note.
   it.each([
     [{}, /missing required property "command"/],
     [{ command: 42, description: 'd' }, /"command" must be a string/],
-    [{ command: 'x' }, /missing required property "description"/],
-    [{ command: 'x', description: 7 }, /"description" must be a string/],
+    [{ command: 'x', description: 7 }, /missing required property "description"/],
+    [{ command: 'x', description: 7 }, /missing required property "description"/],
     [{ command: 'x', description: 'd', timeoutMs: 'soon' }, /"timeoutMs" must be a number/],
     [{ command: 'x', description: 'd', workdir: 7 }, /"workdir" must be a string/],
     [{ command: 'x', description: 'd', run_in_background: 'yes' }, /"run_in_background" must be a boolean/],
@@ -347,6 +348,18 @@ describe('bash tool', () => {
     const result = await call(ctx, 'bash', args)
     expect(result.isError).toBe(true)
     expect(text(result)).toMatch(pattern)
+  })
+
+  it('rejects a call with an absent description at the registry before tool validation', async () => {
+    const ctx = await setup()
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('absent-purpose'),
+      name: 'bash',
+      arguments: { command: 'x' },
+    })
+    expect(result.isError).toBe(true)
+    expect(text(result)).toMatch(/missing required property "description"/)
   })
 
   // Value constraints the ParameterSchemaSpec can't express stay in the tool body.
@@ -377,7 +390,7 @@ describe('bash tool', () => {
     const bashSchema = schemas[0]!
     expect(bashSchema.parameters).toMatchObject({
       type: 'object',
-      required: ['command', 'description', PURPOSE_KEY],
+      required: ['command', 'description'],
     })
     expect(Object.keys(bashSchema.parameters.properties as Record<string, unknown>))
       .toContain('run_in_background')
@@ -579,7 +592,7 @@ describe('background execution through the job runtime', () => {
 
     const schema = ctx.tools.schemas().find(s => s.name === 'bash')!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
-      .toEqual(['command', 'description', 'timeoutMs', 'workdir', PURPOSE_KEY])
+      .toEqual(['command', 'description', 'timeoutMs', 'workdir'])
     expect(schema.description).toContain('Background execution is not available')
     expect(schema.description).not.toContain('run_in_background')
     // The registry-held definition agrees (schema and capability never disagree).
@@ -676,7 +689,7 @@ describe('sandbox escalation through the generic task producer', () => {
     const foreground = await ctx.tools.execute({
       callId: ToolCallId('sandbox-signal'),
       name: 'bash',
-      arguments: escalate,
+      arguments: { ...escalate, description: 'a granted escalation runs the foreground call under the approved mode' },
       agent,
       signal: new AbortController().signal,
     })
@@ -699,7 +712,7 @@ describe('sandbox escalation through the generic task producer', () => {
     const result = await ctx.tools.execute({
       callId: ToolCallId('cancelled-escalation-background'),
       name: 'bash',
-      arguments: { ...escalate, run_in_background: true },
+      arguments: { ...escalate, run_in_background: true, description: 'cancellation after the escalation grant publishes no detached work' },
       agent,
       signal: controller.signal,
     })

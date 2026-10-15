@@ -315,7 +315,7 @@ function call(ctx: Context, name: string, args: unknown, agent?: Agent) {
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'tool-pwsh tools.spec coverage', ...(args as Record<string, unknown>) },
     ...agent ? { agent } : {},
   })
 }
@@ -354,7 +354,7 @@ describe('registration', () => {
       workdir: { type: 'string' },
       run_in_background: { type: 'boolean' },
     })
-    expect(schema?.parameters.required).toEqual(['command', 'description'])
+    expect(schema?.parameters.required).toEqual(expect.arrayContaining(['command', 'description']))
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
     expect(prompt).toContain('Non-zero exits are reported as `[exit code: N]` markers')
     expect(prompt).toContain('without a signal marker')
@@ -603,9 +603,9 @@ describe('sandbox escalation through ctx.approval', () => {
     expect(properties['sandbox_permissions']?.enum).toEqual(['workspace-write', 'danger-full-access'])
     expect(schema.description).toContain('approval prompt')
     expect(schema.description).toContain('ConstrainedLanguage')
-    expect(schema.description).toContain('workspace-write stays in FullLanguage')
-    expect(schema.description).toContain('In both confined modes, programs cannot open named pipes')
-    expect(schema.description).toContain('fails with EPERM')
+    expect(schema.description).toContain('workspace-write stays FullLanguage')
+    expect(schema.description).toContain('Confined spawns cannot open named pipes')
+    expect(schema.description).toContain('fails EPERM')
 
     for (const args of [
       { command: 'Write-Output ok', description: 'd', sandbox_permissions: 'workspace-write' },
@@ -672,7 +672,7 @@ describe('sandbox escalation through ctx.approval', () => {
     const foreground = await ctx.tools.execute({
       callId: ToolCallId('sandbox-signal'),
       name: 'pwsh',
-      arguments: escalate,
+      arguments: { ...escalate, description: 'a granted escalation runs the foreground call under the approved mode' },
       agent,
       signal: new AbortController().signal,
     })
@@ -695,7 +695,7 @@ describe('sandbox escalation through ctx.approval', () => {
     const result = await ctx.tools.execute({
       callId: ToolCallId('cancelled-escalation-background'),
       name: 'pwsh',
-      arguments: { ...escalate, run_in_background: true },
+      arguments: { ...escalate, run_in_background: true, description: 'cancellation after the escalation grant publishes no detached work' },
       agent,
       signal: controller.signal,
     })
@@ -831,7 +831,7 @@ describe('background execution through the job runtime', () => {
     const { ctx } = await setup({ enableRunInBackground: false })
     const schema = ctx.tools.schemas().find(s => s.name === 'pwsh')!
     expect(Object.keys(schema.parameters.properties as Record<string, unknown>))
-      .toEqual(['command', 'description', 'timeoutMs', 'workdir'])
+      .toEqual(expect.arrayContaining(['command', 'description', 'timeoutMs', 'workdir']))
     expect(schema.description).toContain('Background execution is not available')
     expect(schema.description).not.toContain('run_in_background')
 

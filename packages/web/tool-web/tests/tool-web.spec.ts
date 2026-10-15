@@ -50,7 +50,7 @@ async function mountTools(opts: {
   if (opts.fetchProvider) ctx.web.registerFetchProvider(opts.fetchProvider)
   const fiber = await ctx.plugin(ToolWeb, opts.config ?? {})
   let counter = 0
-  const call = (name: string, args: unknown) => ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++counter}`), name, arguments: args })
+  const call = (name: string, args: unknown) => ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++counter}`), name, arguments: { ...(args === null || typeof args !== 'object' || Array.isArray(args) ? {} : args), description: 'test purpose' } })
   return { ctx, fiber, call }
 }
 
@@ -725,7 +725,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const { ctx, fiber } = await mountTools({ webConfig: { fetchProvider: 'stub-fetch' }, fetchProvider })
     const controller = new AbortController()
-    const out = await ctx.tools.execute({ callId: ToolCallId('fetch-1'), name: 'web_fetch', arguments: { url: 'https://a.test' }, signal: controller.signal })
+    const out = await ctx.tools.execute({ callId: ToolCallId('fetch-1'), name: 'web_fetch', arguments: { url: 'https://a.test', description: 'test purpose' }, signal: controller.signal })
     expect(out.isError).toBe(false)
     expect(out.value).toEqual({
       url: 'https://a.test',
@@ -752,7 +752,7 @@ describe('tool-web execution through the real registry', () => {
       },
     }
     const { ctx, fiber } = await mountTools({ webConfig: { fetchProvider: 'stub-fetch' }, fetchProvider })
-    const out = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('fetch-2'), name: 'web_fetch', arguments: { url: 'https://a.test' } })
+    const out = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('fetch-2'), name: 'web_fetch', arguments: { url: 'https://a.test', description: 'test purpose' } })
     expect(out.isError).toBe(false)
     expect(out.value).toEqual({
       url: 'https://a.test',
@@ -774,7 +774,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const { ctx, fiber } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
     const controller = new AbortController()
-    await ctx.tools.execute({ callId: ToolCallId('search-1'), name: 'web_search', arguments: { queries: ['q'] }, signal: controller.signal })
+    await ctx.tools.execute({ callId: ToolCallId('search-1'), name: 'web_search', arguments: { queries: ['q'], description: 'test purpose' }, signal: controller.signal })
     expect(seen.signal).toBe(controller.signal)
     await fiber.dispose()
   })
@@ -793,7 +793,7 @@ describe('tool-web execution through the real registry', () => {
     }
     const { ctx, fiber } = await mountTools({ webConfig: { searchProvider: 'stub-search' }, search: provider })
     const controller = new AbortController()
-    const pending = ctx.tools.execute({ callId: ToolCallId('search-multi-1'), name: 'web_search', arguments: { queries: ['one', 'two'] }, signal: controller.signal })
+    const pending = ctx.tools.execute({ callId: ToolCallId('search-multi-1'), name: 'web_search', arguments: { queries: ['one', 'two'], description: 'test purpose' }, signal: controller.signal })
     await vi.waitFor(() => { expect(signals).toHaveLength(2) })
     expect(signals[0]).toBe(signals[1])
     expect(signals[0]).not.toBe(controller.signal)

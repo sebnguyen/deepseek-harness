@@ -8,3 +8,4 @@
 export * from './manifest.ts'
 export * from './registry.ts'
 export * from './vscode/index.ts'
+export { VscodeModulesRegistry as default } from './registry.ts'

@@ -13,6 +13,7 @@ import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import { Service } from '@deepseek-ai/cordis'
+import type { WebServer } from '@deepseek-ai/dsh-host-webserver'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { parseDshVscode, planeIdOf, type VscodeManifest, type VscodePlane } from './manifest.ts'
 
@@ -58,28 +59,30 @@ export class VscodeModulesRegistry extends Service {
 
     ctx.on('internal/plugin', () => { this.scheduleFlush() })
 
-    const tryMountRoutes = (): void => {
-      const webCtx = ctx as unknown as { webServer?: { register(route: unknown): unknown } }
-      if (webCtx.webServer === undefined || this.manifestRouteMounted) return
-      webCtx.webServer.register({
-        kind: 'prefix',
-        path: '/vscode/manifest',
-        handler: this.serveManifest,
-      })
-      webCtx.webServer.register({
-        kind: 'prefix',
-        path: '/vscode/plugin',
-        handler: this.servePlane,
-      })
+    const registerRoutes = (webCtx: Context & { webServer: WebServer }): void => {
+      if (this.manifestRouteMounted) return
       this.manifestRouteMounted = true
+      webCtx.effect(
+        () => webCtx.webServer.register({
+          kind: 'prefix',
+          path: '/vscode/manifest',
+          handler: this.serveManifest,
+        }),
+        'vscode-modules: manifest route',
+      )
+      webCtx.effect(
+        () => webCtx.webServer.register({
+          kind: 'prefix',
+          path: '/vscode/plugin',
+          handler: this.servePlane,
+        }),
+        'vscode-modules: plane route',
+      )
     }
-    if ((ctx as { webServer?: unknown }).webServer === undefined) {
-      // carrier-style: wait for the webServer service like dsh-client-modules does.
-      ;(ctx as unknown as { inject(names: string[], callback: (actuated: unknown) => void): void })
-        .inject(['webServer'], () => { tryMountRoutes() })
-    } else {
-      tryMountRoutes()
-    }
+    // The registry context injects loader only. ctx.get reads the service
+    // store; ctx.inject's callback context is the one allowed to read webServer.
+    if (ctx.get('webServer') === undefined) ctx.inject(['webServer'], registerRoutes)
+    else registerRoutes(ctx)
     this.flush()
   }
 

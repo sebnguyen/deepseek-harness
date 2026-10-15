@@ -107,7 +107,7 @@ describe('tool-todo real Loader composition through cordis.yml', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('parallel'),
       name: 'todo_write',
-      arguments: { todos: PARALLEL_TODOS },
+      arguments: { todos: PARALLEL_TODOS, description: 'attempt a parallel todo write the narrowed policy rejects' },
       agent: owner,
     })
     expect(result.isError).toBe(true)
@@ -125,7 +125,7 @@ describe('tool-todo real Loader composition through cordis.yml', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('parallel-enabled'),
       name: 'todo_write',
-      arguments: { todos: PARALLEL_TODOS },
+      arguments: { todos: PARALLEL_TODOS, description: 'write parallel todos the policy permits end to end' },
       agent: owner,
     })
     expect(result.isError).toBe(false)

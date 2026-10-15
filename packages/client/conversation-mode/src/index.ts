@@ -9,14 +9,18 @@
  * and a selection made in one session never touches another. Model-side the
  * plugin stays deliberately small:
  *
- * - **The projection is snapshotted per turn.** The first admission of each
- *   turn (the step-1 pre-step, before any request is built) fixes the turn's
- *   shape from the folded state. A selection made mid-turn changes the logged
- *   state, never the open turn; the snapshot is keyed by (session, turn) so
- *   same-step retries and concurrent sessions keep the minted value.
- * - **A one-line reminder** injected into every turn of a non-narrate shape,
- *   stating the transcript promise in one sentence. This is the shape's
- *   standing model-facing instruction.
+ * - **The projection is snapshotted per step admission.** The snapshot is
+ *   minted at a step's admission — the loop's atomic commit point — so a
+ *   mid-turn selection applies from the next step boundary exactly, and one
+ *   step's retry cascade (all its (turn, step) dispatches) shares one
+ *   contract. A selection made mid-turn changes the logged state and lands
+ *   at the next admission; the snapshot is keyed by (session, turn, step) so
+ *   retries never remint.
+ * - **A one-line reminder** per shape epoch, injected at the first step
+ *   admission that resolves under it — step 1 for a shape armed before the
+ *   turn, the very next step for a mid-turn pick. Turn rollover remints,
+ *   narrate erases the epoch, so re-entering a shaped epoch re-notifies
+ *   exactly once.
  * - **Request-grammar hints on capable routes only.** Under `quiet` and
  *   `tools` the plugin contributes two fields at the declared
  *   `GRAMMAR_PRIORITY.turnShape` band through the arbitration seam: an
@@ -122,15 +126,23 @@ export function apply(ctx: Context, config: ConversationModeConfig = {}): void {
     scoped.sessionProjections.register(turnShapeProjectionDefinition)
 
     /**
-     * Per-session turn shape snapshot. Minted lazily at the first admission
-     * of a (session, turn) pair — the step-1 pre-step of the turn, which
-     * precedes its first request — so a mid-turn selection applies from the
-     * next turn exactly, and same-step retries remint nothing. Bounded so
-     * long-lived hosts never grow it without limit; a reclaimed snapshot
-     * simply re-mints under the then-current projection state, which is
-     * correct for any turn still open.
+     * Per-session turn shape snapshot. Minted at a step's admission — the
+     * loop's atomic commit point — so a mid-turn selection applies from the
+     * next step boundary exactly, and one step's retry cascade (all its
+     * (turn, step) dispatches) shares one contract. Bounded so long-lived
+     * hosts never grow it without limit; a reclaimed snapshot simply re-mints
+     * under the then-current projection state, which is correct for any step
+     * still open.
      */
-    const snapshots = new Map<Agent, { turn: number; shape: TurnShape }>()
+    const snapshots = new Map<Agent, { turn: number; step: number; shape: TurnShape }>()
+    /**
+     * One `[turn-shape]` reminder per (agent, turn, shape) epoch, delivered at
+     * the first step admission that resolves under it — step 1 for a shape
+     * armed before the turn, the very next step for a mid-turn pick. Turn
+     * rollover remints; narrate erases the epoch, so re-entering a shaped epoch
+     * re-notifies exactly once.
+     */
+    const reminders = new Map<Agent, { turn: number; shape: TurnShape }>()
     /**
      * The (agent, turn) pair whose natural stop already fired the quiet
      * wrap-up. Sheltered from re-mint like the snapshot it rides: the wrap-up
@@ -142,31 +154,36 @@ export function apply(ctx: Context, config: ConversationModeConfig = {}): void {
     const MAX_SNAPSHOTS = 64
     const evict = (key: Agent): void => {
       snapshots.delete(key)
+      reminders.delete(key)
       wrapUps.delete(key)
     }
-    const shapeForTurn = (agent: Agent, turn: number): TurnShape => {
+    const resolveShape = (agent: Agent, turn: number, step: number): TurnShape => {
       const snapshot = snapshots.get(agent)
-      if (snapshot !== undefined) {
-        if (snapshot.turn === turn) return snapshot.shape
-        evict(agent)
-      }
+      if (snapshot !== undefined && snapshot.turn === turn && snapshot.step === step) return snapshot.shape
       const shape = scoped.sessionProjections.stateOf(agent.session, 'turnShape')?.shape ?? DEFAULT_SHAPE
       while (snapshots.size >= MAX_SNAPSHOTS) {
         const oldest = snapshots.keys().next()
         if (oldest.done === true) break
         evict(oldest.value)
       }
-      snapshots.set(agent, { turn, shape })
+      snapshots.set(agent, { turn, step, shape })
       return shape
     }
 
-    // The per-turn reminder rides step-1 admission, mirroring the other
-    // turn-context reminders (staging ladder, repeat-tool).
+    // One reminder per shape epoch, delivered at the first step admission
+    // that resolves under it — step 1 for a shape armed before the turn, the
+    // very next step for a mid-turn pick.
     scoped.on('agent/pre-step', async ({ agent, turn, step }, next): Promise<PreStepDecision> => {
       const decision = await next()
-      if (decision.kind !== 'enter' || step !== 1) return decision
-      const shape = shapeForTurn(agent, turn)
-      if (shape === 'narrate') return decision
+      if (decision.kind !== 'enter') return decision
+      const shape = resolveShape(agent, turn, step)
+      if (shape === 'narrate') {
+        reminders.delete(agent)
+        return decision
+      }
+      const epoch = reminders.get(agent)
+      if (epoch !== undefined && epoch.turn === turn && epoch.shape === shape) return decision
+      reminders.set(agent, { turn, shape })
       const reminderSource: TurnShapeSource = { kind: 'turn-shape', turnShape: shape }
       const reminder: UserMessage = createUserMessage({
         content: [{ type: 'text', text: turnShapeReminderText(shape) }],
@@ -177,8 +194,11 @@ export function apply(ctx: Context, config: ConversationModeConfig = {}): void {
 
     // A quiet turn's natural zero-tool-call stop is followed by exactly one
     // steered wrap-up step; a second stop in the same turn closes for real.
+    // The stop decision reads the projection at the stop moment: a quiet
+    // turn flipped to narrate mid-turn closes unsteered (the rescue case).
     scoped.on('agent/turn-stopping', ({ agent, turn }) => {
-      if (shapeForTurn(agent, turn) !== 'quiet') return
+      const shape = scoped.sessionProjections.stateOf(agent.session, 'turnShape')?.shape ?? DEFAULT_SHAPE
+      if (shape !== 'quiet') return
       if (wrapUps.get(agent) === turn) return
       wrapUps.set(agent, turn)
       const wrapUpSource: TurnShapeSource = { kind: 'turn-shape', turnShape: 'quiet' }
@@ -197,7 +217,7 @@ export function apply(ctx: Context, config: ConversationModeConfig = {}): void {
           id: 'conversation-mode:turn-shape',
           priority: GRAMMAR_PRIORITY.turnShape,
           attach: (draft) => {
-            if (shapeForTurn(draft.agent, draft.turn) === 'narrate') return undefined
+            if (resolveShape(draft.agent, draft.turn, draft.step) === 'narrate') return undefined
             if (wrapUps.get(draft.agent) === draft.turn) return undefined
             const support = grammarCtx.llm.grammarCapability(
               draft.config.provider,

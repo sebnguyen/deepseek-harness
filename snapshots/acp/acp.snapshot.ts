@@ -31,9 +31,9 @@ const controllerCases: readonly {
   { name: 'reject-extra-dirs', hasModelTurn: false },
   { name: 'cancel', hasModelTurn: true },
   { name: 'cancel-tool-calls', hasModelTurn: true },
-  { name: 'escalation-approved', hasModelTurn: true },
-  { name: 'escalation-rejected', hasModelTurn: true },
-  { name: 'fs-escalation-approved', hasModelTurn: true },
+  // The escalation scenarios exercised per-call sandbox_permissions on the
+  // batch tools — a flow the thin-catalog flatten removed; they live at
+  // _archive/snapshots/ with the packages that shape belonged to.
 ] as const
 
 function localScenarioSource(source: string | undefined): string | undefined {

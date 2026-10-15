@@ -43,7 +43,7 @@ function callTodo(ctx: Context, args: unknown, over: { agent?: Agent | undefined
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name: 'todo_write',
-    arguments: args,
+    arguments: { description: 'exercise the todo_write tool fixture', ...(args as Record<string, unknown>) },
     ...agent ? { agent } : {},
   })
 }
@@ -58,7 +58,7 @@ describe('dsh-tool-todo', () => {
     const schema = ctx.tools.schemas().find(s => s.name === 'todo_write')
     expect(schema).toBeDefined()
     const props = (schema!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
-    expect(Object.keys(props)).toEqual(['todos'])
+    expect(Object.keys(props).filter(key => key !== 'description')).toEqual(['todos'])
     const todos = props.todos as { type: string; items?: { properties?: Record<string, { type: string; enum?: string[] }> } }
     expect(todos.type).toBe('array')
     const itemProps = todos.items?.properties ?? {}

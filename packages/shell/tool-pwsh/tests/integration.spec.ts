@@ -43,7 +43,7 @@ function call(name: string, args: unknown, agentObj?: object, signal?: AbortSign
     signal: signal ?? testToolSignal,
     callId: ToolCallId(`it-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'pwsh real-executor integration coverage', ...(args as Record<string, unknown>) },
     ...agentObj ? { agent: agentObj as never } : {},
   })
 }

@@ -135,7 +135,7 @@ suite('persistent Bash through a real cordis.yml Loader composition', () => {
       signal,
       callId: ToolCallId(id),
       name: 'bash',
-      arguments: { command },
+      arguments: { command, description: 'persistent-bash loader-composition coverage' },
       agent: owner,
     })
 

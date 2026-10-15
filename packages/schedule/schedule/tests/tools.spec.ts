@@ -76,7 +76,7 @@ async function execute(
     signal: executionSignal,
     callId: ToolCallId(`call-${Math.random()}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the schedule tools fixture', ...(args as Record<string, unknown>) },
     agent,
   }))
 }

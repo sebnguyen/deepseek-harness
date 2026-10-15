@@ -62,16 +62,11 @@
           "workdir": {
             "type": "string",
             "description": "Working directory for elements without their own; defaults to the session workspace, and a relative path is resolved against it."
-          },
-          "_dsh_harness_purpose": {
-            "type": "string",
-            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
           }
         },
         "required": [
           "commands",
-          "description",
-          "_dsh_harness_purpose"
+          "description"
         ]
       }
     },
@@ -87,15 +82,15 @@
           "digest": {
             "type": "string"
           },
-          "_dsh_harness_purpose": {
+          "description": {
             "type": "string",
-            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Required on every call: the execution sees only the remaining arguments."
           }
         },
         "required": [
           "path",
           "digest",
-          "_dsh_harness_purpose"
+          "description"
         ]
       }
     },
@@ -117,15 +112,15 @@
             "type": "string",
             "description": "Why you are crossing to this stage."
           },
-          "_dsh_harness_purpose": {
+          "description": {
             "type": "string",
-            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Optional; when absent the session UI falls back to tool-declared intent fields."
+            "description": "One sentence stating why this exact call is being made; it is shown to the human reviewing this session and cited in critiques of the change it produces. Required on every call: the execution sees only the remaining arguments."
           }
         },
         "required": [
           "stage",
           "justification",
-          "_dsh_harness_purpose"
+          "description"
         ]
       }
     }

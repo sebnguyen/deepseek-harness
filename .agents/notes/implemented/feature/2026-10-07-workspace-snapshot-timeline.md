@@ -12,11 +12,11 @@ Two consequences followed. A reader had no per-effect file history to review, an
 
 ### One registry-owned purpose field, split at ingress
 
-`packages/core/tools/src/purpose.ts` owns the reserved key `_dsh_harness_purpose` and the reserved prefix `_dsh_harness_`. The registry is the single owner of both ends of a call, so compliance is universal by construction:
+`packages/core/tools/src/purpose.ts` owns the purpose key `description` and the reserved prefix `_dsh_harness_`. The registry is the single owner of both ends of a call, so compliance is universal by construction. The key rename and tool-declared dedup are [the shared description purpose key](../architecture/2026-10-14-shared-description-purpose-key.md).
 
-- `schemaOf` projects every tool's exposed parameters with the reserved property appended **last**, so the model-facing schema is a detached projection whose source key order is preserved and whose bytes are stable across requests. Injection is unconditional and never added to `required`: the field is an offer, never a denial gate.
-- `prepareExecution` splits the parsed arguments: the body receives the derived **clean** object, and the execution carries `purpose` as a sibling.
-- `register` rejects a tool that declares its own reserved key, which makes injection idempotent and keeps the namespace provable.
+- `schemaOf` projects every tool's exposed parameters through `withPurpose`. Object-rooted schemas that do not already declare `description` gain that property appended **last** and listed in `required`. A tool that already declares `description` passes through unchanged, and that argument is the purpose. Injection is additive-or-unchanged, so declared key order stays stable across requests.
+- `prepareExecution` lifts `description` onto the execution's `purpose` sibling. An injected key is stripped before guards, approval, and bodies; a tool-declared `description` stays in the dispatch arguments.
+- `register` rejects a tool that declares a `_dsh_harness_*` key. Dedup on `description` makes a second injection a no-op.
 - `packages/core/agent-loop/src/tool-calls.ts` appends `tool/call` with `arguments` **byte-verbatim** as received and adds the derived `purpose` sibling beside it, so replay reconstructs the exact bytes the model sent and the reason stays an index derived from them.
 
 Raw fidelity is the constraint that chose this shape: `tool/call.arguments` is the append-only record and may not be rewritten, and re-appending a cleaned object would corrupt replay and prompt-cache prefixes.

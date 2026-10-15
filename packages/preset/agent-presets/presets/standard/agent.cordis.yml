@@ -241,8 +241,7 @@
         toolName: subagent_fork
         backgroundMode: continuable
 
-    # The wind-up explorer — the `wind-up-wind-down` preset's flow mounted
-    # here so standard sessions boot into it: one-shot foreground child,
+    # The one-shot explorer mounted here so standard sessions boot with it: one-shot foreground child,
     # no children of its own, deployment-owned handoff schema, step
     # budget, and read-only confinement. The allow list names only tools
     # this preset itself mounts, so the child-scope restriction resolves

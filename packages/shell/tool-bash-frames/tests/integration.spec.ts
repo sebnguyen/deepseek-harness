@@ -103,7 +103,7 @@ describe('bash tool through the agent loop', () => {
         commands: [{
           command: 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "${DSH_STALE_PARENT-unset}"',
         }],
-        description: 'inspect session environment',
+        description: 'inspect the session DSH_* environment',
       }),
       textResponse('Session environment inspected.'),
     ])
@@ -124,7 +124,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: model calls bash, sees the result, replies', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'echo integration-ok' }], description: 'test command' }, 'Running it.'),
+      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'echo integration-ok' }], description: 'run echo integration-ok' }, 'Running it.'),
       textResponse('The command printed integration-ok.'),
     ])
     const ctx = await harness(adapter)
@@ -156,7 +156,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: non-zero exit is reported in the result text, not as isError', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'exit 9' }], description: 'test command' }),
+      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'exit 9' }], description: 'exit nonzero to see the exit-code marker' }),
       textResponse('It failed with code 9.'),
     ])
     const ctx = await harness(adapter)
@@ -188,10 +188,10 @@ describe('bash tool through the agent loop', () => {
           command: `while [ ! -f ${JSON.stringify(sentinel)} ]; do sleep 0.02; done; echo bg-ok`,
           run_in_background: true,
         }],
-        description: 'test command',
+        description: 'start the sentinel-gated command in the background',
       }),
       textResponse('Started it in the background.'),
-      toolCallResponse('call-2', 'job_output', { job_id: 'bash-1', timeout_ms: 100 }),
+      toolCallResponse('call-2', 'job_output', { job_id: 'bash-1', timeout_ms: 100, description: 'collect the settled background output' }),
       textResponse('Background job finished.'),
     ])
     const ctx = await harness(adapter)

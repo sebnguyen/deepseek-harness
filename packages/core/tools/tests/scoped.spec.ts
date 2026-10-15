@@ -51,7 +51,7 @@ async function run(ctx: Context, name: string, agent?: Agent): Promise<string> {
     signal: testToolSignal,
     callId: ToolCallId('c1'),
     name,
-    arguments: {},
+    arguments: { description: 'test purpose' },
     ...agent ? { agent } : {},
   })
   const first = result.content[0]
@@ -415,7 +415,7 @@ describe('scoped execution dispatch', () => {
     scope.ctx.on('tools/result', () => { scopedResults += 1 })
 
     expect(await run(ctx, 'danger', key)).toBe('Error: danger denied')
-    const callerArguments = { source: true }
+    const callerArguments = { source: true, description: 'test purpose' }
     const safeResult = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('safe-call'),
@@ -427,7 +427,7 @@ describe('scoped execution dispatch', () => {
     expect(Object.isFrozen(callerArguments)).toBe(false)
     expect(safeArguments).not.toBe(callerArguments)
     expect(Object.isFrozen(safeArguments)).toBe(true)
-    expect(callerArguments).toEqual({ source: true })
+    expect(callerArguments).toEqual({ source: true, description: 'test purpose' })
     // One token for danger and one shared by every phase of safe.
     expect(tokens.size).toBe(2)
     expect({ safeCalls, dangerCalls, scopedResults }).toEqual({
@@ -461,7 +461,7 @@ describe('scoped execution dispatch', () => {
       if (exec.name === 'parent') parent = exec.token
       return next()
     })
-    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('parent'), name: 'parent', arguments: {} })
+    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('parent'), name: 'parent', arguments: { description: 'test purpose' } })
     stopCapture()
     policyCalls = 0
     const signal = new AbortController().signal
@@ -527,7 +527,7 @@ describe('scoped execution dispatch', () => {
     const input = {
       callId: ToolCallId('stateful-parent'),
       name: 't',
-      arguments: {},
+      arguments: { description: 'test purpose' },
       signal: testToolSignal,
       get parent(): ToolExecutionToken | undefined {
         parentReads += 1
@@ -553,7 +553,7 @@ describe('scoped execution dispatch', () => {
       if (exec.name === 'parent') parent = exec.token
       return next()
     })
-    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('parent'), name: 'parent', arguments: {} })
+    await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('parent'), name: 'parent', arguments: { description: 'test purpose' } })
     stopCapture()
     const acceptedSignal = new AbortController().signal
     const driftSignal = new AbortController().signal
@@ -656,7 +656,7 @@ describe('scoped execution dispatch', () => {
     const ctx = await mount()
     ctx.tools.register(tool('t'))
     let reads = 0
-    const argumentsValue = Object.defineProperty({}, 'value', {
+    const argumentsValue = Object.defineProperty({ description: 'test purpose' }, 'value', {
       enumerable: true,
       get: () => ++reads === 1 ? 'safe' : new Map([['mutable', true]]),
     })
@@ -705,7 +705,7 @@ describe('scoped execution dispatch', () => {
     ctx.on('tools/result', () => Promise.reject(new Error('async observer failure')) as never)
     ctx.on('tools/result', (_exec, result) => { seen.push(result.isError) })
 
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('final'), name: 't', arguments: {}, agent: key })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('final'), name: 't', arguments: { description: 'test purpose' }, agent: key })
     await Promise.resolve()
     expect(result).toMatchObject({ isError: true, content: [{ type: 'text', text: 'outer failure' }] })
     expect(seen).toEqual([true, true])

@@ -16,11 +16,10 @@ interface CapturedRoute {
 function registryWithWebServer(): { registry: VscodeModulesRegistry; routes: CapturedRoute[] } {
   const ctx = new Context()
   const routes: CapturedRoute[] = []
-  Object.assign(ctx, {
-    webServer: {
-      register(route: CapturedRoute): void {
-        routes.push(route)
-      },
+  ctx.provide('webServer', {
+    register(route: CapturedRoute): () => void {
+      routes.push(route)
+      return () => undefined
     },
   })
   return { registry: new VscodeModulesRegistry(ctx), routes }
@@ -84,8 +83,13 @@ function registryWith(host: { names: string[] }) {
   const ctx = new Context()
   const warnings: string[] = []
   const routes: CapturedRoute[] = []
+  ctx.provide('webServer', {
+    register(route: CapturedRoute): () => void {
+      routes.push(route)
+      return () => undefined
+    },
+  })
   Object.assign(ctx, {
-    webServer: { register(route: CapturedRoute): void { routes.push(route) } },
     loader: { entries: () => host.names.map(loaderRow) },
     logger: { warn: (message: string) => { warnings.push(message) } },
   })

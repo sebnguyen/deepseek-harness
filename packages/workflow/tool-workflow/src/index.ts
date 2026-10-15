@@ -134,19 +134,19 @@ function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
  * model-facing spec: the meta block, the hooks and their exact semantics, and
  * the supported schema subset.
  */
-const DESCRIPTION = `Run a JavaScript workflow script that orchestrates subagents at scale. Use this for work that fans out across many independent pieces — an audit over many files, a migration, multi-angle research, adversarial verification of findings — where you write the orchestration as a script instead of delegating turn by turn.
+const DESCRIPTION = `Run a JavaScript workflow script that orchestrates subagents at scale. Use for fan-out work — audits over many files, migrations, multi-angle research, adversarial verification — where orchestration fits a script instead of turn-by-turn delegation.
 
-The workflow's identity rides the \`meta\` parameter as JSON: required \`name\` (short kebab-case) and \`description\` strings, optional \`whenToUse\` string and \`phases\` array (\`{title, detail?, provider?, model?}\`). The \`script\` parameter is the plain JavaScript body ONLY (NOT TypeScript, and NO \`export const meta\` statement — meta is a parameter, not code), running with top-level await; end with \`return <value>\` — the value must be JSON-serializable and is this tool's result.
+Identity rides the \`meta\` parameter as JSON: required \`name\` (short kebab-case) and \`description\`, optional \`whenToUse\` and \`phases\` (\`{title, detail?, provider?, model?}\`). \`meta\` is a parameter, never code — no \`export const meta\` statement. \`script\` is the plain JavaScript body ONLY (NOT TypeScript) with top-level await, ending in \`return <value>\` — JSON-serializable; it is this tool's result.
 
-Script-body hooks:
-- \`agent(prompt, opts?): Promise<any>\` — run one subagent to completion. Without \`opts.schema\` it resolves to the child's final text; with \`opts.schema\` (an object-rooted JSON Schema using ONLY type/properties/required/additionalProperties/items/enum/const/oneOf — no pattern/format/numeric bounds) it resolves to the validated object. Resolves \`null\` when the child fails (filter with \`.filter(Boolean)\`). Other opts: \`label\` (display), \`phase\` (progress group), and independent \`provider\`/\`model\` LLM target overrides (either may be provided alone). Anything else (\`effort\`/\`isolation\`/\`agentType\`) is rejected loudly.
-- \`pipeline(items, ...stages): Promise<any[]>\` — run each item through the stages independently with NO barrier between stages (prefer this for multi-stage work). Each stage receives \`(prev, item, index)\`. An ordinary stage throw drops that ITEM to \`null\` and skips its remaining stages.
-- \`parallel(thunks): Promise<any[]>\` — run zero-argument functions concurrently and await ALL of them (a barrier; use only when a stage genuinely needs every prior result together). A throwing thunk resolves to \`null\`.
-- \`phase(title)\` — start a progress phase; \`log(message)\` — narrate progress; \`args\` — the tool call's \`args\` input, verbatim.
+Script hooks:
+- \`agent(prompt, opts?)\` — one subagent to completion. \`opts.schema\` (object-rooted JSON Schema with ONLY type/properties/required/additionalProperties/items/enum/const/oneOf) resolves to the validated object; without it, the child's final text; \`null\` on child failure. Only \`label\`, \`phase\`, and independent \`provider\`/\`model\` overrides are allowed; anything else is rejected loudly.
+- \`pipeline(items, ...stages)\` — each item through every stage with NO barrier (prefer this for multi-stage work). Stage signature \`(prev, item, index)\`; a thrown stage error drops that item to \`null\`, skipping its remaining stages.
+- \`parallel(thunks)\` — barrier concurrent dispatch; a throwing thunk resolves to \`null\`.
+- \`phase(title)\` — progress phase; \`log(message)\` — narration; \`args\` — the call's \`args\` input, verbatim.
 
-Misused hooks (bad arguments, unknown options, unsupported schemas, tripped caps) throw errors that ALWAYS kill the script — they never dissolve into a per-item \`null\`.
+Hook misuse (bad arguments, unknown options, unsupported schemas, caps) throws and ALWAYS kills the script — misuse never degrades to per-item \`null\`.
 
-Constraints: concurrency and total-agent caps apply; no filesystem, network, timers, or Node.js APIs are provided — the agents do the work, the script only coordinates them. The run executes in the foreground: this call returns when the whole script finishes.`
+Concurrency and total-agent caps apply; no filesystem, network, timers, or Node APIs — agents do the work, the script only coordinates. Foreground: this call returns when the script finishes.`
 
 type WorkflowCallArgs = {
   script: string

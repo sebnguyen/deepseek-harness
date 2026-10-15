@@ -80,3 +80,5 @@ export class LineNotes extends TypertRemoteService {
     this.ctx.emit('lineNotes/focus', request)
   }
 }
+
+export default LineNotes

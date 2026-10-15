@@ -146,7 +146,7 @@ describe.skipIf(!hasPwsh)('persistent pwsh through a real cordis.yml Loader comp
       signal,
       callId: ToolCallId(id),
       name: 'pwsh',
-      arguments: { command },
+      arguments: { command, description: 'persistent-pwsh loader-composition coverage' },
       agent: owner,
     })
 

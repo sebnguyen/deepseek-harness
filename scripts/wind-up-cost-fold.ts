@@ -47,10 +47,15 @@ function finiteCount(value: unknown): number | null {
 
 /**
  * Per-model USD per-million-token rates (DigitalOcean serverless
- * inference, verified 2026-10-01; DO aligns with each provider's published
- * rates). Keys are the model ids this repository's DO and native DeepSeek
- * providers log; cache-write columns are zero where the route defines no
- * cache-miss charge.
+ * inference, verified 2026-10-14 against
+ * https://docs.digitalocean.com/products/inference/details/pricing/; DO
+ * aligns with each provider's published rates). Keys are the model ids
+ * this repository's DO and native DeepSeek providers log. Rates are the
+ * Standard processing mode at the base context tier; long-context and
+ * cache-write-(1h) tiers are not modeled, and cache writes are the
+ * 5-minute retention rate. Models DO bills per non-token unit (per
+ * image, per video, per audio second, per character) and the router:*
+ * ids take no entry.
  */
 /** One model's price per million tokens, in US dollars. */
 interface ModelRate {
@@ -61,19 +66,82 @@ interface ModelRate {
 }
 
 export const DO_MODEL_RATES: Record<string, ModelRate> = {
-  'glm-5.3-flash': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.50, cacheReadPerMillionUsd: 0.03, cacheWritePerMillionUsd: 0 },
-  'glm-5.3': { inputPerMillionUsd: 1.40, outputPerMillionUsd: 4.40, cacheReadPerMillionUsd: 0.26, cacheWritePerMillionUsd: 0 },
-  'minimax-m2.5': { inputPerMillionUsd: 0.30, outputPerMillionUsd: 1.20, cacheReadPerMillionUsd: 0.06, cacheWritePerMillionUsd: 0 },
-  'mimo-v2.5-pro': { inputPerMillionUsd: 0.80, outputPerMillionUsd: 3.00, cacheReadPerMillionUsd: 0.16, cacheWritePerMillionUsd: 0 },
-  'kimi-k2.6': { inputPerMillionUsd: 0.95, outputPerMillionUsd: 4.00, cacheReadPerMillionUsd: 0.19, cacheWritePerMillionUsd: 0 },
-  'qwen3.8-max': { inputPerMillionUsd: 2.00, outputPerMillionUsd: 6.00, cacheReadPerMillionUsd: 0.20, cacheWritePerMillionUsd: 0 },
-  // The DO catalog column lists this route under the family row `Gemma 4`.
-  'gemma-4-31B-it': { inputPerMillionUsd: 0.18, outputPerMillionUsd: 0.50, cacheReadPerMillionUsd: 0.036, cacheWritePerMillionUsd: 0 },
-  'deepseek-v4.1-flash': { inputPerMillionUsd: 0.30, outputPerMillionUsd: 1.20, cacheReadPerMillionUsd: 0.006, cacheWritePerMillionUsd: 0 },
-  'deepseek-v4-flash-0731': { inputPerMillionUsd: 0.14, outputPerMillionUsd: 0.28, cacheReadPerMillionUsd: 0.028, cacheWritePerMillionUsd: 0 },
-  'deepseek-v4-pro-0813': { inputPerMillionUsd: 1.32, outputPerMillionUsd: 3.96, cacheReadPerMillionUsd: 0.044, cacheWritePerMillionUsd: 0 },
+  'all-mini-lm-l6-v2': { inputPerMillionUsd: 0.009, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'anthropic-claude-4.5-sonnet': { inputPerMillionUsd: 3, outputPerMillionUsd: 15, cacheReadPerMillionUsd: 0.3, cacheWritePerMillionUsd: 3.75 },
+  'anthropic-claude-4.6-sonnet': { inputPerMillionUsd: 3, outputPerMillionUsd: 15, cacheReadPerMillionUsd: 0.3, cacheWritePerMillionUsd: 3.75 },
+  'anthropic-claude-5-sonnet': { inputPerMillionUsd: 2, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 2.5 },
+  'anthropic-claude-5.5-haiku': { inputPerMillionUsd: 0.1, outputPerMillionUsd: 0.5, cacheReadPerMillionUsd: 0.01, cacheWritePerMillionUsd: 0.125 },
+  'anthropic-claude-fable-5': { inputPerMillionUsd: 10, outputPerMillionUsd: 50, cacheReadPerMillionUsd: 1, cacheWritePerMillionUsd: 12.5 },
+  'anthropic-claude-fable-5.1': { inputPerMillionUsd: 10, outputPerMillionUsd: 50, cacheReadPerMillionUsd: 0.25, cacheWritePerMillionUsd: 12.5 },
+  'anthropic-claude-haiku-4.5': { inputPerMillionUsd: 1, outputPerMillionUsd: 5, cacheReadPerMillionUsd: 0.1, cacheWritePerMillionUsd: 1.25 },
+  'anthropic-claude-opus-4.5': { inputPerMillionUsd: 5, outputPerMillionUsd: 25, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 6.25 },
+  'anthropic-claude-opus-4.6': { inputPerMillionUsd: 5, outputPerMillionUsd: 25, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 6.25 },
+  'anthropic-claude-opus-4.7': { inputPerMillionUsd: 5, outputPerMillionUsd: 25, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 6.25 },
+  'anthropic-claude-opus-4.8': { inputPerMillionUsd: 5, outputPerMillionUsd: 25, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 6.25 },
+  'anthropic-claude-opus-5': { inputPerMillionUsd: 5, outputPerMillionUsd: 25, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 6.25 },
+  'anthropic-claude-opus-5.5': { inputPerMillionUsd: 4, outputPerMillionUsd: 20, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 5 },
+  'anthropic-claude-sonnet-5.5': { inputPerMillionUsd: 2, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 2.5 },
+  'arcee-trinity-large-thinking': { inputPerMillionUsd: 0.25, outputPerMillionUsd: 0.9, cacheReadPerMillionUsd: 0.06, cacheWritePerMillionUsd: 0 },
+  'bge-m3': { inputPerMillionUsd: 0.02, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'bge-reranker-v2-m3': { inputPerMillionUsd: 0.01, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'deepseek-3.2': { inputPerMillionUsd: 0.5, outputPerMillionUsd: 1.6, cacheReadPerMillionUsd: 0.15, cacheWritePerMillionUsd: 0 },
+  'deepseek-4-flash': { inputPerMillionUsd: 0.14, outputPerMillionUsd: 0.28, cacheReadPerMillionUsd: 0.028, cacheWritePerMillionUsd: 0 },
   'deepseek-v4-pro': { inputPerMillionUsd: 1.74, outputPerMillionUsd: 3.48, cacheReadPerMillionUsd: 0.348, cacheWritePerMillionUsd: 0 },
-  'deepseek-v4-flash': { inputPerMillionUsd: 0.14, outputPerMillionUsd: 0.28, cacheReadPerMillionUsd: 0.028, cacheWritePerMillionUsd: 0 },
+  'deepseek-v4-pro-0813': { inputPerMillionUsd: 1.32, outputPerMillionUsd: 3.96, cacheReadPerMillionUsd: 0.044, cacheWritePerMillionUsd: 0 },
+  'deepseek-v4.1-flash': { inputPerMillionUsd: 0.3, outputPerMillionUsd: 1.2, cacheReadPerMillionUsd: 0.006, cacheWritePerMillionUsd: 0 },
+  'deepseek-v4-flash-0731': { inputPerMillionUsd: 0.14, outputPerMillionUsd: 0.28, cacheReadPerMillionUsd: 0.028, cacheWritePerMillionUsd: 0 },
+  'e5-large-v2': { inputPerMillionUsd: 0.02, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  // The DO catalog column lists this route under the family row `Gemma 4`.
+  'gemma-4-31B-it': { inputPerMillionUsd: 0.18, outputPerMillionUsd: 0.5, cacheReadPerMillionUsd: 0.036, cacheWritePerMillionUsd: 0 },
+  'glm-5.2': { inputPerMillionUsd: 1.4, outputPerMillionUsd: 4.4, cacheReadPerMillionUsd: 0.21, cacheWritePerMillionUsd: 0 },
+  'glm-5.3': { inputPerMillionUsd: 1.4, outputPerMillionUsd: 4.4, cacheReadPerMillionUsd: 0.26, cacheWritePerMillionUsd: 0 },
+  'glm-5.3-flash': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.5, cacheReadPerMillionUsd: 0.03, cacheWritePerMillionUsd: 0 },
+  'gte-large-en-v1.5': { inputPerMillionUsd: 0.09, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'kimi-k2.6': { inputPerMillionUsd: 0.95, outputPerMillionUsd: 4, cacheReadPerMillionUsd: 0.19, cacheWritePerMillionUsd: 0 },
+  'kimi-k3': { inputPerMillionUsd: 3, outputPerMillionUsd: 15, cacheReadPerMillionUsd: 0.3, cacheWritePerMillionUsd: 0 },
+  'llama-4-maverick': { inputPerMillionUsd: 0.25, outputPerMillionUsd: 0.87, cacheReadPerMillionUsd: 0.05, cacheWritePerMillionUsd: 0 },
+  'mimo-v2.5-pro': { inputPerMillionUsd: 0.8, outputPerMillionUsd: 3, cacheReadPerMillionUsd: 0.16, cacheWritePerMillionUsd: 0 },
+  'minimax-m2.5': { inputPerMillionUsd: 0.3, outputPerMillionUsd: 1.2, cacheReadPerMillionUsd: 0.06, cacheWritePerMillionUsd: 0 },
+  'mistral-3-14B': { inputPerMillionUsd: 0.2, outputPerMillionUsd: 0.2, cacheReadPerMillionUsd: 0.04, cacheWritePerMillionUsd: 0 },
+  'multi-qa-mpnet-base-dot-v1': { inputPerMillionUsd: 0.009, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'nemotron-3-nano-omni': { inputPerMillionUsd: 0.5, outputPerMillionUsd: 0.9, cacheReadPerMillionUsd: 0.1, cacheWritePerMillionUsd: 0 },
+  'nemotron-3-ultra-550b': { inputPerMillionUsd: 0.9, outputPerMillionUsd: 1.7, cacheReadPerMillionUsd: 0.18, cacheWritePerMillionUsd: 0 },
+  'nemotron-nano-12b-v2-vl': { inputPerMillionUsd: 0.2, outputPerMillionUsd: 0.6, cacheReadPerMillionUsd: 0.04, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-4.1': { inputPerMillionUsd: 2, outputPerMillionUsd: 8, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-4o': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 1.25, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-4o-mini': { inputPerMillionUsd: 0.15, outputPerMillionUsd: 0.6, cacheReadPerMillionUsd: 0.075, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5': { inputPerMillionUsd: 1.25, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 0.125, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5-mini': { inputPerMillionUsd: 0.25, outputPerMillionUsd: 2, cacheReadPerMillionUsd: 0.025, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5-nano': { inputPerMillionUsd: 0.05, outputPerMillionUsd: 0.4, cacheReadPerMillionUsd: 0.005, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.2': { inputPerMillionUsd: 1.75, outputPerMillionUsd: 14, cacheReadPerMillionUsd: 0.175, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.2-pro': { inputPerMillionUsd: 21, outputPerMillionUsd: 168, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.3-codex': { inputPerMillionUsd: 1.75, outputPerMillionUsd: 14, cacheReadPerMillionUsd: 0.175, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.4': { inputPerMillionUsd: 2.5, outputPerMillionUsd: 15, cacheReadPerMillionUsd: 0.25, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.4-mini': { inputPerMillionUsd: 0.75, outputPerMillionUsd: 4.5, cacheReadPerMillionUsd: 0.075, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.4-nano': { inputPerMillionUsd: 0.2, outputPerMillionUsd: 1.25, cacheReadPerMillionUsd: 0.02, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.4-pro': { inputPerMillionUsd: 30, outputPerMillionUsd: 180, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.5': { inputPerMillionUsd: 5, outputPerMillionUsd: 30, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-5.6-luna': { inputPerMillionUsd: 0.2, outputPerMillionUsd: 1.2, cacheReadPerMillionUsd: 0.02, cacheWritePerMillionUsd: 0.25 },
+  'openai-gpt-5.6-sol': { inputPerMillionUsd: 4, outputPerMillionUsd: 20, cacheReadPerMillionUsd: 0.4, cacheWritePerMillionUsd: 5 },
+  'openai-gpt-5.6-terra': { inputPerMillionUsd: 2, outputPerMillionUsd: 12, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 2.5 },
+  'openai-gpt-6-1-sol': { inputPerMillionUsd: 2, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 0.1, cacheWritePerMillionUsd: 2.5 },
+  'openai-gpt-6-astra': { inputPerMillionUsd: 10, outputPerMillionUsd: 50, cacheReadPerMillionUsd: 1, cacheWritePerMillionUsd: 12.5 },
+  'openai-gpt-6-luna': { inputPerMillionUsd: 0.1, outputPerMillionUsd: 0.5, cacheReadPerMillionUsd: 0.01, cacheWritePerMillionUsd: 0.125 },
+  'openai-gpt-6-sol': { inputPerMillionUsd: 2, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 2.5 },
+  'openai-gpt-image-1': { inputPerMillionUsd: 5, outputPerMillionUsd: 40, cacheReadPerMillionUsd: 1.25, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-image-1.5': { inputPerMillionUsd: 5, outputPerMillionUsd: 10, cacheReadPerMillionUsd: 1, cacheWritePerMillionUsd: 0 },
+  // gpt-image-2 carries its text-token rates; image tokens are $8/$30 per 1M.
+  'openai-gpt-image-2': { inputPerMillionUsd: 5, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 1.25, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-oss-120b': { inputPerMillionUsd: 0.1, outputPerMillionUsd: 0.7, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'openai-gpt-oss-20b': { inputPerMillionUsd: 0.05, outputPerMillionUsd: 0.45, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'openai-o1': { inputPerMillionUsd: 15, outputPerMillionUsd: 60, cacheReadPerMillionUsd: 7.5, cacheWritePerMillionUsd: 0 },
+  'openai-o3': { inputPerMillionUsd: 2, outputPerMillionUsd: 8, cacheReadPerMillionUsd: 0.5, cacheWritePerMillionUsd: 0 },
+  'openai-o3-mini': { inputPerMillionUsd: 1.1, outputPerMillionUsd: 4.4, cacheReadPerMillionUsd: 0.55, cacheWritePerMillionUsd: 0 },
+  'qwen3-embedding-0.6b': { inputPerMillionUsd: 0.04, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
+  'qwen3.5-397b-a17b': { inputPerMillionUsd: 0.55, outputPerMillionUsd: 3.5, cacheReadPerMillionUsd: 0.111, cacheWritePerMillionUsd: 0 },
+  'qwen3.8-max': { inputPerMillionUsd: 2, outputPerMillionUsd: 6, cacheReadPerMillionUsd: 0.2, cacheWritePerMillionUsd: 0 },
+  // TypeSafe Jev prices input only; output carries no rate.
+  'typesafe-jev-1.13.0': { inputPerMillionUsd: 0.042, outputPerMillionUsd: 0, cacheReadPerMillionUsd: 0, cacheWritePerMillionUsd: 0 },
 }
 
 /** Usage buckets attributable to one provider-logged model id. */

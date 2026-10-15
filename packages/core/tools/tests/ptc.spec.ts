@@ -187,7 +187,7 @@ describe('mode-aware wire contribution', () => {
     const assembly = await systemPrompt.assemble()
     const sdk = assembly.sections.find(section => section.name === 'tools:sdk')?.text
 
-    expect(sdk).toContain('_dsh_harness_purpose: string;')
+    expect(sdk).toContain('description: string;')
     expect(sdk).toContain('deep_output: string | null')
   })
 
@@ -527,9 +527,9 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
       const all = Promise.all([
-        tools.safe_read!({ id: 'a' }),
-        tools.safe_read!({ id: 'b' }),
-        tools.safe_read!({ id: 'c' }),
+        tools.safe_read!({ id: 'a', description: 'test purpose' }),
+        tools.safe_read!({ id: 'b', description: 'test purpose' }),
+        tools.safe_read!({ id: 'c', description: 'test purpose' }),
       ])
       // All three must be START-able without any completion (overlap proof).
       await expect.poll(() => gated.pending()).toBe(3)
@@ -554,9 +554,9 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     const unsafe = registerGated(ctx, 'writer', false)
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const reads = [tools.safe_read!({ id: 'r1' }), tools.safe_read!({ id: 'r2' })]
-      const write = tools.writer!({ id: 'w' })
-      const tail = tools.safe_read!({ id: 'r3' })
+      const reads = [tools.safe_read!({ id: 'r1', description: 'test purpose' }), tools.safe_read!({ id: 'r2', description: 'test purpose' })]
+      const write = tools.writer!({ id: 'w', description: 'test purpose' })
+      const tail = tools.safe_read!({ id: 'r3', description: 'test purpose' })
       await expect.poll(() => safe.pending()).toBe(2)
       // The exclusive call must NOT have started while the pool is live.
       expect(unsafe.pending()).toBe(0)
@@ -584,9 +584,9 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
       const all = Promise.all([
-        tools.safe_read!({ id: 'a' }),
-        tools.safe_read!({ id: 'b' }),
-        tools.safe_read!({ id: 'c' }),
+        tools.safe_read!({ id: 'a', description: 'test purpose' }),
+        tools.safe_read!({ id: 'b', description: 'test purpose' }),
+        tools.safe_read!({ id: 'c', description: 'test purpose' }),
       ])
       await expect.poll(() => gated.pending()).toBe(2)
       // The third call waits for a slot.
@@ -624,7 +624,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
       // makes prepare resolve UNKNOWN_TOOL as a final-result, which commits
       // through scheduler.finish (no post-execute).
       dispose()
-      const message = await request.bindings[0]!.functions.ephemeral!({})
+      const message = await request.bindings[0]!.functions.ephemeral!({ description: 'test purpose' })
         .then(() => 'resolved', (error: unknown) => error instanceof Error ? error.message : String(error))
       return { logs: [], value: message }
     }
@@ -652,7 +652,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     })
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const all = Promise.all([tools.safe_read!({ id: 'a' }), tools.safe_read!({ id: 'b' })])
+      const all = Promise.all([tools.safe_read!({ id: 'a', description: 'test purpose' }), tools.safe_read!({ id: 'b', description: 'test purpose' })])
       // Both submissions are in; the second pre-execute must NOT have entered
       // while the first is still awaiting its policy decision.
       await expect.poll(() => stages.length).toBeGreaterThanOrEqual(1)
@@ -687,8 +687,8 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     })
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const w = tools.writer!({ id: 'w' })
-      const r = tools.safe_read!({ id: 'r' })
+      const w = tools.writer!({ id: 'w', description: 'test purpose' })
+      const r = tools.safe_read!({ id: 'r', description: 'test purpose' })
       await expect.poll(() => writer.pending()).toBe(1)
       writer.release()
       // The writer's body is done and its async post-execute is running; the
@@ -722,7 +722,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     runtime.behavior = async (request) => {
       // Fire-and-forget: the program returns while the sub-call's async
       // post-execute commit is mid-flight.
-      request.bindings[0]!.functions.safe_read!({ id: 'a' }).catch(() => 'run-over')
+      request.bindings[0]!.functions.safe_read!({ id: 'a', description: 'test purpose' }).catch(() => 'run-over')
       await expect.poll(() => gated.pending()).toBe(1)
       gated.release()
       await expect.poll(() => releasePost !== undefined).toBe(true)
@@ -761,7 +761,7 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
     })
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const all = Promise.all([tools.safe_read!({ id: 'a' }), tools.safe_read!({ id: 'b' })])
+      const all = Promise.all([tools.safe_read!({ id: 'a', description: 'test purpose' }), tools.safe_read!({ id: 'b', description: 'test purpose' })])
       await expect.poll(() => gated.pending()).toBe(2)
       // Complete b FIRST (out of submission order), then a.
       gated.release() // releases a (FIFO gate) — invert: release twice reversed is not possible;
@@ -788,8 +788,8 @@ describe('the sub-dispatch scheduler (native concurrency contract)', () => {
       // First exclusive call occupies the pool; the second queues unstarted.
       // Both rejections are captured (abandonment fires only at settlement,
       // AFTER this program has already failed — awaiting it here would deadlock).
-      tools.writer!({ id: 'w1' }).catch(() => 'settled-under-abort')
-      tools.writer!({ id: 'w2' }).catch((error: unknown) => {
+      tools.writer!({ id: 'w1', description: 'test purpose' }).catch(() => 'settled-under-abort')
+      tools.writer!({ id: 'w2', description: 'test purpose' }).catch((error: unknown) => {
         abandoned.push(error instanceof Error ? error.message : String(error))
       })
       await expect.poll(() => gated.pending()).toBe(1)
@@ -816,8 +816,8 @@ describe('the run_code dispatch bridge', () => {
     const { agent, events } = fakeAgent()
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const first = await tools.echo!({ value: 'one' })
-      const second = await tools.echo!({ value: 'two' })
+      const first = await tools.echo!({ value: 'one', description: 'test purpose' })
+      const second = await tools.echo!({ value: 'two', description: 'test purpose' })
       if (typeof first !== 'string' || typeof second !== 'string') throw new Error('echo returned a non-string')
       return { logs: [`saw ${first}`], value: second }
     }
@@ -831,11 +831,11 @@ describe('the run_code dispatch bridge', () => {
     expect(dispatches.map(event => event.data)).toEqual([
       {
         rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:ptc:1', name: 'echo',
-        arguments: { value: 'one' }, isError: false, content: [{ type: 'text', text: 'echo:one' }],
+        arguments: { value: 'one', description: 'test purpose' }, isError: false, content: [{ type: 'text', text: 'echo:one' }],
       },
       {
         rootCallId: 'call-1', parentCallId: 'call-1', subCallId: 'call-1:ptc:2', name: 'echo',
-        arguments: { value: 'two' }, isError: false, content: [{ type: 'text', text: 'echo:two' }],
+        arguments: { value: 'two', description: 'test purpose' }, isError: false, content: [{ type: 'text', text: 'echo:two' }],
       },
     ])
     expect(result.meta).toBeUndefined()
@@ -845,7 +845,7 @@ describe('the run_code dispatch bridge', () => {
     const { ctx, runtime } = await setup({ mode: 'ptc' })
     registerEcho(ctx)
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.echo!({ value: 'nested' })
+      await request.bindings[0]!.functions.echo!({ value: 'nested', description: 'test purpose' })
       return { logs: [], value: 'done' }
     }
 
@@ -884,7 +884,7 @@ describe('the run_code dispatch bridge', () => {
       },
     }))
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.finalize!({})
+      await request.bindings[0]!.functions.finalize!({ description: 'test purpose' })
       return { logs: [], value: 'program complete' }
     }
 
@@ -899,7 +899,7 @@ describe('the run_code dispatch bridge', () => {
       return { kind: 'block', feedback: [{ type: 'text', text: 'terminal rejected' }] }
     })
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.finalize!({}).catch(() => undefined)
+      await request.bindings[0]!.functions.finalize!({ description: 'test purpose' }).catch(() => undefined)
       return { logs: [], value: 'recovered' }
     }
     const recovered = await runCode(ctx, 'await tools.finalize({}).catch(() => {})')
@@ -932,7 +932,7 @@ describe('the run_code dispatch bridge', () => {
     }))
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const values = await Promise.all([tools.probe!({ id: 'a' }), tools.probe!({ id: 'b' }), tools.probe!({ id: 'c' })])
+      const values = await Promise.all([tools.probe!({ id: 'a', description: 'test purpose' }), tools.probe!({ id: 'b', description: 'test purpose' }), tools.probe!({ id: 'c', description: 'test purpose' })])
       if (!values.every(value => typeof value === 'string')) throw new Error('probe returned a non-string')
       return { logs: [], value: values.join(',') }
     }
@@ -956,7 +956,7 @@ describe('the run_code dispatch bridge', () => {
     }))
     runtime.behavior = async (request) => {
       try {
-        await request.bindings[0]!.functions.fail!({})
+        await request.bindings[0]!.functions.fail!({ description: 'test purpose' })
         return { logs: [], value: 'unreachable' }
       } catch (error: unknown) {
         return { logs: [], value: `caught: ${error instanceof Error ? error.message : String(error)}` }
@@ -972,7 +972,7 @@ describe('the run_code dispatch bridge', () => {
     ctx.on('tools/ptc-dispatch-log', () => { throw new Error('log-content listener failed') })
     const { agent, events } = fakeAgent()
     runtime.behavior = async (request) => {
-      const value = await request.bindings[0]!.functions.echo!({ value: 'x' })
+      const value = await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
       return { logs: [], value: value as string }
     }
     const result = await runCode(ctx, 'program', { agent })
@@ -995,7 +995,7 @@ describe('the run_code dispatch bridge', () => {
     })
     const { agent, events } = fakeAgent()
     runtime.behavior = async (request) => {
-      const message = await request.bindings[0]!.functions.echo!({ value: 'x' })
+      const message = await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
         .then(() => 'resolved', (error: unknown) => error instanceof Error ? error.message : String(error))
       return { logs: [], value: message }
     }
@@ -1021,7 +1021,7 @@ describe('the run_code dispatch bridge', () => {
     })
     runtime.behavior = async (request) => {
       try {
-        await request.bindings[0]!.functions.echo!({ value: 'x' })
+        await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
         return { logs: [], value: 'unreachable' }
       } catch (error: unknown) {
         return { logs: [], value: `denied: ${error instanceof Error ? error.message : String(error)}` }
@@ -1055,14 +1055,14 @@ describe('the run_code dispatch bridge', () => {
     const calls = registerEcho(ctx)
     const { agent, events } = fakeAgent()
     runtime.behavior = async (request) => {
-      const args = Object.assign(Object.create(null) as Record<string, unknown>, { value: 'x', nested: ['same'] })
+      const args = Object.assign(Object.create(null) as Record<string, unknown>, { value: 'x', nested: ['same'], description: 'test purpose' })
       await request.bindings[0]!.functions.echo!(args)
       return { logs: [] }
     }
     await runCode(ctx, 'program', { agent })
     expect(calls).toEqual([{ value: 'x', nested: ['same'] }])
     const dispatch = events.find(event => event.type === 'tool/ptc-dispatch')?.data as SessionEventMap['tool/ptc-dispatch']
-    expect(dispatch.arguments).toEqual({ value: 'x', nested: ['same'] })
+    expect(dispatch.arguments).toEqual({ value: 'x', nested: ['same'], description: 'test purpose' })
   })
 
   it('defers sub-call additionalContexts onto the outer run_code result', async () => {
@@ -1081,8 +1081,8 @@ describe('the run_code dispatch bridge', () => {
       return next()
     })
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.echo!({ value: 'x' })
-      await request.bindings[0]!.functions.echo!({ value: 'y' })
+      await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
+      await request.bindings[0]!.functions.echo!({ value: 'y', description: 'test purpose' })
       return { logs: [], value: 'done' }
     }
     const result = await runCode(ctx, 'program')
@@ -1119,7 +1119,7 @@ describe('the run_code dispatch bridge', () => {
       ]),
     }))
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.image_result!({})
+      await request.bindings[0]!.functions.image_result!({ description: 'test purpose' })
       return { logs: [], value: 'done' }
     }
 
@@ -1157,7 +1157,7 @@ describe('the run_code dispatch bridge', () => {
           : { kind: 'accept', content: [{ type: 'text', text: 'replaced' }] })
       })
       runtime.behavior = async (request) => {
-        await request.bindings[0]!.functions.image_result!({}).catch(() => undefined)
+        await request.bindings[0]!.functions.image_result!({ description: 'test purpose' }).catch(() => undefined)
         return { logs: [], value: 'done' }
       }
 
@@ -1182,7 +1182,7 @@ describe('the run_code dispatch bridge', () => {
       })
     })
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.echo!({ value: 'x' })
+      await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
       return { logs: [], error: { kind: 'exception', message: 'program failed later' } }
     }
 
@@ -1238,7 +1238,7 @@ describe('the run_code dispatch bridge', () => {
     const controller = new AbortController()
     runtime.behavior = async (request) => {
       const tools = request.bindings[0]!.functions
-      const calls = [tools.slow!({ id: 'first' }).catch(() => 'rejected'), tools.slow!({ id: 'second' }).catch(() => 'rejected')]
+      const calls = [tools.slow!({ id: 'first', description: 'test purpose' }).catch(() => 'rejected'), tools.slow!({ id: 'second', description: 'test purpose' }).catch(() => 'rejected')]
       setTimeout(() => { controller.abort('user-cancel') }, 50)
       await Promise.all(calls)
       // A real runtime would be terminated by the abort; the fake honors the
@@ -1274,7 +1274,7 @@ describe('the run_code dispatch bridge', () => {
     runtime.behavior = async (request) => {
       // Start a sub-dispatch, keep its rejection held, and fail the run once the tool is
       // genuinely in flight — a seam error after work has begun.
-      request.bindings[0]!.functions.slow!({ id: 'orphan' }).catch(() => 'held')
+      request.bindings[0]!.functions.slow!({ id: 'orphan', description: 'test purpose' }).catch(() => 'held')
       await inFlight
       throw new Error('backend exploded')
     }
@@ -1291,7 +1291,7 @@ describe('the run_code dispatch bridge', () => {
     const { ctx, runtime } = await setup({ mode: 'ptc' })
     const calls = registerEcho(ctx)
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.echo!({ value: 'x' })
+      await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
       return { logs: [], value: 'ok' }
     }
     const result = await runCode(ctx, 'program')
@@ -1401,7 +1401,7 @@ describe('the run_code dispatch bridge', () => {
       },
     }))
     runtime.behavior = async (request) => {
-      const value = await request.bindings[0]!.functions.mixed!({})
+      const value = await request.bindings[0]!.functions.mixed!({ description: 'test purpose' })
       return { logs: [], value }
     }
     const result = await runCode(ctx, 'program', { agent })
@@ -1475,7 +1475,7 @@ describe('the run_code dispatch bridge', () => {
     runtime.behavior = async (request) => {
       let nested: JsonValue = 'leaf'
       for (let index = 0; index < depth; index++) nested = [nested]
-      const value = await request.bindings[0]!.functions.deep_args!({ nested })
+      const value = await request.bindings[0]!.functions.deep_args!({ nested, description: 'test purpose' })
       return { logs: [], value }
     }
 
@@ -1511,14 +1511,14 @@ describe('the run_code dispatch bridge', () => {
       },
     }))
     runtime.behavior = async (request) => {
-      await request.bindings[0]!.functions.mutator!({ list: ['original'] })
+      await request.bindings[0]!.functions.mutator!({ list: ['original'], description: 'test purpose' })
       return { logs: [] }
     }
     const result = await runCode(ctx, 'program', { agent })
     expect(result.isError).toBe(false)
     expect(mutationSucceeded).toBe(false)
     const dispatch = events.find(event => event.type === 'tool/ptc-dispatch')?.data as SessionEventMap['tool/ptc-dispatch']
-    expect(dispatch.arguments).toEqual({ list: ['original'] })
+    expect(dispatch.arguments).toEqual({ list: ['original'], description: 'test purpose' })
   })
 
   it('exposes a tool named __proto__ as an ordinary own binding', async () => {
@@ -1536,7 +1536,7 @@ describe('the run_code dispatch bridge', () => {
     runtime.behavior = async (request) => {
       const functions = request.bindings[0]!.functions
       expect(Object.getPrototypeOf(functions)).toBeNull()
-      const value = await functions['__proto__']!({})
+      const value = await functions['__proto__']!({ description: 'test purpose' })
       return { logs: [], value }
     }
     const result = await runCode(ctx, 'program')
@@ -1618,7 +1618,7 @@ describe('the run_code dispatch bridge', () => {
     const controller = new AbortController()
     runtime.behavior = async (request) => {
       controller.abort('cancelled-mid-run')
-      const message = await request.bindings[0]!.functions.echo!({ value: 'x' })
+      const message = await request.bindings[0]!.functions.echo!({ value: 'x', description: 'test purpose' })
         .then(() => 'resolved', (error: unknown) => error instanceof Error ? error.message : String(error))
       return { logs: [], value: message }
     }
@@ -1682,7 +1682,7 @@ describe('the run_code dispatch bridge', () => {
       signal: testToolSignal,
       callId: ToolCallId('call-1'),
       name: 'write',
-      arguments: { text: 'hello' },
+      arguments: { text: 'hello', description: 'test purpose' },
     })
     expect(result.isError).toBe(true)
     expect(result.error?.info).toEqual({ name: 'ToolNotFoundError', code: 'UNKNOWN_TOOL' })
@@ -1704,7 +1704,7 @@ describe('the run_code dispatch bridge', () => {
       signal: aborted.signal,
       callId: ToolCallId('call-1'),
       name: 'write',
-      arguments: { text: 'hello' },
+      arguments: { text: 'hello', description: 'test purpose' },
     })
     expect(result.isError).toBe(true)
     expect(result.error?.info?.code).toBe(TOOL_ABORTED_BEFORE_DISPATCH)
@@ -1736,7 +1736,7 @@ describe('per-agent presentation', () => {
       signal: testToolSignal,
       callId: ToolCallId('coded-direct'),
       name: 'echo',
-      arguments: { value: 'coded' },
+      arguments: { value: 'coded', description: 'test purpose' },
       agent,
     })
     expect(denied.error?.info).toEqual({ name: 'ToolNotFoundError', code: 'UNKNOWN_TOOL' })
@@ -1772,14 +1772,14 @@ describe('per-agent presentation', () => {
       signal: testToolSignal,
       callId: ToolCallId('preset-coded-schedule'),
       name: 'echo',
-      arguments: { value: 'joined' },
+      arguments: { value: 'joined', description: 'test purpose' },
       agent: joined.agent,
     })).toEqual({ kind: 'exclusive' })
     const denied = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('preset-coded-direct'),
       name: 'echo',
-      arguments: { value: 'joined' },
+      arguments: { value: 'joined', description: 'test purpose' },
       agent: joined.agent,
     })
     expect(denied.error?.info).toEqual({ name: 'ToolNotFoundError', code: 'UNKNOWN_TOOL' })
@@ -1792,7 +1792,7 @@ describe('per-agent presentation', () => {
       signal: testToolSignal,
       callId: ToolCallId('native-sibling-direct'),
       name: 'echo',
-      arguments: { value: 'loner' },
+      arguments: { value: 'loner', description: 'test purpose' },
       agent: loner.agent,
     })
     expect(allowed).toMatchObject({ isError: false, value: 'echo:loner' })
