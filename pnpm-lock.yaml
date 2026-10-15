@@ -928,6 +928,16 @@ importers:
         specifier: workspace:^
         version: link:../../subprocess/subprocess
 
+  packages/api/line-notes:
+    dependencies:
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../typert/protocol
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+
   packages/api/remotes:
     dependencies:
       '@deepseek-ai/dsh-api-ide':
@@ -955,12 +965,18 @@ importers:
       '@deepseek-ai/dsh-api-gateway':
         specifier: workspace:^
         version: link:../gateway
+      '@deepseek-ai/dsh-api-line-notes':
+        specifier: workspace:^
+        version: link:../line-notes
       '@deepseek-ai/dsh-api-session-controller':
         specifier: workspace:^
         version: link:../session-controller
       '@deepseek-ai/dsh-api-settings-controller':
         specifier: workspace:^
         version: link:../settings-controller
+      '@deepseek-ai/dsh-api-timeline':
+        specifier: workspace:^
+        version: link:../timeline
       '@deepseek-ai/dsh-api-workspace-controller':
         specifier: workspace:^
         version: link:../workspace-controller
@@ -1206,6 +1222,16 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:^
         version: link:../../typert/protocol
+
+  packages/api/timeline:
+    dependencies:
+      '@deepseek-ai/dsh-typert-protocol':
+        specifier: workspace:^
+        version: link:../../typert/protocol
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
 
   packages/api/workspace-controller:
     dependencies:
@@ -1945,6 +1971,9 @@ importers:
       '@deepseek-ai/dsh-api-ide':
         specifier: workspace:^
         version: link:../../api/ide
+      '@deepseek-ai/dsh-api-line-notes':
+        specifier: workspace:^
+        version: link:../../api/line-notes
       '@deepseek-ai/dsh-api-remotes':
         specifier: workspace:^
         version: link:../../api/remotes
@@ -1954,6 +1983,9 @@ importers:
       '@deepseek-ai/dsh-api-settings-controller':
         specifier: workspace:^
         version: link:../../api/settings-controller
+      '@deepseek-ai/dsh-api-timeline':
+        specifier: workspace:^
+        version: link:../../api/timeline
       '@deepseek-ai/dsh-api-workspace-controller':
         specifier: workspace:^
         version: link:../../api/workspace-controller
@@ -2188,6 +2220,18 @@ importers:
       '@deepseek-ai/dsh-tool-subagent':
         specifier: workspace:^
         version: link:../../subagent/tool-subagent
+      '@deepseek-ai/dsh-vscode-events':
+        specifier: workspace:^
+        version: link:../../extensions/vscode-events
+      '@deepseek-ai/dsh-vscode-line-notes':
+        specifier: workspace:^
+        version: link:../../extensions/vscode-line-notes
+      '@deepseek-ai/dsh-vscode-modules':
+        specifier: workspace:^
+        version: link:../../extensions/vscode-modules
+      '@deepseek-ai/dsh-vscode-timeline':
+        specifier: workspace:^
+        version: link:../../extensions/vscode-timeline
       '@deepseek-ai/dsh-web-frontend':
         specifier: workspace:^
         version: link:../../../apps/web
@@ -6796,18 +6840,40 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/cordis-plugin-loader':
+        specifier: workspace:^
+        version: link:../../../vendor/loader
       '@deepseek-ai/dsh-api-gateway':
         specifier: workspace:^
         version: link:../../api/gateway
       '@deepseek-ai/dsh-api-ide':
         specifier: workspace:^
         version: link:../../api/ide
+      '@deepseek-ai/dsh-api-line-notes':
+        specifier: workspace:^
+        version: link:../../api/line-notes
+      '@deepseek-ai/dsh-api-timeline':
+        specifier: workspace:^
+        version: link:../../api/timeline
       '@deepseek-ai/dsh-client-connection':
         specifier: workspace:^
         version: link:../../client/connection
       '@deepseek-ai/dsh-typert-registry':
         specifier: workspace:^
         version: link:../../typert/registry
+      '@deepseek-ai/dsh-vscode-modules':
+        specifier: workspace:^
+        version: link:../vscode-modules
+
+  packages/extensions/vscode-events:
+    dependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:^
+        version: link:../../../vendor/cordis
+    devDependencies:
+      '@deepseek-ai/dsh-api-ide':
+        specifier: workspace:^
+        version: link:../../api/ide
 
   packages/extensions/vscode-line-notes:
     dependencies:
