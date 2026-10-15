@@ -182,6 +182,7 @@
     "vscode:twin": "bash scripts/bootstrap-vscode-twin.sh",
     "vscode:twin:fetch": "bash scripts/bootstrap-vscode-twin.sh --fetch-only",
     "dev:web": "tsx scripts/dev-web.ts --poll",
+    "dev:vscode": "tsx scripts/dev-vscode.ts --poll",
     "postinstall": "node scripts/install-lefthook.mjs && { pnpm run vscode:twin:fetch || echo '[vscode-twin] source fetch failed (offline?) — retry: pnpm run vscode:twin:fetch'; }"
   },
   "devDependencies": {
