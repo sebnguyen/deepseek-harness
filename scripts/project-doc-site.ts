@@ -12,14 +12,12 @@ import {
   copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync,
 } from 'node:fs'
 import { basename, dirname, extname, posix, relative, resolve, sep } from 'node:path'
-import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfmFromMarkdown } from 'mdast-util-gfm'
-import { gfm } from 'micromark-extension-gfm'
 import type { Nodes } from 'mdast'
 import { docsPages, orderedPages, sidebarCollections, type DocsPage, type DocsSidebar } from '../website/docs.ts'
 import {
   isExternalOrAbsoluteMarkdownUrl,
   markdownDestination,
+  parseMarkdown,
   splitMarkdownUrlTarget,
 } from './markdown.ts'
 
@@ -147,7 +145,7 @@ function githubTarget(
 export function rewriteMarkdown(source: string, options: RewriteMarkdownOptions): string {
   const sourceAbs = resolve(options.repoRoot, options.sourcePath)
   const published = sourceMap(options.pages)
-  const tree = fromMarkdown(source, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  const tree = parseMarkdown(source)
   const replacements: Replacement[] = []
 
   const rewrite = (node: RewritableNode): void => {

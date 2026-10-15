@@ -6,11 +6,9 @@
 
 import { globSync, readFileSync, realpathSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfmFromMarkdown } from 'mdast-util-gfm'
-import { gfm } from 'micromark-extension-gfm'
 import { JSDOM } from 'jsdom'
 import type { Nodes } from 'mdast'
+import { parseMarkdown } from './markdown.ts'
 import { isArchivedAgentNotePath } from './repo-files.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -40,7 +38,7 @@ interface Violation {
 
 function extractMermaidBlocks(file: string): Block[] {
   const source = readFileSync(resolve(root, file), 'utf8')
-  const tree = fromMarkdown(source, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  const tree = parseMarkdown(source)
   const out: Block[] = []
   const visit = (node: Nodes): void => {
     if (node.type === 'code' && node.lang === 'mermaid') {

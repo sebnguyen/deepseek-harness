@@ -9,7 +9,7 @@
  */
 
 import type { Root } from 'mdast'
-import { fromMarkdown } from 'mdast-util-from-markdown'
+import { fromMarkdown, type Options } from 'mdast-util-from-markdown'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { mathFromMarkdown } from 'mdast-util-math'
 import { gfm } from 'micromark-extension-gfm'
@@ -24,10 +24,11 @@ import { mathCompatibility } from './mathCompatibility.ts'
  * @returns The mdast root.
  */
 export function parseGfm(text: string): Root {
-  return fromMarkdown(text, {
+  const options = {
     extensions: [gfm(), cjkFriendlyStrong()],
     mdastExtensions: [gfmFromMarkdown()],
-  })
+  } as Options
+  return fromMarkdown(text, undefined, options)
 }
 
 /**
@@ -37,8 +38,9 @@ export function parseGfm(text: string): Root {
  * @returns The mdast root.
  */
 export function parseGfmWithMath(text: string): Root {
-  return fromMarkdown(text, {
+  const options = {
     extensions: [gfm(), cjkFriendlyStrong(), mathCompatibility(), math()],
     mdastExtensions: [gfmFromMarkdown(), mathFromMarkdown()],
-  })
+  } as Options
+  return fromMarkdown(text, undefined, options)
 }

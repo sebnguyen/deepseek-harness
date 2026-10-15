@@ -4,13 +4,11 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, globSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
-import { fromMarkdown } from 'mdast-util-from-markdown'
-import { gfmFromMarkdown } from 'mdast-util-gfm'
-import { gfm } from 'micromark-extension-gfm'
 import type { Nodes } from 'mdast'
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { cleanDocSiteOutput, docSiteBuildOptions } from '../website/build.ts'
 import { docsPages, landingLink, orderedPages, routeLink, sectionSpec, type DocsPage } from '../website/docs.ts'
+import { parseMarkdown } from './markdown.ts'
 import {
   addProjectionFrontmatter, emitRawMarkdownPages, llmsTxt, projectedPageContent, publishableImage,
   rawMarkdownFiles, rawMarkdownPageContent, rawMarkdownRoute, resolveRepositoryRef, rewriteMarkdown,
@@ -623,7 +621,7 @@ describe('raw Markdown projection of the published manifest', () => {
 })
 
 function relativeTargets(markdown: string): string[] {
-  const tree = fromMarkdown(markdown, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  const tree = parseMarkdown(markdown)
   const targets: string[] = []
   const visit = (node: Nodes): void => {
     if ((node.type === 'link' || node.type === 'image' || node.type === 'definition') && 'url' in node) {
