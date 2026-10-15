@@ -1,6 +1,6 @@
 # Agent Note: Runtime faces and seat composition — how one authored package becomes two engines' plugins
 
-Status: proposed
+Status: implemented
 
 ## Problem
 
@@ -22,13 +22,13 @@ Names first, because the redesign retires one word entirely and assigns precise 
 
 Cross-cutting nouns that stay engine-agnostic, so they are never overloaded once the rename lands: **engine** (host / web client / vscode web client), **face** (one package's per-platform source half, `src/index.ts` host vs `src/client/index.ts` web / `src/vscode/index.ts` vscode web), **wire** (the two surfaces `POST /api/<ns>/<m>` and `WS /api/remote.mux`), **namespace** (the `<ns>/<method>` vocabulary of a `TypertRemoteService`), **stage** (write files to a per-spawn location), **resolver** (who maps names to code at activation), **manifest** (the frozen row list of one engine).
 
-## Proposal
+## Decision
 
-Land one consolidated architecture reference for the runtime-face system: the two-engine model, the per-package face conventions (`src/index.ts` / `src/client/index.ts` / reserved `src/vscode/`), the compile chain that produces each face's bytes, the ship pipelines that stage those bytes into each runtime, and the vscode-cordis extension as the third engine's seat. No code changes accompany this note — it is the grounded map that `2026-10-14-vscode-platform-mirror` (and the extension work of `2026-10-13`) hangs off, so every plane that follows a different runtime extension starts from the same authored picture rather than a re-derivation.
+Land one consolidated architecture reference for the runtime-face system: the two-engine model, the per-package face conventions (`src/index.ts` / `src/client/index.ts` / `src/vscode/`), the compile chain that produces each face's bytes, the ship pipelines that stage or serve those bytes into each runtime, and the vscode-cordis extension as the third engine's seat. It is the grounded map that the vscode platform mirror and the extension work hang off of, so every plane that follows a different runtime extension starts from the same authored picture rather than a re-derivation.
 
 ### Two engines, one vocabulary
 
-Two `Context` roots exist concurrently and share no address-level identity. On the host, `packages/boot/app-boot/src/index.ts` drives the vendored cordis `Loader` against the leaf `cordis.yml` chain (bundle layers `base` to `web-app`, profile patch overlays appended). In the page, `packages/client/web/src/boot-client.ts` creates a fresh `Context`, installs the same vendored `Loader`, sets `loader.internal` to the code-arrival module system, and creates one entry per `BootManifest` row. The vscode twin adds a third engine: `packages/extensions/vscode-cordis/src/extension.ts` mounts the same minimal client-seat plugin tuple inside the REH extension host at activation.
+Two `Context` roots exist concurrently and share no address-level identity. On the host, `packages/boot/app-boot/src/index.ts` drives the vendored cordis `Loader` against the leaf `cordis.yml` chain (bundle layers `base` to `web-app`, profile patch overlays appended). In the page, `packages/client/web/src/boot-client.ts` creates a fresh `Context`, installs the same vendored `Loader`, sets `loader.internal` to the code-arrival module system, and creates one entry per `BootManifest` row. The vscode twin adds a third engine: `packages/extensions/vscode-cordis/src/extension.ts` mounts the minimal client-seat plugin tuple inside the REH extension host at activation, and — after the platform mirror landed — composes one Loader entry per vscode manifest row on top of it.
 
 The shared vocabulary between any pair is never objects — only namespaces and the wire. A namespace is declared exactly once, host-side, by a `TypertRemoteService` subclass: `class Ide extends TypertRemoteService` with `super(ctx, 'ideBridge')` in `packages/api/ide/src/index.ts` is the working exemplar. Its `@Remote`-decorated methods form the contract; every other engine mounts a generated descriptor of that contract onto its own `ctx.remote`. Three packages make the conversation legible on both ends:
 
@@ -88,11 +88,11 @@ The one load-bearing insight above: engines are never joined in memory; they are
 
 Four anchors to internalize: the host **builds** offline; the host's webserver **re-serves** the bytes at boot over HTTP; the page **discovers** them via injection globals before any factory executes; the receiving engine's own Loader vindicates **what composes** — the crossing is one rope, one manifest, nothing shared in memory.
 
-The vscode client follows the same six-step semantic with three physical substitutions (full spec in `2026-10-14-vscode-platform-mirror.md`):
+The vscode client follows the same six-step semantic with its own physical substitution (full detail in `2026-10-14-vscode-platform-mirror`):
 
 - the bundle is `lib/vscode.js` (CJS per plane, Node typography) instead of `lib/client.js`;
-- writer stage = `vscodeModules.stageToSpawn(stateDir)` per spawn, dropping `<stateDir>/exts/<plane>/{package.json, extension.cjs}` plus `vscode-manifest.json` beside `bridge.json` — filesystem custody instead of HTTP, because writer (`api/ide`) and reader (vscode client REH host on localhost) live on the same machine;
-- reading stage = the seat reads `vscode-manifest.json` once at start, then `require()`s each staged CJS in manifest order — same `Loader.create(...)` per row, same `loader.internal` shape, no fetch hop, no port.
+- delivery is live HTTP — the host's vscode-modules registry serves the composed manifest at `/vscode/manifest` and each plane's bytes at `/vscode/plugin/<id>` (the seat's `dshOrigin` attaches the bearer bearer credential family the twin's unary calls already carry),
+- reading stage = the seat fetches the manifest once at boot, evaluates each plane bundle into the seat's Loader, one `Loader.create(name)` per row — same `loader.internal` seam as the web's module system, no spawn-time file staging at all.
 
 ## ### From `pnpm run build` to a running client plane, in plain terms
 
@@ -102,7 +102,7 @@ The six-step mental model before the code narrative:
 2. **The host boots, reads bundles back, and hands URLs for them**. `dsh web`'s host compose mounts `dsh-client-modules` (host half). It scans the host loader for `dsh.client` rows, reads each package's `lib/client.js` back into memory, and mounts one static-server URL per combo set: `/plugins/??pkg-a,pkg-b&rev=d4f3ab12cd34`. "Combo" = several bundles concatenated — one script tag covers N plugins.
 3. **The `rev` is a cache key, not a signature or a version mark**: the first 12 hex chars of a sha1 over the combo's exact bytes. Identical bytes → identical rev. Any source edit anywhere inside crosses into a different rev. It's a content-addressed cache key; the page's *whole* invalidation scheme is invisible and per-set (if the whole combo rebuilds at the same rev, zero bytes move for the page again). Isolated from all authorization and integrity concerns.
 4. **The manifest is a pointer-file for URLs, not a dependency graph**: a JSON object injected into the served `index.html` as `window.__DSH_BOOT__ = { entries: [{id, url, rev, inject, external, immediately}] }`. One object per boot. The page knows which plane rows exist and which URL each ships from; it does not know dependencies nor contents from it.
-5. **The vscode client splits at the broadcast hop**: writer stage becomes `vscodeModules.stageToSpawn(stateDir)` — no HTTP, bytes land as `<stateDir>/exts/<plane>/extension.cjs` + `vscode-manifest.json` beside `bridge.json`; reader stage (the vscode client REH host on localhost) just `require()`s the staged files. Same six-step story, HTTP replaced by filesystem custody because writer and reader are both machine-local processes.
+5. **The vscode client splits at the broadcast hop**: writer stage and reader stage are the same host process's webServer — the registry serves `/vscode/manifest` plus the plane's bytes, fetched by the seat at boot during seat composition.
 6. **At compose time the vendored cordis `Loader` picks up** — not the bundler, not the static entry: `loader.create({name})` per row, using the same `Loader` class the host runs; only `loader.internal` differs per engine (host's include/group, page's `ClientModuleSystem`, twin's per-spawn file resolver).
 
 A one-line shorthand: **manifest = the page's pointer-set to bytes delivered by build-and-serve**, rev = **the coarse checksum on those bytes that invalidates stale URLs**.
@@ -113,9 +113,9 @@ A one-line shorthand: **manifest = the page's pointer-set to bytes delivered by 
 
 - Build: `tsdown.config.ts` compiles `src/vscode-main.ts` to single-file CJS `dist-extension/extension.cjs` (498 kB; only `vscode` externalized because the platform provides it at activation).
 - Per-spawn staging (runtime): `stageVscodeExtension(extensionsDir)` in `packages/api/ide/src/twin-theme.ts` writes `<stateDir>/exts/dsh-do-harness-bridge/{package.json,extension.cjs}` fresh on every spawn — twin content is bit-for-bit the harness commit at spawn; upgrades land on next respawn. Beside it, `stageVscodeIdentity` writes `<stateDir>/bridge.json` carrying `{dshOrigin, token, workspaceKey}`, `bridgeIdentityPath(extensionDir)` resolves it as one level up from the extension dir.
-- Seat composition (third engine): `spawnBridgeSeat` composes the minimal client seat programmatically (`typertRegistry`, `connection` client, `gateway` client) without Loader machinery — there is exactly one row (the bridge itself), so Loader would idle under it. The seat then mounts `ideRemote` (the generated descriptor), `runSeatLoop` in `src/seat.ts` drives `hello` + the downlink stream + `dsh/frame/<type>` local emits, and `transport.ts` `twinFetch`/`twinStreamUrlDecorator` extend the standard transports to use `bridge.json` (`Authorization: Bearer` for unary; `?tkn=` on the mux upgrade URL).
+- Seat composition (third engine): `spawnBridgeSeat` mounts the client-seat plugin tuple (`typertRegistry`, `connection` client, `gateway` client, and — after the manifest milestone — the vendored `Loader` itself) plus the vscode-remote descriptors, then iterates the `/vscode/manifest` rows through the seat's own Loader.
 
-The one reservation that maps to the Loader milestone from the earlier seat note: the twin currently mounts exactly one seat-internal plugin tuple and has no roster of planes. That is the remaining work — and it is what the mirror note (`2026-10-14-vscode-platform-mirror`) resolves.
+The Loader milestone this note reserved is realized by the platform mirror: planes mount on the twin through the vscode-modules registry's manifest routes without growing the bridge extension's bundle.
 
 ## Consumption chain at runtime (unified)
 
@@ -174,8 +174,8 @@ Off the core orchestrator, fetch lane under `scripts/bootstrap-vscode-twin.sh` c
 | The 34 remaining `dsh.client` ui-* packages | client only | `clientBundle(...)` per package | Plugin faces on the web seat. |
 | `@deepseek-ai/dsh-client-connection` | host + client | `clientBundle(...)` | Host: HostConnectionService; Client: ClientConnectionService. |
 | `@deepseek-ai/dsh-cordis-client-runner` | client | `clientBundle(...)` | Client-side runner shell. |
-| `@deepseek-ai/dsh-vscode-modules` | host | host only | `VscodeModulesRegistry` schema (what vscode-manifest.json is named after). |
-| `@deepseek-ai/dsh-vscode-events/timeline/line-notes` | vscode face | `vscodeBundle(...)` per package (reserved milestone) | Their planes on the vscode client seat. |
+| `@deepseek-ai/dsh-vscode-modules` | host | host only | `VscodeModulesRegistry` — the vscode composition registry serving `/vscode/manifest` + `/vscode/plugin`. |
+| `@deepseek-ai/dsh-vscode-events/timeline/line-notes` | vscode face | `vscodeBundle(...)` per package | Their planes on the vscode client seat. |
 | `@deepseek-ai/dsh-typert-{protocol,registry}` | shared | shared | `TypertRegistry` at ctx, `TypertGateway` host. |
 
 ## Alternatives considered
@@ -184,12 +184,10 @@ Off the core orchestrator, fetch lane under `scripts/bootstrap-vscode-twin.sh` c
 - **Fold the map into the two existing vscode notes** (`2026-10-13-…seat` and the feature notes): those notes authorship the seat-detailed decisions (bearer rules, staging, `dsh/frame/*` emit conventions) and touching them with a full compile-chain sketch would duplicate what `packages/client/web`'s README owns on the web side. A dedicated note keeps the per-seam states orthogonal: seat note = twin entrypoint contract; platform note (the mirror) = tail-end work; this note = the architecture spine.
 - **Add the full machinery to READMEs of the owning packages** (`client/modules`, `client/web`, `client/connection` …): package READMEs are the right home for module-export semantics (what `ClientModuleLoader` exposes, what `parseDshClient` accepts) but not for cross-engine map without which those exports have no anchoring — "why does `dsh.client` exist" is a whole-system question, not an export question.
 
-## Acceptance criteria
+## Verification
 
-- A reader who opened only this note can answer: why the host serves a page that never contains host-state references; how the page knows which `client.js` bundles to fetch; what a plugin author must write to opt a package into either engine (one `dsh.client` yaml block, one face source tree, one tsdown config one-liner); and where the vscode seat breaks that pattern and why (Bearer-bridge scope instead of full roster, no `api/remotes` catalog mount — one namespace only).
-- Follow-on notes (plane packages, `vscode-manifest.json` milestone) can point here for every compile/staging detail instead of restating it — the note's Owns-this vs Points-to boundary stays clean: it owns the architecture, and points at `2026-10-14-vscode-platform-mirror` for `dsh.vscode`/`vscode-manifest.json` specifics.
-- No contradictions with the landed code — every path, package, tsdown factory, and spec reference cited has been verified on `master` at the commit this note's draft was composed (all `pnpm` and `tsc -b` assertions in the Problem/Proposal map to grep-verified sources under `packages/`).
+A reader who opened only this note can answer: why the host serves a page that never contains host-state references; how the page knows which `client.js` bundles to fetch; what a plugin author must write to opt a package into either engine (one `dsh.client` yaml block, one face source tree, one tsdown config one-liner — and its vscode mirror: one `dsh.vscode` block, one `src/vscode/` face, one `vscodeBundle` one-liner plus one roster row); and where the vscode seat repeats that pattern (registry-served manifest and plane bytes instead of `api/remotes` combo injection). Follow-on notes (plane packages, the manifest milestone) point here for every compile/delivery detail instead of restating it.
 
-## Risks
+## Consequences
 
-Three edges matter across this surface. First, the `internal/plugin` fiber lifecycle drives modules-host scanning — heavy loader churn rebuilds the cached verdict and costs rescan work per entry flip, though it misses nothing. Second, `lib/typert.remote-client.js` as checked-in authoritative contract — a host `@Remote` shape that grows without regenerating the artifact leaves the client face stale; the regenerated file is committed alongside host changes precisely so drift shows as a diff someone has to explain. Third, per-spawn stamp identity — the twin's extension content matches the harness commit at spawn, so a twin spawned before a vscode-cordis commit must be respawned to receive upgrades; `IdeTwinManager` owns that lifecycle in `packages/api/ide/src/manager.ts`. The `vscode-manifest.json` milestone in the mirror note closes the roster edge: planes can then land on the twin without growing the bridge extension's bundle.
+Three edges matter across this surface. First, the `internal/plugin` fiber lifecycle drives modules-host scanning — heavy loader churn rebuilds the cached verdict per entry flip, though it misses nothing. Second, `lib/typert.remote-client.js` as checked-in authoritative contract — a host`@Remote` shape that grows without regenerating the artifact leaves the client face stale. Third, per-spawn stamp identity — the twin's extension content matches the harness commit at spawn, so a twin spawned before a vscode-cordis commit must be respawned to receive upgrades; `IdeTwinManager` owns that lifecycle in `packages/api/ide/src/manager.ts`. The vscode-modules manifest milestone closes the roster edge: planes land on the twin without growing the bridge extension's bundle, and a new plane appears to the seat at its next boot.

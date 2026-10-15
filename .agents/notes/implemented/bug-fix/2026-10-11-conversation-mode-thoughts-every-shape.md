@@ -70,6 +70,11 @@ Partly superseded: the grammar hints returned capability-gated — see [conversa
   from `ctx.request-grammar` consumers); `scripts/gen-doc-graphs.ts`
   `SERVICE_ROLES` updated accordingly.
 
+## Alternatives considered
+
+- **Repair at the serializer: stop emitting the strict empty-object schema when thinking is enabled** — rejected: the combination's suppression is the deepseek-route behavior the shield *relied on*, and the serializer's pairing is route-contract compliance for routes that legitimately carry both. The suppression was a plugin intent, so the fix owns plugin layer, not wire generation.
+- **Capability-gate the shield instead of deleting it** — rejected on the original landing: the product call removed the premise (quiet/tools suppresses thoughts), and a gated shield keeps exactly that premise on capable routes. Revisited afterward: the capability-gate itself proved serviceable and returned in the follow-up grammar-hints note — without suppressing thoughts.
+
 ## Risks
 
 - **Stray-prose token cost returns** on routes that once shielded: accepted —

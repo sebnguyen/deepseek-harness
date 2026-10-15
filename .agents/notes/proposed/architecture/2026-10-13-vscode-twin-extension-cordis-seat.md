@@ -1,7 +1,5 @@
 # Agent Note: VS Code twin bridge — the vscode extension mounts the minimal client Cordis seat; the host owns every signature
 
-
-
 Status: proposed
 
 ## Problem

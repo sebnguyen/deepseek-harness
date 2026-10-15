@@ -44,7 +44,7 @@ The model-facing layer already proves the grammar can carry selection authority
 `requestedAgentOptions`). What is missing is a *named, deployment-bound default*
 between "inherit the parent verbatim" and "literal vendor pin".
 
-## Decision
+## Proposal
 
 **Introduce delegation roles: named selections bound by composition, live in
 settings, consumed by reference.** The sketch has three seams.
@@ -124,6 +124,13 @@ operator-owned, matching how the tuning window treats every other route fact.
 hop down: the vendor fact moves from one shipped file to N deployment files, still
 literal, still un-retunable from settings, still repeated per preset (standard,
 wind-up).
+
+## Acceptance criteria
+
+- The explorer row in every shipped preset names a delegation role (no literal vendor model id or effort spelling), and role resolution flows through the composition base plus live settings — the same surfaces `agent-default-model` already owns for the parent default.
+- A spawn using a role hits `llm.resolveCallConfig` against a deployment-valid selection: the DO gateway no longer 400s a `reasoning_effort: "none"`-shaped request on the deepseek-v4 family for any shipped preset's delegation route.
+- Omitting a role leaves the child on its current full-inheritance path; nothing changes for presets that never mention it.
+- Editing a live selection in settings changes what a subsequently spawned child runs without a preset edit.
 
 ## Consequences
 
