@@ -106,14 +106,19 @@ export namespace ModuleLoader {
   let _cachedLoader: ModuleLoader | undefined
 
   function requireInternal(id: string): any {
-    const require = createRequire(import.meta.url)
+    // Bind to a name other than `require`: bundlers that inline this source
+    // into a CommonJS chunk leave own `require(...)` interop helpers in the
+    // same chunk, and a lexical `require` const shadows them into a
+    // temporal-dead-zone crash (`cannot access 'require' before
+    // initialization`). `req` keeps the call sites interop-safe.
+    const req = createRequire(import.meta.url)
     if (process.execArgv.includes('--expose-internals')) {
       try {
-        return require(id)
+        return req(id)
       } catch {}
     }
     try {
-      return require('node-addon-require-builtin').requireBuiltin(id)
+      return req('node-addon-require-builtin').requireBuiltin(id)
     } catch {}
   }
 

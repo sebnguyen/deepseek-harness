@@ -266,11 +266,10 @@ function createTwinManager(
           token,
           workspaceKey,
         })
-        // The vscode roster registry is an optional plane package: when it
-        // is mounted this spawn also stages the plane manifest; without it
-        // the twin stays bridge-only and the step is skipped.
-        const vscodeModules = (ctx as unknown as { vscodeModules?: { stageToSpawn(dir: string): Promise<void> } }).vscodeModules
-        if (vscodeModules) await vscodeModules.stageToSpawn(stateDir)
+        // The vscode roster registry serves the plane manifest over HTTP from
+        // the host webServer when it is mounted; the seat fetches it at boot.
+        // Nothing is staged per spawn — an empty roster means a bridge-only
+        // twin, and a stale optional-service read here once killed the spawn.
         return await new Promise<IdeTwin>((resolve, reject) => {
           const setup = new AbortController()
           const handle = ctx.subprocess.spawn({
@@ -357,7 +356,7 @@ export class Ide extends TypertRemoteService {
     this.dist = resolveTwinDist(config.dist)
     this.twins = createTwinManager(
       ctx,
-      { ...config, dist: this.dist },
+      Object.assign({}, config, { dist: this.dist }),
       (token) => { this.seats.delete(token) },
       () => this.dshOrigin,
     )

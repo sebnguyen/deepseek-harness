@@ -358,6 +358,16 @@
     { "path": "./packages/knowledge/knowledge-notes" },
     { "path": "./packages/extensions/cordis-host-runner" },
     { "path": "./packages/extensions/tool-cordis" },
+    // vscode-mirror packages: web deployments pull the planes onto the host
+    // engine (roster rows), so their host-face types compile with every host
+    // pass and their lib/types exist before host tsdown resolves defaults.
+    // vscode-cordis is NOT here: it imports the generated ./remote artifacts
+    // (lib/typert.remote-client.*) that only the vscode aggregate builds
+    // after, not before, the host-face tsdown pass.
+    { "path": "./packages/extensions/vscode-modules" },
+    { "path": "./packages/extensions/vscode-events" },
+    { "path": "./packages/extensions/vscode-timeline" },
+    { "path": "./packages/extensions/vscode-line-notes" },
     { "path": "./packages/hooks/hook-protocol" },
     { "path": "./packages/hooks/hooks-claude-code" },
     { "path": "./packages/hooks/hooks-codex" },
