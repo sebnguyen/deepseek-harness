@@ -1,6 +1,6 @@
 /** Shared Markdown parsing and depth-first traversal for documentation gates. */
 
-import { fromMarkdown } from 'mdast-util-from-markdown'
+import { fromMarkdown, type Options } from 'mdast-util-from-markdown'
 import { gfmFromMarkdown } from 'mdast-util-gfm'
 import { gfm } from 'micromark-extension-gfm'
 import type { Nodes } from 'mdast'
@@ -41,7 +41,10 @@ export interface MarkdownFence {
 
 /** Parse GitHub-flavored Markdown with the repository's standard extensions. */
 export function parseMarkdown(source: string): Nodes {
-  return fromMarkdown(source, { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] })
+  // Explicit encoding slot keeps TS on the (value, options) overload when micromark
+  // extension types do not exactly match Options across duplicate type graphs.
+  const options = { extensions: [gfm()], mdastExtensions: [gfmFromMarkdown()] } as Options
+  return fromMarkdown(source, undefined, options)
 }
 
 /**
