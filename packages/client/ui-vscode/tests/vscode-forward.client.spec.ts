@@ -45,8 +45,9 @@ describe('useVscodeAddressForward', () => {
   it('sends each new file address once while ready, and stays silent otherwise', () => {
     const send = vi.fn()
     const { rerender } = renderHook(
-      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) =>
-        useVscodeAddressForward(address, ready, root, send),
+      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) => {
+        useVscodeAddressForward(address, ready, root, send)
+      },
       { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', ready: true, root: '/repo' } },
     )
     expect(send).toHaveBeenCalledTimes(1)
@@ -63,8 +64,9 @@ describe('useVscodeAddressForward', () => {
   it('sends nothing when the twin is missing its root or not yet ready', () => {
     const send = vi.fn()
     renderHook(
-      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) =>
-        useVscodeAddressForward(address, ready, root, send),
+      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) => {
+        useVscodeAddressForward(address, ready, root, send)
+      },
       { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', ready: false, root: null } },
     )
     expect(send).not.toHaveBeenCalled()
