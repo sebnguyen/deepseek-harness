@@ -21,4 +21,11 @@ export default defineConfig({
     setupFiles: ['./scripts/test-proxy-environment.ts', './scripts/test-invariants.ts'],
     include: ['packages/extensions/vscode-*/tests/**/*.spec.ts'],
   },
+  resolve: {
+    alias: {
+      // The extension-host module seat code imports at runtime; the specs
+      // run under Node and get the inert ambient stand-in instead.
+      vscode: 'packages/extensions/vscode-cordis/tests/vscode-stub.ts',
+    },
+  },
 })

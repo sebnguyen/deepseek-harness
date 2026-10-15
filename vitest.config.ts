@@ -69,6 +69,12 @@ const nonLinuxWebWorkerTests = process.platform === 'linux'
 
 const platformUnsupportedTests = [...windowsUnsupportedTests, ...nonLinuxWebWorkerTests]
 
+// The *.vscode.spec.* suffix names the vscode aggregate (same selection rule
+// as its tsconfig): those specs run in the focused vscode lane
+// (vitest.config.vscode.ts, with the ambient vscode alias) and never here.
+const vscodeLaneSpecs = ['packages/*/*/tests/**/*.vscode.spec.*']
+platformUnsupportedTests.push(...vscodeLaneSpecs)
+
 const windowsUnsupportedCoveragePackages = process.platform === 'win32'
   ? [...windowsUnsupportedPackages, 'packages/subprocess/*']
   : []
