@@ -28,10 +28,17 @@ declare module 'vscode' {
   export const workspace: {
     readonly workspaceFolders?: ReadonlyArray<{ readonly uri: VsCodeUri }>
     onDidSaveTextDocument(listener: unknown): unknown
+    registerTextDocumentContentProvider(scheme: string, provider: unknown): unknown
   }
 
   export const window: {
     showTextDocument(target: unknown, options?: unknown): PromiseLike<unknown>
     onDidChangeActiveTextEditor(listener: unknown): unknown
+  }
+
+  export const languages: {
+    onDidChangeDiagnostics(listener: unknown): unknown
+    getDiagnostics(uri: unknown): readonly unknown[]
+    registerInlayHintsProvider(selector: unknown, provider: unknown): unknown
   }
 }

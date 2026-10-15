@@ -10,11 +10,15 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import Loader from '@deepseek-ai/cordis-plugin-loader'
 import type { RpcFetch } from '@deepseek-ai/dsh-client-connection/client'
 import * as connectionClient from '@deepseek-ai/dsh-client-connection/client'
 import * as gatewayClient from '@deepseek-ai/dsh-api-gateway/client'
 import * as typertRegistry from '@deepseek-ai/dsh-typert-registry/client'
 import ideRemote from '@deepseek-ai/dsh-api-ide/remote'
+import timelineRemote from '@deepseek-ai/dsh-api-timeline/remote'
+import lineNotesRemote from '@deepseek-ai/dsh-api-line-notes/remote'
+import { fetchVscodePlanes, vscodeModulesResolver } from '@deepseek-ai/dsh-vscode-modules/vscode'
 import type {
   IdeBridgeDownlinkFrame,
   IdeBridgeReportRequest,
@@ -29,6 +33,13 @@ import { readBridgeIdentity, bridgeIdentityPath, type BridgeConfigError } from '
 
 /** The extension's stable vscode id — `publisher.name`; the hello's extensionId. */
 export const VSCODE_EXTENSION_ID = 'dsh.do-harness-bridge'
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    /** Spawn-scoped bridge facts planes read (`ctx.twinCore.token`). */
+    twinCore: { readonly token: string }
+  }
+}
 
 /** Structural vscode surface the seat depends on (so the module stays testable offline). */
 export interface VsCodeWorkbenchLike {
@@ -77,6 +88,7 @@ export async function spawnBridgeSeat(deps: {
   globalCarrier.__DSH_TRANSPORT__ = transport
 
   const seat = new Context()
+  seat.twinCore = Object.freeze({ token: identity.token })
   const restore = (): void => {
     if (prior === undefined) delete globalCarrier.__DSH_TRANSPORT__
     else globalCarrier.__DSH_TRANSPORT__ = prior
@@ -87,10 +99,34 @@ export async function spawnBridgeSeat(deps: {
     await seat.plugin({ name: 'connection', inject: [] as string[], apply: connectionClient.apply })
     await seat.plugin({ name: 'gateway', inject: ['typert', 'connection'], apply: gatewayClient.apply })
     vscodeApi(seat)
+    // Row 4 of the seat composition: the vendored Loader planes mount through.
+    await seat.plugin(Loader)
     const remote = seat.remote
 
     const unload = await remote.$mount(ideRemote)
+    const unloadTimeline = await remote.$mount(timelineRemote)
+    const unloadLineNotes = await remote.$mount(lineNotesRemote)
     const { ideBridge } = remote as unknown as IdeasSeatRemote
+
+    // The seat's plane layer: fetch the host's vscode manifest and compose
+    // one Loader entry per row through the vscode-modules resolver. A host
+    // without the vscode-modules registry answers no manifest, and the seat
+    // stays bridge-only by design. A single misbehaving row never strands
+    // its siblings — it is logged and skipped.
+    try {
+      const graph = await fetchVscodePlanes(identity.dshOrigin)
+      const resolver = vscodeModulesResolver({ dshOrigin: identity.dshOrigin }, graph)
+      seat.loader.internal = { import: (specifier: string) => resolver(specifier) } as never
+      for (const row of graph.plugins) {
+        try {
+          await seat.loader.create({ name: row.id, ...(row.inject.length > 0 ? { inject: [...row.inject] } : {}) })
+        } catch (error) {
+          deps.logger?.(`vscode seat: plane ${row.id} failed to mount; continuing without it`, error)
+        }
+      }
+    } catch (error) {
+      deps.logger?.('vscode seat: no plane manifest available; running bridge-only', error)
+    }
 
     const abort = new AbortController()
     const openHandler = (frame: unknown): void => {
@@ -138,6 +174,8 @@ export async function spawnBridgeSeat(deps: {
         abort.abort()
         await pump.catch(() => undefined)
         await unload()
+        await unloadTimeline()
+        await unloadLineNotes()
         await seat.fiber.dispose().catch(() => undefined)
         restore()
       },

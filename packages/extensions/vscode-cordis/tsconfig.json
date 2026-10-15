@@ -12,6 +12,9 @@
       "path": "../../../vendor/cordis"
     },
     {
+      "path": "../../../vendor/loader"
+    },
+    {
       "path": "../../client/connection/tsconfig.client.json"
     },
     {
@@ -21,7 +24,16 @@
       "path": "../../api/ide/tsconfig.host.json"
     },
     {
+      "path": "../../api/timeline/tsconfig.host.json"
+    },
+    {
+      "path": "../../api/line-notes/tsconfig.host.json"
+    },
+    {
       "path": "../../typert/registry/tsconfig.json"
+    },
+    {
+      "path": "../vscode-modules"
     }
   ]
 }
