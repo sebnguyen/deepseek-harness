@@ -18,6 +18,7 @@
   "references": [
     { "path": "./packages/extensions/vscode-cordis" },
     { "path": "./packages/extensions/vscode-modules" },
+    { "path": "./packages/extensions/vscode-events" },
     { "path": "./packages/extensions/vscode-timeline" },
     { "path": "./packages/extensions/vscode-line-notes" }
   ]

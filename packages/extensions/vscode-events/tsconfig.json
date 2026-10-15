@@ -1,0 +1,15 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "declaration": true,
+    "declarationMap": true
+  },
+  "include": ["src"],
+  "files": [],
+  "references": [
+    { "path": "../../../vendor/cordis" },
+    { "path": "../../api/ide/tsconfig.host.json" }
+  ]
+}
