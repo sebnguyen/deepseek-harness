@@ -115,11 +115,13 @@ export async function spawnBridgeSeat(deps: {
     // its siblings — it is logged and skipped.
     try {
       const graph = await fetchVscodePlanes(identity.dshOrigin)
+      deps.logger?.(`vscode seat: manifest ${graph.rev} — composing ${graph.plugins.length} plane(s)`)
       const resolver = vscodeModulesResolver({ dshOrigin: identity.dshOrigin }, graph)
       seat.loader.internal = { import: (specifier: string) => resolver(specifier) } as never
       for (const row of graph.plugins) {
         try {
           await seat.loader.create({ name: row.id, ...(row.inject.length > 0 ? { inject: [...row.inject] } : {}) })
+          deps.logger?.(`vscode seat: plane ${row.id} mounted`)
         } catch (error) {
           deps.logger?.(`vscode seat: plane ${row.id} failed to mount; continuing without it`, error)
         }
@@ -201,6 +203,7 @@ function isOpenFrame(frame: unknown): frame is IdeBridgeDownlinkFrame {
 export async function activate(context: {
   readonly extensionUriFsPath: string
   readonly workbench: VsCodeWorkbenchLike
+  readonly logger?: (...args: unknown[]) => void
 }): Promise<{ stop: () => Promise<void> }> {
   const identity = await readBridgeIdentity(bridgeIdentityPath(context.extensionUriFsPath))
   if (identity.dshOrigin === '') {
@@ -208,5 +211,5 @@ export async function activate(context: {
       name: 'BridgeConfigError' satisfies BridgeConfigError['name'],
     })
   }
-  return spawnBridgeSeat({ identity, workbench: context.workbench })
+  return spawnBridgeSeat({ identity, workbench: context.workbench, ...(context.logger === undefined ? {} : { logger: context.logger }) })
 }

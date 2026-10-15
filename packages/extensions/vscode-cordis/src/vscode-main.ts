@@ -10,9 +10,19 @@ import { activate as activateSeat } from './extension.ts'
 
 let running: { stop(): Promise<void> } | undefined
 
+/** Diagnostic sink the seat reports into — visible in the twin's Output panel as 'DSH Twin'. */
+let channel: ReturnType<typeof window.createOutputChannel> | undefined
+
 export async function activate(context: ExtensionContext): Promise<void> {
+  if (channel === undefined) {
+    channel = window.createOutputChannel('DSH Twin')
+    context.subscriptions.push(channel)
+  }
   running = await activateSeat({
     extensionUriFsPath: context.extensionUri.fsPath,
+    logger: (...args: unknown[]) => {
+      channel?.appendLine(`${new Date().toISOString()} ${args.map(String).join(' ')}`)
+    },
     workbench: {
       workspaceRoot: workspace.workspaceFolders?.[0]?.uri.fsPath ?? null,
       showTextDocument: async (path: string, options?: { line?: number }): Promise<unknown> => {

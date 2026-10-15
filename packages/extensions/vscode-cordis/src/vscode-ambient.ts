@@ -7,8 +7,17 @@
 declare module 'vscode' {
   /** The staged extension's own directory on disk. */
   export interface ExtensionUri { readonly fsPath: string }
+  export interface Disposable { dispose(): void }
   export interface ExtensionContext {
     readonly extensionUri: ExtensionUri
+    /** Disposables the extension host drains on unload. */
+    readonly subscriptions: Disposable[]
+  }
+
+  /** A dedicated diagnostics sink, surfaced in the workbench Output panel. */
+  export interface OutputChannel {
+    appendLine(value: string): void
+    dispose(): void
   }
 
   export interface VsCodeUri { readonly fsPath: string }
@@ -34,6 +43,7 @@ declare module 'vscode' {
   export const window: {
     showTextDocument(target: unknown, options?: unknown): PromiseLike<unknown>
     onDidChangeActiveTextEditor(listener: unknown): unknown
+    createOutputChannel(name: string): OutputChannel
   }
 
   export const languages: {
