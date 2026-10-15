@@ -1,0 +1,12 @@
+{
+  "name": "dsh-vscode-spec-plane",
+  "private": true,
+  "version": "0.0.0",
+  "dsh": {
+    "vscode": {
+      "platform": "vscode",
+      "inject": ["vscodeApi"],
+      "immediately": true
+    }
+  }
+}
