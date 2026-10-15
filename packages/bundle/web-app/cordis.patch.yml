@@ -191,6 +191,14 @@
       config:
         dist: !!js process.env.DSH_VSCODE_TWIN_DIST ?? ''
 
+    # Session checkpoint timeline Remote (pull face of checkpoint notices).
+    - id: timeline
+      name: '@deepseek-ai/dsh-api-timeline'
+
+    # Line notes Remote: per-session note registry with the editor focus uplink.
+    - id: line-notes
+      name: '@deepseek-ai/dsh-api-line-notes'
+
     # Configuration-surface reads and writes over Typert Remote. Each method
     # reports an actionable error when its settings-domain provider is absent.
     - id: settings-controller
@@ -321,6 +329,24 @@
     # twin at the extension band, above the builtin text editor.
     - id: ui-vscode
       name: '@deepseek-ai/dsh-client-ui-vscode'
+
+    # The vscode web client's composition registry: scans the loader rows for
+    # `dsh.vscode` declarations and serves the vscode manifest + plane bundles
+    # at /vscode/manifest and /vscode/plugin (the twin seats compose planes
+    # from these routes).
+    - id: vscode-modules
+      name: '@deepseek-ai/dsh-vscode-modules'
+
+    # The vscode planes: declared host-side so the vscode-modules roster scan
+    # sees their `dsh.vscode` blocks; their host faces are inert by design.
+    - id: vscode-events
+      name: '@deepseek-ai/dsh-vscode-events'
+
+    - id: vscode-timeline
+      name: '@deepseek-ai/dsh-vscode-timeline'
+
+    - id: vscode-line-notes
+      name: '@deepseek-ai/dsh-vscode-line-notes'
 
     # The right Sidebar's workspace file tree tab type.
     - id: ui-sidebar-files
