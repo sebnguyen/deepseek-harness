@@ -107,7 +107,7 @@ Core Rule: Prove It - A claim nobody ran is an assertion, and the check is what 
 
 ### Core Rule: Batch Over Individual
 
-Core Rule: Batch Over Individual - The harness runs independent tool calls in parallel, so batching costs nothing and serializing costs wall-clock time. Batch independent read-only work first — lookups, searches, and reads — then mutate once you know what to change. A call that needs an earlier result, or an edit that changes what you would read next, is a new message. Example: onboarding to a service: one message listing the files under src/auth, searching session, and reading the router file if the path is already known, instead of three turns with reasoning between each call.
+Core Rule: Batch Over Individual - The harness runs independent tool calls in parallel, so batching costs nothing and serializing costs wall-clock time. Batch independent read-only work first — lookups, searches, and reads — then mutate once you know what to change. A call that needs an earlier result waits; batched multi_write elements see each other's commits in order, so element dependency is no reason to split. Example: onboarding: one message listing the src/auth files, searching session, and reading the router file, instead of three turns with reasoning between each call.
 
 ### Core Rule: Diagnose Before Switching
 
