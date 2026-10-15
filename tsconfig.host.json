@@ -365,7 +365,6 @@
     // (lib/typert.remote-client.*) that only the vscode aggregate builds
     // after, not before, the host-face tsdown pass.
     { "path": "./packages/extensions/vscode-modules" },
-    { "path": "./packages/extensions/vscode-events" },
     { "path": "./packages/extensions/vscode-timeline" },
     { "path": "./packages/extensions/vscode-line-notes" },
     { "path": "./packages/hooks/hook-protocol" },

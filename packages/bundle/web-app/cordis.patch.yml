@@ -656,8 +656,6 @@
 
     # The vscode planes: declared host-side so the vscode-modules roster scan
     # sees their `dsh.vscode` blocks; their host faces are inert by design.
-    - id: vscode-events
-      name: '@deepseek-ai/dsh-vscode-events'
 
     - id: vscode-timeline
       name: '@deepseek-ai/dsh-vscode-timeline'

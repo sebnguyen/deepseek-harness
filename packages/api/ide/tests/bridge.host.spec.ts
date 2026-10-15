@@ -118,22 +118,20 @@ describe('ideBridge twin wire', () => {
     controller.abort()
   })
 
-  it('report hello binds the seat; events before it fail with a named Remote code', async () => {
+  it('report hello binds the seat; other verbs fail with a named Remote code', async () => {
     const { ide } = await harness()
     await ide.status('s1', new AbortController().signal)
     const token = (await ide.status('s1', new AbortController().signal)).tkn as string
-    await expect(
-      ide.report({ token, event: { type: 'save', path: '/repo/a.ts' } }, new AbortController().signal),
-    ).rejects.toMatchObject({ code: 'ide/seat-not-helloed' })
     await ide.report({
       token,
       event: { type: 'hello', extensionId: 'dsh.do-harness-bridge', version: '0.0.1', workspaceRoot: '/repo' },
     }, new AbortController().signal)
+    // A non-hello verb (e.g. one of the removed projection events) must still be refused loudly.
     await expect(
-      ide.report({ token, event: { type: 'save', path: '/repo/a.ts' } }, new AbortController().signal),
-    ).resolves.toBeUndefined()
+      ide.report({ token, event: { type: 'save', path: '/repo/a.ts' } as never }, new AbortController().signal),
+    ).rejects.toMatchObject({ code: 'ide/report-invalid' })
     await expect(
-      ide.report({ token: 'bogus', event: { type: 'save', path: '/repo/a.ts' } }, new AbortController().signal),
+      ide.report({ token: 'bogus', event: { type: 'hello', extensionId: 'x', version: '0', workspaceRoot: null } }, new AbortController().signal),
     ).rejects.toMatchObject({ code: 'ide/token-unknown' })
   })
 })

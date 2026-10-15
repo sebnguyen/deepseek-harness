@@ -2220,9 +2220,6 @@ importers:
       '@deepseek-ai/dsh-tool-subagent':
         specifier: workspace:^
         version: link:../../subagent/tool-subagent
-      '@deepseek-ai/dsh-vscode-events':
-        specifier: workspace:^
-        version: link:../../extensions/vscode-events
       '@deepseek-ai/dsh-vscode-line-notes':
         specifier: workspace:^
         version: link:../../extensions/vscode-line-notes
@@ -6790,16 +6787,6 @@ importers:
       '@deepseek-ai/dsh-vscode-modules':
         specifier: workspace:^
         version: link:../vscode-modules
-
-  packages/extensions/vscode-events:
-    dependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:^
-        version: link:../../../vendor/cordis
-    devDependencies:
-      '@deepseek-ai/dsh-api-ide':
-        specifier: workspace:^
-        version: link:../../api/ide
 
   packages/extensions/vscode-line-notes:
     dependencies:

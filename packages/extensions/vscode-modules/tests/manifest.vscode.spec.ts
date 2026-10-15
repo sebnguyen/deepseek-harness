@@ -34,11 +34,11 @@ describe('VscodeManifestSchema', () => {
 
 describe('parseDshVscode', () => {
   it('parses a well-formed vscode face declaration', () => {
-    expect(parseDshVscode('@deepseek-ai/dsh-vscode-events', {
+    expect(parseDshVscode('@deepseek-ai/dsh-vscode-timeline', {
       platform: 'vscode',
-      inject: ['vscodeApi', 'remote.ideBridge'],
+      inject: ['vscodeApi', 'remote.timeline'],
       immediately: true,
-    })).toEqual({ platform: 'vscode', inject: ['vscodeApi', 'remote.ideBridge'], immediately: true })
+    })).toEqual({ platform: 'vscode', inject: ['vscodeApi', 'remote.timeline'], immediately: true })
   })
 
   it('is a negative verdict only when the field is absent', () => {

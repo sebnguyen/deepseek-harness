@@ -52,12 +52,14 @@ export interface IdeBridgeHelloMeta {
   readonly workspaceRoot: string | null
 }
 
-/** Uplink event union the bridge extension sends through `ideBridge.report`. */
+/**
+ * Uplink union the bridge extension sends through `ideBridge.report`. Only
+ * the connect-time `hello` remains: the projection events (save, activeEditor,
+ * diagnostics) left with the vscode-events plane, whose collected read-model
+ * had no consumer.
+ */
 export type IdeBridgeReportEvent =
   | ({ readonly type: 'hello' } & IdeBridgeHelloMeta)
-  | { readonly type: 'save'; readonly path: string }
-  | { readonly type: 'activeEditor'; readonly path: string | null }
-  | { readonly type: 'diagnostics'; readonly path: string; readonly errors: number; readonly warnings: number }
 
 /** Input of `ideBridge.downlink` / `ideBridge.report`: the twin identifies by its spawn token. */
 export interface IdeBridgeTwinCall {
@@ -96,8 +98,8 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
     /** The presented twin token names no live twin. */
     'ide/token-unknown': IdeBridgeFaultDetails
-    /** An uplink event arrived before the seat's connect-time `hello`. */
-    'ide/seat-not-helloed': IdeBridgeFaultDetails
+    /** `ide/report` carried a non-hello uplink event the host no longer accepts. */
+    'ide/report-invalid': IdeBridgeFaultDetails
     /** `ide/open` rejected its payload's shape beyond codec typing. */
     'ide/open-invalid': IdeBridgeFaultDetails
   }

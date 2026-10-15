@@ -1,4 +1,4 @@
-# Agent Note: VS Code twin plane design — one standard, six plugins, before and after
+# Agent Note: VS Code twin plane design — one standard, five plugins, before and after
 
 Status: proposed
 
@@ -58,11 +58,9 @@ Delivery for all of them: `vscode-modules` serves `GET /vscode/manifest` + `/vsc
 
 ---
 
-## Plugin 4 · `vscode-events` — uplink projections (unchanged)
+## Plugin 4 · `vscode-events` — uplink projections — **REMOVED**
 
-**Interface:** `inject = ['vscodeApi', 'remote.ideBridge']`. Three facade subscriptions projected into `remote.ideBridge.report({ token: ctx.twinCore.token, event })`: save → `{type:'save', path}`, active editor → `{type:'activeEditor', path|null}`, diagnostics → `{type:'diagnostics', path, errors, warnings}` (severity 0/1 counts; eventless buffers dropped; rejections swallowed — `src/vscode/index.ts:39-69`).
-
-**Before / After:** identical — this plane was already the standard's shape. It stays the single uplink-projection funnel specifically because uplink projections all feed one `IdeBridgeReportEvent` union (`api/ide/src/types.ts:56-70`); downlink flows get a plane per verb-owner. Known non-item: twin→tab `activeEditor` projection is deliberately unhooked (forward.ts doc).
+The pilot plane and its rail are deleted. Its uplink projections were a write-only read-model: `report` recorded `seat.saved` / `seat.activeEditor` / `seat.diagnostics` and no code ever read them (only `seat.hello` was read, as the pre-hello admission gate). Removed in one commit on the removal branch: the package `packages/extensions/vscode-events/`, its wiring rows (`tsconfig.host.json`, `tsconfig.vscode.json`, the `cordis.patch.yml` loader row, the web-app dependency), the dead host state (`IdeBridgeReportEvent` back to hello-only, the three `SeatState` projection fields, the `ide/seat-not-helloed` fault — non-hello verbs now fail as `ide/report-invalid`), and the projection tests. Kept: `hello` itself — the connect-time identity handshake `runSeatLoop` sends, still recorded as `seat.hello`. If a projection consumer ever lands, the shape returns as a small diff on the hello-only skeleton, not as a resurrection of this commit.
 
 ---
 
@@ -100,7 +98,7 @@ Delivery for all of them: `vscode-modules` serves `GET /vscode/manifest` + `/vsc
 | `vscode-cordis` | transport **+ one flow** (openFile) with a leak | transport only, 6 verbs keepers: hello on the seat loop |
 | `vscode-modules` | delivery pair | same |
 | `vscode-open` | — | new plane owning `ideBridge/open` |
-| `vscode-events` | uplink projections | same |
+| ~~`vscode-events`~~ | write-only uplink projections | **removed** (hello-only uplink remains) |
 | `vscode-line-notes` | no-op plane; dormant api; live web notes on slots | slot-backed twin hints + `lineNotes.add` + chip injection |
 | `vscode-timeline` | placeholder provider, ghost api | native Timeline items + line-0 inlay scrubber over checkpoints |
 

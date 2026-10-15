@@ -118,12 +118,6 @@ interface SeatState {
   generation: number
   /** Consumer-resume hooks, woken by {@link Ide.queueFrame}. */
   readonly waiters: Set<() => void>
-  /** Uplink projection: saved-file paths, bounded at 128 newest. */
-  readonly saved: Set<string>
-  /** Uplink projection: the last reported active editor, null when none. */
-  activeEditor: string | null
-  /** Uplink projection: per-path diagnostic summary, bounded at 256. */
-  readonly diagnostics: Map<string, { readonly errors: number; readonly warnings: number }>
 }
 
 function emptySeat(): SeatState {
@@ -133,9 +127,6 @@ function emptySeat(): SeatState {
     flushed: 0,
     generation: 0,
     waiters: new Set(),
-    saved: new Set(),
-    activeEditor: null,
-    diagnostics: new Map(),
   }
 }
 
@@ -474,10 +465,10 @@ export class Ide extends TypertRemoteService {
   }
 
   /**
-   * The twin's uplink: its connect-time `hello` identity, then projection
-   * events (save, active editor, diagnostics) as they happen. Events before
-   * hello are refused — the projections are keyed outside the event's own
-   * payload only by an already-established identity.
+   * The twin's uplink: the connect-time `hello` is the only accepted event.
+   * Projection events (save, active editor, diagnostics) left with the
+   * vscode-events plane; a non-hello verb is a protocol mismatch and fails
+   * loudly rather than being logged and dropped.
    * @param request - the twin token plus the event.
    * @param signal - caller cancellation.
    */
@@ -485,38 +476,15 @@ export class Ide extends TypertRemoteService {
   async report(request: IdeBridgeReportRequest, signal: AbortSignal): Promise<void> {
     void signal
     const seat = this.seatOf(request.token)
+    if (request.event.type !== 'hello') {
+      throw new RemoteError(
+        'ide/report-invalid',
+        `ide: report event '${String((request.event as { type?: unknown }).type)}' is not accepted`,
+        { reason: 'unknown-verb' },
+      )
+    }
     const { event } = request
-    if (event.type === 'hello') {
-      seat.hello = { extensionId: event.extensionId, version: event.version, workspaceRoot: event.workspaceRoot }
-      return
-    }
-    if (seat.hello === null) {
-      throw new RemoteError('ide/seat-not-helloed', `ide: event '${event.type}' reported before the seat hello`, { reason: 'before-hello' })
-    }
-    switch (event.type) {
-      case 'save':
-        if (seat.saved.size >= 128 && !seat.saved.has(event.path)) seat.saved.delete(seat.saved.values().next().value as string)
-        seat.saved.add(event.path)
-        return
-      case 'activeEditor':
-        seat.activeEditor = event.path
-        return
-      case 'diagnostics':
-        if (event.errors === 0 && event.warnings === 0) {
-          seat.diagnostics.delete(event.path)
-          return
-        }
-        if (seat.diagnostics.size >= 256 && !seat.diagnostics.has(event.path)) {
-          seat.diagnostics.delete(seat.diagnostics.keys().next().value as string)
-        }
-        seat.diagnostics.set(event.path, { errors: event.errors, warnings: event.warnings })
-        return
-      default: {
-        // Unknown verbs must not pass a logged-and-forgotten gate silently.
-        const UNKNOWN = (e: never): never => { throw new Error(String((e as { type?: unknown }).type)) }
-        UNKNOWN(event)
-      }
-    }
+    seat.hello = { extensionId: event.extensionId, version: event.version, workspaceRoot: event.workspaceRoot }
   }
 
   /**
