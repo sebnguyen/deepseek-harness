@@ -238,6 +238,67 @@ describe('staged-escalation gate', () => {
     expect(outcomes[2]?.text ?? '').toContain('blocked due to your "explore" stage')
   })
 
+  it('reminds a clamp-caused sandbox denial to cross the stage, and drops the line after the grant', async () => {
+    const { ctx, parent, adapter } = await harness({})
+    ctx.tools.register(defineContentToolFixture({
+      name: 'bash',
+      description: 'shell',
+      parameters: {},
+      async execute() { return [{ type: 'text', text: 'tail\n[sandbox: file access denied under read-only mode]' }] },
+    }))
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access' })
+    ; (adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'bash', {}),
+      toolCallResponse('c2', 'request_escalation', { stage: 'act', justification: 'the denial pinned the stage clamp' }),
+      toolCallResponse('c3', 'bash', {}),
+      textResponse('done'),
+    ] as never
+    parent.followup({ role: 'user', content: [{ type: 'text', text: 'write then verify' }], source: { kind: 'user' } } as never)
+    await settle(ctx, parent)
+    const outcomes = toolOutcomes(parent)
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false, false, false])
+    expect(outcomes[0]?.text ?? '').toContain('[sandbox: file access denied under read-only mode]')
+    expect(outcomes[0]?.text ?? '').toContain('This sandbox denial is the "explore" stage clamp (read-only mode)')
+    expect(outcomes[0]?.text ?? '').toContain('not the standing sandbox policy')
+    expect(outcomes[0]?.text ?? '').toContain('request_escalation')
+    // After the grant the turn sits at the top rung: the reminder is noise and stays off.
+    expect(outcomes[2]?.text ?? '').toBe('tail\n[sandbox: file access denied under read-only mode]')
+  })
+
+  it('leaves a sandbox denial alone when the standing policy itself is the fence', async () => {
+    const { ctx, parent, adapter } = await harness({})
+    ctx.tools.register(defineContentToolFixture({
+      name: 'bash',
+      description: 'shell',
+      parameters: {},
+      async execute() { return [{ type: 'text', text: '[sandbox: file access denied under read-only mode]' }] },
+    }))
+    await ctx.plugin(SandboxPolicyService, { mode: 'read-only' })
+    ; (adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'bash', {}),
+      textResponse('done'),
+    ] as never
+    parent.followup({ role: 'user', content: [{ type: 'text', text: 'try the write' }], source: { kind: 'user' } } as never)
+    await settle(ctx, parent)
+    const outcomes = toolOutcomes(parent)
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false])
+    expect(outcomes[0]?.text ?? '').toBe('[sandbox: file access denied under read-only mode]')
+  })
+
+  it('leaves denial-free results and value replacements untouched by the clamp reminder', async () => {
+    const { ctx, parent, adapter } = await harness({})
+    await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access' })
+    ; (adapter as unknown as { script: unknown[] }).script = [
+      toolCallResponse('c1', 'read', {}),
+      textResponse('done'),
+    ] as never
+    parent.followup({ role: 'user', content: [{ type: 'text', text: 'just read' }], source: { kind: 'user' } } as never)
+    await settle(ctx, parent)
+    const outcomes = toolOutcomes(parent)
+    expect(outcomes.map(outcome => outcome.isError)).toEqual([false])
+    expect(outcomes[0]?.text ?? '').toBe('pinned lines')
+  })
+
   it('widens the fence only on a logged grant, never on evidence alone', async () => {
     const ctx = new Context()
     await mountAgentLoopTestDependencies(ctx)

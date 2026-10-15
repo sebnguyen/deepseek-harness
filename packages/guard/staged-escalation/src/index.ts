@@ -18,8 +18,8 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { createUserMessage, type ToolCallId, type UserMessage } from '@deepseek-ai/dsh-llm'
-import type { SandboxMode } from '@deepseek-ai/dsh-sandbox'
+import { createUserMessage, type ContentBlock, type ToolCallId, type UserMessage } from '@deepseek-ai/dsh-llm'
+import { sandboxDenialMarker, type SandboxMode } from '@deepseek-ai/dsh-sandbox'
 import '@deepseek-ai/dsh-sandbox-policy'
 import type { Session } from '@deepseek-ai/dsh-session'
 import { STRUCTURED_OUTPUT_TOOL } from '@deepseek-ai/dsh-subagent-in-process-driver'
@@ -107,6 +107,21 @@ export interface StagedEscalationSource {
  */
 export function denyReason(stageName: string): string {
   return `[staging] This tool is blocked due to your "${stageName}" stage — trigger request_escalation when you are ready to proceed to the next stage.`
+}
+
+/**
+ * The reminder a `tools/post-execute` listener appends to a sandbox denial the
+ * STAGING CLAMP caused: the shell and file fences report the denial under the
+ * stage's narrow mode, so without this line the model blames the standing
+ * policy — or retries under user approval, which lifts nothing — instead of
+ * crossing the stage. The reminder lives beside the denial it explains, not in
+ * the step-1 header, so the lever names itself at the decision point.
+ * @param stageName - the stage the turn currently sits in.
+ * @param mode - the stage's clamped sandbox mode the denial ran under.
+ * @returns the reminder line, exactly as the model sees it.
+ */
+export function clampHint(stageName: string, mode: SandboxMode): string {
+  return `[staging] This sandbox denial is the "${stageName}" stage clamp (${mode} mode), not the standing sandbox policy — trigger request_escalation when you are ready to proceed to the next stage.`
 }
 
 /**
@@ -259,6 +274,39 @@ export function apply(ctx: Context, config: Config): void {
       return { ...decision, messages: [...decision.messages, reminder] }
     })
   }
+
+  ctx.on('tools/post-execute', async (exec, result, next) => {
+    const decision = await next()
+    // Only accepted content can carry a reminder; a value replacement leaves
+    // no text to tag, and a call without an owning session has no ladder.
+    if (decision.kind !== 'accept' || Object.hasOwn(decision, 'value') || exec.agent === undefined) return decision
+    const current = at(exec.agent.session)
+    // At the top rung request_escalation lifts nothing, so never point at it.
+    if (current >= stages.length - 1) return decision
+    const stageMode = stageAt(current).sandbox
+    // Remind only when the STAGING CLAMP is the fence the denial hit: the
+    // standing policy resolves wider than the stage mode, so crossing would
+    // actually widen the call. When the standing policy is itself this narrow
+    // the denial is the deployment's own fence and the family-specific
+    // escalation hint already names its lever.
+    const standing = ctx.get('sandboxPolicy')?.resolve({ session: exec.agent.session })
+    if (standing === undefined || MODE_RANK[standing.mode] <= MODE_RANK[stageMode]) return decision
+    const marker = sandboxDenialMarker(stageMode)
+    const content = decision.content ?? result.content
+    const hit = content.findIndex(block => block.type === 'text' && block.text.includes(marker))
+    if (hit < 0) return decision
+    const target = content[hit]
+    if (target?.type !== 'text') return decision
+    const line = clampHint(stageAt(current).name, stageMode)
+    const merged = target.text.endsWith('\n') ? `${target.text}${line}` : `${target.text}\n${line}`
+    const replaced: ContentBlock[] = content.slice()
+    replaced[hit] = { ...target, text: merged }
+    return {
+      kind: 'accept',
+      content: replaced,
+      ...decision.additionalContexts ? { additionalContexts: decision.additionalContexts } : {},
+    }
+  })
 
   ctx.on('sandbox-policy/resolve', async (_standing, session, next) => {
     const resolved = await next()
