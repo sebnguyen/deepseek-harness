@@ -268,6 +268,24 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
     const host = hostRef.current
     if (host === null) return
     const map = records.current
+    // Parking or evicting the record whose frame owns the document's focus
+    // would drop the keyboard onto <body> — a mount or switch removing
+    // focus from the thing that had it. Hand it back first, to wherever
+    // the document last had it, mirroring the blur guard's hand-back below.
+    const active = document.activeElement
+    if (active instanceof HTMLIFrameElement) {
+      for (const record of map.values()) {
+        if (record.frame !== active) continue
+        if (frameHolder.current === active) frameHolder.current = null
+        const prior = lastFocus.current
+        if (prior !== null && prior.isConnected) {
+          prior.focus({ preventScroll: true })
+        } else {
+          active.blur()
+        }
+        break
+      }
+    }
     for (const record of map.values()) {
       record.container.style.display = 'none'
       record.container.removeAttribute('data-current')

@@ -338,6 +338,56 @@ describe('the twin frame cache', () => {
     }
   })
 
+  it('a parked or evicted record hands its focus back instead of dropping it on <body>', async () => {
+    vi.useFakeTimers()
+    const first = await mount('h1', ready('/wH'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+    const frameH = currentFrame()
+    if (frameH === null) throw new Error('frame missing')
+    const composer = document.createElement('div')
+    composer.tabIndex = 0
+    document.body.appendChild(composer)
+    try {
+      // No owner on record at all: parking the focused frame blurs it
+      // outright, so the keyboard lands on <body>, never stranded inside
+      // the hidden frame.
+      frameH.focus()
+      expect(document.activeElement).toBe(frameH)
+      first.unmount()
+      expect(document.activeElement).toBe(document.body)
+
+      // The frame owns the keyboard by a pointed entry. Parking it for a
+      // workspace switch hands the keyboard back to the document owner.
+      composer.focus()
+      const second = await mount('h2', ready('/wH'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      frameH.dispatchEvent(new Event('pointerover', { bubbles: true }))
+      frameH.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(frameH)
+      const third = await mount('h3', ready('/wQ'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(currentFrame()?.getAttribute('src')).toContain('folder=%2FwQ')
+      expect(document.activeElement).toBe(composer)
+
+      // The owner is gone: nothing to hand back to, so the switch blurs
+      // the focused frame rather than marooning the keyboard inside it.
+      const frameQ = currentFrame()
+      if (frameQ === null) throw new Error('frame missing')
+      composer.remove()
+      frameQ.focus()
+      expect(document.activeElement).toBe(frameQ)
+      const fourth = await mount('h4', ready('/wR'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(document.activeElement).toBe(document.body)
+      second.unmount()
+      third.unmount()
+      fourth.unmount()
+    } finally {
+      composer.remove()
+    }
+  })
+
   it('re-seals a fresh document when the workspace actually changes', async () => {
     vi.useFakeTimers()
     const a = await mount('r1', ready('/wR'))
