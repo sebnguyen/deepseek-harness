@@ -44,6 +44,14 @@ export interface IdeBridgeOpenRequest {
  */
 export type IdeBridgeDownlinkFrame =
   | { readonly type: 'ideBridge/open'; readonly path: string; readonly line?: number }
+  /**
+   * Tab focus tells the shared twin which session now speaks: one twin serves
+   * every session of one workspace root, so the planes that reach
+   * `remote.<ns>` remotes carrying a `sessionId` parameter (checkpoint
+   * slots/blobs, line notes) read their identity from this frame. The latest
+   * activate wins; a seat attaching late replays the queued backlog in order.
+   */
+  | { readonly type: 'ideBridge/activate'; readonly sessionId: string }
 
 /** Seat identity the bridge extension fires once per connection. */
 export interface IdeBridgeHelloMeta {
@@ -86,6 +94,13 @@ export interface VscodeBridgeIdentity {
   readonly token: string
   /** The spawner's key for this twin (workspace root, else session id). */
   readonly workspaceKey: string
+  /**
+   * The session that spawned this twin, staged as the seat's bootstrap seed.
+   * One twin serves every session of its workspace root, so the frame-time
+   * `ideBridge/activate` supersedes this value on every tab focus; the seed
+   * exists only so a twin works before the first activate frame lands.
+   */
+  readonly sessionId?: string
 }
 
 /** Wire details carried by every `ide/*` Remote failure. */

@@ -258,6 +258,15 @@ function twinBridgeManifest(): Record<string, unknown> {
     engines: { vscode: '^1.50.0' },
     main: './extension.cjs',
     activationEvents: ['onStartupFinished'],
+    contributes: {
+      // The planes mount these handlers at runtime through the seat's facade;
+      // the manifest contribution is only what makes the commands discoverable
+      // in the palette (planes are bundles, their own package.json never
+      // reaches the workbench).
+      commands: [
+        { command: 'do-harness.addLineNote', title: 'Add Line Note', category: 'DSH Harness' },
+      ],
+    },
   }
 }
 

@@ -48,7 +48,11 @@ export function parseBridgeIdentity(value: unknown): VscodeBridgeIdentity {
   // dshOrigin is intentionally not validated as non-empty: in profiles
   // without a web server the spawner writes '', and the extension idles.
   const dshOrigin = str('dshOrigin') ?? ''
-  return { dshOrigin, token, workspaceKey }
+  // sessionId is the spawn's bootstrap session seed: optional because bridge
+  // files staged before the plane work predate it, and superseded at runtime
+  // by `ideBridge/activate` frames.
+  const sessionId = str('sessionId')
+  return { dshOrigin, token, workspaceKey, ...(sessionId === undefined ? {} : { sessionId }) }
 }
 
 /**

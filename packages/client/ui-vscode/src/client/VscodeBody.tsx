@@ -13,7 +13,7 @@
  * switch on the same workspace re-shows the live workbench instead of
  * reloading it; this body only publishes the ready src on its intent store.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -21,6 +21,7 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
 import { BootHero, useTwinIntent } from './twin.tsx'
 import { useVscodeAddressForward, type VscodeForwardRequest } from './forward.ts'
+import { vscodeDebug, vscodeWarn } from './log.ts'
 import type { IdeBridgeStatus, IdeOpenRequest } from './rpc.ts'
 
 /** Poll cadence for the status question while the twin warms up. */
@@ -36,6 +37,12 @@ export interface VscodeInjected {
    * channel degrade silently to status-only.
    */
   readonly forwardFile?: (sessionId: SessionId, request: IdeOpenRequest) => void
+  /**
+   * Fire-and-forget: announce this body's session as the focused one in its
+   * workspace twin. Optional for the same legacy compositions as
+   * `forwardFile`; without it the twin keeps its spawn-seed session forever.
+   */
+  readonly activate?: (sessionId: SessionId) => void
 }
 
 /** The body's composed props: the tab runtime, the injected face, and copy. */
@@ -62,7 +69,7 @@ export function resetVscodeReadyCache(): void {
  * @param props - composed slot props.
  * @returns the state line standing in for the twin, or nothing once ready.
  */
-export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forwardFile, t }: VscodeBodyProps): ReactNode {
+export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forwardFile, activate, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
   // Resource addresses (file rows) carry their session in the URL; page
   // tabs (`sidebar://<kind>`) don't — those take the scope's session, which
@@ -72,15 +79,35 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
     return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
   }, [tab.contentId, scopeSessionId])
   const [state, setState] = useState<IdeBridgeStatus | undefined>(readyCache.get(sessionId))
+  // Transition-only breadcrumbs: the poll fires every POLL_MS, but only a
+  // ready flip says something new about why clicks can/cannot reach a twin.
+  const lastLoggedReady = useRef<boolean | undefined>(undefined)
 
   useEffect(() => {
     const controller = new AbortController()
     let mounted = true
+    // One line per body mount: a session switch remounts this body per the
+    // seat contract, so this timestamp brackets "user switched session".
+    vscodeDebug('body:poll start', { sessionId })
     const tick = async (): Promise<void> => {
       const result = await status(sessionId, controller.signal)
       if (!mounted || controller.signal.aborted) return
       const fallback = { enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: '' }
       const next = result.ok ? result.value : { ...fallback, detail: result.error.message }
+      if (!result.ok) vscodeWarn('status:error', { sessionId, detail: next.detail })
+      if (next.ready !== lastLoggedReady.current) {
+        lastLoggedReady.current = next.ready
+        vscodeDebug('status', {
+          sessionId,
+          ready: next.ready,
+          // Token tail only: enough to correlate "same twin" across a respawn
+          // without spilling the bearer into logs.
+          t6: next.tkn === null ? null : next.tkn.slice(-6),
+          url: next.url,
+          workspaceRoot: next.workspaceRoot,
+          detail: next.detail,
+        })
+      }
       if (next.ready) readyCache.set(sessionId, next)
       setState(next)
     }
@@ -108,6 +135,16 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
   // address anyway.
   const ready = state !== undefined && state.ready && state.tkn !== null
   const workspaceRoot = ready ? state.workspaceRoot : null
+
+  // Session focus: one twin serves every session of a workspace, so the tab
+  // announces the focused session on each ready answer's token (a respawned
+  // twin gets a fresh activate) and on every session switch.
+  const tkn = state?.ready === true ? state.tkn : null
+  useEffect(() => {
+    if (tkn === null || activate === undefined) return
+    vscodeDebug('activate', { sessionId, t6: tkn.slice(-6) })
+    activate(sessionId)
+  }, [tkn, sessionId, activate])
   const sendForward = useMemo(
     () => (request: VscodeForwardRequest) => {
       forwardFile?.(request.sessionId, { path: request.path })

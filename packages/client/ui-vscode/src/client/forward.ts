@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
+import { vscodeDebug } from './log.ts'
 
 /**
  * One forward request derived from a tab address: which session's twin,
@@ -70,11 +71,26 @@ export function useVscodeAddressForward(
 ): void {
   const last = useRef<string | null>(null)
   useEffect(() => {
-    if (!ready || workspaceRoot === null) return
+    if (!ready || workspaceRoot === null) {
+      vscodeDebug('forward:skip (twin not ready or root unknown)', { address })
+      return
+    }
     const request = forwardRequestOf(address, workspaceRoot)
-    if (request === null) return
-    if (last.current === `${request.sessionId}:(${request.path})`) return
-    last.current = `${request.sessionId}:(${request.path})`
+    if (request === null) {
+      vscodeDebug('forward:skip (address does not translate)', { address, workspaceRoot })
+      return
+    }
+    const key = `${request.sessionId}:(${request.path})`
+    if (last.current === key) {
+      // The dedupe is unbreakable: a click whose key was already sent —
+      // regardless of how that send ended — emits nothing. Loud breadcrumb
+      // because this is the prime suspect for "the same click works once,
+      // then never again".
+      vscodeDebug('forward:deduped (no frame emitted)', { key })
+      return
+    }
+    last.current = key
+    vscodeDebug('forward:send', { sessionId: request.sessionId, path: request.path })
     send(request)
   }, [address, ready, workspaceRoot, send])
 }

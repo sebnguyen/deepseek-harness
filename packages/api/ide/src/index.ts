@@ -138,7 +138,7 @@ function emptySeat(): SeatState {
  */
 interface IdeTwinManager {
   readonly dispose: () => void
-  readonly ensure: (workspaceKey: string) => Promise<IdeTwin>
+  readonly ensure: (workspaceKey: string, sessionId: string) => Promise<IdeTwin>
   /** Resolve a live twin by its spawn token, or undefined for stale/dead tokens. */
   readonly twinOfToken: (token: string) => IdeTwin | undefined
 }
@@ -229,7 +229,7 @@ function createTwinManager(
       twinByToken.clear()
     },
     twinOfToken: token => twinByToken.get(token),
-    ensure(workspaceKey: string): Promise<IdeTwin> {
+    ensure(workspaceKey: string, sessionId: string): Promise<IdeTwin> {
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
       const pending = (async (): Promise<IdeTwin> => {
@@ -244,6 +244,7 @@ function createTwinManager(
         // A stable port keeps the iframe origin stable, which is what makes
         // the browser-side IndexedDB user settings survive a harness restart.
         const port = await pickStablePort(stateDir, config.dist) ?? await freePort()
+        console.debug('[ide] twin spawning', { workspaceKey, port, sessionId })
         // The DO identity ships as a staged extension: configurationDefaults
         // the workbench actually reads, plus the DO Harness Dark theme.
         await stageTwinTheme(join(stateDir, 'exts'))
@@ -256,6 +257,7 @@ function createTwinManager(
           dshOrigin: dshOrigin(),
           token,
           workspaceKey,
+          sessionId,
         })
         // The vscode roster registry serves the plane manifest over HTTP from
         // the host webServer when it is mounted; the seat fetches it at boot.
@@ -296,6 +298,7 @@ function createTwinManager(
             // The child fell over before or during readiness: drop the full
             // collected stderr into the rejection so the client detail line
             // carries substance instead of a bare "spawn failed".
+            console.warn('[ide] twin exited; dropping twin entry', { workspaceKey, exitCode: outcome.exitCode })
             if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
             forgetToken(token)
             setup.abort()
@@ -309,6 +312,7 @@ function createTwinManager(
             .catch((error: unknown) => {
               handle.terminate()
               forgetToken(token)
+              console.warn('[ide] twin never became ready', { workspaceKey })
               reject(error instanceof Error ? error : new Error(String(error)))
             })
         })
@@ -368,7 +372,19 @@ export class Ide extends TypertRemoteService {
     // simply has no absorb point, which matches the twin lane being web-only.
     ctx.inject(['connection'], (scope) => {
       const withdraw = scope.connection.registerBearerRule({
-        endpoints: ['ideBridge/downlink', 'ideBridge/report'],
+        // The twin token reaches its own bridge wire plus the read/write
+        // remotes its planes consume: checkpoint slot timelines and blobs
+        // (the twin Timeline view), and the lineNotes projection (note
+        // inlay hints plus the add-note uplink). Every other endpoint keeps
+        // browser-cookie-only admission.
+        endpoints: [
+          'ideBridge/downlink',
+          'ideBridge/report',
+          'checkpoint/slots',
+          'checkpoint/blob',
+          'lineNotes/state',
+          'lineNotes/add',
+        ],
         validate: token => this.twins.twinOfToken(token) !== undefined,
       })
       return () => { withdraw() }
@@ -390,7 +406,7 @@ export class Ide extends TypertRemoteService {
   private async warmLatest(sessions: Context['sessions']): Promise<void> {
     const [latest] = sessions.list()
     if (latest === undefined) return
-    await this.twins.ensure(this.workspaceKey(latest.id, await this.workspaceRootOf(latest.id)))
+    await this.twins.ensure(this.workspaceKey(latest.id, await this.workspaceRootOf(latest.id)), latest.id)
   }
 
   /**
@@ -434,7 +450,25 @@ export class Ide extends TypertRemoteService {
   async open(sessionId: string, request: IdeBridgeOpenRequest, signal: AbortSignal): Promise<void> {
     assertOpenRequest(request)
     const { tkn } = await this.ready(sessionId, signal)
+    console.debug('[ide] open', { sessionId, path: request.path, line: request.line ?? null, t6: tkn.slice(-6) })
     this.queueFrame(tkn, { type: 'ideBridge/open', path: request.path, ...(request.line === undefined ? {} : { line: request.line }) })
+  }
+
+  /**
+   * Announce the focused session to its workspace's twin.
+   *
+   * One twin serves every session of one workspace root, so the tab tells
+   * the twin — over this remote, queued as `ideBridge/activate` — which
+   * session its planes should scope session-bound remote calls to. The
+   * tab fires this on adoption and each session switch.
+   * @param sessionId - the session whose tab is focused.
+   * @param signal - caller cancellation.
+   */
+  @Remote
+  async activate(sessionId: string, signal: AbortSignal): Promise<void> {
+    const { tkn } = await this.ready(sessionId, signal)
+    console.debug('[ide] activate', { sessionId, t6: tkn.slice(-6) })
+    this.queueFrame(tkn, { type: 'ideBridge/activate', sessionId })
   }
 
   /**
@@ -451,6 +485,8 @@ export class Ide extends TypertRemoteService {
   async *downlink(request: IdeBridgeTwinCall, signal: AbortSignal): AsyncIterable<IdeBridgeDownlinkFrame> {
     const seat = this.seatOf(request.token)
     const generation = ++seat.generation
+    const t6 = request.token.slice(-6)
+    console.debug('[ide] downlink attached', { t6, generation, backlog: seat.queue.length - seat.flushed })
     while (!signal.aborted && seat.generation === generation) {
       while (seat.flushed < seat.queue.length) {
         // Mark delivery at emit time: a consumer that returns after receiving
@@ -459,7 +495,10 @@ export class Ide extends TypertRemoteService {
         seat.flushed += 1
         yield frame
       }
-      if (signal.aborted || seat.generation !== generation) return
+      if (signal.aborted || seat.generation !== generation) {
+        console.debug('[ide] downlink detached', { t6, generation, superseded: seat.generation !== generation })
+        return
+      }
       await this.frameWait(seat, signal)
     }
   }
@@ -499,7 +538,7 @@ export class Ide extends TypertRemoteService {
     // switch onto the same workspace lands on the same URL + token pair and
     // the frame it feeds needs no reload at all.
     const root = await this.workspaceRootOf(sessionId)
-    const twin = await this.twins.ensure(this.workspaceKey(sessionId, root))
+    const twin = await this.twins.ensure(this.workspaceKey(sessionId, root), sessionId)
     // Freshly-spawned children need their readiness window; an existing twin
     // is already up and re-probing costs one cheap round trip at worst.
     await waitReady(twin.url, this.config.readinessTimeoutMs, this.config.readinessPollMs, signal)
@@ -532,13 +571,18 @@ export class Ide extends TypertRemoteService {
    */
   private queueFrame(tkn: string, frame: IdeBridgeDownlinkFrame): void {
     const seat = this.seats.get(tkn) ?? (this.twins.twinOfToken(tkn) === undefined ? undefined : this.seatOf(tkn))
-    if (seat === undefined) return
+    if (seat === undefined) {
+      console.warn('[ide] frame dropped: token names no live twin', { verb: frame.type })
+      return
+    }
     seat.queue.push(frame)
     if (seat.queue.length > DOWNLINK_QUEUE_CAP) {
       const excess = seat.queue.length - DOWNLINK_QUEUE_CAP
+      console.warn('[ide] downlink backlog overflow; dropping oldest frames', { verb: frame.type, excess })
       seat.queue.splice(0, excess)
       seat.flushed = Math.max(0, seat.flushed - excess)
     }
+    console.debug('[ide] frame queued', { verb: frame.type, backlog: seat.queue.length - seat.flushed })
     for (const wake of [...seat.waiters]) wake.call(undefined)
   }
 

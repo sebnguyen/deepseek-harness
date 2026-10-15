@@ -72,10 +72,14 @@ export async function runSeatLoop(deps: {
         event: { type: 'hello', ...deps.identity.hello },
       })
       backoff = initialBackoff
+      deps.logger?.('twin seat: established')
       for await (const frame of deps.remote.downlink({ token: deps.identity.token }, signal)) {
         publish(deps.emit, frame, deps.logger)
       }
-      if (!signal.aborted) await sleep(backoff)
+      if (!signal.aborted) {
+        deps.logger?.(`twin seat: downlink stream ended; re-establishing after ${backoff}ms`)
+        await sleep(backoff)
+      }
     } catch (error) {
       if (signal.aborted) return
       deps.logger?.(`twin seat: connection attempt failed; retrying in ${backoff}ms`, error)
@@ -96,5 +100,6 @@ function publish(emit: SeatEmit, frame: unknown, logger?: SeatLogger): void {
     logger?.('twin seat: dropped frame with illegible verb', frame)
     return
   }
+  logger?.(`twin seat: frame ${type}`)
   emit(`${SEAT_EVENT_PREFIX}${type}`, frame)
 }

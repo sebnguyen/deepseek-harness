@@ -931,6 +931,12 @@ importers:
       '@deepseek-ai/cordis':
         specifier: workspace:^
         version: link:../../../vendor/cordis
+      '@deepseek-ai/dsh-checkpoint':
+        specifier: workspace:^
+        version: link:../../fs/checkpoint
+      '@deepseek-ai/dsh-session':
+        specifier: workspace:^
+        version: link:../../core/session
 
   packages/api/remotes:
     dependencies:
@@ -6778,8 +6784,11 @@ importers:
       '@deepseek-ai/dsh-api-timeline':
         specifier: workspace:^
         version: link:../../api/timeline
-      '@deepseek-ai/dsh-client-connection':
+      '@deepseek-ai/dsh-checkpoint':
         specifier: workspace:^
+        version: link:../../fs/checkpoint
+      '@deepseek-ai/dsh-client-connection':
+        specifier: 'workspace:'
         version: link:../../client/connection
       '@deepseek-ai/dsh-typert-registry':
         specifier: workspace:^

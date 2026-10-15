@@ -30,6 +30,9 @@
       "path": "../../api/line-notes/tsconfig.host.json"
     },
     {
+      "path": "../../fs/checkpoint"
+    },
+    {
       "path": "../../typert/registry/tsconfig.json"
     },
     {

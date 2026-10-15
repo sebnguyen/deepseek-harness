@@ -21,6 +21,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { VscodeBody, type VscodeInjected } from './VscodeBody.tsx'
 import { TwinFrame } from './twin.tsx'
+import { vscodeDebug, vscodeWarn } from './log.ts'
 import { VSCODE_ID, VSCODE_KIND, vscodeDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
 import type { VscodeIdeRemote } from './rpc.ts'
@@ -52,7 +53,28 @@ export function apply(ctx: ClientContext): void {
   const remote = ctx.remote as unknown as VscodeIdeRemote
   const face: VscodeInjected = {
     status: (sessionId, signal) => remote.ideBridge.status(sessionId, signal),
-    forwardFile: (sessionId, request) => { void remote.ideBridge.open(sessionId, request) },
+    forwardFile: (sessionId, request) => {
+      // The remote answer was previously swallowed whole: a rejected open
+      // was an unobserved rejection, and an erroring RemoteResult was
+      // invisible. Both now land in the console so a dying click shows
+      // which leg died — client, host, or twin.
+      void remote.ideBridge.open(sessionId, request).then(
+        (result) => {
+          if (result.ok) vscodeDebug('ide:open ok', { sessionId, path: request.path })
+          else vscodeWarn('ide:open error', { sessionId, path: request.path, error: result.error })
+        },
+        (reason: unknown) => { vscodeWarn('ide:open rejected', { sessionId, path: request.path, reason }) },
+      )
+    },
+    activate: (sessionId) => {
+      void remote.ideBridge.activate(sessionId).then(
+        (result) => {
+          if (result.ok) vscodeDebug('ide:activate ok', { sessionId })
+          else vscodeWarn('ide:activate error', { sessionId, error: result.error })
+        },
+        (reason: unknown) => { vscodeWarn('ide:activate rejected', { sessionId, reason }) },
+      )
+    },
   }
   ctx.effect(() => ctx.sidebarRightTabs.register(vscodeDefinition()), 'ui-vscode: vscode type')
   ctx.effect(() => ctx.locale.register('vscode', { zh, en }), 'ui-vscode: dictionaries')

@@ -20,9 +20,9 @@ declare module 'vscode' {
     dispose(): void
   }
 
-  export interface VsCodeUri { readonly fsPath: string }
+  export interface VsCodeUri { readonly fsPath: string; readonly scheme?: string }
 
-  export const Uri: { file(path: string): VsCodeUri }
+  export const Uri: { file(path: string): VsCodeUri; parse(value: string): VsCodeUri }
   export class Position {
     readonly line: number
     readonly character: number
@@ -34,6 +34,24 @@ declare module 'vscode' {
     constructor(start: Position, end: Position)
   }
 
+  /** A plainly-declared event emitter (Event is a function goldo-typed at use). */
+  export class EventEmitter<T = unknown> {
+    readonly event: unknown
+    fire(event?: T): void
+    dispose(): void
+  }
+
+  /** The minimal document slice the facade's editor snapshot reads. */
+  export interface ActiveTextDocumentLike {
+    readonly uri: { scheme?: string; fsPath?: string }
+    lineAt(line: number): { text: string }
+  }
+  /** The minimal editor slice the facade's editor snapshot reads. */
+  export interface ActiveTextEditorLike {
+    readonly document: ActiveTextDocumentLike
+    readonly selection: { active: { line: number } }
+  }
+
   export const workspace: {
     readonly workspaceFolders?: ReadonlyArray<{ readonly uri: VsCodeUri }>
     onDidSaveTextDocument(listener: unknown): unknown
@@ -41,14 +59,22 @@ declare module 'vscode' {
   }
 
   export const window: {
+    readonly activeTextEditor?: ActiveTextEditorLike
     showTextDocument(target: unknown, options?: unknown): PromiseLike<unknown>
     onDidChangeActiveTextEditor(listener: unknown): unknown
     createOutputChannel(name: string): OutputChannel
+    showInputBox(options?: { prompt?: string; placeHolder?: string }): PromiseLike<string | undefined>
+    registerTimelineProvider(scheme: string, provider: unknown): unknown
   }
 
   export const languages: {
     onDidChangeDiagnostics(listener: unknown): unknown
     getDiagnostics(uri: unknown): readonly unknown[]
     registerInlayHintsProvider(selector: unknown, provider: unknown): unknown
+  }
+
+  export const commands: {
+    registerCommand(id: string, handler: (...args: unknown[]) => unknown): unknown
+    executeCommand(id: string, ...args: unknown[]): PromiseLike<unknown>
   }
 }

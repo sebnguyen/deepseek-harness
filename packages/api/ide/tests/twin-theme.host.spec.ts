@@ -50,6 +50,11 @@ describe('stageVscodeBridgeExtension', () => {
     expect(manifest.activationEvents).toContain('onStartupFinished')
     const bytes = await readFile(join(staged!, 'extension.cjs'), 'utf8')
     expect(bytes).toContain('module.exports')
+    // The planes' user-invokable commands land here: the only manifest the
+    // workbench reads, so discoverability is staged, not contributed by a plane.
+    const commands = (manifest as { contributes?: { commands?: Array<{ command: string }> } })
+      .contributes?.commands?.map(command => command.command) ?? []
+    expect(commands).toContain('do-harness.addLineNote')
   })
 
   it('reports null and stages nothing when the workspace build has not emitted the bundle yet', async () => {

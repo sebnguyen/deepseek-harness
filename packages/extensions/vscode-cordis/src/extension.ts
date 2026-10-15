@@ -18,6 +18,7 @@ import * as typertRegistry from '@deepseek-ai/dsh-typert-registry/client'
 import ideRemote from '@deepseek-ai/dsh-api-ide/remote'
 import timelineRemote from '@deepseek-ai/dsh-api-timeline/remote'
 import lineNotesRemote from '@deepseek-ai/dsh-api-line-notes/remote'
+import checkpointRemote from '@deepseek-ai/dsh-checkpoint/remote'
 import { fetchVscodePlanes, vscodeModulesResolver } from '@deepseek-ai/dsh-vscode-modules/vscode'
 import type {
   IdeBridgeDownlinkFrame,
@@ -36,8 +37,12 @@ export const VSCODE_EXTENSION_ID = 'dsh.do-harness-bridge'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Spawn-scoped bridge facts planes read (`ctx.twinCore.token`). */
-    twinCore: { readonly token: string }
+    /**
+     * Spawn-scoped bridge facts planes read (`ctx.twinCore.token`). The
+     * `sessionId` seed comes from the staged bridge.json and is superseded
+     * at runtime by `ideBridge/activate` frames.
+     */
+    twinCore: { readonly token: string; readonly sessionId?: string }
   }
 }
 
@@ -88,7 +93,10 @@ export async function spawnBridgeSeat(deps: {
   globalCarrier.__DSH_TRANSPORT__ = transport
 
   const seat = new Context()
-  seat.twinCore = Object.freeze({ token: identity.token })
+  seat.twinCore = Object.freeze({
+    token: identity.token,
+    ...(identity.sessionId === undefined ? {} : { sessionId: identity.sessionId }),
+  })
   const restore = (): void => {
     if (prior === undefined) delete globalCarrier.__DSH_TRANSPORT__
     else globalCarrier.__DSH_TRANSPORT__ = prior
@@ -106,6 +114,9 @@ export async function spawnBridgeSeat(deps: {
     const unload = await remote.$mount(ideRemote)
     const unloadTimeline = await remote.$mount(timelineRemote)
     const unloadLineNotes = await remote.$mount(lineNotesRemote)
+    // Plugin 6's substrate: the checkpoint slot register reaches the seat so
+    // the timeline/notes planes read blobs and slot projections directly.
+    const unloadCheckpoint = await remote.$mount(checkpointRemote)
     const { ideBridge } = remote as unknown as IdeasSeatRemote
 
     // The seat's plane layer: fetch the host's vscode manifest and compose
@@ -135,7 +146,9 @@ export async function spawnBridgeSeat(deps: {
       if (!isOpenFrame(frame)) return
       void deps.workbench.showTextDocument(frame.path, {
         ...(frame.line === undefined ? {} : { line: frame.line }),
-      }).then(undefined, (error: unknown) => {
+      }).then(() => {
+        deps.logger?.(`ideBridge/open consumed: ${frame.path}`)
+      }, (error: unknown) => {
         // An open failure must never die as an unobserved rejection: the host
         // forwarded this path as authoritative, and a silent drop is the
         // "click, nothing happens" ghost the user cannot report.
@@ -178,6 +191,7 @@ export async function spawnBridgeSeat(deps: {
         await unload()
         await unloadTimeline()
         await unloadLineNotes()
+        await unloadCheckpoint()
         await seat.fiber.dispose().catch(() => undefined)
         restore()
       },
@@ -189,7 +203,9 @@ export async function spawnBridgeSeat(deps: {
   }
 }
 
-function isOpenFrame(frame: unknown): frame is IdeBridgeDownlinkFrame {
+type OpenFrame = Extract<IdeBridgeDownlinkFrame, { readonly type: 'ideBridge/open' }>
+
+function isOpenFrame(frame: unknown): frame is OpenFrame {
   return typeof frame === 'object' && frame !== null
     && (frame as { type?: unknown }).type === 'ideBridge/open'
     && typeof (frame as { path?: unknown }).path === 'string'

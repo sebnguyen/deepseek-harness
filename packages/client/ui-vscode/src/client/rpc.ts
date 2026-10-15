@@ -51,5 +51,13 @@ export interface VscodeIdeRemote {
      * @param signal - cancels the call.
      */
     open(sessionId: SessionId, request: IdeOpenRequest, signal?: AbortSignal): Promise<RemoteResult<void>>
+    /**
+     * Announce this session as the focused one inside its workspace twin:
+     * one twin serves every session of a workspace, so the seat's planes
+     * scope session-bound calls to the latest activate.
+     * @param sessionId - session identity at the address boundary.
+     * @param signal - cancels the call.
+     */
+    activate(sessionId: SessionId, signal?: AbortSignal): Promise<RemoteResult<void>>
   }
 }

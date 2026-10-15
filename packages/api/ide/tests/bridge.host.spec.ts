@@ -88,10 +88,17 @@ async function nextFrame(iterator: AsyncIterator<IdeBridgeDownlinkFrame>): Promi
 }
 
 describe('ideBridge twin wire', () => {
-  it('registers a bearer rule strictly scoped to the twin-facing endpoints', async () => {
+  it('registers a bearer rule scoped to the twin wire plus the plane remotes', async () => {
     const { rules } = await harness()
     expect(rules).toHaveLength(1)
-    expect(rules[0]!.endpoints).toEqual(['ideBridge/downlink', 'ideBridge/report'])
+    expect(rules[0]!.endpoints).toEqual([
+      'ideBridge/downlink',
+      'ideBridge/report',
+      'checkpoint/slots',
+      'checkpoint/blob',
+      'lineNotes/state',
+      'lineNotes/add',
+    ])
   })
 
   it('open enqueues downlink frames the token-bound stream receives in order', async () => {
@@ -115,6 +122,19 @@ describe('ideBridge twin wire', () => {
     const second = ide.downlink({ token }, controller.signal)[Symbol.asyncIterator]()
     expect(await nextFrame(second)).toEqual({ type: 'ideBridge/open', path: '/repo/b.ts' })
     await second.return?.()
+    controller.abort()
+  })
+
+  it('activate enqueues the focused-session frame for the workspace twin', async () => {
+    const { ide } = await harness()
+    const controller = new AbortController()
+    const status = await ide.status('s1', new AbortController().signal)
+    const token = status.tkn as string
+
+    await ide.activate('s1', new AbortController().signal)
+    const frames = ide.downlink({ token }, controller.signal)[Symbol.asyncIterator]()
+    expect(await nextFrame(frames)).toEqual({ type: 'ideBridge/activate', sessionId: 's1' })
+    await frames.return?.()
     controller.abort()
   })
 

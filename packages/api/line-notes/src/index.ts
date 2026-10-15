@@ -1,23 +1,28 @@
 /**
- * LineNotes: the `lineNotes` Remote namespace.
+ * LineNotes: the `lineNotes` Remote namespace — a projection over the
+ * checkpoint slot register.
  *
- * The conversation side publishes each session's notes through
- * {@link LineNotes.publish}; editor engines read them back through
- * `lineNotes.state` (and via `dsh/frame/line-notes` downlink frames on the
- * vscode web client). The editor's `lineNotes.focus` uplink is the
- * back-direction: the user's editor landing on a note is re-emitted as the
- * host-local `lineNotes/focus` event, where consumer surfaces (the
- * conversation view) jump the user to the source message.
+ * One note model, one store: every `note`-kind slot in the session's slot
+ * register (`remote.checkpoint.slots`; clients also read it directly) is one
+ * line note. `lineNotes.state` projects the register into note rows;
+ * `lineNotes.add` is the typed write direction — it appends one
+ * `kind: 'note'` slot through the checkpoint service, matching the web
+ * gutter's own slot payload. `lineNotes.focus` stays the editor-to-host
+ * uplink, re-emitted locally as the `lineNotes/focus` event.
  * @module @deepseek-ai/dsh-api-line-notes
  */
 
+import { randomBytes } from 'node:crypto'
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type { CheckpointSlot } from '@deepseek-ai/dsh-checkpoint/types'
+import type {} from '@deepseek-ai/dsh-checkpoint'
+import type { Session } from '@deepseek-ai/dsh-session'
 import type {
   LineNote,
+  LineNoteAddRequest,
   LineNoteFocusRequest,
   LineNotesState,
-  LineNotesStateRequest,
 } from './types.ts'
 
 export type * from './types.ts'
@@ -28,40 +33,81 @@ declare module '@deepseek-ai/cordis' {
     lineNotes: LineNotes
   }
   interface Events {
-    /** Re-emit of the editor's `lineNotes.focus` uplink for face-local consumers. */
+    /**
+     * Re-emit of the editor's `lineNotes.focus` uplink for face-local consumers.
+     * @mode emit
+     * @param request - the validated focus landing the editor reported.
+     */
     'lineNotes/focus'(request: LineNoteFocusRequest): void
   }
 }
 
-/** The publisher-side store behind the `lineNotes` remote face. */
-export class LineNotes extends TypertRemoteService {
-  static readonly inject: readonly string[] = []
+/** Mint one note slot id: `note-` plus twelve random hex characters (the web producer's own mint). */
+function mintNoteId(): string {
+  return `note-${randomBytes(6).toString('hex')}`
+}
 
-  private readonly sessions = new Map<string, LineNote[]>()
+/** Project one checkpoint slot into a note row, or null when it is not a note. */
+function noteOfSlot(slot: CheckpointSlot): LineNote | null {
+  if (slot.kind !== 'note' || slot.line === undefined) return null
+  const text = (slot.detail as { readonly text?: string }).text ?? slot.label
+  return { id: slot.slotId, path: slot.path, line: slot.line, text }
+}
+
+/** The `lineNotes` remote face: note reads project the register, writes append to it. */
+export class LineNotes extends TypertRemoteService {
+  static readonly inject: readonly string[] = ['checkpoint']
 
   constructor(ctx: Context) {
     super(ctx, 'lineNotes')
   }
 
-  /**
-   * Replace one session's note list (host-side publication).
-   * @param sessionId - the session the notes belong to.
-   * @param notes - the complete note list for the session.
-   */
-  publish(sessionId: string, notes: readonly LineNote[]): void {
-    this.sessions.set(sessionId, notes.map(note => ({ ...note })))
-  }
-
-  /** Drop one session's notes (session teardown). */
-  clear(sessionId: string): void {
-    this.sessions.delete(sessionId)
-  }
-
-  /** Read the session's full note list. */
+  /** Read the session's note list, projected live from its slot register. */
   @Remote
-  state(request: LineNotesStateRequest, signal: AbortSignal): LineNotesState {
+  async state(session: Session, signal: AbortSignal): Promise<LineNotesState> {
     void signal
-    return { notes: [...(this.sessions.get(request.sessionId) ?? [])] }
+    const timelines = await this.ctx.checkpoint.slots(session, undefined)
+    const notes: LineNote[] = []
+    for (const timeline of timelines) {
+      for (const slot of timeline.slots) {
+        const note = noteOfSlot(slot)
+        if (note !== null) notes.push(note)
+      }
+    }
+    return { notes }
+  }
+
+  /**
+   * Pin one note (uplink from any editor): validate, mint the id, and append
+   * the `note` slot the web gutter writes verbatim.
+   */
+  @Remote
+  async add(session: Session, note: LineNoteAddRequest, signal: AbortSignal): Promise<LineNote> {
+    void signal
+    if (typeof note.path !== 'string' || note.path.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'add path must be non-empty', {})
+    }
+    if (!Number.isSafeInteger(note.line) || note.line < 1) {
+      throw new RemoteError('gateway/bad-request', 'add line must be a positive safe integer', {})
+    }
+    const text = typeof note.text === 'string' ? note.text.trim() : ''
+    if (text.length === 0) {
+      throw new RemoteError('gateway/bad-request', 'add text must be non-empty', {})
+    }
+    if (typeof note.retained !== 'string') {
+      throw new RemoteError('gateway/bad-request', 'add retained must be the frozen line text', {})
+    }
+    const slotId = mintNoteId()
+    await this.ctx.checkpoint.putSlotRemote(session, {
+      slotId,
+      kind: 'note',
+      path: note.path,
+      label: text,
+      line: note.line,
+      retained: note.retained,
+      detail: { text },
+    })
+    return { id: slotId, path: note.path, line: note.line, text }
   }
 
   /**
