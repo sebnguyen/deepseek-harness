@@ -1,10 +1,10 @@
 /**
- * vscode-line-notes — the twin's line-anchored notes.
+ * vscode-line-notes — the twin's line-anchored notes as comment threads.
  *
  * Read: the notes the session's slot register carries (projected host-side
  * by `lineNotes.state` — the same note model the web gutter and the `@`
- * palette read) render as inlay hints `✎ <note>` pinned at the end of each
- * noted line.
+ * palette read) render as vscode comment threads pinned at their lines, so
+ * they read as review comments, not text squeezed into the code.
  *
  * Write: the palette-contributed command `do-harness.addLineNote` freezes
  * the caret line and its text through `lineNotes.add`, which appends one
@@ -17,7 +17,11 @@
  */
 import type { Context } from '@deepseek-ai/cordis'
 
-export const inject: readonly string[] = ['vscodeApi', 'remote.lineNotes']
+// The seat resolves planes against cordis services by inject: the facade
+// (`vscodeApi`), the gateway's `remote` service parent, and the namespace the
+// plane actually calls. Specs seed a plain ctx directly — the list is
+// declarative here.
+export const inject: readonly string[] = ['vscodeApi', 'remote', 'remote.lineNotes']
 
 // ---------------------------------------------------------------------------
 // Structural faces, marked out locally like `ui-vscode/rpc.ts`: plane bundles
@@ -43,17 +47,34 @@ interface LineNotesRemoteFace {
   }): Promise<RemoteResult<LineNoteLike>>
 }
 
+/** vscode's CommentThread in the shape this plane writes. */
+interface CommentThreadLike {
+  label?: string
+  canReply?: unknown
+  dispose(): void
+}
+
+interface CommentControllerLike {
+  createCommentThread(uri: unknown, range: unknown, comments: readonly unknown[]): CommentThreadLike
+}
+
 interface VscodeApiFace {
   workspace: {
     workspaceRoot(): string | null
+    openTextDocument?(uri: unknown): Promise<{ readonly lineCount?: unknown }>
   }
   window: {
     activeTextEditor(): { readonly path: string | null; readonly line: number; readonly lineText: string } | null
+    onDidChangeActiveTextEditor(listener: (editor: unknown) => void): unknown
     showInputBox(options?: { prompt?: string; placeHolder?: string }): Promise<string | undefined>
   }
-  languages: {
-    registerInlayHintsProvider(selector: unknown, provider: unknown): unknown
+  comments: {
+    createCommentController(id: string, label: string): CommentControllerLike
   }
+  uri: {
+    file(path: string): unknown
+  }
+  classes: unknown
   commands: {
     registerCommand(id: string, handler: (...args: unknown[]) => unknown): unknown
   }
@@ -72,7 +93,7 @@ declare module '@deepseek-ai/cordis' {
 
 const NOTE_LABEL_MAX = 80
 
-/** The hint text for one note: `✎ <text>`, truncated to keep lines readable. */
+/** The thread label for one note: `✎ <text>`, truncated to keep threads readable. */
 export function noteLabel(note: LineNoteLike): string {
   const text = note.text
   const trimmed = text.length > NOTE_LABEL_MAX ? `${text.slice(0, NOTE_LABEL_MAX - 1)}…` : text
@@ -136,39 +157,71 @@ export function apply(ctx: Context): void {
   console.info('[dsh-line-notes] mounted, sessionId =', ctx.twinCore.sessionId)
 
   const local = ctx as unknown as { on(event: string, listener: (arg: unknown) => void): unknown }
+
+  // Notes render as comment threads: vscode's review-comment UI, pinned at
+  // the note lines of the active file. Threads are rebuilt wholesale on
+  // invalidation (notes are small in number by nature).
+  const controller = api.comments.createCommentController('dsh-line-notes', 'DSH Line Notes')
+  let threads: CommentThreadLike[] = []
+  let tracked: string | undefined
+  let rendering: Promise<void> = Promise.resolve()
+
+  const MarkdownStringCtor = ((api.classes as Record<string, unknown> | undefined)?.MarkdownString
+    ?? undefined) as (new (value?: string) => unknown) | undefined
+  const bodyOf = (text: string): unknown => (MarkdownStringCtor === undefined ? text : new MarkdownStringCtor(text))
+
+  const render = async (): Promise<void> => {
+    const stale = threads
+    threads = []
+    for (const thread of stale) thread.dispose()
+    const path = tracked
+    if (path === undefined || plane.sessionId === undefined) return
+    const root = api.workspace.workspaceRoot()
+    if (root === null) return
+    const uri = api.uri.file(path.startsWith('/') ? path : `${root}/${path}`)
+    let lines = Number.POSITIVE_INFINITY
+    try {
+      const doc = await api.workspace.openTextDocument?.(uri)
+      if (typeof doc?.lineCount === 'number') lines = doc.lineCount
+    } catch {
+      // The line bound only keeps ghost threads off unopened documents.
+    }
+    const notes = (await plane.notes()).filter(note => note.path === path && note.line >= 1 && note.line <= lines)
+    for (const note of notes) {
+      const thread = controller.createCommentThread(
+        uri,
+        { start: { line: note.line - 1, character: 0 }, end: { line: note.line - 1, character: 0 } },
+        [{ body: bodyOf(note.text), author: { name: 'harness agent' } }],
+      )
+      thread.label = noteLabel(note)
+      thread.canReply = false
+      threads.push(thread)
+    }
+  }
+  const queue = (): void => { rendering = rendering.then(render, render) }
+
+  const trackActive = (): void => {
+    const editor = api.window.activeTextEditor()
+    const path = editor === null || editor.path === null
+      ? undefined
+      : relativePath(api.workspace.workspaceRoot(), { fsPath: editor.path })
+    if (path === undefined) return
+    tracked = path ?? undefined
+    queue()
+  }
+  api.window.onDidChangeActiveTextEditor(() => { trackActive() })
+  trackActive()
+
   local.on('dsh/frame/ideBridge/activate', (frame: unknown) => {
     if (typeof frame !== 'object' || frame === null) return
     const sessionId = (frame as { sessionId?: unknown }).sessionId
     if (typeof sessionId !== 'string') return
     plane.activate(sessionId)
-    plane.invalidate()
+    queue()
   })
   // Forward-looking refresh: a future note projection publisher invalidates
   // the cache the same way (the frame simply has not shipped yet).
-  local.on('dsh/frame/line-notes', () => { plane.invalidate() })
-
-  api.languages.registerInlayHintsProvider([{ scheme: 'file' }], {
-    onDidChangeInlayHints: plane.emitter.event,
-    provideInlayHints: async (document: unknown): Promise<readonly Record<string, unknown>[]> => {
-      const path = relativePath(api.workspace.workspaceRoot(), (document as { uri?: unknown }).uri)
-      if (path === null || plane.sessionId === undefined) return []
-      const notes = await plane.notes()
-      const doc = document as { lineCount?: number; lineAt(line: number): { text: string } }
-      const lines = typeof doc.lineCount === 'number' ? doc.lineCount : Number.POSITIVE_INFINITY
-      const hints: Record<string, unknown>[] = []
-      for (const note of notes) {
-        if (note.path !== path || note.line < 1 || note.line > lines) continue
-        const text = doc.lineAt(note.line - 1).text
-        hints.push({
-          position: { line: note.line - 1, character: text.length },
-          label: noteLabel(note),
-          tooltip: note.text,
-          paddingLeft: true,
-        })
-      }
-      return hints
-    },
-  })
+  local.on('dsh/frame/line-notes', () => { plane.invalidate(); queue() })
 
   // The add-note gesture, contributed to the palette by the staged bridge
   // extension manifest: freeze the caret line's text as the note slot's
@@ -195,6 +248,8 @@ export function apply(ctx: Context): void {
     } catch (error) {
       console.error('[dsh-line-notes] add failed', error)
     }
+    trackActive()
     plane.invalidate()
+    queue()
   })
 }

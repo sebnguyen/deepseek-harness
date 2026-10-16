@@ -1,44 +1,39 @@
 /**
- * The timeline plane: the native Timeline over worktree slots, the
- * `dsh-checkpoint:` virtual document, and the line-0 scrubber — all against
- * faked facade/remotes.
+ * The vscode-timeline plane: worktree slots become Timeline items whose
+ * commands open checkpoint diffs, the Timeline tab webview steers the
+ * playhead with real buttons, and the session rides the activate frame —
+ * all against a faked facade.
  */
 
 import { describe, expect, it } from 'vitest'
 import { apply, inject } from '../src/vscode/index.ts'
 
-const WORKTREE_1 = {
-  slotId: 'w1',
-  kind: 'worktree',
-  path: 'src/a.ts',
-  label: 'WriteFile',
-  turn: 1,
-  after: 'digest-1',
-  createdAt: 1_726_000_000_000,
-  detail: { toolName: 'WriteFile', purpose: 'create the module' },
+const SLOTS = [
+  { slotId: 'w1', kind: 'worktree', path: 'src/a.ts', label: 'WriteFile', turn: 1, after: 'digest-1', createdAt: 1_726_000_000_000, detail: { toolName: 'WriteFile', purpose: 'initial write' } },
+  { slotId: 'w2', kind: 'worktree', path: 'src/a.ts', label: 'EditFile', turn: 3, before: 'digest-1', after: 'digest-2', createdAt: 1_726_000_100_000, detail: { toolName: 'EditFile' } },
+  { slotId: 'n1', kind: 'note', path: 'src/a.ts', label: 'remember', line: 2, createdAt: 1_726_000_200_000 },
+] as const
+const TIMELINES = [{ path: 'src/a.ts', slots: [...SLOTS] }] as const
+
+interface PanelRecord {
+  title: string
+  viewType: string
+  html: string
+  listeners: Array<(message: unknown) => void>
+  reveals: Array<number | undefined>
+  disposeListeners: Array<() => void>
 }
-const WORKTREE_2 = {
-  slotId: 'w2',
-  kind: 'worktree',
-  path: 'src/a.ts',
-  label: 'EditFile',
-  turn: 3,
-  before: 'digest-1',
-  after: 'digest-2',
-  createdAt: 1_726_000_060_000,
-  detail: { toolName: 'EditFile' },
-}
-const NOTE_SLOT = { slotId: 'n1', kind: 'note', path: 'src/a.ts', label: 'remember', line: 2, createdAt: 1 }
 
 interface Fakes {
   ctx: Record<string, unknown>
   contentProviders: Array<{ scheme: string; provider: { provideTextDocumentContent(uri: unknown): unknown } }>
   timelineProviders: Array<{ scheme: string; provider: Record<string, unknown> }>
-  inlayProviders: Array<{ selector: unknown; provider: Record<string, unknown> }>
+  panels: PanelRecord[]
+  editorListeners: Array<(editor: unknown) => void>
   commands: Map<string, (...args: unknown[]) => unknown>
+  executed: Array<{ id: string; args: unknown[] }>
   listeners: Map<string, Array<(arg: unknown) => void>>
-  emitters: Array<{ fired: number }
-  >
+  emitters: Array<{ fired: number }>
   blobs: Map<string, string>
 }
 
@@ -47,8 +42,10 @@ function makeFakes(): Fakes {
     ctx: {},
     contentProviders: [],
     timelineProviders: [],
-    inlayProviders: [],
+    panels: [],
+    editorListeners: [],
     commands: new Map(),
+    executed: [],
     listeners: new Map(),
     emitters: [],
     blobs: new Map([['digest-1', 'BEFORE'], ['digest-2', 'AFTER']]),
@@ -71,38 +68,62 @@ function makeFakes(): Fakes {
         fakes.timelineProviders.push({ scheme, provider })
         return { dispose: () => undefined }
       },
-    },
-    languages: {
-      registerInlayHintsProvider: (selector: unknown, provider: Record<string, unknown>) => {
-        fakes.inlayProviders.push({ selector, provider })
+      activeTextEditor: () => ({ path: '/repo/src/a.ts', line: 1, lineText: 'x' }),
+      onDidChangeActiveTextEditor: (listener: (editor: unknown) => void) => {
+        fakes.editorListeners.push(listener)
         return { dispose: () => undefined }
       },
+      createWebviewPanel: (viewType: string, title: string, _column: number, _options: unknown) => {
+        const panel: PanelRecord = { title, viewType, html: '', listeners: [], reveals: [], disposeListeners: [] }
+        fakes.panels.push(panel)
+        return {
+          set title(value: string) { panel.title = value },
+          get title() { return panel.title },
+          webview: {
+            get html() { return panel.html },
+            set html(value: string) { panel.html = value },
+            onDidReceiveMessage: (listener: (message: unknown) => void) => {
+              panel.listeners.push(listener)
+              return { dispose: () => undefined }
+            },
+          },
+          reveal: (column?: number) => { panel.reveals.push(column) },
+          onDidDispose: (listener: () => void) => {
+            panel.disposeListeners.push(listener)
+            return { dispose: () => undefined }
+          },
+        }
+      },
     },
+    languages: {},
     commands: {
       registerCommand: (id: string, handler: (...args: unknown[]) => unknown) => {
         fakes.commands.set(id, handler)
         return { dispose: () => undefined }
       },
+      executeCommand: (id: string, ...args: unknown[]) => {
+        fakes.executed.push({ id, args })
+        return Promise.resolve(undefined)
+      },
     },
     uri: { parse: (value: string) => ({ parsed: value }) },
     runtime: { createEventEmitter: createEmitter },
   }
-  const remote = {
-    checkpoint: {
-      slots: async (sessionId: string) => {
-        if (sessionId !== 's1') return { ok: false, error: new Error('no session') }
-        return { ok: true, value: [{ path: 'src/a.ts', slots: [WORKTREE_1, WORKTREE_2, NOTE_SLOT] }] }
-      },
-      blob: async (sessionId: string, digest: string) => {
-        if (sessionId !== 's1') return { ok: false, error: new Error('no session') }
-        return { ok: true, value: fakes.blobs.get(digest) ?? null }
-      },
-    },
-    timeline: {},
-  }
   fakes.ctx = {
     vscodeApi: api,
-    remote,
+    remote: {
+      checkpoint: {
+        slots: async (sessionId: string, path?: string) => (
+          sessionId === 's1'
+            ? { ok: true, value: path === undefined ? TIMELINES : TIMELINES.filter(t => t.path === path) }
+            : { ok: true, value: [] }
+        ),
+        blob: async (sessionId: string, digest: string) => ({
+          ok: true,
+          value: sessionId === 's1' ? (fakes.blobs.get(digest) ?? null) : null,
+        }),
+      },
+    },
     twinCore: { token: 'tkn', sessionId: 's1' },
     on: (event: string, listener: (arg: unknown) => void) => {
       const list = fakes.listeners.get(event) ?? []
@@ -114,24 +135,28 @@ function makeFakes(): Fakes {
   return fakes
 }
 
-const DOCUMENT = {
-  uri: { fsPath: '/repo/src/a.ts' },
-  lineCount: 12,
-  lineAt: (line: number) => ({ text: `line ${line}` }),
+/** Wait out the plane's async renders (promise chaining, no clocks). */
+async function settle(): Promise<void> {
+  for (let i = 0; i < 5; i += 1) await new Promise(resolve => setTimeout(resolve, 0))
 }
 
 describe('vscode-timeline plane', () => {
   it('declares its seat services by inject list', () => {
-    expect(inject).toEqual(['vscodeApi', 'remote.timeline', 'remote.checkpoint'])
+    expect(inject).toEqual(['vscodeApi', 'remote', 'remote.timeline', 'remote.checkpoint'])
   })
 
-  it('registers the content, timeline, and inlay providers plus its commands', () => {
+  it('registers the content and timeline providers plus its five commands', () => {
     const fakes = makeFakes()
     apply(fakes.ctx as never)
     expect(fakes.contentProviders.map(registration => registration.scheme)).toEqual(['dsh-checkpoint'])
     expect(fakes.timelineProviders.map(registration => registration.scheme)).toEqual(['file'])
-    expect(fakes.inlayProviders).toHaveLength(1)
-    expect([...fakes.commands.keys()]).toEqual(['do-harness.timeline.prev', 'do-harness.timeline.next'])
+    expect([...fakes.commands.keys()]).toEqual([
+      'do-harness.timeline.prev',
+      'do-harness.timeline.next',
+      'do-harness.timeline.describe',
+      'do-harness.timeline.openStop',
+      'do-harness.timeline.open',
+    ])
   })
 
   it('serves frozen blob text for digests and the empty document for the empty marker', async () => {
@@ -159,25 +184,48 @@ describe('vscode-timeline plane', () => {
     await expect(provide({ fsPath: '/elsewhere/x.ts' })).resolves.toEqual([])
   })
 
-  it('pins the line-0 scrubber to the latest stop and steps it through the prev/next commands', async () => {
+  it('serves the bar model through describe, and steps refresh the bar channel', async () => {
     const fakes = makeFakes()
     apply(fakes.ctx as never)
-    const inlay = fakes.inlayProviders[0]!.provider
-    const provide = inlay.provideInlayHints as (doc: unknown) => Promise<Array<Record<string, unknown>>>
-    const first = await provide(DOCUMENT)
-    expect(first).toHaveLength(1)
-    expect(first[0]).toMatchObject({ position: { line: 0, character: 0 }, paddingLeft: true })
-    const label = first[0]!.label as Array<{ value: string; command?: { id: string } }>
-    expect(label.map(part => part.value)).toEqual(['◀', ' stop 2/2 · EditFile · turn 3 ', '▶'])
-    expect(label[0]).toMatchObject({ command: { id: 'do-harness.timeline.prev' } })
-    expect(label[2]).toMatchObject({ command: { id: 'do-harness.timeline.next' } })
-
-    const firesBefore = fakes.emitters.reduce((sum, emitter) => sum + emitter.fired, 0)
+    const describe = fakes.commands.get('do-harness.timeline.describe')! as (arg: unknown) => Promise<Record<string, unknown>>
+    const model = await describe('src/a.ts')
+    expect(model).toMatchObject({ ok: true, index: 1, total: 2, tool: 'EditFile', turn: '3' })
+    await expect(describe('elsewhere.ts')).resolves.toMatchObject({ ok: false })
     fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
-    expect(fakes.emitters.reduce((sum, emitter) => sum + emitter.fired, 0)).toBeGreaterThan(firesBefore)
-    const stepped = await provide(DOCUMENT)
-    const steppedLabel = stepped[0]!.label as Array<{ value: string }>
-    expect(steppedLabel[1]!.value).toBe(' stop 1/2 · WriteFile · turn 1 ')
+    await settle()
+    expect((await describe('src/a.ts'))).toMatchObject({ ok: true, index: 0, tool: 'WriteFile', turn: '1' })
+    const executed = fakes.executed.find(entry => entry.id === 'do-harness.timeline.barRefresh')
+    expect(executed).toBeDefined()
+  })
+
+  it('opens the Timeline tab on the active file and steers the playhead from webview buttons', async () => {
+    const fakes = makeFakes()
+    apply(fakes.ctx as never)
+    await fakes.commands.get('do-harness.timeline.open')!()
+    await settle()
+    expect(fakes.panels).toHaveLength(1)
+    const panel = fakes.panels[0]!
+    expect(panel.viewType).toBe('dshCheckpointTimeline')
+    expect(panel.title).toBe('Timeline — src/a.ts')
+    expect(panel.html).toContain('Checkpoints — src/a.ts')
+    expect(panel.html).toContain('stop 2/2 · EditFile · turn 3')
+
+    for (const listener of panel.listeners) listener({ kind: 'prev' })
+    await settle()
+    expect(panel.html).toContain('stop 1/2 · WriteFile · turn 1')
+
+    for (const listener of panel.listeners) listener({ kind: 'open', index: 0 })
+    await settle()
+    const executed = fakes.executed.find(entry => entry.id === 'vscode.diff')!
+    expect(executed.id).toBe('vscode.diff')
+    expect((executed.args[0] as { parsed: string }).parsed).toBe('dsh-checkpoint://empty')
+    expect((executed.args[1] as { parsed: string }).parsed).toBe('dsh-checkpoint://digest-1')
+
+    // A second open reveals the existing tab instead of spawning a new one.
+    await fakes.commands.get('do-harness.timeline.open')!()
+    await settle()
+    expect(fakes.panels).toHaveLength(1)
+    expect(panel.reveals).toHaveLength(1)
   })
 
   it('tracks the activate frame: session switch resets the caches and refreshes', async () => {

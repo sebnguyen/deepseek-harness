@@ -13,7 +13,7 @@
   "dsh": {
     "vscode": {
       "platform": "vscode",
-      "inject": ["vscodeApi", "remote.lineNotes"]
+      "inject": ["vscodeApi", "remote", "remote.lineNotes"]
     }
   },
   "license": "MIT",

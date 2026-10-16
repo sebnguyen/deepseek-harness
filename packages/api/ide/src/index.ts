@@ -35,7 +35,7 @@ import type {
 import { resolveTwinDist } from './twin-dist.ts'
 import { pickStablePort } from './twin-port.ts'
 import { stableTwinToken } from './twin-token.ts'
-import { stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
+import { stageTwinProposedApis, stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
 export type {
   IdeBridgeDownlinkFrame,
@@ -53,9 +53,12 @@ export { stableTwinToken } from './twin-token.ts'
 export {
   DO_THEME_COLORS,
   DO_TOKEN_COLORS,
+  stageTwinProposedApis,
   stageVscodeBridgeIdentity,
   stageTwinTheme,
+  TWIN_BRIDGE_EXTENSION_ID,
   TWIN_CONFIGURATION_DEFAULTS,
+  TWIN_PROPOSED_APIS,
   VSCODE_THEME_DIR_NAME,
   VSCODE_THEME_EXTENSION_ID,
   VSCODE_THEME_EXTENSION_VERSION,
@@ -217,21 +220,13 @@ function createTwinManager(
   // spawns must not probe the band in parallel: both would see the same port
   // free, write the same pin, and whichever child bound second would fight
   // the loser until its tokens 403 against the survivor's origin checks.
-  let spawnGate: Promise<unknown> = Promise.resolve()
+  let spawnRound: Promise<unknown> = Promise.resolve()
   const forgetToken = (token: string): void => {
     const workspaceKey = tokenToWorkspace.get(token)
     if (workspaceKey === undefined) return
     tokenToWorkspace.delete(token)
     twinByToken.delete(token)
     onTokenDropped(token)
-  }
-  const enqueueTwinSpawn = (body: () => Promise<IdeTwin>): Promise<IdeTwin> => {
-    const queued = spawnGate.then(() => body())
-    spawnGate = queued.then(
-      () => undefined,
-      () => undefined,
-    )
-    return queued
   }
   return {
     dispose(): void {
@@ -246,7 +241,9 @@ function createTwinManager(
     ensure(workspaceKey: string, sessionId: string): Promise<IdeTwin> {
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
-      const pending = enqueueTwinSpawn(async (): Promise<IdeTwin> => {
+      const previous = spawnRound
+      const pending = (async (): Promise<IdeTwin> => {
+        await previous
         // Twin-local state dirs keep user settings, server state and installed
         // marketplace extensions inside the twin dist rather than the user's
         // home: the dist stays the pinned, self-owned payload.
@@ -269,6 +266,9 @@ function createTwinManager(
         // The compiled connection bridge, when the client build produced it;
         // absent it the twin stays theme-only and `dsh/frame/*` never fires.
         await stageVscodeBridgeExtension(join(stateDir, 'exts'))
+        // The timeline plane's proposed API only survives the fork's scanner
+        // when the deployment's own product.json allow-lists the bridge id.
+        await stageTwinProposedApis(join(config.dist, 'product.json'))
         // The bridge binds the files its extension reads before it dials: the
         // host origin, this spawn's token, and the twin key it belongs to.
         await stageVscodeBridgeIdentity(stateDir, {
@@ -292,6 +292,7 @@ function createTwinManager(
               '--accept-server-license-terms',
               '--disable-workspace-trust',
               '--disable-telemetry',
+              '--enable-proposed-api', 'dsh.do-harness-bridge',
               '--server-data-dir', join(stateDir, 'server'),
               '--user-data-dir', join(stateDir, 'user'),
               '--extensions-dir', join(stateDir, 'exts'),
@@ -340,7 +341,11 @@ function createTwinManager(
               reject(error instanceof Error ? error : new Error(String(error)))
             })
         })
-      })
+      })()
+      spawnRound = pending.then(
+        () => undefined,
+        () => undefined,
+      )
       twins.set(workspaceKey, pending)
       void pending.catch(() => {
         if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)

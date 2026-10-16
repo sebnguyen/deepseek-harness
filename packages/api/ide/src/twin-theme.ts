@@ -20,7 +20,7 @@
  */
 
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -239,6 +239,9 @@ export const TWIN_BRIDGE_IDENTITY_BASENAME = 'bridge.json'
 /** The staged bridge extension's directory name inside the twin `exts/` dir. */
 export const TWIN_BRIDGE_EXTENSION_DIR_NAME = 'dsh-do-harness-bridge'
 
+/** The bridge extension's vscode identifier (`publisher.name`). */
+export const TWIN_BRIDGE_EXTENSION_ID = 'dsh.do-harness-bridge'
+
 /** Repo-local path of the compiled bridge bundle, produced by the workspace client build. */
 function twinBridgeBundlePath(): string {
   return resolve(
@@ -257,6 +260,12 @@ function twinBridgeManifest(): Record<string, unknown> {
     version: '0.1.0',
     engines: { vscode: '^1.50.0' },
     main: './extension.cjs',
+    // The timeline plane calls window.registerTimelineProvider, and this
+    // vscode fork guards that surface behind the 'timeline' proposed API:
+    // checkProposedApiEnabled reads this property verbatim. The plane layer
+    // is local-only, so declaring the proposal in the staged manifest is the
+    // product-safe way to admit it.
+    enabledApiProposals: ['timeline'],
     activationEvents: ['onStartupFinished'],
     contributes: {
       // The planes mount these handlers at runtime through the seat's facade;
@@ -265,6 +274,7 @@ function twinBridgeManifest(): Record<string, unknown> {
       // reaches the workbench).
       commands: [
         { command: 'do-harness.addLineNote', title: 'Add Line Note', category: 'DSH Harness' },
+        { command: 'do-harness.timeline.open', title: 'Open Checkpoint Timeline', category: 'DSH Harness' },
       ],
     },
   }
@@ -290,6 +300,37 @@ export async function stageVscodeBridgeExtension(
   await writeFile(join(dir, 'package.json'), `${JSON.stringify(twinBridgeManifest(), null, 2)}\n`, 'utf8')
   await copyFile(bundle, join(dir, 'extension.cjs'))
   return dir
+}
+
+/** Proposed APIs the seat's planes are sanctioned to exercise on the twin. */
+export const TWIN_PROPOSED_APIS = ['timeline'] as const
+
+/**
+ * Admission for the timeline plane: the vscode fork ships
+ * `window.registerTimelineProvider` behind the `timeline` proposed API, and
+ * its extension scanner drops `package.json.enabledApiProposals` from any
+ * extension not allow-listed in the deployment's own product.json. The twin
+ * dist is the harness's private fork build, so stamping the bridge id into
+ * the product's `extensionEnabledApiProposals` map is the sanctioned route —
+ * the same one vscode itself uses for its built-ins. Idempotent: absent
+ * product.json (a dist half-staged) or a map already carrying the id,
+ * the write is skipped.
+ * @param productPath - the twin dist's `product.json`.
+ */
+export async function stageTwinProposedApis(productPath: string): Promise<void> {
+  if (!existsSync(productPath)) return
+  const raw = JSON.parse(await readFile(productPath, 'utf8')) as Record<string, unknown>
+  const prior = (['object', 'function'].includes(typeof raw.extensionEnabledApiProposals)
+    ? raw.extensionEnabledApiProposals
+    : {}) as Record<string, unknown>
+  const owned = new Set([...(Array.isArray(prior[TWIN_BRIDGE_EXTENSION_ID]) ? (prior[TWIN_BRIDGE_EXTENSION_ID] as string[]) : [])])
+  if (TWIN_PROPOSED_APIS.every(api => owned.has(api))) return
+  for (const api of TWIN_PROPOSED_APIS) owned.add(api)
+  raw.extensionEnabledApiProposals = {
+    ...prior,
+    [TWIN_BRIDGE_EXTENSION_ID]: Object.freeze([...owned].sort()),
+  }
+  await writeFile(productPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
 }
 
 /**
