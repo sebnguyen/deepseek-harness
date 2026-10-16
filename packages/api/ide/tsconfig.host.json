@@ -10,6 +10,7 @@
     "src/twin-dist.ts",
     "src/twin-port.ts",
     "src/twin-theme.ts",
+    "src/twin-token.ts",
     "src/types.ts"
   ],
   "references": [
