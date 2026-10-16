@@ -340,7 +340,7 @@ function createTwinManager(
               reject(error instanceof Error ? error : new Error(String(error)))
             })
         })
-      })()
+      })
       twins.set(workspaceKey, pending)
       void pending.catch(() => {
         if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
