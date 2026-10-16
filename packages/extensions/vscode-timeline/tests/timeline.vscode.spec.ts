@@ -216,7 +216,7 @@ describe('vscode-timeline plane', () => {
 
     for (const listener of panel.listeners) listener({ kind: 'open', index: 0 })
     await settle()
-    const executed = fakes.executed[0]!
+    const executed = fakes.executed.find(entry => entry.id === 'vscode.diff')!
     expect(executed.id).toBe('vscode.diff')
     expect((executed.args[0] as { parsed: string }).parsed).toBe('dsh-checkpoint://empty')
     expect((executed.args[1] as { parsed: string }).parsed).toBe('dsh-checkpoint://digest-1')

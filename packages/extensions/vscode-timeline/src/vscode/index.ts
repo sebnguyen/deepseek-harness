@@ -409,6 +409,10 @@ export function apply(ctx: Context): void {
     void render()
   }
   api.window.onDidChangeActiveTextEditor(() => { trackActive() })
+
+  // The fork's editor bar refreshes on editor-change events; bars mounted
+  // before the planes composed would stay hidden forever without a late ping.
+  setTimeout(() => { void api.commands.executeCommand('do-harness.timeline.barRefresh') }, 2000)
   api.commands.registerCommand('do-harness.timeline.open', async (): Promise<void> => {
     trackActive()
     if (tab === undefined) {
@@ -423,6 +427,7 @@ export function apply(ctx: Context): void {
           stepPath(tracked, kind === 'prev' ? -1 : 1)
           plane.refresh()
           void render()
+          void api.commands.executeCommand('do-harness.timeline.barRefresh')
           return
         }
         if (kind === 'open') {
