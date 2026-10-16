@@ -38,6 +38,26 @@ export const Config: z<Config> = z.object({
 
 const HTML_MIME = 'text/html; charset=utf-8'
 
+/**
+ * Cache policy: the index page is fingerprint-free, so heuristic browser
+ * caching would serve it stale across a rebuild and break chunk references
+ * (`vite build` rewrites every asset hash). Content-hashed chunk filenames
+ * under `assets/` are immutable by construction. Anything else (manifest,
+ * favicons) refreshes cheaply with standard revalidation.
+ */
+const CACHE_CONTROL = {
+  index: 'no-store',
+  immutable: 'public, max-age=31536000, immutable',
+  default: 'public, no-cache',
+} as const
+
+/** True when the named file carries a build-hash segment that makes cache-busting redundant. */
+function isFingerprinted(pathname: string): boolean {
+  const file = pathname.slice(pathname.lastIndexOf('/') + 1)
+  const stem = file.slice(0, file.lastIndexOf('.'))
+  return /-[A-Za-z0-9_-]{8,}(?:-|$)/.test(stem)
+}
+
 const MIME: Record<string, string> = {
   '.html': HTML_MIME,
   '.js': 'text/javascript; charset=utf-8',
@@ -84,14 +104,17 @@ export async function serveStatic(
   }
   let body: string | Buffer
   let type: string
+  let cacheControl: string = CACHE_CONTROL.default
   try {
     if (target === distRoot || target === distIndex) {
       if (!authorizeIndex()) return
       body = await renderIndex()
       type = HTML_MIME
+      cacheControl = CACHE_CONTROL.index
     } else {
       body = await readFile(target)
       type = MIME[extname(target)] ?? 'application/octet-stream'
+      cacheControl = isFingerprinted(pathname) ? CACHE_CONTROL.immutable : CACHE_CONTROL.default
     }
   } catch (error) {
     // Only absent or non-file targets are 404; other filesystem failures reach
@@ -101,7 +124,7 @@ export async function serveStatic(
     res.end()
     return
   }
-  res.writeHead(200, { 'content-type': type })
+  res.writeHead(200, { 'content-type': type, 'cache-control': cacheControl })
   res.end(body)
 }
 
