@@ -10,7 +10,6 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import Loader from '@deepseek-ai/cordis-plugin-loader'
 import type { RpcFetch } from '@deepseek-ai/dsh-client-connection/client'
 import * as connectionClient from '@deepseek-ai/dsh-client-connection/client'
 import * as gatewayClient from '@deepseek-ai/dsh-api-gateway/client'
@@ -29,7 +28,7 @@ import type {
 
 import { armVscodeTransport, vscodeFetch } from './transport.ts'
 import { runSeatLoop, SEAT_EVENT_PREFIX } from './seat.ts'
-import { apply as vscodeApi } from './vscode-api.ts'
+import { apply as vscodeApi, setFacadeLogger } from './vscode-api.ts'
 import { readBridgeIdentity, bridgeIdentityPath, type BridgeConfigError } from './config.ts'
 
 /** The extension's stable vscode id — `publisher.name`; the hello's extensionId. */
@@ -106,9 +105,14 @@ export async function spawnBridgeSeat(deps: {
     await seat.plugin({ name: 'typert/registry', inject: [] as string[], apply: typertRegistry.apply })
     await seat.plugin({ name: 'connection', inject: [] as string[], apply: connectionClient.apply })
     await seat.plugin({ name: 'gateway', inject: ['typert', 'connection'], apply: gatewayClient.apply })
-    vscodeApi(seat)
-    // Row 4 of the seat composition: the vendored Loader planes mount through.
-    await seat.plugin(Loader)
+    setFacadeLogger(deps.logger)
+    // The vscode facade is a cordis plugin like everything else on the seat:
+    // planes may then name `vscodeApi` — and the gateway-provided
+    // `remote.<namespace>` services — in their inject lists, and cordis's
+    // inject gate resolves both by service name rather than by attribute
+    // luck. The vendored Loader stays unmounted: its `isolate` plugin scopes
+    // fibers so these services never resolve for them.
+    await seat.plugin({ name: 'vscodeApi', apply: vscodeApi })
     const remote = seat.remote
 
     const unload = await remote.$mount(ideRemote)
@@ -119,19 +123,25 @@ export async function spawnBridgeSeat(deps: {
     const unloadCheckpoint = await remote.$mount(checkpointRemote)
     const { ideBridge } = remote as unknown as IdeasSeatRemote
 
-    // The seat's plane layer: fetch the host's vscode manifest and compose
-    // one Loader entry per row through the vscode-modules resolver. A host
-    // without the vscode-modules registry answers no manifest, and the seat
-    // stays bridge-only by design. A single misbehaving row never strands
-    // its siblings — it is logged and skipped.
+    // The seat's plane layer: fetch the host's vscode manifest and mount one
+    // named plugin per row. Each plane declares its own inject list —
+    // `vscodeApi` and the `remote.<namespace>` services the gateway installs
+    // via `$mount` — and the injector entitles the fiber to read exactly
+    // those, which is the composition every other cordis plugin on this seat
+    // already uses. A host without the vscode-modules registry answers no
+    // manifest, and the seat stays bridge-only by design. A single
+    // misbehaving row never strands its siblings — it is logged and skipped.
     try {
       const graph = await fetchVscodePlanes(identity.dshOrigin)
       deps.logger?.(`vscode seat: manifest ${graph.rev} — composing ${graph.plugins.length} plane(s)`)
       const resolver = vscodeModulesResolver({ dshOrigin: identity.dshOrigin }, graph)
-      seat.loader.internal = { import: (specifier: string) => resolver(specifier) } as never
       for (const row of graph.plugins) {
         try {
-          await seat.loader.create({ name: row.id, ...(row.inject.length > 0 ? { inject: [...row.inject] } : {}) })
+          const resolved = (await resolver(row.id)) as { apply?: (ctx: Context) => void | Promise<void> }
+          if (typeof resolved.apply !== 'function') {
+            throw new Error(`plane ${row.id} resolves without an apply function`)
+          }
+          await seat.plugin({ name: row.id, ...(row.inject.length > 0 ? { inject: [...row.inject] } : {}), apply: resolved.apply })
           deps.logger?.(`vscode seat: plane ${row.id} mounted`)
         } catch (error) {
           deps.logger?.(`vscode seat: plane ${row.id} failed to mount; continuing without it`, error)

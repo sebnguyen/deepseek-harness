@@ -9,12 +9,15 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   DO_THEME_COLORS,
+  stageTwinProposedApis,
   stageVscodeBridgeExtension,
   stageVscodeBridgeIdentity,
   stageTwinTheme,
   TWIN_BRIDGE_EXTENSION_DIR_NAME,
+  TWIN_BRIDGE_EXTENSION_ID,
   TWIN_BRIDGE_IDENTITY_BASENAME,
   TWIN_CONFIGURATION_DEFAULTS,
+  TWIN_PROPOSED_APIS,
   VSCODE_THEME_DIR_NAME,
   VSCODE_THEME_EXTENSION_ID,
 } from '../src/twin-theme.ts'
@@ -61,6 +64,35 @@ describe('stageVscodeBridgeExtension', () => {
     const dir = await extsDir()
     const staged = await stageVscodeBridgeExtension(dir, join(dir, 'not-built.cjs'))
     expect(staged).toBeNull()
+  })
+})
+
+describe('stageTwinProposedApis', () => {
+  it('allow-lists the bridge id in the deployment product.json, preserving siblings', async () => {
+    const dir = await extsDir()
+    const product = join(dir, 'product.json')
+    await writeFile(product, JSON.stringify({
+      nameShort: 'Code - OSS',
+      extensionEnabledApiProposals: { 'ms-vscode.built-in': ['chat'] },
+    }), 'utf8')
+    await stageTwinProposedApis(product)
+    const staged = JSON.parse(await readFile(product, 'utf8')) as Record<string, unknown>
+    const map = staged.extensionEnabledApiProposals as Record<string, string[]>
+    expect(map['ms-vscode.built-in']).toEqual(['chat'])
+    expect(map[TWIN_BRIDGE_EXTENSION_ID]).toEqual([...TWIN_PROPOSED_APIS])
+    expect(staged.nameShort).toBe('Code - OSS')
+  })
+
+  it('is a no-op on repeat calls and on a dist missing the file', async () => {
+    const dir = await extsDir()
+    const product = join(dir, 'product.json')
+    await writeFile(product, JSON.stringify({ nameShort: 'Code - OSS' }), 'utf8')
+    await stageTwinProposedApis(product)
+    const once = await readFile(product, 'utf8')
+    await stageTwinProposedApis(product)
+    const twice = await readFile(product, 'utf8')
+    expect(twice).toBe(once)
+    await stageTwinProposedApis(join(dir, 'absent.json'))
   })
 })
 

@@ -13,7 +13,7 @@
   "dsh": {
     "vscode": {
       "platform": "vscode",
-      "inject": ["vscodeApi", "remote.timeline", "remote.checkpoint"]
+      "inject": ["vscodeApi", "remote", "remote.timeline", "remote.checkpoint"]
     }
   },
   "license": "MIT",

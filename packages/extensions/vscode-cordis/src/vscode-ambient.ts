@@ -71,6 +71,7 @@ declare module 'vscode' {
     onDidChangeDiagnostics(listener: unknown): unknown
     getDiagnostics(uri: unknown): readonly unknown[]
     registerInlayHintsProvider(selector: unknown, provider: unknown): unknown
+    registerCodeLensProvider(selector: unknown, provider: unknown): unknown
   }
 
   export const commands: {

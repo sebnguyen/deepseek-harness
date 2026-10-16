@@ -5,7 +5,10 @@
  * @module @deepseek-ai/dsh-vscode-timeline
  */
 
-export const inject: readonly string[] = []
+// Inject the seat's facade service and the gateway-provided `remote`
+// namespaces; the dot-parent `remote` service must be listed so cordis's
+// property gate admits reads of the service tree this plane calls.
+export const inject: readonly string[] = ['vscodeApi', 'remote', 'remote.timeline', 'remote.checkpoint']
 
 /** The host mount contributes nothing; the plane lives on the vscode face. */
 export function apply(): void {}
