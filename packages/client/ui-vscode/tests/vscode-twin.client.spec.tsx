@@ -179,7 +179,7 @@ describe('the twin frame cache', () => {
     c.unmount()
   })
 
-  it('evicts the least-recently-shown record past the spare', async () => {
+  it('evicts the least-recently-shown record past the spares', async () => {
     const a = await mount('m1', ready('/w1'))
     await waitFor(() => { expect(currentFrame()).not.toBeNull() })
     const frame1 = currentFrame()
@@ -193,15 +193,23 @@ describe('the twin frame cache', () => {
 
     const c = await mount('m3', ready('/w3'))
     await waitFor(() => { expect(currentFrame()?.getAttribute('src')).toContain('folder=%2Fw3') })
-    // Past the spare, the least-recently-shown workspace falls out.
-    expect(frame1.isConnected).toBe(false)
-    expect(records().length).toBe(2)
+    // The cap is 3: every shown workspace so far stays parked, its document
+    // untouched — this IS the three-workspace switch cycle from the field.
+    expect(frame1.isConnected).toBe(true)
+    expect(records().length).toBe(3)
     c.unmount()
 
+    const e = await mount('m4', ready('/w4'))
+    await waitFor(() => { expect(currentFrame()?.getAttribute('src')).toContain('folder=%2Fw4') })
+    // Past the spares, the least-recently-shown workspace falls out.
+    expect(frame1.isConnected).toBe(false)
+    expect(records().length).toBe(3)
+    e.unmount()
+
     // The surviving parked record still flips back by pure unhide.
-    const d = await mount('m4', ready('/w2'))
+    const d = await mount('m5', ready('/w2'))
     await waitFor(() => { expect(currentFrame()).toBe(frame2 ?? null) })
-    expect(records().length).toBe(2)
+    expect(records().length).toBe(3)
     d.unmount()
   })
 

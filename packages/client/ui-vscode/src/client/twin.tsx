@@ -45,12 +45,16 @@ const BOOT_SETTLE_MS = 1_200
 const TAB_ENTRY_GRACE_MS = 300
 
 /**
- * Live records cap: one visible plus one parked spare. The single most
- * common switch shape is the A↔B flip; unbounded maps would park a
- * heavyweight workbench document per visited workspace, and the host
- * already keeps each workspace's twin server warm for the harness run.
+ * Live records cap: one visible plus two parked spares. The cap must span
+ * the observed three-workspace switch cycle — at 2, cycling A→B→C evicts
+ * the A record mid-boot and re-shows it with a cold workbench, which is
+ * how parked iframes ran with stale spawn tokens (the respawned server
+ * answered 'auth mismatch'). Unbounded maps would park a heavyweight
+ * workbench per visited workspace; with workspace-pinned connection
+ * tokens a parked record whose twin respawned reconnects with its own
+ * still-valid token.
  */
-const MAX_LIVE_FRAMES = 2
+const MAX_LIVE_FRAMES = 3
 
 /** The seat band: fills the frame-owned geometry and opts back into pointer
  *  events (the layer itself is pointer-transparent). */
