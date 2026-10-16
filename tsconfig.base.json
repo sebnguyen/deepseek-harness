@@ -478,6 +478,7 @@
       "@deepseek-ai/dsh-tool-terminal": ["./packages/terminal/tool-terminal/src"],
       "@deepseek-ai/dsh-tool-todo": ["./packages/todo/tool-todo/src"],
       "@deepseek-ai/dsh-tool-todo/invariant": ["./packages/todo/tool-todo/src/invariant.ts"],
+      "@deepseek-ai/dsh-tool-turn-finish": ["./packages/client/tool-turn-finish/src"],
       "@deepseek-ai/dsh-tool-web": ["./packages/web/tool-web/src"],
       "@deepseek-ai/dsh-tool-workflow": ["./packages/workflow/tool-workflow/src"],
       "@deepseek-ai/dsh-tool-workflow/invariant": ["./packages/workflow/tool-workflow/src/invariant.ts"],

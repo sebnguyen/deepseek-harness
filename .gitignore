@@ -28,6 +28,12 @@ tmp/
 mise.toml
 dist-exe/
 /dist/
+# Generated declaration outputs and source maps that in-place tsc builds scatter
+# into source dirs alongside vendored/native sources (the sources are tracked).
+*.js.map
+*.d.ts.map
+vendor/*/src/*.d.ts
+native/*/packages/*/src/*.d.ts
 apps/desktop/.desktop-build/
 python/sdk-runtime/src/deepseek_harness_runtime/runtime/deepseek-harness-sdk-runtime-*
 python/sdk-runtime/src/deepseek_harness_runtime/runtime/node/

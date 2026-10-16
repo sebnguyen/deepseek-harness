@@ -61,6 +61,7 @@ import * as ToolLspMap from '@deepseek-ai/dsh-tool-lsp-map'
 import * as ToolSkill from '@deepseek-ai/dsh-tool-skill'
 import * as ToolTasks from '@deepseek-ai/dsh-tool-jobs'
 import * as ToolTodo from '@deepseek-ai/dsh-tool-todo'
+import * as ToolTurnFinish from '@deepseek-ai/dsh-tool-turn-finish'
 import * as ToolSubagent from '@deepseek-ai/dsh-tool-subagent'
 import { registerListSubagentModels } from '../packages/subagent/tool-subagent/src/list-models.ts'
 import * as ToolWeb from '@deepseek-ai/dsh-tool-web'
@@ -549,6 +550,18 @@ const TOOL_PACKAGES: ToolPackage[] = [
     },
     note:
       'todo_write is session-owned state; UIs render the latest todo/write event as a checklist. `allowParallelInProgress` is required with no default, so the catalog states its choice: `true`, whose description invites several `in_progress` items. A deployment choosing `false` receives the same tool with a description asking for exactly one active task.',
+  },
+  {
+    pkg: '@deepseek-ai/dsh-tool-turn-finish',
+    dir: 'tool-turn-finish',
+    source: 'packages/client/tool-turn-finish/src/index.ts',
+    requires: ['ctx.tools', 'ctx.sessionProjections', "quiet reads the conversation-mode 'turnShape' projection"],
+    writes: ['tool/call', 'tool/result'],
+    async mount(ctx) {
+      await ctx.plugin(ToolTurnFinish)
+    },
+    note:
+      'finish is the voluntary early close quiet conversation mode offers, in the standard catalog per the thin-shipped catalog convention. Its guard reads the session turnShape projection at call time, so the catalog needs no conversation-mode composition: the tool registers inert outside quiet and closes turns through the exec.concludeTurn seam.',
   },
   {
     pkg: '@deepseek-ai/dsh-tool-workflow',

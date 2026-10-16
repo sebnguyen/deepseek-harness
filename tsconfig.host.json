@@ -141,6 +141,7 @@
     { "path": "./packages/claim/claim-settlement" },
     { "path": "./packages/client/ui-deliverables/tsconfig.host.json" },
     { "path": "./packages/client/conversation-mode/tsconfig.host.json" },
+    { "path": "./packages/client/tool-turn-finish" },
     { "path": "./vendor/cosmokit" },
     { "path": "./vendor/schemastery" },
     { "path": "./vendor/cordis" },

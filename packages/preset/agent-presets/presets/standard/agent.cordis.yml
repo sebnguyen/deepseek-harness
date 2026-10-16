@@ -365,6 +365,12 @@
   config:
     allowParallelInProgress: true
 
+# The quiet close: `finish` marks the shaping turn complete early; the
+# conversation-mode close latch then opens the tagged wrap-up turn whose
+# requests travel as toolChoice 'none' where the route accepts the field.
+- id: tool-turn-finish
+  name: '@deepseek-ai/dsh-tool-turn-finish'
+
 # The `web` service and its search provider stay in the host composition; only
 # the model-facing tool is per-session.
 - id: tool-web

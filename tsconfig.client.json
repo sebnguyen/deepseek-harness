@@ -105,6 +105,11 @@
     { "path": "./packages/client/ui-settings-plugins" },
     { "path": "./packages/client/ui-user-questions" },
     { "path": "./packages/client/conversation-mode" },
+    // The new finish tool's spec joins this aggregate through the
+    // packages/client/*/tests glob; its src must arrive via a reference
+    // (composite projects allow no import-only orphans). Mirrors the host
+    // aggregate's entry for the same package.
+    { "path": "./packages/client/tool-turn-finish" },
     { "path": "./packages/client/ui-vscode" },
     { "path": "./packages/client/ui-trajectory" },
     { "path": "./packages/client/ui-file-history" },
