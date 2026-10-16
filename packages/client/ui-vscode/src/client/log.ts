@@ -19,3 +19,12 @@ export function vscodeDebug(event: string, ...data: unknown[]): void {
 export function vscodeWarn(event: string, ...data: unknown[]): void {
   console.warn(`${VSCODE_LOG_TAG} ${event}`, ...data)
 }
+
+/**
+ * Lifeline breadcrumb at info level: the click→tab→host→twin open chain is
+ * observable without enabling Verbose in devtools (debug entries hide behind
+ * the default level filter, which is why the chain was invisible).
+ */
+export function vscodeInfo(event: string, ...data: unknown[]): void {
+  console.info(`${VSCODE_LOG_TAG} ${event}`, ...data)
+}

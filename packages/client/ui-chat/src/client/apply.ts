@@ -129,6 +129,9 @@ export function apply(ctx: Context): void {
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
             const url = fileAddressFor(sessionId, cwd, path)
+            // Lifeline breadcrumb (info level): proves the click gesture
+            // reached the code path at all, and which address it resolved.
+            console.info('[ui-chat] openFile', { path, url, options: options ?? null })
             if (options?.display === 'changes') {
               ctx.sidebarRight.openResource(url, {
                 params: options.stop === undefined

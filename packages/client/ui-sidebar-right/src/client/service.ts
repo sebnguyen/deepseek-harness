@@ -333,7 +333,12 @@ export class SidebarRightController implements ISidebarRight {
     if (!address.startsWith(RESOURCE_SCHEME)) {
       throw new Error(`sidebarRight: no registered tab type claims "${address}"`)
     }
-    this.place(sessionId, actions, this.tabs.claim(address, options.kind), address, options, options.params)
+    const entry = this.tabs.claim(address, options.kind)
+    // Lifeline breadcrumb (info level): which tab kind won the claim for
+    // this address. Cross-check with '[ui-chat] openFile' and
+    // '[ui-vscode] forward:*' to locate a silent hop.
+    console.info('[ui-sidebar-right] placeResource: claimed', { sessionId, address, kind: entry.kind })
+    this.place(sessionId, actions, entry, address, options, options.params)
   }
 
   /** Place a page type in one session at the address pages are recorded under; an unregistered kind throws. */

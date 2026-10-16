@@ -213,12 +213,25 @@ function createTwinManager(
   const twins = new Map<string, Promise<IdeTwin>>()
   const tokenToWorkspace = new Map<string, string>()
   const twinByToken = new Map<string, IdeTwin>()
+  // One stable-port band serves every dist on the machine, so two concurrent
+  // spawns must not probe the band in parallel: both would see the same port
+  // free, write the same pin, and whichever child bound second would fight
+  // the loser until its tokens 403 against the survivor's origin checks.
+  let spawnGate: Promise<unknown> = Promise.resolve()
   const forgetToken = (token: string): void => {
     const workspaceKey = tokenToWorkspace.get(token)
     if (workspaceKey === undefined) return
     tokenToWorkspace.delete(token)
     twinByToken.delete(token)
     onTokenDropped(token)
+  }
+  const enqueueTwinSpawn = (body: () => Promise<IdeTwin>): Promise<IdeTwin> => {
+    const queued = spawnGate.then(() => body())
+    spawnGate = queued.then(
+      () => undefined,
+      () => undefined,
+    )
+    return queued
   }
   return {
     dispose(): void {
@@ -233,7 +246,7 @@ function createTwinManager(
     ensure(workspaceKey: string, sessionId: string): Promise<IdeTwin> {
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
-      const pending = (async (): Promise<IdeTwin> => {
+      const pending = enqueueTwinSpawn(async (): Promise<IdeTwin> => {
         // Twin-local state dirs keep user settings, server state and installed
         // marketplace extensions inside the twin dist rather than the user's
         // home: the dist stays the pinned, self-owned payload.
@@ -316,6 +329,12 @@ function createTwinManager(
             .then(() => { resolve(twin) })
             .catch((error: unknown) => {
               handle.terminate()
+              // Readiness never arrived, so this pending twin must leave the
+              // map exactly like the handle-done path does: code-server can
+              // orphan its REH child past the abort window, the next ensure
+              // binds a different port, and the forgotten entry then chains
+              // freshly dead children into an endless unready-respawn loop.
+              if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
               forgetToken(token)
               console.warn('[ide] twin never became ready', { workspaceKey })
               reject(error instanceof Error ? error : new Error(String(error)))
