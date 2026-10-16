@@ -111,7 +111,9 @@ class LineNotesPlane {
     try {
       const result = await this.remote.state(sessionId)
       if (result.ok && result.value !== undefined) notes = [...result.value.notes]
-    } catch {
+      else console.warn('[dsh-line-notes] state not-ok', JSON.stringify(result).slice(0, 400))
+    } catch (error) {
+      console.error('[dsh-line-notes] state failed', error)
       notes = []
     }
     this.cache = { at: Date.now(), notes }
@@ -131,6 +133,7 @@ export function apply(ctx: Context): void {
   const api = ctx.vscodeApi
   const plane = new LineNotesPlane(ctx.remote.lineNotes, api)
   plane.activate(ctx.twinCore.sessionId)
+  console.info('[dsh-line-notes] mounted, sessionId =', ctx.twinCore.sessionId)
 
   const local = ctx as unknown as { on(event: string, listener: (arg: unknown) => void): unknown }
   local.on('dsh/frame/ideBridge/activate', (frame: unknown) => {
@@ -181,12 +184,17 @@ export function apply(ctx: Context): void {
       placeHolder: 'Pin a comment to this line',
     })
     if (text === undefined || text.trim() === '') return
-    await ctx.remote.lineNotes.add(sessionId, {
-      path,
-      line: editor.line,
-      text: text.trim(),
-      retained: editor.lineText,
-    })
+    try {
+      const added = await ctx.remote.lineNotes.add(sessionId, {
+        path,
+        line: editor.line,
+        text: text.trim(),
+        retained: editor.lineText,
+      })
+      if (!added.ok) console.error('[dsh-line-notes] add not-ok', JSON.stringify(added).slice(0, 400))
+    } catch (error) {
+      console.error('[dsh-line-notes] add failed', error)
+    }
     plane.invalidate()
   })
 }

@@ -90,7 +90,13 @@ export interface IdeBridgeReportRequest extends IdeBridgeTwinCall {
 export interface VscodeBridgeIdentity {
   /** Loopback origin of the hosting dsh web server ('' while webServer is unknown). */
   readonly dshOrigin: string
-  /** Per-twin spawn token the bridge presents as its bearer credential. */
+  /**
+   * The workspace-pinned connection token the bridge presents as its bearer
+   * credential. Minted once per workspaceKey (pinned beside the port pin in
+   * the twin state dir) and reissued verbatim across respawns, so a client
+   * iframe's `?tkn=` stays valid through a twin death instead of dying as an
+   * "auth mismatch" ghost.
+   */
   readonly token: string
   /** The spawner's key for this twin (workspace root, else session id). */
   readonly workspaceKey: string

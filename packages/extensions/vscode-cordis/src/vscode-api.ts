@@ -170,7 +170,7 @@ export function fetchVscodeApiFacade(): VscodeApiFacade {
     },
     runtime: {
       createEventEmitter: (): EventEmitterLike => {
-        const emitter = new vscode.EventEmitter<unknown>()
+        const emitter = new vscode.EventEmitter()
         return {
           event: emitter.event,
           fire(payload?: unknown) { emitter.fire(payload) },

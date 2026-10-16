@@ -174,7 +174,9 @@ class TimelinePlane {
     try {
       const result = await this.remote.slots(sessionId, path)
       if (result.ok && result.value !== undefined) stops = worktreeSlots(result.value)
-    } catch {
+      else console.warn('[dsh-timeline] slots not-ok', JSON.stringify(result).slice(0, 400))
+    } catch (error) {
+      console.error('[dsh-timeline] slots failed', error)
       stops = []
     }
     this.timelines.set(path, { at: Date.now(), slots: stops })
@@ -205,6 +207,7 @@ export function apply(ctx: Context): void {
   const api = ctx.vscodeApi
   const plane = new TimelinePlane(ctx.remote.checkpoint, api)
   plane.activate(ctx.twinCore.sessionId)
+  console.info('[dsh-timeline] mounted, sessionId =', ctx.twinCore.sessionId)
 
   // Seat emits land in the shared Context event space via the same escape
   // hatch the bridge uses: `dsh/frame/ideBridge/activate` carries the tab's

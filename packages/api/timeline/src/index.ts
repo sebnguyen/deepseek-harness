@@ -53,7 +53,10 @@ export class Timeline extends TypertRemoteService {
     this.timelines.set(sessionId, rows.map(row => ({ ...row })))
   }
 
-  /** Drop one session's rows (session teardown). */
+  /**
+   * Drop one session's rows (session teardown).
+   * @param sessionId - the session whose rows to drop.
+   */
   clear(sessionId: string): void {
     this.timelines.delete(sessionId)
   }
@@ -62,14 +65,24 @@ export class Timeline extends TypertRemoteService {
     return this.timelines.get(sessionId) ?? []
   }
 
-  /** Read one session's complete ordered checkpoint rows. */
+  /**
+   * Read one session's complete ordered checkpoint rows.
+   * @param request - the session to read.
+   * @param signal - caller cancellation.
+   * @returns the session id plus every published row, in order.
+   */
   @Remote
   history(request: TimelineHistoryRequest, signal: AbortSignal): TimelineHistory {
     void signal
     return { sessionId: request.sessionId, rows: [...this.rowsOf(request.sessionId)] }
   }
 
-  /** Read the rows at indexes `from` inclusive through `to` exclusive. */
+  /**
+   * Read the rows at indexes `from` inclusive through `to` exclusive.
+   * @param request - the session and the range to read.
+   * @param signal - caller cancellation.
+   * @returns the requested row window.
+   */
   @Remote
   slice(request: TimelineSliceRequest, signal: AbortSignal): TimelineSlice {
     void signal

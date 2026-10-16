@@ -62,7 +62,12 @@ export class LineNotes extends TypertRemoteService {
     super(ctx, 'lineNotes')
   }
 
-  /** Read the session's note list, projected live from its slot register. */
+  /**
+   * Read the session's note list, projected live from its slot register.
+   * @param session - the session whose register to read (lookup-resolved).
+   * @param signal - caller cancellation.
+   * @returns the session's note rows, projected from its `note` slots.
+   */
   @Remote
   async state(session: Session, signal: AbortSignal): Promise<LineNotesState> {
     void signal
@@ -80,6 +85,10 @@ export class LineNotes extends TypertRemoteService {
   /**
    * Pin one note (uplink from any editor): validate, mint the id, and append
    * the `note` slot the web gutter writes verbatim.
+   * @param session - the session the note belongs to (lookup-resolved).
+   * @param note - the anchor, text, and frozen line snapshot of the new note.
+   * @param signal - caller cancellation.
+   * @returns the persisted note row, including the minted slot id.
    */
   @Remote
   async add(session: Session, note: LineNoteAddRequest, signal: AbortSignal): Promise<LineNote> {
@@ -113,6 +122,8 @@ export class LineNotes extends TypertRemoteService {
   /**
    * The editor landed on a note (uplink from any engine). Validated and
    * re-emitted locally; the base service deliberately routes further.
+   * @param request - the landing the editor reported (path, line, optional note id).
+   * @param signal - caller cancellation.
    */
   @Remote
   focus(request: LineNoteFocusRequest, signal: AbortSignal): void {

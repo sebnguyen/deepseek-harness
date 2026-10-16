@@ -35,9 +35,9 @@ declare module 'vscode' {
   }
 
   /** A plainly-declared event emitter (Event is a function goldo-typed at use). */
-  export class EventEmitter<T = unknown> {
+  export class EventEmitter {
     readonly event: unknown
-    fire(event?: T): void
+    fire(event?: unknown): void
     dispose(): void
   }
 

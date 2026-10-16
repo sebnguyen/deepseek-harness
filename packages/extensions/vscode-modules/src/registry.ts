@@ -165,7 +165,10 @@ export class VscodeModulesRegistry extends Service {
     return record ?? undefined
   }
 
-  /** The live manifest rows a seat composes against (`rev` covers the row set). */
+  /**
+   * The live manifest rows a seat composes against (`rev` covers the row set).
+   * @returns the composed manifest: content-revisioned plane rows.
+   */
   graph(): VscodeManifest {
     if (this.planes.size === 0) return EMPTY
     const plugins = this.rows()
@@ -200,6 +203,7 @@ export class VscodeModulesRegistry extends Service {
    * Milestone-reserved stage hook (the folder-staging variant the draft
    * superseded with HTTP serving). Remains a resolve-no-op until the
    * file-staging milestone returns; callers compose against `graph()`.
+   * @param stateDir - the twin state dir the staged variant would write into.
    */
   stageToSpawn(stateDir: string): Promise<void> {
     void stateDir

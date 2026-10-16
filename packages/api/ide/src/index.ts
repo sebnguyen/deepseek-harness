@@ -13,7 +13,6 @@
  */
 
 import { createServer } from 'node:net'
-import { randomBytes } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -35,6 +34,7 @@ import type {
 } from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
 import { pickStablePort } from './twin-port.ts'
+import { stableTwinToken } from './twin-token.ts'
 import { stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
 export type {
@@ -49,6 +49,7 @@ export type {
 } from './types.ts'
 export { findTwinDist, resolveTwinDist, twinDistCandidates } from './twin-dist.ts'
 export { pickStablePort } from './twin-port.ts'
+export { stableTwinToken } from './twin-token.ts'
 export {
   DO_THEME_COLORS,
   DO_TOKEN_COLORS,
@@ -233,7 +234,6 @@ function createTwinManager(
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
       const pending = (async (): Promise<IdeTwin> => {
-        const token = randomBytes(24).toString('base64url')
         // Twin-local state dirs keep user settings, server state and installed
         // marketplace extensions inside the twin dist rather than the user's
         // home: the dist stays the pinned, self-owned payload.
@@ -241,6 +241,11 @@ function createTwinManager(
         await mkdir(join(stateDir, 'server'), { recursive: true })
         await mkdir(join(stateDir, 'user'), { recursive: true })
         await mkdir(join(stateDir, 'exts'), { recursive: true })
+        // A workspace-pinned token keeps the client-visible identity stable
+        // across respawns: the tuple the spawner persists is workspaceKey →
+        // token, so a crashed twin comes back with the credentials every
+        // parked iframe already holds.
+        const token = await stableTwinToken(stateDir, workspaceKey)
         // A stable port keeps the iframe origin stable, which is what makes
         // the browser-side IndexedDB user settings survive a harness restart.
         const port = await pickStablePort(stateDir, config.dist) ?? await freePort()
@@ -480,6 +485,7 @@ export class Ide extends TypertRemoteService {
    * per call so a revoked twin is answered within one frame.
    * @param request - the twin's spawn token.
    * @param signal - stream lifetime (gate aborts on disconnect).
+   * @returns the twin's private frame stream.
    */
   @Remote({ mode: 'stream' })
   async *downlink(request: IdeBridgeTwinCall, signal: AbortSignal): AsyncIterable<IdeBridgeDownlinkFrame> {
