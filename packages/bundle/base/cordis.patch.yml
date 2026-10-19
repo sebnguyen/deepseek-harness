@@ -278,6 +278,14 @@
     - id: shell-search
       name: '@deepseek-ai/dsh-shell-search'
 
+    # CLI capability detection: probes the config's host CLIs (the shipped
+    # default is playwright-cli) through ctx.subprocess at plugin load,
+    # exposes each surviving command as a DSH_CLI_* shell-env fact, and
+    # advertises the available set in one prompt section. Host plane beside
+    # shell-env/shell-search: resolution finishes before any session exists.
+    - id: cli-detection
+      name: '@deepseek-ai/dsh-cli-detection'
+
     - id: tool-bash
       name: '@deepseek-ai/dsh-tool-bash-frames'
       disabled: !!js process.platform === 'win32'

@@ -147,7 +147,7 @@ suite('persistent Bash background commands', () => {
       signal,
       callId: ToolCallId(id),
       name,
-      arguments: args,
+      arguments: { ...args, description: 'persistent-bash background.spec coverage' },
       agent: owner,
     })
     const bash = (id: string, command: string, background = false) => run(id, 'bash', {

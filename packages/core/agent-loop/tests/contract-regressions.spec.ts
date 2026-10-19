@@ -136,9 +136,9 @@ describe('abort during tool execution ends the turn', () => {
   it('records post-tool context when a later call aborts the batch', async () => {
     const adapter = new MockAdapter([[
       { type: 'block-start', index: 0, blockType: 'tool-call' },
-      { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'first', arguments: '{}' } },
+      { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'first', arguments: '{"description":"test purpose"}' } },
       { type: 'block-start', index: 1, blockType: 'tool-call' },
-      { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('c2'), name: 'aborter', arguments: '{}' } },
+      { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('c2'), name: 'aborter', arguments: '{"description":"test purpose"}' } },
       { type: 'finish', reason: { kind: 'tool-calls' } },
     ] satisfies StreamChunk[]])
     const ctx = await harness(adapter)
@@ -264,9 +264,9 @@ describe('abort during tool execution ends the turn', () => {
     const adapter = new MockAdapter([
       [
         { type: 'block-start', index: 0, blockType: 'tool-call' },
-        { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'aborter', arguments: '{}' } },
+        { type: 'block-end', index: 0, block: { type: 'tool-call', id: ToolCallId('c1'), name: 'aborter', arguments: '{"description":"test purpose"}' } },
         { type: 'block-start', index: 1, blockType: 'tool-call' },
-        { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('c2'), name: 'second', arguments: '{}' } },
+        { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('c2'), name: 'second', arguments: '{"description":"test purpose"}' } },
         { type: 'finish', reason: { kind: 'tool-calls' } },
       ] satisfies StreamChunk[],
       textResponse('later turn'),

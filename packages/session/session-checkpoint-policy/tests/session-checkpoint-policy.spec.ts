@@ -125,7 +125,7 @@ describe('session-checkpoint-policy tool and step boundaries', () => {
     })
 
     const pending = ctx.tools.execute({
-      callId: ToolCallId('write-1'), name: 'write', arguments: {}, agent,
+      callId: ToolCallId('write-1'), name: 'write', arguments: { description: 'test purpose' }, agent,
       signal: new AbortController().signal,
     })
     await Promise.resolve()
@@ -154,7 +154,7 @@ describe('session-checkpoint-policy tool and step boundaries', () => {
     })
 
     const pending = ctx.tools.execute({
-      callId: ToolCallId('write-cancelled'), name: 'write', arguments: {}, agent,
+      callId: ToolCallId('write-cancelled'), name: 'write', arguments: { description: 'test purpose' }, agent,
       signal: controller.signal,
     })
     await Promise.resolve()
@@ -185,7 +185,7 @@ describe('session-checkpoint-policy tool and step boundaries', () => {
       execute: async () => { ran = true; return null },
     })
     const result = await ctx.tools.execute({
-      callId: ToolCallId('write-2'), name: 'write', arguments: {}, agent,
+      callId: ToolCallId('write-2'), name: 'write', arguments: { description: 'test purpose' }, agent,
       signal: new AbortController().signal,
     })
     expect(result.isError).toBe(true)
@@ -205,7 +205,7 @@ describe('session-checkpoint-policy tool and step boundaries', () => {
       execute: async () => null,
     })
     await ctx.tools.execute({
-      callId: ToolCallId('nested-1'), name: 'nested', arguments: {}, agent,
+      callId: ToolCallId('nested-1'), name: 'nested', arguments: { description: 'test purpose' }, agent,
       parent: Symbol('outer') as never,
       signal: new AbortController().signal,
     })

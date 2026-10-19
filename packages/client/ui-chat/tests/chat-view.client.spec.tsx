@@ -506,7 +506,7 @@ describe('ChatView', () => {
   it('keeps the last tool-call purpose through purpose-less events until a younger purpose lands', () => {
     const purposed = (callId: string, purpose: string): RunningToolCall => ({
       ...runningCall(callId),
-      argsRaw: JSON.stringify({ command: `cmd-${callId}`, _dsh_harness_purpose: purpose }),
+      argsRaw: JSON.stringify({ command: `cmd-${callId}`, description: purpose }),
     })
     const h = makeHarness(
       { nodes: [user(1, 'try')], runningCalls: [purposed('a', 'Searching the schema')] },

@@ -58,7 +58,7 @@ function call(ctx: Context, args: unknown, cwd: string | null = '/virtual/ws') {
     signal,
     callId: `c-${++seq}` as never,
     name: 'symbols',
-    arguments: args,
+    arguments: { description: 'exercise the symbols map tool', ...(args as Record<string, unknown>) },
     ...cwd !== null ? { agent: { session: { header: { cwd } } } as never } : {},
   })
 }

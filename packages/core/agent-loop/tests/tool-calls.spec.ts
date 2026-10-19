@@ -51,7 +51,7 @@ function multiCall(calls: { id: string; name: string; args: object }[]): StreamC
   calls.forEach((call, index) => {
     chunks.push(
       { type: 'block-start', index, blockType: 'tool-call' },
-      { type: 'block-end', index, block: { type: 'tool-call', id: ToolCallId(call.id), name: call.name, arguments: JSON.stringify(call.args) } },
+      { type: 'block-end', index, block: { type: 'tool-call', id: ToolCallId(call.id), name: call.name, arguments: JSON.stringify('description' in call.args ? call.args : { ...call.args, description: 'test purpose' }) } },
     )
   })
   chunks.push(
@@ -770,10 +770,10 @@ describe('PTC mode native-tool denial through the agent loop', () => {
 
 describe('harness purpose line', () => {
   it('keeps tool/call raw verbatim, persists the purpose sibling, and strips the dispatch view', async () => {
-    const raw = JSON.stringify({ id: '1', _dsh_harness_purpose: 'repair the test' })
+    const raw = JSON.stringify({ id: '1', description: 'repair the test' })
     const seenKeys: string[] = []
     const adapter = new MockAdapter([
-      multiCall([{ id: 'c1', name: 'p', args: { id: '1', _dsh_harness_purpose: 'repair the test' } }]),
+      multiCall([{ id: 'c1', name: 'p', args: { id: '1', description: 'repair the test' } }]),
       textResponse('done'),
     ])
     const ctx = await harness(adapter)

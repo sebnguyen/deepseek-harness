@@ -11,7 +11,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ReadResultView, ToolExecution, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { } from '@deepseek-ai/dsh-fs'
 import { buildWindow, formatReadOutput, langFromPath, readMetaFromMeta } from './read-render.ts'
@@ -19,9 +19,6 @@ import { resolveRegularReadTarget } from './read-target.ts'
 
 /** Default and maximum number of lines returned by one `read` element (the `readLimit` config). */
 export const READ_LIMIT = 2000
-
-/** Default and maximum number of elements one `read` call batches (the `maxFilesPerCall` config). */
-export const MAX_FILES_PER_CALL = 8
 
 /**
  * Default streaming threshold (the `readStreamMinSize` config): files at or
@@ -40,7 +37,6 @@ export interface ReadToolCaps {
   /** Files at or above this size stream; smaller files read whole into memory. */
   streamMinSize: number
   /** Maximum elements one batched call accepts. */
-  maxFiles: number
 }
 
 /** Validated read element constraints after defaulting. */
@@ -127,14 +123,12 @@ export function parseReadElement(raw: RawReadElement, maxLimit: number): ReadEle
 
 /**
  * Validate the batch envelope the schema DSL can't express: at least one
- * element, at most the configured cap.
+ * element, no upper cap.
  * @param files - the schema-validated `files` array.
- * @param maxFiles - the configured element cap.
- * @returns the element list, re-typed after the length guards.
+ * @returns the element list, re-typed after the length guard.
  */
-export function parseReadBatch(files: RawReadElement[], maxFiles: number): RawReadElement[] {
+export function parseReadBatch(files: RawReadElement[]): RawReadElement[] {
   if (files.length === 0) throw new Error('files must contain at least one element')
-  if (files.length > maxFiles) throw new Error(`files must contain at most ${maxFiles} elements`)
   return files
 }
 
@@ -284,12 +278,16 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
 
   ctx.tools.register(defineTool({
     name: 'multi_read',
+    // Shape tolerance, not type tolerance: a model remembering the pre-batch
+    // singleton `{file_path, offset?, limit?}` root receives one wrapped
+    // element; string containers and other non-conforming payloads fail.
+    normalizeArgs: args => wrapSingletonArgs(args, 'files', 'file_path'),
     description: 'Read UTF-8 text files and return line-numbered content; each element of `files` runs and settles into its own labeled frame, in written order, earlier failures included.',
     parameters: {
       files: {
         type: 'array',
         required: true,
-        description: `The files to read, in written order; 1 to ${caps.maxFiles} elements. Independent reads of one thought belong in one call.`,
+        description: 'The files to read, in written order; 1 or more elements, with no upper cap. Independent reads of one thought belong in one call.',
         items: {
           type: 'object',
           additionalProperties: false,
@@ -360,7 +358,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
     // Observation races fail closed because guarded mutations re-check the version in-lock.
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      const files = parseReadBatch(args.files as RawReadElement[], caps.maxFiles)
+      const files = parseReadBatch(args.files as RawReadElement[])
       const frames: ReadFrameRecord[] = []
       for (const [index, element] of files.entries()) {
         const label = element.file_path as string

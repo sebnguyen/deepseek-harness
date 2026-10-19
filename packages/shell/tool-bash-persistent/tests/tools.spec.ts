@@ -70,7 +70,7 @@ function call(
     signal,
     callId: ToolCallId(`persistent-bash-${++callNumber}`),
     name: 'bash',
-    arguments: { command },
+    arguments: { command, description: 'persistent-bash tools.spec stubbed-session coverage' },
     ...owner === undefined ? {} : { agent: owner },
   })
 }
@@ -321,8 +321,8 @@ describe('tool-bash-persistent', () => {
     const schema = ctx.tools.schemas()[0]
     expect(ctx.tools.schemas().map(item => item.name)).toEqual(['bash'])
     expect(schema?.description).toBe('deployment-specific persistent shell')
+    expect((schema?.parameters as { required: string[] }).required).toEqual(expect.arrayContaining(['command']))
     expect(schema?.parameters).toMatchObject({
-      required: ['command'],
       properties: { command: { type: 'string' } },
     })
     expect(ctx.tools.get('bash')?.presentCall?.({ command: 'pwd' }))

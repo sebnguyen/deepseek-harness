@@ -32,7 +32,7 @@ function call(name: string, args: unknown) {
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the real fs tools end to end', ...(args as Record<string, unknown>) },
     agent: { session } as never,
   })
 }
@@ -414,7 +414,7 @@ describe('per-session cwd', () => {
       signal: testToolSignal,
       callId: ToolCallId(`call-${++callCounter}`),
       name,
-      arguments: args,
+      arguments: { description: 'exercise per-session cwd resolution', ...(args as Record<string, unknown>) },
       agent: { session: sessionObj } as never,
     })
 
@@ -459,9 +459,9 @@ describe('signal and concurrency', () => {
   })
 
   const callSig = (signal: AbortSignal, name: string, args: unknown) =>
-    ctx.tools.execute({ callId: ToolCallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never, signal })
+    ctx.tools.execute({ callId: ToolCallId(`c-${++callCounter}`), name, arguments: { description: 'exercise abort through the tool', ...(args as Record<string, unknown>) }, agent: { session } as never, signal })
   const callOwned = (name: string, args: unknown) =>
-    ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`c-${++callCounter}`), name, arguments: args, agent: { session } as never })
+    ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`c-${++callCounter}`), name, arguments: { description: 'exercise signal and concurrency behavior', ...(args as Record<string, unknown>) }, agent: { session } as never })
 
   it('a pre-aborted registry call skips read/write-content/write-program with ABORTED_BEFORE_DISPATCH', async () => {
     await writeFile(join(dir, 'a.txt'), 'hello')

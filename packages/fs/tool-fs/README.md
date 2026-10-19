@@ -144,7 +144,7 @@ Read gives UTF-8 contents with line numbers that bash cat and sed cannot; pass e
 ##### Write guidance
 
 ```markdown
-Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` element — each element carries its own content or sed-style edits entries (literal old_string, regex pattern, line range, insert after_line) and commits atomically, elements dispatch in written order, and a failing element settles into its frame while later elements still run. Overwriting a file this session never read needs overwrite: true on that element, and dry_run previews one element without committing. Example: write two new fixture files as two elements once their shapes are agreed.
+Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` call. Elements run in written order, each commits atomically, and later elements see earlier commits — so dependent writes (create a file, then edit it; rename across three call sites) belong in the same call as much as independent ones do. Guards are stricter than the shell's: overwriting a file this session never read needs overwrite: true on that element, and an edit entry fails loudly when its literal match is not unique — dry_run previews an element without committing. A mid-batch stop leaves earlier elements applied, so order for recoverability and verify after the batch. Example: two new fixtures and the spec that imports them as three elements once their shapes are agreed.
 ```
 
 #### Token effect

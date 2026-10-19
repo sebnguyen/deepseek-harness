@@ -1,4 +1,4 @@
-/** Covers the reserved harness-meta purpose field: squat rejection, injection, and strip. */
+/** Covers the harness-meta purpose field: reserved prefix, deduping injection, and strip. */
 
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -8,6 +8,7 @@ import ToolRuntime, {
   PURPOSE_KEY,
   RESERVED_PREFIX,
   assertNoReservedSquat,
+  declaresPurposeKey,
   derivePurpose,
   withPurpose,
   type ToolDefinition,
@@ -19,6 +20,16 @@ const OBJECT_ROOT: Record<string, unknown> = {
   type: 'object',
   properties: { path: { type: 'string' } },
   required: ['path'],
+}
+
+/** Object root whose parameters already declare `description`, like the shell tools. */
+const DECLARING_ROOT: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    command: { type: 'string' },
+    description: { type: 'string', description: 'What this command does.' },
+  },
+  required: ['command', 'description'],
 }
 
 /** Read-back view of one exposed schema projection. */
@@ -48,36 +59,56 @@ function fixture(name: string, parameters: Record<string, unknown>): ToolDefinit
 }
 
 describe('reserved namespace', () => {
-  it('reserves only the closed harness prefix', () => {
-    expect(PURPOSE_KEY.startsWith(RESERVED_PREFIX)).toBe(true)
-    expect(PURPOSE_KEY).toBe('_dsh_harness_purpose')
+  it('names the purpose key description, outside the closed harness prefix', () => {
+    expect(PURPOSE_KEY).toBe('description')
+    expect(PURPOSE_KEY.startsWith(RESERVED_PREFIX)).toBe(false)
   })
 
-  it('flags reserved keys and passes domain keys', () => {
-    expect(() => assertNoReservedSquat(OBJECT_ROOT, 'clean')).not.toThrow()
-    expect(() => assertNoReservedSquat({
-      type: 'object',
-      properties: { [PURPOSE_KEY]: { type: 'string' } },
-    }, 'squatter')).toThrow(/reserved harness-meta key/)
-    expect(() => assertNoReservedSquat({
+  it('flags reserved prefix keys and passes domain keys including description', () => {
+    expect(() => { assertNoReservedSquat(OBJECT_ROOT, 'clean') }).not.toThrow()
+    expect(() => { assertNoReservedSquat(DECLARING_ROOT, 'declares description') }).not.toThrow()
+    expect(() => { assertNoReservedSquat({
       type: 'object',
       properties: { _dsh_harness_future: { type: 'string' } },
-    }, 'squatter')).toThrow('reserved harness-meta key')
+    }, 'squatter') }).toThrow('reserved harness-meta key')
+    expect(() => { assertNoReservedSquat({
+      type: 'object',
+      properties: { _dsh_harness_meta: { type: 'string' } },
+    }, 'squatter') }).toThrow(/reserved harness-meta key/)
   })
 
   it('passes annotated and non-object roots', () => {
-    expect(() => assertNoReservedSquat({ description: 'any json' }, 'open')).not.toThrow()
-    expect(() => assertNoReservedSquat({ type: 'array', items: OBJECT_ROOT }, 'list')).not.toThrow()
+    expect(() => { assertNoReservedSquat({ description: 'any json' }, 'open') }).not.toThrow()
+    expect(() => { assertNoReservedSquat({ type: 'array', items: OBJECT_ROOT }, 'list') }).not.toThrow()
+  })
+})
+
+describe('declaresPurposeKey', () => {
+  it('reports only a declared description property', () => {
+    expect(declaresPurposeKey(DECLARING_ROOT)).toBe(true)
+    expect(declaresPurposeKey(OBJECT_ROOT)).toBe(false)
+    expect(declaresPurposeKey({ type: 'object' })).toBe(false)
+    expect(declaresPurposeKey({ type: 'array' })).toBe(false)
+    expect(declaresPurposeKey({})).toBe(false)
   })
 })
 
 describe('withPurpose', () => {
-  it('appends the field last to properties and required', () => {
+  it('appends the field last to properties and required when absent', () => {
     const exposed = withPurpose(OBJECT_ROOT) as ExposedView
     expect(Object.keys(exposed.properties ?? {})).toEqual(['path', PURPOSE_KEY])
     expect(exposed.required).toEqual(['path', PURPOSE_KEY])
     expect(exposed.properties?.[PURPOSE_KEY]?.type).toBe('string')
     expect(exposed.properties?.[PURPOSE_KEY]?.description).toContain('human reviewing')
+  })
+
+  it('leaves a tool-declared description completely unchanged — no replacement', () => {
+    const exposed = withPurpose(DECLARING_ROOT)
+    expect<unknown>(exposed).toBe(DECLARING_ROOT)
+    const view = exposed as ExposedView
+    expect(Object.keys(view.properties ?? {})).toEqual(['command', 'description'])
+    expect(view.required).toEqual(['command', 'description'])
+    expect(view.properties?.description?.description).toBe('What this command does.')
   })
 
   it('keeps declared order and passes non-object roots through', () => {
@@ -87,8 +118,9 @@ describe('withPurpose', () => {
     expect(withPurpose(anyJson)).toBe(anyJson)
   })
 
-  it('re-trips the squat check, making injection idempotent', () => {
-    expect(() => assertNoReservedSquat(withPurpose(OBJECT_ROOT), 'twice')).toThrow('reserved harness-meta key')
+  it('is idempotent: a second injection sees the key and passes through', () => {
+    const once = withPurpose(OBJECT_ROOT)
+    expect<unknown>(withPurpose(once)).toBe(once)
   })
 })
 
@@ -111,15 +143,20 @@ describe('derivePurpose', () => {
 const testToolSignal = new AbortController().signal
 
 describe('registry integration', () => {
-  it('rejects registrations squatting the reserved namespace', async () => {
+  it('rejects registrations squatting the reserved prefix namespace', async () => {
     const ctx = await setup()
     expect(() => ctx.tools.register(fixture('squatter', {
       type: 'object',
-      properties: { [PURPOSE_KEY]: { type: 'string' } },
+      properties: { _dsh_harness_meta: { type: 'string' } },
     }))).toThrow('reserved harness-meta key')
   })
 
-  it('exposes the field on every model-facing schema, appended last', async () => {
+  it('registers a tool declaring its own description without conflict', async () => {
+    const ctx = await setup()
+    expect(() => ctx.tools.register(fixture('declarer', DECLARING_ROOT))).not.toThrow()
+  })
+
+  it('exposes the field on every model-facing schema, appended last when injected', async () => {
     const ctx = await setup()
     ctx.tools.register(fixture('writer', OBJECT_ROOT))
     const writer = ctx.tools.schemas().find(schema => schema.name === 'writer')
@@ -127,7 +164,14 @@ describe('registry integration', () => {
     expect(writer?.parameters.required).toEqual(['path', PURPOSE_KEY])
   })
 
-  it('strips the field before bodies and lifts it onto the execution', async () => {
+  it('exposes a declared description byte-identically — dedup leaves the schema unchanged', async () => {
+    const ctx = await setup()
+    ctx.tools.register(fixture('declarer', DECLARING_ROOT))
+    const declarer = ctx.tools.schemas().find(schema => schema.name === 'declarer')
+    expect(declarer?.parameters).toEqual(DECLARING_ROOT)
+  })
+
+  it('strips an injected field before bodies and lifts it onto the execution', async () => {
     const ctx = await setup()
     ctx.tools.register(fixture('writer', OBJECT_ROOT))
     const seen: Array<{ keys: string[]; purpose?: string | undefined }> = []
@@ -135,13 +179,52 @@ describe('registry integration', () => {
       seen.push({ keys: Object.keys(exec.arguments as object), purpose: exec.purpose })
       return next()
     })
+    const arguments_ = { path: '/x', [PURPOSE_KEY]: 'repair the test' }
     const result = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('c1'),
       name: 'writer',
-      arguments: { path: '/x', [PURPOSE_KEY]: 'repair the test' },
+      arguments: arguments_,
     })
     expect(result.isError).not.toBe(true)
     expect(seen).toEqual([{ keys: ['path'], purpose: 'repair the test' }])
+  })
+
+  it('keeps a tool-declared description in the dispatch view and lifts it as purpose', async () => {
+    const ctx = await setup()
+    const seen: Array<{ keys: string[]; purpose?: string | undefined }> = []
+    ctx.on('tools/execute', (exec: ToolDispatchExecution, next: () => Promise<ToolExecutionResult>) => {
+      seen.push({ keys: Object.keys(exec.arguments as object), purpose: exec.purpose })
+      return next()
+    })
+    ctx.tools.register(fixture('declarer', DECLARING_ROOT))
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('c1'),
+      name: 'declarer',
+      arguments: { command: 'ls', description: 'List the directory' },
+    })
+    expect(result.isError).not.toBe(true)
+    expect(seen).toEqual([{ keys: ['command', 'description'], purpose: 'List the directory' }])
+  })
+
+  it('rejects a call whose purpose is absent, empty, or non-string — while bodies stay untouched', async () => {
+    const ctx = await setup()
+    let executed = 0
+    ctx.tools.register({
+      ...fixture('enforced', OBJECT_ROOT),
+      execute: async () => { executed += 1; return { seen: [] } },
+    })
+    for (const args of [
+      { path: '/x' },
+      { path: '/x', [PURPOSE_KEY]: '' },
+      { path: '/x', [PURPOSE_KEY]: 3 },
+    ]) {
+      const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('cx'), name: 'enforced', arguments: args })
+      expect(result.isError).toBe(true)
+      expect((result as { error: { message: string } }).error.message)
+        .toContain('missing required property "description"')
+    }
+    expect(executed).toBe(0)
   })
 })

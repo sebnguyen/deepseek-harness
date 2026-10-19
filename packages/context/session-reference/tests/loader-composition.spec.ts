@@ -108,7 +108,7 @@ describe('session-reference real Loader composition', () => {
     for (let offset = 1; offset <= totalLines; offset += 7) {
       const read = await ctx.tools.execute({
         name: 'read', callId: ToolCallId(`read-${offset}`),
-        arguments: { file_path: notice.fullSnapshot.locator, offset, limit: 7 },
+        arguments: { file_path: notice.fullSnapshot.locator, offset, limit: 7, description: 'test purpose' },
         signal: new AbortController().signal,
       })
       expect(read.isError).toBe(false)

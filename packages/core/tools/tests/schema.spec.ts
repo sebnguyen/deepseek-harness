@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, it } from 'vitest'
 import {
   JsonSchemaError,
   parameterSchemaSpecToJsonSchema,
+  validateArgs,
   valueSchemaSpecToJsonSchema,
   type InferArgs,
   type InferValue,
@@ -201,5 +202,51 @@ describe('the unified author schema DSL', () => {
       symbol: { [symbolKey]: { type: 'string' } } satisfies ParameterSchemaSpec,
     }
     expect(Object.keys(invalidObjects)).toHaveLength(5)
+  })
+})
+
+describe('validateArgs recovery guidance', () => {
+  it('reads unparsed argument strings as a JSON failure, not a schema violation', () => {
+    expect(validateArgs({ path: { type: 'string', required: true } }, '{"path":'))
+      .toEqual(['arguments are not valid JSON: 8 raw bytes arrived unparsed '
+        + '(the payload was likely truncated or mis-escaped). Re-emit the call with '
+        + 'valid JSON; split large payloads across several calls.'])
+  })
+
+  it('names a stringified container instead of a bare type mismatch', () => {
+    const violations = validateArgs(
+      { files: { type: 'array', required: true, items: { type: 'object', additionalProperties: true } } },
+      { files: '[]' },
+    )
+    expect(violations).toEqual(['"files" must be an array; received a string instead — '
+      + 'if the payload was stringified to fit one call, emit the array literal, '
+      + 'and split large payloads across several calls'])
+  })
+
+  it('resolves hinted values inside arrays', () => {
+    const violations = validateArgs(
+      {
+        files: {
+          type: 'array',
+          required: true,
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            properties: { edits: { type: 'array', required: true, items: { type: 'json' } } },
+          },
+        },
+      },
+      { files: [{ edits: '[]' }] },
+    )
+    expect(violations[0]).toContain('"files[0].edits" must be an array; received a string instead')
+  })
+
+  it('leaves honest mismatches and valid calls alone', () => {
+    const spec: ParameterSchemaSpec = {
+      a: { type: 'object', additionalProperties: false, properties: {}, required: true },
+    }
+    expect(validateArgs(spec, { a: {} })).toEqual([])
+    expect(validateArgs(spec, { a: 3 })).toEqual(['"a" must be an object'])
+    expect(validateArgs(spec, 3)).toEqual(['"arguments" must be an object'])
   })
 })

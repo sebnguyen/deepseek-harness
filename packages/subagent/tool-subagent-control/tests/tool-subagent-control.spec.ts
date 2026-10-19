@@ -91,7 +91,7 @@ function callTool(
     signal,
     callId: ToolCallId(`call-${++calls}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the subagent-control tools fixture', ...(args as Record<string, unknown>) },
     ...agent !== undefined ? { agent: agent as never } : {},
   })
 }
@@ -109,7 +109,7 @@ describe('dsh-tool-subagent-control', () => {
     const schemas = ctx.tools.schemas().filter(schema => schema.name === 'send_message')
     expect(schemas).toHaveLength(1)
     const props = (schemas[0]!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
-    expect(Object.keys(props).sort()).toEqual(['agent_id', 'message'])
+    expect(Object.keys(props).filter(key => key !== 'description').sort()).toEqual(['agent_id', 'message'])
     // The continuable path has no Task, so the schema must not promise one.
     expect(schemas[0]!.description).not.toContain('job_output')
     expect(schemas[0]!.description).not.toContain('job id')
@@ -354,7 +354,7 @@ describe('dsh-tool-subagent-control interrupt_agent', () => {
     const schemas = ctx.tools.schemas().filter(schema => schema.name === 'interrupt_agent')
     expect(schemas).toHaveLength(1)
     const props = (schemas[0]!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
-    expect(Object.keys(props)).toEqual(['agent_id'])
+    expect(Object.keys(props).filter(key => key !== 'description')).toEqual(['agent_id'])
     expect(schemas[0]!.description).toContain('current turn')
     expect(schemas[0]!.description).toContain('send_message')
   })

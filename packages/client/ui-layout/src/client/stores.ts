@@ -48,9 +48,9 @@ export type LayoutInfo = {
   /**
    * Swapped track order: the right column's camel (IDE/vscode pane) sits
    * between the sidebar and the conversation instead of at the frame's edge,
-   * so the frame reads sidebar | rightbar | main. New default for this
-   * product build; the occupant contracts (width, track, fullscreen) report
-   * unchanged — placement flips in AppFrame only.
+   * so the frame reads sidebar | rightbar | main. Off by default; the
+   * footer toggle flips it for the session. The occupant contracts (width,
+   * track, fullscreen) report unchanged — placement flips in AppFrame only.
    */
   swapped: boolean
   /** Reported fullscreen presentation; hides the outer resize handle. */
@@ -98,7 +98,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
         rightbarTrack: false,
         rightbarFullscreen: false,
         rightbarInstant: false,
-        swapped: true,
+        swapped: false,
       },
     }),
     actions: {

@@ -58,7 +58,7 @@ function textTool(name: string, text: string) {
 function exec(name: string, session = 's1'): ToolExecution {
   // Only agent.session.header.id is read by the policy; a structural stub suffices.
   const agent = { session: { header: { id: SessionId(session) } } }
-  return { callId: ToolCallId(`call-${name}`), name, arguments: {}, agent, signal: testToolSignal } as unknown as ToolExecution
+  return { callId: ToolCallId(`call-${name}`), name, arguments: { description: 'drive the spill policy transform' }, agent, signal: testToolSignal } as unknown as ToolExecution
 }
 
 /**
@@ -207,8 +207,8 @@ describe('outer PTC mode failure capture', () => {
       callId: ToolCallId('code-output-limit'),
       name: 'run_code',
       arguments: {
+        description: 'spill the bounded output-limit diagnostic',
         code: 'console.log("HEAD-" + "x".repeat(300)); console.log("TAIL-" + "y".repeat(300)); return "unreachable";',
-        description: 'Print oversized head and tail lines',
       },
       agent: agent as never,
     })
@@ -257,7 +257,7 @@ describe('the durable dispatch-log arm', () => {
       signal: testToolSignal,
       callId: ToolCallId('parent-1'),
       name: 'run_code',
-      arguments: { code: program, description: 'Drive dispatch-log spilling' },
+      arguments: { description: 'drive dispatch-log spill tests', code: program },
       agent: agent as never,
     })
     return { ctx, result, events, spill: ctx.spillStore as StubStore }
@@ -341,11 +341,11 @@ describe('the durable dispatch-log arm', () => {
       callId: ToolCallId('parent-3'),
       name: 'run_code',
       arguments: {
+        description: 'prove log shaping stays off the program path',
         // The program takes BOTH values while the spill backend hangs: the
         // huge read's binding resolves immediately (its logged copy is side
         // work), so the small read proceeds without waiting.
         code: 'const big = await tools.huge_read({});\nconst small = await tools.small_read({});\nreturn big[0].text.length + small[0].text.length',
-        description: 'Prove log shaping is off the program path',
       },
       agent: agent as never,
     }).then((result) => {
@@ -399,8 +399,8 @@ describe('the durable dispatch-log arm', () => {
       callId: ToolCallId('parent-bound'),
       name: 'run_code',
       arguments: {
+        description: 'run three oversized reads against a hung backend',
         code: 'await tools.huge_read({}); await tools.huge_read({}); await tools.huge_read({}); return "done"',
-        description: 'Three oversized reads against a hung backend',
       },
       agent: agent as never,
     })
@@ -448,7 +448,7 @@ describe('the durable dispatch-log arm', () => {
       signal: testToolSignal,
       callId: ToolCallId('parent-2'),
       name: 'run_code',
-      arguments: { code: 'return (await tools.huge_read({}))[0].text.length', description: 'Fail the spill backend' },
+      arguments: { description: 'fail the spill backend best-effort', code: 'return (await tools.huge_read({}))[0].text.length' },
       agent: agent as never,
     })
     expect(result.isError).toBe(false)
@@ -498,7 +498,7 @@ describe('best-effort fallback', () => {
     const { ctx, spill } = await setup({ maxInlineBytes: 10 })
     const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
     ctx.tools.register(textTool('big', 'x'.repeat(1000)))
-    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c'), name: 'big', arguments: {} })
+    const result = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('c'), name: 'big', arguments: { description: 'verify ownerless calls keep their result' } })
     expect(textOf(result.content)).toBe('x'.repeat(1000))
     expect(spill?.saves).toHaveLength(0)
     expect(warn).toHaveBeenCalled()

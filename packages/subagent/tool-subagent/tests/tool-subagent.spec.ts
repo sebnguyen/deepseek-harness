@@ -51,7 +51,7 @@ async function settledJob(ctx: Context, agent: Agent, id: string): Promise<void>
       signal: testToolSignal,
       callId: ToolCallId(`settle-${id}-${attempt}`),
       name: 'job_list',
-      arguments: {},
+      arguments: { description: 'poll the job list until the subagent settles' },
       agent,
     })
     if (/\] (?:completed|failed|killed) — /.test(text(listed))) return
@@ -1034,7 +1034,7 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('collect-1'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(collected)).toBe('background answer\n[status: completed]')
@@ -1044,7 +1044,7 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('collect-2'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(again)).toBe('background answer\n[status: completed]')
@@ -1072,7 +1072,7 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('diagnostic-background-output'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(output)).toBe(
@@ -1199,7 +1199,7 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('broken-output'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(output)).toContain('[status: failed, Error: setup failed]')
@@ -1229,14 +1229,14 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('pending-kill'),
       name: 'job_kill',
-      arguments: { job_id: 'subagent-1', reason: 'no longer needed' },
+      arguments: { job_id: 'subagent-1', reason: 'no longer needed', description: 'kill the pending background subagent' },
       agent: parent,
     })
     const output = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('pending-output'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(output)).toBe('(no new output)\n[status: killed]')
@@ -1271,14 +1271,14 @@ describe('dsh-tool-subagent background mode', () => {
       signal: testToolSignal,
       callId: ToolCallId('broken-rollback-kill'),
       name: 'job_kill',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'kill the background subagent under test' },
       agent: parent,
     })
     const output = await ctx.tools.execute({
       signal: testToolSignal,
       callId: ToolCallId('broken-rollback-output'),
       name: 'job_output',
-      arguments: { job_id: 'subagent-1' },
+      arguments: { job_id: 'subagent-1', description: 'collect the settled background job output' },
       agent: parent,
     })
     expect(text(output)).toContain('[status: failed, AggregateError: startup failed and cleanup also failed]')
@@ -1318,14 +1318,14 @@ describe('dsh-tool-subagent background mode', () => {
     expect(text(startOne)).toBe('started background subagent job subagent-1')
     expect(text(startTwo)).toBe('started background subagent job subagent-2')
 
-    const withReason = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('k1'), name: 'job_kill', arguments: { job_id: 'subagent-1', reason: 'superseded' }, agent: parent })
-    const withoutReason = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('k2'), name: 'job_kill', arguments: { job_id: 'subagent-2' }, agent: parent })
+    const withReason = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('k1'), name: 'job_kill', arguments: { job_id: 'subagent-1', reason: 'superseded', description: 'kill the first hanging subagent with an explicit reason' }, agent: parent })
+    const withoutReason = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('k2'), name: 'job_kill', arguments: { job_id: 'subagent-2', description: 'kill the second hanging subagent with the default reason' }, agent: parent })
     expect(text(withReason)).toBe('requested cancellation of job subagent-1')
     expect(text(withoutReason)).toBe('requested cancellation of job subagent-2')
     expect(cancels).toEqual(['superseded', 'background subagent task killed'])
 
     // The aborted children settle as killed tasks.
-    const killed = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('w1'), name: 'job_output', arguments: { job_id: 'subagent-1' }, agent: parent })
+    const killed = await ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('w1'), name: 'job_output', arguments: { job_id: 'subagent-1', description: 'collect the killed job output' }, agent: parent })
     expect(text(killed)).toBe('(no new output)\n[status: killed]')
   })
 

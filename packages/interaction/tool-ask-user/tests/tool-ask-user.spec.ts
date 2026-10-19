@@ -66,9 +66,10 @@ describe('ask_user_question tool', () => {
         properties: {
           questions: { type: 'array' },
         },
-        required: ['questions'],
       },
     })
+    expect(((schema?.parameters ?? {}) as { required?: string[] }).required?.filter(key => key !== 'description'))
+      .toEqual(['questions'])
     const parameters = schema?.parameters as unknown as OptionSchemaShape
     expect(parameters.properties.questions.items.properties).toMatchObject({
       id: { type: 'string' },
@@ -101,6 +102,7 @@ describe('ask_user_question tool', () => {
       callId: ToolCallId('ask-1'),
       name: 'ask_user_question',
       arguments: {
+        description: 'ask the scripted question fixture',
         questions: [{
           id: 'pkg',
           question: 'Which package manager should I use?',
@@ -137,6 +139,7 @@ describe('ask_user_question tool', () => {
       callId: ToolCallId('ask-recommended'),
       name: 'ask_user_question',
       arguments: {
+        description: 'pass recommended option labels through the fixture',
         questions: [{
           id: 'pkg',
           question: 'Which package manager should I use?',
@@ -173,6 +176,7 @@ describe('ask_user_question tool', () => {
       callId: ToolCallId('ask-multi'),
       name: 'ask_user_question',
       arguments: {
+        description: 'project multi-select answers through the fixture',
         questions: [
           {
             id: 'targets',
@@ -220,7 +224,7 @@ describe('ask_user_question tool', () => {
     await ctx.tools.execute({
       callId: ToolCallId('ask-2'),
       name: 'ask_user_question',
-      arguments: { questions: [{ id: 'continue', question: 'Continue?' }] },
+      arguments: { questions: [{ id: 'continue', question: 'Continue?' }], description: 'ask the scripted continue question' },
       signal: controller.signal,
     })
 
@@ -243,7 +247,7 @@ describe('ask_user_question tool', () => {
       signal: testToolSignal,
       callId: ToolCallId('ask-3'),
       name: 'ask_user_question',
-      arguments: { questions: [{ id: 'continue', header: 'Confirm', question: 'Continue?' }] },
+      arguments: { questions: [{ id: 'continue', header: 'Confirm', question: 'Continue?' }], description: 'ask the scripted confirm question' },
       agent,
     })
 
@@ -258,7 +262,7 @@ describe('ask_user_question tool', () => {
       signal: testToolSignal,
       callId: ToolCallId('ask-no-provider'),
       name: 'ask_user_question',
-      arguments: { questions: [{ id: 'continue', question: 'Continue?' }] },
+      arguments: { questions: [{ id: 'continue', question: 'Continue?' }], description: 'ask the scripted continue question' },
     })
 
     expect(result).toMatchObject({
@@ -285,7 +289,7 @@ describe('ask_user_question tool', () => {
       signal: testToolSignal,
       callId: ToolCallId('ask-delegated'),
       name: 'ask_user_question',
-      arguments: { questions: [{ id: 'continue', question: 'Continue?' }] },
+      arguments: { questions: [{ id: 'continue', question: 'Continue?' }], description: 'ask the scripted continue question' },
       agent: child,
     })
 
@@ -307,7 +311,7 @@ describe('ask_user_question tool', () => {
       signal: testToolSignal,
       callId: ToolCallId('ask-empty'),
       name: 'ask_user_question',
-      arguments: { questions: [] },
+      arguments: { questions: [], description: 'ask an empty question list the schema rejects' },
     })
 
     expect(result).toMatchObject({

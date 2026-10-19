@@ -151,13 +151,12 @@ export function apply(ctx: Context, config: Config): void {
   ctx.tools.register(defineTool({
     name: 'lsp',
     description:
-      'Query a language server for precise code navigation. operation is one of goToDefinition, findReferences, goToImplementation, hover, callers, callees. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration; callers/callees return one hop of precise call sites.',
+      'Query a language server for precise code navigation. line and character are one-based UTF-16 cursor coordinates. findReferences includes the declaration; callers/callees return one hop of precise call sites.',
     parameters: {
       operation: {
         type: 'string',
         required: true,
         enum: [...TOOL_OPERATIONS],
-        description: 'goToDefinition, findReferences, goToImplementation, hover, callers, or callees.',
       },
       file_path: { type: 'string', required: true, description: 'The source file to query, relative to the workspace or absolute.' },
       line: { type: 'number', required: true, description: 'One-based line of the cursor.' },

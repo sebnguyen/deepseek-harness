@@ -139,7 +139,7 @@ function call(ctx: Context, name: string, args: unknown, agent?: object) {
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the fs tool consumer surface', ...(args as Record<string, unknown>) },
     ...agent ? { agent: agent as never } : {},
   })
 }
@@ -1059,7 +1059,7 @@ describe('sandbox escalation API (write)', () => {
     await ctx.tools.execute({
       callId: ToolCallId('call-fs-esc-grant'),
       name: 'write',
-      arguments: { file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access', justification: 'the test needs it' },
+      arguments: { description: 'exercise an approved sandbox escalation', file_path: 'a.txt', content: 'x', sandbox_permissions: 'danger-full-access', justification: 'the test needs it' },
       agent: escalationAgent() as never,
       signal: new AbortController().signal,
     })

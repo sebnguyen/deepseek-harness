@@ -1322,7 +1322,13 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
       const delta = streamed.find(chunk => chunk.type === 'tool-call-delta')
       expect(delta).toMatchObject({ argumentsDelta: '{"goal_id":"goal-42ab","revision":1}' })
       const end = streamed.find(chunk => chunk.type === 'block-end')
-      expect(end).toMatchObject({ block: { arguments: '{"goal_id":"goal-42ab","revision":1}' } })
+      expect(end).toMatchObject({ block: { arguments: '{"goal_id":"goal-42ab","revision":1,"description":"snapshot replay of a model turn recorded before the purpose contract"}' } })
+    })
+
+    it('inherits a recorded old-contract purpose additively as description, keeping the old key verbatim', async () => {
+      const streamed = await streamScripted('{"goal_id":"g","_dsh_harness_purpose":"recorded reason"}')
+      const end = streamed.find(chunk => chunk.type === 'block-end')
+      expect(end).toMatchObject({ block: { arguments: '{"goal_id":"g","_dsh_harness_purpose":"recorded reason","description":"recorded reason"}' } })
     })
 
     it('substitutes the whole match when the pattern has no capture group', async () => {
@@ -2092,7 +2098,7 @@ describe('installLlmReplay (per-session keying)', () => {
           type: 'tool-call',
           id: ToolCallId('send-child'),
           name: 'send_message',
-          arguments: '{"agent_id":"live-child"}',
+          arguments: '{"agent_id":"live-child","description":"snapshot replay of a model turn recorded before the purpose contract"}',
         },
       },
       { type: 'finish', reason: { kind: 'stop' } },

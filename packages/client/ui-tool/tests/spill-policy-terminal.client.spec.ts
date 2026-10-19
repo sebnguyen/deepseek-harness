@@ -60,9 +60,9 @@ async function executeShell(text: string, nested: boolean, name = 'bash', maxInl
       signal: new AbortController().signal,
       name: nested ? 'run_code' : name,
       arguments: nested ? {
-        code: `const blocks = await tools.${name}(${JSON.stringify(shellArgs)}); return blocks[0].text === ${JSON.stringify(text)};`,
+        code: `const blocks = await tools.${name}(${JSON.stringify({ ...shellArgs, description: 'test purpose' })}); return blocks[0].text === ${JSON.stringify(text)};`,
         description: 'Dispatch shell fixture through the tool pipeline',
-      } : shellArgs,
+      } : { ...shellArgs, description: 'test purpose' },
     })
     expect(result.isError).toBe(false)
     if (result.isError) throw new Error('shell fixture execution failed')

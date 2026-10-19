@@ -94,7 +94,7 @@ function call(ctx: Context, args: unknown) {
     signal: testToolSignal,
     callId: ToolCallId(`list-models-${++counter}`),
     name: 'list_subagent_models',
-    arguments: args,
+    arguments: { description: 'exercise the list_subagent_models tool fixture', ...(args as Record<string, unknown>) },
   })
 }
 

@@ -670,6 +670,42 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** Marker text a replayed tool call carries when it never had a purpose. */
+const REPLAY_PURPOSE_MARKER = 'snapshot replay of a model turn recorded before the purpose contract'
+
+/**
+ * The replay adapter impersonates a model, and post-contract models emit
+ * `description` on every call. Stamping sketches the contract back
+ * onto prerecorded args at emission; the session-log comparison projects the
+ * key back out, so fixtures stay byte-stable. Explicit documented purposes
+ * (including a tool's own declared `description`, e.g. the shell tools')
+ * survive untouched; recordings made under the retired `_dsh_harness_purpose`
+ * key inherit their recorded purpose ADDITIVELY as `description` (the old key
+ * stays verbatim in the args); invalid JSON arguments are left for strict
+ * validation to reject exactly as a live run would.
+ * @param entry - the resolved replay entry whose chunks stream model output.
+ * @returns the entry with purposes stamped where absent.
+ */
+function ensureReplayPurpose(entry: ReplayEntry): ReplayEntry {
+  if (entry.kind === 'hang') return entry
+  const chunks = entry.chunks.map((chunk) => {
+    if (chunk.type !== 'block-end' || chunk.block.type !== 'tool-call') return chunk
+    const block = chunk.block
+    if (typeof block.arguments !== 'string' || block.arguments === '') return chunk
+    try {
+      const parsed = JSON.parse(block.arguments) as unknown
+      if (!isRecord(parsed) || (typeof parsed.description === 'string' && parsed.description !== '')) return chunk
+      const recorded = parsed._dsh_harness_purpose
+      const inherited = typeof recorded === 'string' && recorded !== '' ? recorded : REPLAY_PURPOSE_MARKER
+      return {
+        ...chunk,
+        block: { ...block, arguments: JSON.stringify({ ...parsed, description: inherited }) },
+      }
+    } catch { return chunk }
+  })
+  return { ...entry, chunks }
+}
+
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   return Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key))
 }
@@ -1131,7 +1167,7 @@ export function installLlmReplay(ctx: Context, config: ReplayConfig): ReplayHand
         )
       }
       inferStartedSubagents(options.messages, liveSessionIds)
-      const resolved = resolveScriptedEntry(materializeSessionTokens(entry, liveSessionIds), options.messages)
+      const resolved = ensureReplayPurpose(resolveScriptedEntry(materializeSessionTokens(entry, liveSessionIds), options.messages))
       if (options.provider === 'deepseek-official' && providerAccepted(resolved)) {
         const extensions = ctx.get('deepseekLlmApiExtensions')
         if (extensions !== undefined) {

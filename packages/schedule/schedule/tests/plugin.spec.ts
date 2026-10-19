@@ -111,7 +111,7 @@ describe('Schedule plugin composition', () => {
       signal: new AbortController().signal,
       callId: ToolCallId('schedule-plugin-create'),
       name: 'schedule_create',
-      arguments: { prompt: 'future reminder', after_seconds: 3_600 },
+      arguments: { prompt: 'future reminder', after_seconds: 3_600, description: 'create a schedule entry through the plugin-scoped tool' },
       agent: root.agent,
     }))
     expect(created.isError).toBe(false)

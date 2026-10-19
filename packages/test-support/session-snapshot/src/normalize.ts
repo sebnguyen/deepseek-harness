@@ -215,7 +215,9 @@ function scrubValue(
   if (Array.isArray(value)) return value.map(v => scrubValue(v, ctx, cwdPathMode, identityMode))
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {}
-    for (const [k, v] of Object.entries(value)) out[k] = scrubValue(v, ctx, cwdPathMode, identityMode, k)
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = scrubValue(v, ctx, cwdPathMode, identityMode, k)
+    }
     if (
       (value as { sessionUpdate?: unknown }).sessionUpdate === 'usage_update'
       && typeof (value as { used?: unknown }).used === 'number'
@@ -358,6 +360,28 @@ export function normalizeSessionLog(
       }
     } else if ('time' in record) {
       record.time = 0
+    }
+    if (record.type === 'tool/call' && record.data !== null && typeof record.data === 'object') {
+      const data = record.data as Record<string, unknown>
+      // The runtime derives this sibling on append (safe direction); it is
+      // recomputable from the raw arguments, so the comparison drops it
+      // rather than pinning every recording to a single shower.
+      delete data.purpose
+      // The `description` purpose key lives INSIDE the arguments string,
+      // which the walker never enters: parse, strip, and re-serialize it here.
+      // Stripping is scoped to tool-call arguments (never a blanket key drop:
+      // `description` is a common key with legitimate meanings elsewhere),
+      // keeping the corpus comparable across pre- and post-contract
+      // recordings. Unparseable historical arguments pass through verbatim.
+      if (typeof data.arguments === 'string') {
+        try {
+          const parsed = JSON.parse(data.arguments) as unknown
+          if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            delete (parsed as Record<string, unknown>).description
+            data.arguments = JSON.stringify(parsed)
+          }
+        } catch { /* historical arguments recorded verbatim stay verbatim */ }
+      }
     }
     if ((record.type === 'assistant/message' || record.type === 'assistant/attempt')
       && record.data !== null && typeof record.data === 'object') {

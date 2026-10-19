@@ -61,7 +61,7 @@ afterEach(async () => {
 
 let counter = 0
 function call(name: string, args: unknown): Promise<ToolExecutionResult> {
-  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++counter}`), name, arguments: args })
+  return ctx.tools.execute({ signal: testToolSignal, callId: ToolCallId(`call-${++counter}`), name, arguments: { ...(args === null || typeof args !== 'object' || Array.isArray(args) ? {} : args), description: 'test purpose' } })
 }
 
 describe('web_fetch integration over the real backend', () => {
@@ -112,10 +112,11 @@ describe('tool-call timeout policy over the migrated web tools', () => {
     const byName = new Map(ctx.tools.schemas().map(s => [s.name, s]))
     const fetchParams = byName.get('web_fetch')!.parameters as { properties: Record<string, unknown> }
     const searchParams = byName.get('web_search')!.parameters as { properties: Record<string, unknown>; required?: string[] }
-    expect(Object.keys(fetchParams.properties)).toEqual(['url'])
+    // `description` rides every schema via the registry.
+    expect(Object.keys(fetchParams.properties)).toEqual(['url', 'description'])
     expect('timeout_ms' in fetchParams.properties).toBe(false)
-    expect(Object.keys(searchParams.properties)).toEqual(['queries'])
-    expect(searchParams.required).toEqual(['queries'])
+    expect(Object.keys(searchParams.properties)).toEqual(['queries', 'description'])
+    expect(searchParams.required).toEqual(['queries', 'description'])
   })
 })
 
@@ -153,7 +154,7 @@ describe('tool-call timeout returns TOOL_TIMEOUT (deadline wins over a slow fetc
   })
 
   it('returns a structured TOOL_TIMEOUT (not the provider WEB_FETCH_TIMEOUT) when the tool-call budget wins', async () => {
-    const out = await tctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('slow-1'), name: 'web_fetch', arguments: { url: slowBase } })
+    const out = await tctx.tools.execute({ signal: testToolSignal, callId: ToolCallId('slow-1'), name: 'web_fetch', arguments: { url: slowBase, description: 'test purpose' } })
     expect(out.isError).toBe(true)
     // The outer tool-call deadline won: TOOL_TIMEOUT, owned by dsh-tool-call-timeout-policy,
     // NOT the provider's own WEB_FETCH_TIMEOUT (its 30s backstop never fired).

@@ -146,7 +146,7 @@ async function harness(options: { backgroundAfterMs: number; maxJobs: number; co
   const owner = agent(context, root)
   const signal = new AbortController().signal
   const run = (id: string, name: string, args: Record<string, unknown>) => context!.tools.execute({
-    signal, callId: ToolCallId(id), name, arguments: args, agent: owner,
+    signal, callId: ToolCallId(id), name, arguments: { ...args, description: 'persistent-bash promotion.spec coverage' }, agent: owner,
   })
   return {
     owner,

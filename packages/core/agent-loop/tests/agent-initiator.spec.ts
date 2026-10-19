@@ -149,7 +149,7 @@ describe('AgentLoop initiator scope', () => {
 
   it('keeps initiator identity minimal while one explicit signal spans each turn seam', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('observe-call', 'observe', {}),
+      toolCallResponse('observe-call', 'observe', { description: 'test purpose' }),
       textResponse('first done'),
       textResponse('second done'),
     ])
@@ -217,8 +217,8 @@ describe('AgentLoop initiator scope', () => {
 
   it('keeps child setup under the parent boundary and restores the parent while the child driver remains active', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('spawn', 'spawn-child', {}),
-      toolCallResponse('observe', 'observe-child', {}),
+      toolCallResponse('spawn', 'spawn-child', { description: 'test purpose' }),
+      toolCallResponse('observe', 'observe-child', { description: 'test purpose' }),
       textResponse('child done'),
       textResponse('parent done'),
     ])
@@ -282,7 +282,7 @@ describe('AgentLoop initiator scope', () => {
 
   it('keeps agentless direct tools ambient-free and builds trusted transport headers internally', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('capability', 'capability-request', { path: '/v1/capability' }),
+      toolCallResponse('capability', 'capability-request', { path: '/v1/capability', description: 'test purpose' }),
       textResponse('done'),
     ])
     const { ctx } = await harness(adapter)
@@ -316,7 +316,7 @@ describe('AgentLoop initiator scope', () => {
       signal: testToolSignal,
       callId: ToolCallId('direct'),
       name: 'agentless-probe',
-      arguments: {},
+      arguments: { description: 'test purpose' },
     })
     expect(direct.isError).toBe(false)
     expect(directAmbient).toBeUndefined()
@@ -338,11 +338,11 @@ describe('AgentLoop initiator scope', () => {
     // deliberate, non-identifying addition); what must never ride it is session
     // identity, and the tool's own parameters stay exactly the ones declared.
     const exposed = schema?.parameters as { properties?: Record<string, unknown> } | undefined
-    expect(Object.keys(exposed?.properties ?? {}).filter(name => name !== '_dsh_harness_purpose')).toEqual(['path'])
+    expect(Object.keys(exposed?.properties ?? {}).filter(name => name !== 'description')).toEqual(['path'])
     expect(JSON.stringify(schema?.parameters)).not.toMatch(/transport-session|sessionId/i)
     const call = handle.agent.session.snapshotEvents().find(event => event.type === 'tool/call')
     expect(call?.type === 'tool/call' ? call.data.arguments : undefined)
-      .toBe(JSON.stringify({ path: '/v1/capability' }))
+      .toBe(JSON.stringify({ path: '/v1/capability', description: 'test purpose' }))
     expect(captured).toBe(handle.agent)
 
     await handle.dispose()

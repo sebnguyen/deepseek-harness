@@ -12,6 +12,8 @@ import type { ContentBlock, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { CodeBindingFunction, CodeRunResult, CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool, parameterSchemaSpecToJsonSchema } from './schema.ts'
+import { PURPOSE_KEY } from './purpose.ts'
+import { isPlainJsonRecord } from './json-schema.ts'
 import { TOOL_RUNTIME_SCHEDULER } from './index.ts'
 import type { PtcDispatchLog, ToolDefinition, ToolExecutionResult, ToolRuntime, ToolRunContext } from './index.ts'
 import type {} from './types.ts'
@@ -467,11 +469,20 @@ export function createRunCodeTool(registry: ToolRuntime, options: RunCodeBridgeO
         const normalized = jsonNormalizeArgs(rawArgs)
         const n = ++dispatches
         const subCallId = brandString<ToolCallId>(`${String(exec.callId)}:ptc:${n}`)
+        // Purpose inheritance for PTC sub-dispatches: the nested call has no
+        // model-visible emission, so it takes the outer `run_code` call's
+        // purpose (the reason is honest: the program runs because the outer
+        // call does). An explicitly scripted purpose on the binding args wins.
+        const dispatched = !isPlainJsonRecord(normalized.dispatched)
+          || (typeof normalized.dispatched[PURPOSE_KEY] === 'string' && (normalized.dispatched[PURPOSE_KEY] as string) !== '')
+          || exec.purpose === undefined
+          ? normalized.dispatched
+          : { ...normalized.dispatched, [PURPOSE_KEY]: exec.purpose }
         const input = {
           callId: subCallId,
           rootCallId: exec.rootCallId,
           name,
-          arguments: normalized.dispatched,
+          arguments: dispatched,
           ...exec.agent ? { agent: exec.agent } : {},
           parent: exec.token,
           signal: runController.signal,

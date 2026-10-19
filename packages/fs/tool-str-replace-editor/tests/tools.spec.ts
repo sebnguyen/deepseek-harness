@@ -61,7 +61,7 @@ function call(ctx: Context, owner: Agent | undefined, args: unknown) {
     signal: new AbortController().signal,
     callId: ToolCallId(`str-replace-editor-${++callNumber}`),
     name: 'str_replace_editor',
-    arguments: args,
+    arguments: { description: 'exercise the str_replace_editor surface', ...(args as Record<string, unknown>) },
     ...owner === undefined ? {} : { agent: owner },
   })
 }

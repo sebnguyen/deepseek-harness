@@ -258,7 +258,7 @@ Source: [`packages/core/session/src/types.ts:350`](../packages/core/session/src/
 'checkpoint/scan': { rows: CheckpointRow[] }
 ```
 
-Source: [`packages/fs/checkpoint/src/types.ts:144`](../packages/fs/checkpoint/src/types.ts)
+Source: [`packages/fs/checkpoint/src/types.ts:154`](../packages/fs/checkpoint/src/types.ts)
 
 ### `claim/*`
 
@@ -1027,9 +1027,9 @@ Source: [`packages/todo/tool-todo/src/types.ts:31`](../packages/todo/tool-todo/s
  * The model requested one tool invocation: `name` with the raw `arguments`
  * JSON string exactly as the model produced it (unparsed). `callId` pairs the
  * call with its `tool/result`. Optional `purpose` is the harness-lifted
- * `_dsh_harness_purpose` line (the registry strips the key from dispatch
- * arguments before this event is appended); a pure derivation of `arguments`,
- * persisted as an index for projections.
+ * `description` line (the registry strips an injected `description` key from
+ * dispatch arguments before this event is appended); a pure derivation of
+ * `arguments`, persisted as an index for projections.
  */
 'tool/call': { turn: number; step: number; callId: ToolCallId; name: string; arguments: string; purpose?: string }
 ```

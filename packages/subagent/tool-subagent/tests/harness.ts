@@ -109,7 +109,7 @@ export function callSubagent(
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name: 'subagent',
-    arguments: args,
+    arguments: { description: 'exercise the subagent tool fixture', ...(args as Record<string, unknown>) },
     ...agent ? { agent } : {},
     ...over.signal ? { signal: over.signal } : {},
   })

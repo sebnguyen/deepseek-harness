@@ -18,7 +18,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool } from '@deepseek-ai/dsh-tools'
+import { defineTool, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
 import type { DiffCallView, DiffResultView, FileDiff, ToolExecution, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import type { } from '@deepseek-ai/dsh-fs'
@@ -305,10 +305,9 @@ export function parseWriteElement(raw: RawWriteElement): WriteElementArgs {
  * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
  * @param sandbox - the shared sandbox-escalation API (advertisement, mode stamping, denial mapping).
  * @param gate - the tool-owned gate supplying the default write intent.
- * @param maxFiles - the configured maximum number of elements one batched call accepts.
  * @param legacy - register the singular pre-batch face instead of the batch.
  */
-export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate: ToolOwnedGate, maxFiles: number, legacy = false): void {
+export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate: ToolOwnedGate, legacy = false): void {
   if (legacy) {
     applyLegacyWriteTool(ctx, sandbox, gate)
     return
@@ -318,12 +317,16 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
     order: ctx.systemPrompt.getSectionOrder('TOOL_WRITE'),
     text: ({ scope }) => ctx.tools.get('multi_write', scope) === undefined
       ? ''
-      : adviceLine('Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` element — each element carries its own content or sed-style edits entries (literal old_string, regex pattern, line range, insert after_line) and commits atomically, elements dispatch in written order, and a failing element settles into its frame while later elements still run. Overwriting a file this session never read needs overwrite: true on that element, and dry_run previews one element without committing. Example: write two new fixture files as two elements once their shapes are agreed.'),
+      : adviceLine('Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` call. Elements run in written order, each commits atomically, and later elements see earlier commits — so dependent writes (create a file, then edit it; rename across three call sites) belong in the same call as much as independent ones do. Guards are stricter than the shell\'s: overwriting a file this session never read needs overwrite: true on that element, and an edit entry fails loudly when its literal match is not unique — dry_run previews an element without committing. A mid-batch stop leaves earlier elements applied, so order for recoverability and verify after the batch. Example: two new fixtures and the spec that imports them as three elements once their shapes are agreed.'),
   })
 
   ctx.tools.register(defineTool({
     name: 'multi_write',
-    description: 'Create, replace, or patch several UTF-8 text files in one call; each `files` element runs its sed-style program in written order and commits atomically, settling into its own labeled frame — a failed element does not stop later ones.',
+    // Shape tolerance, not type tolerance: a model remembering the pre-batch
+    // singleton `{file_path, content}`-style root receives one wrapped element;
+    // string containers and other non-conforming payloads still fail strictly.
+    normalizeArgs: args => wrapSingletonArgs(args, 'files', 'file_path'),
+    description: 'Create, replace, or patch several UTF-8 text files in one call. Think of one call as one small shell script: elements execute in written order, each commits atomically in its own labeled frame, and later elements see earlier commits — batch every write whose final content is fully determined before the call. A failed element does not stop later ones and nothing is rolled back (a script without `set -e`), so dry_run a risky element before committing. Serialize across calls only when a result must be read to decide the next change.',
     parameters: {
       files: {
         type: 'array',
@@ -331,7 +334,6 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
         description: 'The files to write, in written order. Independent file changes of one thought belong in one call; an element that edits a file another element creates or edits addresses that element\'s result, since elements see earlier commits.',
         items: EDITS_ITEM_SHAPE,
       },
-      ...sandbox.escalationModes.length > 0 ? sandbox.schemaFields() : {},
     },
     output: {
       schema: {
@@ -390,11 +392,11 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
       }),
     },
     async execute(args, exec) {
-      const files = parseWriteBatch(args.files as RawWriteElement[], maxFiles)
-      // Resolve the per-call sandbox policy (approved mode > session override
-      // > backend default, plus the session cwd root) BEFORE anything executes;
-      // an escalating call throws its distinct text on any non-grant.
-      const sandboxPolicy = await sandbox.resolvePolicy('write', args, exec)
+      const files = parseWriteBatch(args.files as RawWriteElement[])
+      // Resolve the per-call sandbox policy (session override > backend
+      // default, plus the session cwd root) BEFORE anything executes; the
+      // shipped face takes no per-call escalation fields.
+      const sandboxPolicy = await sandbox.resolvePolicy('write', {}, exec)
       const frames: WriteFrameRecord[] = []
       for (const [index, raw] of files.entries()) {
         let element: WriteElementArgs
@@ -526,14 +528,12 @@ const EDITS_ITEM_SHAPE = {
 
 /**
  * Validate the batch envelope the schema DSL can't express: at least one
- * element, at most the configured cap.
+ * element, no upper cap.
  * @param files - the schema-validated `files` array.
- * @param maxFiles - the configured element cap.
- * @returns the element list after the length guards.
+ * @returns the element list after the length guard.
  */
-export function parseWriteBatch(files: RawWriteElement[], maxFiles: number): RawWriteElement[] {
+export function parseWriteBatch(files: RawWriteElement[]): RawWriteElement[] {
   if (files.length === 0) throw new Error('files must contain at least one element')
-  if (files.length > maxFiles) throw new Error(`files must contain at most ${maxFiles} elements`)
   return files
 }
 

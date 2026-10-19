@@ -88,7 +88,7 @@ function callTool(
     signal,
     callId: ToolCallId(`call-${++calls}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the list_agents tool fixture', ...(args as Record<string, unknown>) },
     ...agent !== undefined ? { agent: agent as never } : {},
   })
 }
@@ -109,9 +109,9 @@ describe('dsh-tool-subagent-control/list-agents', () => {
       properties?: Record<string, { enum?: string[] }>
       required?: string[]
     }
-    expect(Object.keys(parameters.properties ?? {})).toEqual(['scope'])
+    expect(Object.keys(parameters.properties ?? {}).filter(key => key !== 'description')).toEqual(['scope'])
     expect(parameters.properties?.scope?.enum).toEqual(['children', 'descendants'])
-    expect(parameters.required ?? []).toEqual([])
+    expect((parameters.required ?? []).filter(key => key !== 'description')).toEqual([])
     expect(schemas[0]!.description).toContain('send_message')
     expect(schemas[0]!.description).toContain('steers a running child at its nearest step boundary')
     expect(schemas[0]!.description).not.toContain('send_message` starts a new turn')

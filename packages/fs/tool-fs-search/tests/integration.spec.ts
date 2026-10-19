@@ -32,7 +32,7 @@ function call(name: string, args: unknown, agentObj?: object) {
     signal: testToolSignal,
     callId: ToolCallId(`it-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the search tools over real rg', ...(args as Record<string, unknown>) },
     ...agentObj ? { agent: agentObj as never } : {},
   })
 }
@@ -188,7 +188,7 @@ describe('search tools over the real subprocess service + the packaged rg', () =
       const result = await ctx.tools.execute({
         callId: ToolCallId(`it-${++callCounter}`),
         name: 'grep',
-        arguments: { pattern: 'x' },
+        arguments: { description: 'exercise the pre-aborted registry skip', pattern: 'x' },
         signal: controller.signal,
       })
       expect(result.isError).toBe(true)

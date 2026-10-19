@@ -620,6 +620,19 @@ export const IconCodeOutline16 = ({ size = 16, className }: IconProps) => (
   </svg>
 )
 
+/** ic_ds_swap_horizontal_outline_16 */
+export const IconSwapHorizontalOutline16 = ({ size = 16, className }: IconProps) => (
+  <svg width={size} height={size} className={className} viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M11.5 6H4.5 M6.1 4.4 4.5 6l1.6 1.6 M4.5 10h7 M9.9 8.4 11.5 10l-1.6 1.6"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+)
+
 /** ic_ds_cordis_plugin_outline_14 */
 export const IconCordisPluginOutline14 = ({ size = 14, className }: IconProps) => (
   <svg width={size} height={size} className={className} viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">

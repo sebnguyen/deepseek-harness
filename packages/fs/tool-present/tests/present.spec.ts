@@ -68,7 +68,7 @@ async function setup() {
   owner.session.append('turn/start', { turn: 1 })
   const execute = (files: unknown) => ctx.tools.execute({
     signal: new AbortController().signal, callId: ToolCallId(`call-${++callNumber}`),
-    name: 'present', arguments: { files }, agent: owner,
+    name: 'present', arguments: { description: 'verify present delivery behavior', files }, agent: owner,
   })
   return { ctx, owner, root, fiber, execute }
 }
@@ -156,13 +156,13 @@ it('validates deployment limits before registering the tool', () => {
 
 it('requires an agent, an open turn, and a workspace', async () => {
   const { ctx, owner, execute } = await setup()
-  const detached = await ctx.tools.execute({ signal: new AbortController().signal, callId: ToolCallId('detached'), name: 'present', arguments: { files: [{ path: 'a' }] } })
+  const detached = await ctx.tools.execute({ signal: new AbortController().signal, callId: ToolCallId('detached'), name: 'present', arguments: { files: [{ path: 'a' }], description: 'verify the agent precondition' } })
   expect(detached.isError).toBe(true)
   owner.session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
   expect((await execute([{ path: 'a' }])).isError).toBe(true)
   const noWorkspace = await agent(ctx, undefined)
   noWorkspace.session.append('turn/start', { turn: 1 })
-  const absent = await ctx.tools.execute({ signal: new AbortController().signal, callId: ToolCallId('no-workspace'), name: 'present', arguments: { files: [{ path: 'a' }] }, agent: noWorkspace })
+  const absent = await ctx.tools.execute({ signal: new AbortController().signal, callId: ToolCallId('no-workspace'), name: 'present', arguments: { files: [{ path: 'a' }], description: 'verify the workspace precondition' }, agent: noWorkspace })
   expect(absent.isError).toBe(true)
 })
 

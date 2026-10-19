@@ -215,7 +215,7 @@ function call(
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the search tools over the fake subprocess', ...(args as Record<string, unknown>) },
     ...options.agent ? { agent: options.agent as never } : {},
     ...options.signal ? { signal: options.signal } : {},
     ...options.parent ? { parent: options.parent } : {},

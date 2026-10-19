@@ -36,7 +36,9 @@ beforeEach(async () => {
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(LocalFileSystem, { cwd: dir })
-  await ctx.plugin(ToolFs)
+  // Legacy faces keep `read`/`write` registered: the pointer hook reads the
+  // singular `file_path` argument, which the shipped `multi_*` batch faces do not carry.
+  await ctx.plugin(ToolFs, { legacyFaces: true })
   fiber = await ctx.plugin(KnowledgeNotes, { dshHome: home })
 })
 
@@ -55,7 +57,7 @@ function call(name: string, args: unknown, withAgent = true) {
     signal: testToolSignal,
     callId: ToolCallId(`call-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the knowledge-notes tools fixture', ...(args as Record<string, unknown>) },
     ...(withAgent ? { agent: { session: { header: {} } } as never } : {}),
   })
 }
@@ -176,7 +178,7 @@ describe('obligation listener', () => {
     await writeFile(join(dir, 'a.ts'), 'old')
     await seedNote('a.ts', 'old fact', 'old')
     const adapter = new MockAdapter([
-      toolCallResponse('c0', 'write', { file_path: 'a.ts', content: 'new\n' }),
+      toolCallResponse('c0', 'write', { file_path: 'a.ts', content: 'new\n', description: 'script the agent writing the target file' }),
       textResponse('done'),
       textResponse('acknowledged'),
     ])
@@ -193,7 +195,7 @@ describe('obligation listener', () => {
 
   it('declines when no touched file carries a note', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('c0', 'write', { file_path: 'plain.ts', content: 'x\n' }),
+      toolCallResponse('c0', 'write', { file_path: 'plain.ts', content: 'x\n', description: 'script the agent writing the target file' }),
       textResponse('done'),
       textResponse('done'),
     ])
@@ -277,7 +279,7 @@ describe('pointer fold', () => {
     signal: testToolSignal,
     callId: ToolCallId(`cwd-${++callCounter}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the knowledge-notes tools fixture', ...(args as Record<string, unknown>) },
     agent: { session: { header: { cwd: dir } } } as never,
   })
 
@@ -317,7 +319,7 @@ describe('turn-boundary obligation', () => {
     await writeFile(join(dir, 'a.ts'), 'old')
     await seedNote('a.ts', 'old fact', 'old')
     const adapter = new MockAdapter([
-      toolCallResponse('c0', 'write', { file_path: 'a.ts', content: 'new\n' }),
+      toolCallResponse('c0', 'write', { file_path: 'a.ts', content: 'new\n', description: 'script the agent writing the target file' }),
       textResponse('done'),
       textResponse('acknowledged'),
     ])
@@ -334,7 +336,7 @@ describe('turn-boundary obligation', () => {
 
   it('stays silent when no touched file carries a note', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('c0', 'write', { file_path: 'plain.ts', content: 'x\n' }),
+      toolCallResponse('c0', 'write', { file_path: 'plain.ts', content: 'x\n', description: 'script the agent writing the target file' }),
       textResponse('done'),
     ])
     ctx.llm.registerAdapter(['mock'], adapter)

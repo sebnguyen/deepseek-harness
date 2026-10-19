@@ -106,7 +106,7 @@ function call(ctx: Context, name: string, args: unknown) {
     signal: testToolSignal,
     callId: ToolCallId(`frames-${Math.random()}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the batch frames tool contract', ...(args as Record<string, unknown>) },
   })
 }
 
@@ -140,32 +140,27 @@ describe('frames registration', () => {
     expect(prompt).toContain('overwrite: true on that element')
   })
 
-  it('advertises the escalation fields on the batched write under a confining backend', async () => {
+  it('the shipped batched write carries only the files parameter (no per-call sandbox override)', async () => {
     const { ctx } = await setup(true)
     const write = ctx.tools.schemas().find(s => s.name === 'multi_write')
-    expect(JSON.stringify(write?.parameters)).toContain('sandbox_permissions')
+    // `description` rides every schema via the registry.
+    expect(Object.keys((write?.parameters as { properties?: Record<string, unknown> }).properties ?? {})
+      .sort()).toEqual(['description', 'files'])
   })
 
-  it('rejects a non-positive maxFilesPerCall at load', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SystemPrompt)
-    await ctx.plugin(ToolRuntime)
-    await ctx.plugin(FakeFs)
-    await expect(ctx.plugin(ToolFs, { maxFilesPerCall: 0 })).rejects.toThrow('tool-fs: maxFilesPerCall must be a positive integer')
-  })
 })
 
 describe('batch envelope validation', () => {
-  it('parseReadBatch bounds the element list', () => {
-    expect(() => parseReadBatch([], 8)).toThrow('files must contain at least one element')
-    expect(() => parseReadBatch(new Array(9).fill({}), 8)).toThrow('files must contain at most 8 elements')
-    expect(parseReadBatch([{ file_path: 'a' }], 8)).toHaveLength(1)
+  it('parseReadBatch rejects an empty batch and takes arbitrarily large ones', () => {
+    expect(() => parseReadBatch([])).toThrow('files must contain at least one element')
+    expect(parseReadBatch(new Array(64).fill({}))).toHaveLength(64)
+    expect(parseReadBatch([{ file_path: 'a' }])).toHaveLength(1)
   })
 
-  it('parseWriteBatch bounds the element list', () => {
-    expect(() => parseWriteBatch([], 8)).toThrow('files must contain at least one element')
-    expect(() => parseWriteBatch(new Array(9).fill({}), 8)).toThrow('files must contain at most 8 elements')
-    expect(parseWriteBatch([{ file_path: 'a', content: '' }], 8)).toHaveLength(1)
+  it('parseWriteBatch rejects an empty batch and takes arbitrarily large ones', () => {
+    expect(() => parseWriteBatch([])).toThrow('files must contain at least one element')
+    expect(parseWriteBatch(new Array(64).fill({}))).toHaveLength(64)
+    expect(parseWriteBatch([{ file_path: 'a', content: '' }])).toHaveLength(1)
   })
 
   it('parseReadElement validates paths and caps', () => {

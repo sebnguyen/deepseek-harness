@@ -118,7 +118,7 @@ async function execute(
     signal: testToolSignal,
     callId: ToolCallId(`call-${Math.random()}`),
     name,
-    arguments: args,
+    arguments: { description: 'exercise the goal tools fixture', ...(args as Record<string, unknown>) },
     ...agent === undefined ? {} : { agent },
   })
   return initiator === undefined ? run() : ctx.agents.withInitiator(initiator, run)
@@ -261,7 +261,7 @@ describe('goal tool execution authority', () => {
       signal: testToolSignal,
       callId: ToolCallId('call-driverless'),
       name: 'get_goal',
-      arguments: {},
+      arguments: { description: 'probe the driver-required guard without an initiator' },
       agent: root.agent,
     })
     expect(driverless.error?.info?.code).toBe('GOAL_TOOL_DRIVER_REQUIRED')
