@@ -28,7 +28,6 @@ import type { Scope } from '@deepseek-ai/dsh-scope'
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { EpochHeader, RequestContext, Session, SessionId, TurnEndReason, UserMessage } from '@deepseek-ai/dsh-session'
 import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
-import { EPHEMERAL_CONFIG_FIELDS } from './constants.ts'
 import { joinContextSections, renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt'
 import type { PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-session-projection'
@@ -67,11 +66,10 @@ function requestProposal(header: EpochHeader): LlmCallConfig {
   if (header.adapterDefaults?.maxTokens === true) delete proposal.maxTokens
   // The grammar fold owns these fields per request; a persisted header is a
   // record, not a re-seeding source. Sessions whose historic headers carry
-  // them heal here, on the next proposal.
-  for (const field of EPHEMERAL_CONFIG_FIELDS) {
-    // oxlint-disable-next-line typescript/no-dynamic-delete -- headers arrive as plain records; field list is our const.
-    delete (proposal as Record<string, unknown>)[field]
-  }
+  // them heal here, on the next proposal. Static keys — see
+  // EPHEMERAL_CONFIG_FIELDS, which must stay in sync.
+  delete proposal.structuredOutput
+  delete proposal.toolChoice
   return proposal
 }
 
@@ -81,11 +79,10 @@ function requestProposal(header: EpochHeader): LlmCallConfig {
  * persisted snapshot and its equality baseline are cleaned.
  */
 function stripEphemeralHeaderGrammar(header: EpochHeader): EpochHeader {
+  // Static keys — see EPHEMERAL_CONFIG_FIELDS, which must stay in sync.
   const config = { ...header.config }
-  for (const field of EPHEMERAL_CONFIG_FIELDS) {
-    // oxlint-disable-next-line typescript/no-dynamic-delete -- headers arrive as plain records; field list is our const.
-    delete (config as Record<string, unknown>)[field]
-  }
+  delete config.structuredOutput
+  delete config.toolChoice
   return { ...header, config }
 }
 

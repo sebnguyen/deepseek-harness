@@ -43,8 +43,13 @@ export const EMPTY_OBJECT_SCHEMA: StructuredOutputSchema = Object.freeze({
 
 /** One-line phrases the reminder uses to name each shape's transcript promise. */
 const REMINDER_LINES: Record<Exclude<TurnShape, 'narrate'>, string> = {
-  quiet: 'thoughts and tool rows; call finish when done, then give one plain answer',
-  tools: 'thoughts and tool rows; the turn ends without a summary',
+  quiet:
+    'work silently through thoughts and tool calls — narrate nothing now; '
+    + 'calling finish or ending without tool calls closes the turn, and an automatic wrap-up request '
+    + 'then asks for the one plain final answer. Only answer in plain text when that wrap-up request arrives',
+  tools:
+    'work silently through thoughts and tool calls — narrate nothing now; '
+    + 'the turn ends without a summary, and no answer is owed at any point',
 }
 
 /**

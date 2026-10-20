@@ -228,6 +228,11 @@ function createTwinRecord(src: string, onSettled: () => void): TwinRecord {
   // Chromium gate: without this attribute the iframe composites opaque even
   // when both the element and the framed document are transparent.
   frame.setAttribute('allowtransparency', 'true')
+  // Clipboard delegation: the twin is cross-origin (its own 127.0.0.1 port),
+  // so without this the browser's permissions policy blocks the Clipboard API
+  // inside the frame and the workbench shows its sticky "Unable to read from
+  // the browser's clipboard" prompt on the first readText-driven paste path.
+  frame.setAttribute('allow', 'clipboard-read; clipboard-write')
   frame.src = src
   container.appendChild(frame)
   const record: TwinRecord = { container, frame, settled: false, settleTimer: undefined }

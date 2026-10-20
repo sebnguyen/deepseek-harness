@@ -33,8 +33,9 @@ export interface TurnFinishConfig {}
 export const Config = z.object({}).default({}) as unknown as z.ZodType<TurnFinishConfig>
 
 const FINISH_DESCRIPTION =
-  'Close the current turn early. Quiet conversation mode promises one plain closing answer; '
-  + 'call finish when the work is done and the turn should close into its summary. '
+  'Close the current turn early. Quiet conversation mode promises one plain closing answer, delivered '
+  + 'through an automatic wrap-up request that fires right after the close — text emitted before that '
+  + 'request is discarded, so call finish only when the work is done. '
   + 'Outside quiet conversation mode this call is inert and records nothing.'
 
 /**
