@@ -35,9 +35,12 @@ const STATE: ProviderWindowState = {
   revision: undefined,
 }
 
-function renderEntry() {
+function renderEntry(missing = false) {
   const store = createSnapshotStore(STATE)
-  const controller = { load: async () => undefined } as unknown as ProviderWindowStore
+  const controller = {
+    load: async () => undefined,
+    startupCheck: async () => missing,
+  } as unknown as ProviderWindowStore
   const props = {
     wide: true,
     t,
@@ -67,5 +70,16 @@ describe('provider entry', () => {
     fireEvent.click(screen.getByRole('button', { name: zh['window.close'] }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(document.activeElement).toBe(trigger)
+  })
+
+  it('opens on a fresh start when the route key is unconfigured', async () => {
+    renderEntry(true)
+    expect(await screen.findByRole('dialog')).toBeTruthy()
+  })
+
+  it('stays closed on a fresh start when the key is configured', async () => {
+    renderEntry(false)
+    await new Promise(resolve => setTimeout(resolve, 20))
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 })

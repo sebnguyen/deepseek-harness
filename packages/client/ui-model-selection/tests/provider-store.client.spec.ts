@@ -24,8 +24,10 @@ function fakeContext(handlers: {
   mutate?: (ns: string, ops: unknown[], revision: number | undefined) => Promise<MutateReply>
   discover?: () => Promise<unknown>
   configurable?: readonly { provider: string; displayName: string; settingsNs: string; settingsPath: string[] }[]
+  credConfigured?: boolean
 } = {}) {
   const written: { ns: string; ops: unknown[] }[] = []
+  const keys: { ref: string; value: string }[] = []
   const ctx = {
     remote: {
       llm: {
@@ -47,9 +49,12 @@ function fakeContext(handlers: {
       credentials: {
         describe: async (refs: string[]) => ({
           ok: true,
-          value: Object.fromEntries(refs.map(ref => [ref, { configured: true, writable: true }])),
+          value: Object.fromEntries(refs.map(ref => [ref, { configured: handlers.credConfigured ?? true, writable: true }])),
         }),
-        set: async (_ref: string, _value: string) => ({ ok: true, value: undefined }),
+        set: async (ref: string, value: string) => {
+          keys.push({ ref, value })
+          return { ok: true, value: undefined }
+        },
       },
       settings: {
         mutate: handlers.mutate ?? (async (ns: string, ops: unknown[]) => {
@@ -71,7 +76,7 @@ function fakeContext(handlers: {
       },
     },
   } as unknown as ClientContext
-  return { ctx, written }
+  return { ctx, written, keys }
 }
 
 const PROFILE = {
@@ -124,10 +129,10 @@ function makeStore(
     store: createSnapshotStore({ current: directoryCurrent }),
     select: vi.fn(async () => undefined),
   } as unknown as ModelDirectory & { select: ReturnType<typeof vi.fn> }
-  const { ctx, written } = fakeContext(configurable === undefined ? {} : { configurable })
+  const { ctx, written, keys } = fakeContext(configurable === undefined ? {} : { configurable })
   const store = new ProviderWindowStore(ctx, describeFaceFor(PROFILE_ROOT), schemaFor(),
     () => ({ sessionId: undefined, directory }))
-  return { store, written, directory }
+  return { store, written, keys, directory }
 }
 
 describe('provider window store', () => {
@@ -265,14 +270,40 @@ describe('provider window store', () => {
     expect(ops.map(op => op.path.join('/'))).toContain('models/0/contextWindow')
   })
 
-  it('stores the derived credential reference and commits route facts', async () => {
-    const { store, written } = makeStore(undefined)
+  it('stores a typed key and commits route facts', async () => {
+    const { store, written, keys } = makeStore(undefined)
     await store.load()
     await store.saveKey('dop_v1_secret')
     await store.commitFormat('openai-responses')
     await store.commitBaseURL('https://gw.example/v1')
+    expect(keys).toEqual([{ ref: 'DO_INFERENCE_API_KEY', value: 'dop_v1_secret' }])
     expect(written.at(-2)?.ops).toEqual([{ op: 'set', path: ['providers', 'digitalocean', 'api'], value: 'openai-responses' }])
     expect(written.at(-1)?.ops).toEqual([{ op: 'set', path: ['providers', 'digitalocean', 'baseURL'], value: 'https://gw.example/v1' }])
+  })
+
+  it('writes the derived reference onto the profile when a reference-free key saves', async () => {
+    const { ctx, written, keys } = fakeContext()
+    const refless = { providers: { digitalocean: { api: PROFILE.api, baseURL: PROFILE.baseURL, models: PROFILE.models } } }
+    const store = new ProviderWindowStore(ctx, describeFaceFor(refless), schemaFor(),
+      () => ({ sessionId: undefined, directory: undefined }))
+    await store.load()
+    await store.saveKey('dop_v1_secret')
+    expect(written.at(-1)?.ops).toEqual([{ op: 'set', path: ['providers', 'digitalocean', 'apiKeyEnv'], value: 'DIGITALOCEAN_API_KEY' }])
+    expect(keys).toEqual([{ ref: 'DIGITALOCEAN_API_KEY', value: 'dop_v1_secret' }])
+  })
+
+  it('answers the fresh-start probe false when the route key is configured', async () => {
+    const { store } = makeStore(undefined)
+    expect(await store.startupCheck()).toBe(false)
+    expect(store.store.getSnapshot().current).toBe('digitalocean')
+  })
+
+  it('answers the fresh-start probe true when the route key is unconfigured, once', async () => {
+    const { ctx } = fakeContext({ credConfigured: false })
+    const store = new ProviderWindowStore(ctx, describeFaceFor(PROFILE_ROOT), schemaFor(),
+      () => ({ sessionId: undefined, directory: undefined }))
+    expect(await store.startupCheck()).toBe(true)
+    expect(await store.startupCheck()).toBe(true)
   })
 
   it('commits the dotted row through the shared selection projection', async () => {

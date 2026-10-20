@@ -164,28 +164,25 @@ export function ProviderWindow({ controller, hooks, t, onClose }: ProviderWindow
           </span>
           <span className={css.lab}>{t('route.key')}</span>
           <span className={`${css.wrap} ${css.wide}`}>
-            {state.profile?.apiKeyEnv !== undefined
-              ? (
-                <span className={`${css.keychip} ${state.credentials[state.profile.apiKeyEnv]?.configured === true ? css.ok : css.missing}`}>
-                  {t('route.keyStored', { ref: state.profile.apiKeyEnv })}
-                </span>
-              )
-              : (<>
-                <input
-                  className={`${css.input} ${css.key}`}
-                  placeholder={t('route.keyPlaceholder', { ref: derivedRefOf(state.current ?? '') })}
-                  value={keyText}
-                  onChange={(event) => { setKeyText(event.target.value) }}
-                  aria-label={t('route.key')}
-                />
-                <button
-                  type="button"
-                  className={css.save}
-                  onClick={() => { void controller.saveKey(keyText).then(() => { setKeyText('') }) }}
-                >
-                  {t('route.keySave')}
-                </button>
-              </>)}
+            {state.profile?.apiKeyEnv !== undefined && (
+              <span className={`${css.keychip} ${state.credentials[state.profile.apiKeyEnv]?.configured === true ? css.ok : css.missing}`}>
+                {t('route.keyStored', { ref: state.profile.apiKeyEnv })}
+              </span>
+            )}
+            <input
+              className={`${css.input} ${css.key}`}
+              placeholder={t('route.keyPlaceholder', { ref: state.profile?.apiKeyEnv ?? derivedRefOf(state.current ?? '') })}
+              value={keyText}
+              onChange={(event) => { setKeyText(event.target.value) }}
+              aria-label={t('route.key')}
+            />
+            <button
+              type="button"
+              className={css.save}
+              onClick={() => { void controller.saveKey(keyText).then((refusal) => { if (refusal === undefined) setKeyText('') }) }}
+            >
+              {t('route.keySave')}
+            </button>
           </span>
         </div>
         {state.failure !== null && <div className={css.failure}>{state.failure}</div>}

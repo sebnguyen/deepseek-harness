@@ -443,17 +443,56 @@ export class ProviderWindowStore {
   }
 
   /**
-   * Store the derived credential reference for the selected route.
+   * Store the key for the route's credential reference — the declared
+   * `apiKeyEnv` when the profile names one, else the derived reference this
+   * build's routes resolve. A reference-free profile also gets `apiKeyEnv`
+   * written into settings first: storing the key alone would leave the
+   * profile resolving its native environment discovery, where the typed
+   * literal is invisible (the Models page follows the same two-step).
    * @param value - the raw key literal to store.
    * @returns the refusal message, or undefined once stored.
    */
   async saveKey(value: string): Promise<string | undefined> {
     const route = this.currentRoute()
     if (route === undefined || value.trim().length === 0) return undefined
-    const response = await this.ctx.remote.credentials.set(derivedRefOf(route.provider), value.trim())
+    const ref = this.store.getSnapshot().profile?.apiKeyEnv ?? derivedRefOf(route.provider)
+    if (this.store.getSnapshot().profile?.apiKeyEnv === undefined) {
+      await this.mutate(route.settingsNs, [{ op: 'set', path: [...route.settingsPath, 'apiKeyEnv'], value: ref }])
+      const failure = this.store.getSnapshot().failure
+      if (failure !== null) return failure
+    }
+    const response = await this.ctx.remote.credentials.set(ref, value.trim())
     if (!response.ok) return response.error.message
     await this.loadRoute(this.generation, route.provider)
     return undefined
+  }
+
+  /** One-shot fresh-start credential probe, memoized for the app run. */
+  private startup: Promise<boolean> | undefined
+
+  /**
+   * Probe whether the route the harness opens with lacks a usable key — the
+   * rail entry's fresh-start popup trigger. Memoized: dismissing the popup
+   * ends nagging for this run even if the entry re-mounts.
+   * @returns true when the effective route's key reference is unconfigured.
+   */
+  startupCheck(): Promise<boolean> {
+    this.startup ??= this.probeStartup().catch(() => false)
+    return this.startup
+  }
+
+  private async probeStartup(): Promise<boolean> {
+    await this.load()
+    let state = this.store.getSnapshot()
+    if (state.status !== 'ready') return false
+    const sessionProvider = this.sessionFace().directory?.store.getSnapshot().current?.provider
+    const target = state.routes.find(row => row.provider === sessionProvider)
+      ?? state.routes.find(row => row.provider === state.current)
+    if (target === undefined) return false
+    if (target.provider !== state.current) await this.select(target.provider)
+    state = this.store.getSnapshot()
+    const ref = state.profile?.apiKeyEnv ?? derivedRefOf(target.provider)
+    return state.credentials[ref]?.configured !== true
   }
 
   /** Interrogate the endpoint and adopt unknown ids additively. */

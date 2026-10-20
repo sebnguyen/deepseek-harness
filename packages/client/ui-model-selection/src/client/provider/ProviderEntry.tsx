@@ -5,7 +5,7 @@
  * and window, mirroring TokenEfficiencyEntry's split.
  */
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IconEnhanceOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { ProviderWindow } from './ProviderWindow.tsx'
@@ -33,6 +33,14 @@ export type ProviderEntryProps = Partial<ProviderEntryInjected>
 export function ProviderEntry({ wide, provider, t }: ProviderEntryProps) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement | null>(null)
+  // Fresh-start popup: open the window once when the effective route's key
+  // is unconfigured; the controller memoizes the probe for the app run.
+  useEffect(() => {
+    if (provider === undefined) return
+    void provider().controller.startupCheck().then((missing) => {
+      if (missing) setOpen(true)
+    })
+  }, [provider])
   const close = (): void => {
     setOpen(false)
     /* v8 ignore next -- ref-null guard: close fires only while the entry is mounted, and its button holds the ref. */

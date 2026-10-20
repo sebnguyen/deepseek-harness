@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ModelDirectory } from '../src/client/directory.ts'
@@ -137,6 +137,19 @@ describe('provider window', () => {
     fireEvent.click(await screen.findByRole('menuitem', { name: 'openai-completions' }))
     fireEvent.click(await screen.findByRole('button', { name: /拉取模型规格/ }))
     await screen.findByText('brand-new-model')
+    cleanup()
+  })
+
+  it('keeps the key field editable beside the stored-status chip', async () => {
+    const { controller } = buildWindow(undefined)
+    render(<ProviderWindow controller={controller} hooks={{ provider: controller.store }} t={t} onClose={() => undefined} />)
+    await screen.findByText('deepseek-v4-flash-0731')
+    expect(await screen.findByText(/DO_INFERENCE_API_KEY/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText(zh['route.key']), { target: { value: 'dop_v1_new' } })
+    fireEvent.click(screen.getByRole('button', { name: zh['route.keySave'] }))
+    await waitFor(() => {
+      expect(screen.getByLabelText(zh['route.key'])).toHaveProperty('value', '')
+    })
     cleanup()
   })
 })
