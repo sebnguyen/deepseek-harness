@@ -931,6 +931,8 @@ describe('compat switches', () => {
     expect(profile?.catalogError).toBeUndefined()
     expect(profile?.live).toBe(true)
     expect(profile?.api).toBe('openai-completions')
+    expect(profile?.baseURL).toBe('https://inference.do-ai.run/v1')
+    expect(profile?.clientCert).toBeUndefined()
     expect(profile?.compat).toMatchObject({ supportsDeveloperRole: false })
   })
 
@@ -1265,9 +1267,9 @@ describe('configurable-provider directory', () => {
     ctx.llm.registerConfigurableProviders([
       { provider: 'deepseek-official', displayName: 'DeepSeek', settingsNs: 'llm-deepseek', settingsPath: [] },
     ])
-    // The two shipped routes plus the deepseek-official row registered above.
+    // The shipped routes plus the deepseek-official row registered above.
     const before = ctx.llm.listConfigurableProviders().length
-    expect(before).toBe(3)
+    expect(before).toBe(6)
 
     await ctx.settings.update('llm-pi-ai', {
       providers: {
@@ -1313,10 +1315,16 @@ describe('configurable-provider directory', () => {
     const ctx = await harness({})
     const offered = ctx.llm.listConfigurableProviders().map(entry => entry.provider)
 
-    // The shipped set is what configuration surfaces offer: the two routes
-    // this build ships, each addressed inside the providers dict, rather
-    // than every vendor the installed catalog has heard of.
-    expect(offered).toEqual(['digitalocean', 'mistral'])
+    // The shipped set is what configuration surfaces offer, rather than every
+    // vendor the installed catalog has heard of. `digitalocean` is the public
+    // edge; the internal routes are the production region pins.
+    expect(offered).toEqual([
+      'digitalocean',
+      'internal_digital_ocean_atl1',
+      'internal_digital_ocean_ric1',
+      'internal_digital_ocean_tor1',
+      'mistral',
+    ])
   })
 
   it('lists a route a stored profile names as a catalog route, not a declared one', async () => {

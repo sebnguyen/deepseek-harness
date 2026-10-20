@@ -74,6 +74,8 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `displayName` | provider name | Label shown by selector surfaces |
 | `api` | catalog protocol | Wire protocol; only needed for routes the catalog does not supply |
 | `baseURL` | catalog endpoint | Endpoint of every model on the route |
+| `clientCert` | absent | PEM client-certificate path for TLS; `~` is the home directory; set with `clientKey` |
+| `clientKey` | absent | PEM private-key path paired with `clientCert` |
 | `models` | installed catalog | Replaces the route's catalog wholesale; each entry defaults from the installed model |
 | `modelOverrides` | none | Reshapes individual installed-catalog models without replacing the rest |
 | `compat` | catalog detection | Wire-compatibility switches for unrecognized endpoints |
@@ -84,6 +86,8 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `requestImageMaxBytes` | `1 MiB` | Encoded-byte target for each request image before base64 expansion |
 | `maxRequestImageBytes` | `20 MiB` | Aggregate base64 image-payload bound with oldest-first offload |
 | `retryPolicy` | normal, 5 retries | Provider-owned retry policy executed by `dsh-llm-retry` |
+
+`clientCert` and `clientKey` present a PEM pair on TLS for that route's model requests and its model listing. A profile that sets only one is refused when it resolves, and a file that cannot be read fails the request with `INVALID_CONFIG`. The public `digitalocean` route does not set them; its endpoint remains `https://inference.do-ai.run/v1`.
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-llm-pi-ai) is the exhaustive source for every accepted field and its JSDoc.
 

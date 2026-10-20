@@ -118,20 +118,34 @@
     - id: credentials
       name: '@deepseek-ai/dsh-credentials-local'
 
-    # The pi-ai multi-provider twin, shipping the two routes this build
-    # offers — DigitalOcean inference and Mistral. Endpoints, protocols, and
-    # wire quirks ride the plugin's shipped catalog; the composition names
-    # only the credential references. Model catalogs are deliberately absent:
-    # each live route interrogates its endpoint's model listing and serves
-    # what the API returns, so nothing model-shaped is stored here. Keys
-    # resolve per request through their apiKeyEnv references; a settings
-    # layer or the Models page may still add or reshape routes.
+    # The pi-ai multi-provider twin. `digitalocean` stays the public edge.
+    # `internal_digital_ocean_{atl1,ric1,tor1}` pin production inference-proxy
+    # hosts and present the staff client certificate Traefik requires.
+    # Endpoints, protocols, and wire quirks ride the plugin's shipped catalog;
+    # the composition names credential references and those certificate paths.
+    # Model catalogs are deliberately absent: each live route interrogates its
+    # endpoint's model listing and serves what the API returns, so nothing
+    # model-shaped is stored here. Keys resolve per request through their
+    # apiKeyEnv references; a settings layer or the Models page may still add
+    # or reshape routes.
     - id: llm-pi-ai
       name: '@deepseek-ai/dsh-llm-pi-ai'
       config:
         providers:
           digitalocean:
             apiKeyEnv: DO_INFERENCE_API_KEY
+          internal_digital_ocean_atl1:
+            apiKeyEnv: DO_INFERENCE_API_KEY
+            clientCert: ~/.ssh/staff.crt
+            clientKey: ~/.ssh/staff.key
+          internal_digital_ocean_ric1:
+            apiKeyEnv: DO_INFERENCE_API_KEY
+            clientCert: ~/.ssh/staff.crt
+            clientKey: ~/.ssh/staff.key
+          internal_digital_ocean_tor1:
+            apiKeyEnv: DO_INFERENCE_API_KEY
+            clientCert: ~/.ssh/staff.crt
+            clientKey: ~/.ssh/staff.key
           mistral:
             apiKeyEnv: MISTRAL_API_KEY
 

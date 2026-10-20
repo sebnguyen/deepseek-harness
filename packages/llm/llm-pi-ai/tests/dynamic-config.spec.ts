@@ -184,7 +184,13 @@ describe('request-level dynamic profiles', () => {
     // Dormant ≠ invisible: every installed catalog provider is configurable
     // before any route exists, each addressed inside the providers dict.
     const directory = ctx.llm.listConfigurableProviders()
-    expect(directory.map(entry => entry.provider)).toEqual(['digitalocean', 'mistral'])
+    expect(directory.map(entry => entry.provider)).toEqual([
+      'digitalocean',
+      'internal_digital_ocean_atl1',
+      'internal_digital_ocean_ric1',
+      'internal_digital_ocean_tor1',
+      'mistral',
+    ])
     expect(directory).toContainEqual({
       provider: 'digitalocean',
       displayName: 'DigitalOcean',

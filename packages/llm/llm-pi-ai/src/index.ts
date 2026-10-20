@@ -68,6 +68,7 @@ import { deepEqualJson } from '@deepseek-ai/dsh-util-values'
 import { PiAiAdapter } from './adapter.ts'
 import { authContextFrom, credentialStoreFrom } from './auth.ts'
 import { catalogProviderIds, shippedRoute } from './catalog.ts'
+import { profileClientFetch } from './client-cert-fetch.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
 import type { PiAiModelProfile, ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
@@ -89,6 +90,25 @@ export type {
 } from './config.ts'
 export { recordKeyFor } from './auth.ts'
 export { supportedProtocols } from './provider.ts'
+
+/**
+ * Headers, credential resolution, and the staff client certificate for one
+ * route's model listing.
+ * @param profile - the resolved route.
+ * @param resolveApiKey - lazy credential read for that route.
+ * @returns the host-owned inputs discovery merges under a draft.
+ */
+function discoveryInputs(
+  profile: ResolvedPiAiProviderProfile,
+  resolveApiKey: () => Promise<string | undefined>,
+): StoredModelDiscoveryProfile {
+  const clientFetch = profileClientFetch(profile)
+  return {
+    headers: profile.headers,
+    ...clientFetch === undefined ? {} : { fetch: clientFetch },
+    resolveApiKey,
+  }
+}
 
 export const name = 'llm-pi-ai'
 export const inject = ['llm']
@@ -284,10 +304,7 @@ export function apply(ctx: Context, config: Config): void {
     if (provider === undefined) return undefined
     const profile = profiles().get(provider)
     if (profile === undefined) return undefined
-    return {
-      headers: profile.headers,
-      resolveApiKey: () => resolveApiKey(provider, profile),
-    }
+    return discoveryInputs(profile, () => resolveApiKey(provider, profile))
   }
   // Interrogating an endpoint is a configuration-time action over a draft, so
   // it is offered for the whole namespace rather than per route: the provider
@@ -346,10 +363,7 @@ export function apply(ctx: Context, config: Config): void {
             provider: route,
             ...profile.baseURL === undefined ? {} : { baseURL: profile.baseURL },
             ...profile.api === undefined ? {} : { api: profile.api },
-          }, () => ({
-            headers: profile.headers,
-            resolveApiKey: () => resolveApiKey(route, profile),
-          }))
+          }, () => discoveryInputs(profile, () => resolveApiKey(route, profile)))
           const efforts = profile.defaultReasoningEfforts
           const feed: readonly PiAiModelProfile[] = discovered.map(model => ({
             id: model.id,

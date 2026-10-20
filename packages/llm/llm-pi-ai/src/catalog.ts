@@ -183,37 +183,66 @@ export interface ShippedRouteDefaults {
 }
 
 /**
+ * Wire facts shared by every DigitalOcean inference route. `off` leaves the
+ * wire value empty: the gateway 400s `none` on some of its models (the
+ * deepseek-v4 family), while an absent `reasoning_effort` is the one spelling
+ * every model accepts; a profile whose model takes `none` declares `off: none`
+ * per model and wins over this default.
+ */
+const DIGITALOCEAN_INFERENCE: Readonly<ShippedRouteDefaults> = {
+  api: 'openai-completions',
+  compat: {
+    supportsDeveloperRole: false,
+    maxTokensField: 'max_completion_tokens',
+    requiresReasoningContentOnAssistantMessages: true,
+  },
+  defaultReasoningEfforts: {
+    off: null,
+    low: 'low',
+    medium: 'medium',
+    high: 'high',
+    xhigh: 'xhigh',
+    max: 'max',
+  },
+}
+
+/**
+ * Production inference-proxy Traefik hosts. A request stays on that cluster.
+ * Preview hosts are not routes. The composition presents the staff client
+ * certificate; these entries do not.
+ */
+const DIGITALOCEAN_PRODUCTION_REGIONS: readonly (readonly [region: string, host: string])[] = [
+  ['atl1', 'inference-serving-production-atl1.traefik.gen-ai.cloud-infra.dointernal.com'],
+  ['ric1', 'inference-serving-production-ric1.traefik.gen-ai.cloud-infra.dointernal.com'],
+  ['tor1', 'inference-serving-production-tor1.traefik.gen-ai.cloud-infra.dointernal.com'],
+]
+
+/** One shipped DigitalOcean route: public edge or one production region. */
+function digitalOceanRoute(displayName: string, baseURL: string): ShippedRouteDefaults {
+  return { ...DIGITALOCEAN_INFERENCE, displayName, baseURL }
+}
+
+/**
  * The provider routes this build ships. The installed pi-ai catalog offers
  * dozens of vendors, which dilutes configuration surfaces past the providers
- * a deployment actually runs; this build narrows the offer to the two it
- * ships configured — DigitalOcean serverless inference and Mistral — while
- * hand-declared routes still join the directory as profiles appear.
- * `mistral` rides the installed catalog for its endpoint and models; the
- * rest resolve their defaults here.
+ * a deployment actually runs; this build narrows the offer to the public
+ * DigitalOcean edge (`digitalocean`, `https://inference.do-ai.run/v1`), three
+ * production-region routes (`internal_digital_ocean_atl1`, `_ric1`, `_tor1`),
+ * and Mistral — while hand-declared routes still join the directory as
+ * profiles appear. `mistral` rides the installed catalog for its endpoint and
+ * models; the rest resolve their defaults here.
  */
 const SHIPPED_ROUTES: Readonly<Record<string, Readonly<ShippedRouteDefaults>>> = {
+  // Public edge. This endpoint is not a region pin.
   'digitalocean': {
+    ...DIGITALOCEAN_INFERENCE,
     displayName: 'DigitalOcean',
-    api: 'openai-completions',
     baseURL: 'https://inference.do-ai.run/v1',
-    compat: {
-      supportsDeveloperRole: false,
-      maxTokensField: 'max_completion_tokens',
-      requiresReasoningContentOnAssistantMessages: true,
-    },
-    defaultReasoningEfforts: {
-    // `off` leaves the wire value empty: the gateway 400s `none` on some of
-    // its models (the deepseek-v4 family), while an absent `reasoning_effort`
-    // is the one spelling every model accepts; a profile whose model takes
-    // `none` declares `off: none` per model and wins over this default.
-      off: null,
-      low: 'low',
-      medium: 'medium',
-      high: 'high',
-      xhigh: 'xhigh',
-      max: 'max',
-    },
   },
+  ...Object.fromEntries(DIGITALOCEAN_PRODUCTION_REGIONS.map(([region, host]) => [
+    `internal_digital_ocean_${region}`,
+    digitalOceanRoute(`internal_digital_ocean_${region}`, `https://${host}/v1`),
+  ])),
   'mistral': {
     displayName: 'Mistral',
   },

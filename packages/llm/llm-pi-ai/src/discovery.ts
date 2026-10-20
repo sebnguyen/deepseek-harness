@@ -278,6 +278,8 @@ function usableProbeKey(raw: string): string {
 export interface StoredModelDiscoveryProfile {
   /** Deployment headers configured on the named route. */
   readonly headers: Readonly<Record<string, string>> | undefined
+  /** TLS client certificate fetch for a route whose endpoint requires one. */
+  readonly fetch?: typeof fetch
   /** Resolve the named route's credential only when the draft carries none. */
   readonly resolveApiKey: () => Promise<string | undefined>
 }
@@ -354,7 +356,7 @@ export async function discoverModels(
       headers.set('authorization', `Bearer ${apiKey}`)
     }
     for (const [name, value] of Object.entries(attributionHeaders())) headers.set(name, value)
-    response = await fetch(url, {
+    response = await (stored?.fetch ?? fetch)(url, {
       method: 'GET',
       headers,
       ...request.signal === undefined ? {} : { signal: request.signal },

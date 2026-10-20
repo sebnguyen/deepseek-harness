@@ -121,9 +121,8 @@ export function registerPiAiFlows(ctx: Context, auth: PiAiAuthInjection): void {
   for (const providerId of catalogProviderIds()) {
     const provider = catalogProvider(providerId)
     const [first, ...rest] = loginMethods(provider)
-    /* v8 ignore next 3 -- every id here names an installed provider and every
-       installed provider ships a login, so no entry is skipped; the guard
-       is what keeps that from becoming a crash if either stops being true. */
+    // Shipped routes pi-ai does not install (the regional inference hosts)
+    // have no login to offer.
     if (provider === undefined || first === undefined) continue
     /* v8 ignore next 7 -- every installed catalog id is a lowercase
        hyphenated identifier; the guard keeps a future upstream id outside the

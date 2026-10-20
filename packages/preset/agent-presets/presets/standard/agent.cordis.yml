@@ -362,12 +362,6 @@
 
 - id: tool-todo
   name: '@deepseek-ai/dsh-tool-todo'
-
-# The quiet close: `finish` marks the shaping turn complete early; the
-# conversation-mode close latch then opens the tagged wrap-up turn whose
-# requests travel as toolChoice 'none' where the route accepts the field.
-- id: tool-turn-finish
-  name: '@deepseek-ai/dsh-tool-turn-finish'
   config:
     allowParallelInProgress: true
 

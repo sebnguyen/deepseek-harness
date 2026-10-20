@@ -1,5 +1,5 @@
 /**
- * Workspace twin frames: one live document plus at most one parked spare.
+ * Workspace twin frames: one live document plus at most two parked spares.
  *
  * The seat contract remounts session tab bodies on every session switch, so
  * the body can never own an iframe — and browsers make any move a trap too:
@@ -12,8 +12,8 @@
  * twin) parks records with `display: none` — never a removal — so tab and
  * session switches on one workspace keep the live document. A workspace
  * switch parks the live record and shows its own, creating the element on
- * first visit; a flip back is a pure unhide. Records cap at two — one
- * live plus the parked spare, enough for the A↔B flip most switching is —
+ * first visit; a flip back is a pure unhide. Records cap at three — one
+ * live plus two parked spares, spanning the three-workspace switch cycle —
  * and the least-recently-shown frame falls out past that: workbench
  * documents are heavyweight, and an evicted workspace's server still runs
  * its stable loopback port, so a return is a document boot against a hot
@@ -348,6 +348,15 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
   // default action. Nothing pressed yet — never pre-arm the grace.
   const frameTabAt = useRef(Number.NEGATIVE_INFINITY)
   useEffect(() => {
+    // Seed the restore target with the focus the document already holds:
+    // focusin tracks only changes, and the composer's autofocus normally
+    // lands before this guard installs, so a boot-time grab would
+    // otherwise meet an empty ref and be dumped onto <body> — the steal
+    // the guard exists to reverse.
+    const held = document.activeElement
+    if (held instanceof HTMLElement && held !== document.body && hostRef.current?.contains(held) !== true) {
+      lastFocus.current = held
+    }
     // Track our document's focus so a grab has somewhere to be handed
     // back; focus inside the seat (cover, frames) is never a valid restore
     // target, and focus landing back here ends a frame's verified hold.

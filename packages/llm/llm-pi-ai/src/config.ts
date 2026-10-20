@@ -107,6 +107,16 @@ export interface PiAiProviderProfile {
   /** Endpoint for this route's models; defaults to the installed catalog's endpoint. */
   baseURL?: string
   /**
+   * PEM client-certificate file presented during TLS to this route's endpoint.
+   * `~` is the process user's home directory. Set together with {@link clientKey};
+   * a profile that names only one is refused when it resolves. The bytes are
+   * read when a request or model listing needs them, and again after the file
+   * changes.
+   */
+  clientCert?: string
+  /** PEM private-key file for {@link clientCert}. */
+  clientKey?: string
+  /**
    * This route's model catalog. Omission serves the installed catalog for the
    * route unchanged; an explicit list replaces it, each entry defaulting its
    * unset fields from the installed model of the same id.
@@ -361,6 +371,8 @@ const profile = z.object({
   displayName: z.string(),
   api: z.union(supportedProtocols()),
   baseURL: z.string(),
+  clientCert: z.string(),
+  clientKey: z.string(),
   models: z.array(modelProfile),
   modelOverrides: z.dict(modelOverride),
   defaultReasoningEfforts: reasoningEfforts,
@@ -456,6 +468,12 @@ export function resolveProfiles(
     if (provider.length === 0) throw new Error('llm-pi-ai: provider names must be non-empty')
     if (source.baseURL !== undefined && source.baseURL.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" has an empty baseURL`)
+    }
+    if ((source.clientCert === undefined) !== (source.clientKey === undefined)) {
+      throw new Error(`llm-pi-ai: provider "${provider}" must set clientCert and clientKey together`)
+    }
+    if (source.clientCert !== undefined && (source.clientCert.length === 0 || source.clientKey?.length === 0)) {
+      throw new Error(`llm-pi-ai: provider "${provider}" clientCert and clientKey must be non-empty paths`)
     }
     if (source.displayName !== undefined && source.displayName.length === 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" has an empty displayName`)

@@ -346,6 +346,30 @@ describe('the twin frame cache', () => {
     }
   })
 
+  it('hands a boot-time grab back to the focus that predates the guard itself', async () => {
+    // The composer's autofocus runs before the seat installs its listeners,
+    // so focusin never sees it: without the install-time seed, the first
+    // workbench restore would be dumped onto <body> and stay lost.
+    vi.useFakeTimers()
+    const composer = document.createElement('div')
+    composer.tabIndex = 0
+    document.body.appendChild(composer)
+    composer.focus()
+    expect(document.activeElement).toBe(composer)
+    try {
+      const a = await mount('g1', ready('/wG'))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      const frame = currentFrame()
+      if (frame === null) throw new Error('frame missing')
+      frame.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+      a.unmount()
+    } finally {
+      composer.remove()
+    }
+  })
+
   it('a parked or evicted record hands its focus back instead of dropping it on <body>', async () => {
     vi.useFakeTimers()
     const first = await mount('h1', ready('/wH'))
