@@ -9,6 +9,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import tls from 'node:tls'
 import { LlmError } from '@deepseek-ai/dsh-llm'
 import { Agent, fetch as undiciFetch } from 'undici'
 
@@ -37,7 +38,8 @@ export function expandHome(path: string): string {
  * Fetch implementation that presents one PEM certificate pair.
  * @param certPath - PEM certificate file; `~` is the home directory.
  * @param keyPath - PEM private-key file; `~` is the home directory.
- * @returns a fetch that uses those bytes for TLS client authentication.
+ * @returns a fetch that presents the pair during TLS and trusts the host system CA store.
+ *   Undici's public bundle omits a private issuer on the machine, so the handshake fails before the client certificate is considered.
  * @throws LlmError `INVALID_CONFIG` when either file cannot be read.
  */
 export function clientCertFetch(certPath: string, keyPath: string): typeof fetch {
@@ -65,7 +67,14 @@ export function clientCertFetch(certPath: string, keyPath: string): typeof fetch
       { cause: error },
     )
   }
-  const agent = new Agent({ connect: { cert, key } })
+  const ca = tls.getCACertificates('system')
+  const agent = new Agent({
+    connect: {
+      cert,
+      key,
+      ...ca.length > 0 ? { ca } : {},
+    },
+  })
   const bound = ((input: RequestInfo | URL, init?: RequestInit) => undiciFetch(input as never, {
     ...init,
     dispatcher: agent,

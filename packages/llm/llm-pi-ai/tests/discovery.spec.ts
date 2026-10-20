@@ -410,6 +410,16 @@ describe('draft-provider model discovery', () => {
     // Port 9 is the discard service: nothing accepts a connection there.
     await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: 'http://127.0.0.1:9/v1' }))
       .rejects.toMatchObject({ code: 'DISCOVERY_FAILED' })
+
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('fetch failed', {
+      cause: new Error('unable to get local issuer certificate'),
+    })))
+    await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: 'https://issuer.test/v1' }))
+      .rejects.toThrow('could not reach https://issuer.test/v1/models: unable to get local issuer certificate')
+
+    vi.stubGlobal('fetch', () => Promise.reject(new Error('boom')))
+    await expect(ctx.llm.discoverModels('llm-pi-ai', { baseURL: 'https://plain.test/v1' }))
+      .rejects.toThrow('could not reach https://plain.test/v1/models')
   })
 
   it.each(['azure-openai-responses', 'openai-codex-responses', 'google-generative-ai'])(

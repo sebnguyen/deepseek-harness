@@ -8,7 +8,7 @@ import { createServer } from 'node:https'
 import type { Server } from 'node:https'
 import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TLSSocket } from 'node:tls'
+import tls, { type TLSSocket } from 'node:tls'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import LlmRuntime, { type StreamChunk } from '@deepseek-ai/dsh-llm'
@@ -143,6 +143,20 @@ describe('client certificate fetch', () => {
     expect(reread).not.toBe(first)
     expect((await reread(`${server.url}/health`)).status).toBe(200)
     expect(server.authorized).toEqual([true, true])
+  })
+
+  it('omits the CA override when the system store is empty', async () => {
+    const certs = makeCerts()
+    const server = await certServer(certs)
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'
+    vi.spyOn(tls, 'getCACertificates').mockReturnValue([])
+    try {
+      const fetchWithCert = clientCertFetch(certs.cert, certs.key)
+      expect((await fetchWithCert(`${server.url}/health`)).status).toBe(200)
+      expect(server.authorized).toEqual([true])
+    } finally {
+      vi.restoreAllMocks()
+    }
   })
 
   it('lists models for a cert-pinned route and passes the fetch to pi-ai', async () => {

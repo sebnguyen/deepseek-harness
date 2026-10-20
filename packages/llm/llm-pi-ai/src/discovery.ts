@@ -167,7 +167,7 @@ async function readBounded(response: Response, url: string): Promise<string> {
   const chunks: Uint8Array[] = []
   let total = 0
   try {
-    for (;;) {
+    for (; ;) {
       const { done, value } = await reader.read()
       if (done) break
       total += value.byteLength
@@ -253,6 +253,19 @@ function readListing(body: unknown): LlmDiscoveredModel[] {
     })
   }
   return models
+}
+
+/**
+ * The discovery failure text. `fetch` reports `fetch failed` and puts the TLS
+ * or socket reason on `cause`; the UI shows this message, so the cause has to
+ * be in it.
+ * @param url - the listing URL that was requested.
+ * @param error - the thrown fetch failure.
+ * @returns the message naming the URL and, when present, the transport cause.
+ */
+function reachFailure(url: string, error: unknown): string {
+  const cause = error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined
+  return cause === undefined || cause.length === 0 ? `could not reach ${url}` : `could not reach ${url}: ${cause}`
 }
 
 /**
@@ -365,7 +378,7 @@ export async function discoverModels(
     if (request.signal?.aborted) {
       throw new LlmError('model discovery aborted by caller', 'ABORTED', { cause: error })
     }
-    throw new LlmError(`could not reach ${url}`, 'DISCOVERY_FAILED', { cause: error })
+    throw new LlmError(reachFailure(url, error), 'DISCOVERY_FAILED', { cause: error })
   }
   if (!response.ok) {
     throw new LlmError(
