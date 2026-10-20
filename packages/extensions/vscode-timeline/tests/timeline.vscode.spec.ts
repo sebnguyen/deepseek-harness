@@ -35,6 +35,9 @@ interface Fakes {
   listeners: Map<string, Array<(arg: unknown) => void>>
   emitters: Array<{ fired: number }>
   blobs: Map<string, string>
+  /** Open diff tabs the fake workbench reports through tabGroups. */
+  tabs: Array<{ input: { original: unknown; modified: unknown } }>
+  closedTabs: Array<unknown>
 }
 
 function makeFakes(): Fakes {
@@ -49,6 +52,8 @@ function makeFakes(): Fakes {
     listeners: new Map(),
     emitters: [],
     blobs: new Map([['digest-1', 'BEFORE'], ['digest-2', 'AFTER']]),
+    tabs: [],
+    closedTabs: [],
   }
   const createEmitter = () => {
     const emitter = { fired: 0, event: { tag: 'event' }, fire() { emitter.fired += 1 }, dispose() {} }
@@ -94,6 +99,17 @@ function makeFakes(): Fakes {
           },
         }
       },
+      tabGroups: {
+        // One group, mirroring the diff tabs the workbench would hold open.
+        get all() { return [{ tabs: fakes.tabs }] },
+        close(tab: unknown) {
+          const tracked = tab as { input: { original: unknown; modified: unknown } }
+          const index = fakes.tabs.indexOf(tracked)
+          if (index >= 0) fakes.tabs.splice(index, 1)
+          fakes.closedTabs.push(tab)
+          return Promise.resolve(index >= 0)
+        },
+      },
     },
     languages: {},
     commands: {
@@ -103,6 +119,12 @@ function makeFakes(): Fakes {
       },
       executeCommand: (id: string, ...args: unknown[]) => {
         fakes.executed.push({ id, args })
+        if (id === 'vscode.diff') {
+          // The workbench opens (or focuses) one diff tab per original/modified pair.
+          const [original, modified] = args as [unknown, unknown, string]
+          const existing = fakes.tabs.find(tab => tab.input.original === original && tab.input.modified === modified)
+          if (existing === undefined) fakes.tabs.push({ input: { original, modified } })
+        }
         return Promise.resolve(undefined)
       },
     },
@@ -228,6 +250,53 @@ describe('vscode-timeline plane', () => {
     expect(panel.reveals).toHaveLength(1)
   })
 
+  it('steps preview the playhead stop in one swapped diff tab', async () => {
+    const fakes = makeFakes()
+    apply(fakes.ctx as never)
+    // Prime the stop cache the way the bar's describe does.
+    await (fakes.commands.get('do-harness.timeline.describe')!)( 'src/a.ts' )
+    // Playhead defaults to the newest stop (w2); stepping back must open
+    // the first preview diff for the older stop (w1).
+    fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
+    await settle()
+    const diffs1 = fakes.executed.filter(entry => entry.id === 'vscode.diff')
+    expect(diffs1).toHaveLength(1)
+    expect((diffs1[0]!.args[1] as { parsed: string }).parsed).toBe('dsh-checkpoint://digest-1')
+    expect(fakes.tabs).toHaveLength(1)
+    // Stepping forward swaps: exactly one tab close follows one new diff.
+    fakes.commands.get('do-harness.timeline.next')!({ path: 'src/a.ts' })
+    await settle()
+    const diffs2 = fakes.executed.filter(entry => entry.id === 'vscode.diff')
+    expect(diffs2).toHaveLength(2)
+    expect((diffs2[1]!.args[0] as { parsed: string }).parsed).toBe('dsh-checkpoint://digest-1')
+    expect((diffs2[1]!.args[1] as { parsed: string }).parsed).toBe('dsh-checkpoint://digest-2')
+    expect(fakes.closedTabs).toHaveLength(1)
+    expect(fakes.tabs).toHaveLength(1)
+    const tracked = fakes.tabs[0]!.input as { modified: { parsed: string } }
+    expect(tracked.modified.parsed).toBe('dsh-checkpoint://digest-2')
+  })
+
+  it('wraps without stacking duplicates and never leaves two preview tabs', async () => {
+    const fakes = makeFakes()
+    apply(fakes.ctx as never)
+    await (fakes.commands.get('do-harness.timeline.describe')!)( 'src/a.ts' )
+    // Two backward steps walk w2 → w1 → (wrap) w2: two opens, one swap,
+    // and the tab list ends with exactly one preview tab.
+    fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
+    await settle()
+    fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
+    await settle()
+    expect(fakes.executed.filter(entry => entry.id === 'vscode.diff')).toHaveLength(2)
+    expect(fakes.closedTabs).toHaveLength(1)
+    expect(fakes.tabs).toHaveLength(1)
+    // Stepping again opens the next pair; everything stays single-tab.
+    fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
+    await settle()
+    expect(fakes.executed.filter(entry => entry.id === 'vscode.diff')).toHaveLength(3)
+    expect(fakes.closedTabs).toHaveLength(2)
+    expect(fakes.tabs).toHaveLength(1)
+  })
+
   it('tracks the activate frame: session switch resets the caches and refreshes', async () => {
     const fakes = makeFakes()
     apply(fakes.ctx as never)
@@ -238,5 +307,22 @@ describe('vscode-timeline plane', () => {
       listener({ type: 'ideBridge/activate', sessionId: 'other' })
     }
     expect(await provide({ fsPath: '/repo/src/a.ts' })).toEqual([])
+  })
+
+  it('drops the preview tracker on session switch so stale diffs are never closed', async () => {
+    const fakes = makeFakes()
+    apply(fakes.ctx as never)
+    await (fakes.commands.get('do-harness.timeline.describe')!)( 'src/a.ts' )
+    fakes.commands.get('do-harness.timeline.prev')!({ path: 'src/a.ts' })
+    await settle()
+    expect(fakes.tabs).toHaveLength(1)
+    // Switching sessions must not let a later step swap a tab that belongs
+    // to the old session's preview pair.
+    for (const listener of fakes.listeners.get('dsh/frame/ideBridge/activate') ?? []) {
+      listener({ type: 'ideBridge/activate', sessionId: 'other' })
+    }
+    fakes.commands.get('do-harness.timeline.next')!({ path: 'other.ts' })
+    await settle()
+    expect(fakes.closedTabs).toHaveLength(0)
   })
 })

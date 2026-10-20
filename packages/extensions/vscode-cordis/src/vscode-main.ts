@@ -18,6 +18,12 @@ export async function activate(context: ExtensionContext): Promise<void> {
     channel = window.createOutputChannel('DSH Twin')
     context.subscriptions.push(channel)
   }
+  // An in-process re-activation (the extension host restarting the
+  // extension in place) must not strand the previous seat: an orphaned
+  // seat loop outlives its vscode lifetime and fights every later loop
+  // for the downlink through host-side supersession.
+  await running?.stop()
+  running = undefined
   running = await activateSeat({
     extensionUriFsPath: context.extensionUri.fsPath,
     logger: (...args: unknown[]) => {

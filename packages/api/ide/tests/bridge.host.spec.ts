@@ -2,6 +2,7 @@
 
 import { tmpdir } from 'node:os'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -9,6 +10,8 @@ import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import type { ConnectionBearerRule } from '@deepseek-ai/dsh-client-connection'
 import Ide from '../src/index.ts'
 import type { IdeBridgeDownlinkFrame } from '../src/index.ts'
+import { TWIN_PORT_PIN_BASENAME } from '../src/twin-port.ts'
+import { twinStateDirName, twinTokenPinName } from '../src/twin-token.ts'
 
 /** Minimal subprocess fake: a never-exiting child, so spawned state stays spawned. */
 function provideSubprocess(ctx: Context): void {
@@ -79,6 +82,41 @@ async function harness(): Promise<{ ide: Ide; rules: ConnectionBearerRule[] }> {
   const ide = new Ide(ctx, { dist, readinessTimeoutMs: 1_000, readinessPollMs: 5 })
   await new Promise(resolve => setTimeout(resolve, 0))
   return { ide, rules }
+}
+
+/** A harness variant recording spawn argv and accepting arbitrary sessions, for state-layout specs. */
+async function harnessSlots(
+  sessions: { id: string; header?: { cwd?: string } }[],
+): Promise<{ ide: Ide; spawns: string[][]; dist: string }> {
+  const ctx = new Context()
+  contexts.push(ctx)
+  const dist = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-ide-bridge-')))
+  tempDirs.push(dist)
+  const spawns: string[][] = []
+  ctx.provide('subprocess', {
+    spawn: (options: { argv: string[] }) => {
+      spawns.push([...options.argv])
+      return {
+        done: new Promise(() => undefined),
+        terminate: () => undefined,
+        collected: { stderr: { readFrom: () => ({ text: '' }) } },
+      } as never
+    },
+  })
+  provideSessions(ctx, sessions)
+  provideSandboxPolicy(ctx, '/sandbox')
+  provideTypert(ctx)
+  provideConnection(ctx)
+  const ide = new Ide(ctx, { dist, readinessTimeoutMs: 1_000, readinessPollMs: 5 })
+  await new Promise(resolve => setTimeout(resolve, 0))
+  return { ide, spawns, dist }
+}
+
+/** The value behind one `--flag` in a recorded spawn argv. */
+function argOf(argv: string[], flag: string): string {
+  const value = argv[argv.indexOf(flag) + 1]
+  if (value === undefined) throw new Error(`spawn argv lost flag ${flag}`)
+  return value
 }
 
 async function nextFrame(iterator: AsyncIterator<IdeBridgeDownlinkFrame>): Promise<IdeBridgeDownlinkFrame> {
@@ -153,5 +191,59 @@ describe('ideBridge twin wire', () => {
     await expect(
       ide.report({ token: 'bogus', event: { type: 'hello', extensionId: 'x', version: '0', workspaceRoot: null } }, new AbortController().signal),
     ).rejects.toMatchObject({ code: 'ide/token-unknown' })
+  })
+})
+
+describe('twin state layout', () => {
+  it('spawns each workspace twin into its own slot so siblings never share a bridge.json identity', async () => {
+    const { ide, spawns, dist } = await harnessSlots([
+      { id: 's1', header: { cwd: '/repo-a' } },
+      { id: 's2', header: { cwd: '/repo-b' } },
+    ])
+    const s1 = await ide.status('s1', new AbortController().signal)
+    const s2 = await ide.status('s2', new AbortController().signal)
+    expect(s1.ready).toBe(true)
+    expect(s2.ready).toBe(true)
+    expect(spawns).toHaveLength(2)
+
+    // s1's twin is the boot-time warmup spawn; s2's twin spawns on first ask.
+    const flags = ['--server-data-dir', '--user-data-dir', '--extensions-dir']
+    for (const flag of flags) {
+      expect(argOf(spawns[0]!, flag)).not.toBe(argOf(spawns[1]!, flag))
+      expect(argOf(spawns[0]!, flag)).toContain(join(dist, '.dsh', 'twin.'))
+    }
+
+    // Each slot's bridge.json (two levels up from the twin's extension dir,
+    // i.e. one level up from --extensions-dir) carries ITS OWN token — the
+    // shared-file layout was the lost-frames bug.
+    const identityOf = async (argv: string[]): Promise<{ token: string; workspaceKey: string }> => {
+      const bridgePath = join(argOf(argv, '--extensions-dir'), '..', 'bridge.json')
+      return JSON.parse(await readFile(bridgePath, 'utf8')) as { token: string; workspaceKey: string }
+    }
+    const first = await identityOf(spawns[0]!)
+    const second = await identityOf(spawns[1]!)
+    expect(first.token).not.toBe(second.token)
+    expect([first.token, second.token].sort()).toEqual([s1.tkn, s2.tkn].sort())
+    expect([first.workspaceKey, second.workspaceKey].sort()).toEqual(['/repo-a', '/repo-b'])
+  })
+
+  it('adopts pre-slot token and port pins from the shared .dsh root into the twin slot', async () => {
+    const sessions = [{ id: 's1', header: { cwd: '/repo' } }]
+    const { ide, dist } = await harnessSlots(sessions)
+    const legacyRoot = join(dist, '.dsh')
+    await mkdir(legacyRoot, { recursive: true })
+    const legacyToken = 'a'.repeat(32)
+    await writeFile(join(legacyRoot, twinTokenPinName('/repo')), `${legacyToken}\n`, 'utf8')
+    await writeFile(join(legacyRoot, TWIN_PORT_PIN_BASENAME), '46001\n', 'utf8')
+
+    const status = await ide.status('s1', new AbortController().signal)
+    expect(status.ready).toBe(true)
+    expect(status.tkn).toBe(legacyToken)
+
+    const slot = join(dist, '.dsh', twinStateDirName('/repo'))
+    expect((await readFile(join(slot, twinTokenPinName('/repo')), 'utf8')).trim()).toBe(legacyToken)
+    const pin = Number.parseInt((await readFile(join(slot, TWIN_PORT_PIN_BASENAME), 'utf8')).trim(), 10)
+    expect(Number.isInteger(pin)).toBe(true)
+    await expect(readFile(join(legacyRoot, twinTokenPinName('/repo')), 'utf8')).rejects.toThrow()
   })
 })

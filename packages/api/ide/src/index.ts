@@ -13,7 +13,7 @@
  */
 
 import { createServer } from 'node:net'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -33,8 +33,8 @@ import type {
   IdeBridgeTwinCall,
 } from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
-import { pickStablePort } from './twin-port.ts'
-import { stableTwinToken } from './twin-token.ts'
+import { pickStablePort, TWIN_PORT_PIN_BASENAME } from './twin-port.ts'
+import { stableTwinToken, twinStateDirName, twinTokenPinName } from './twin-token.ts'
 import { stageTwinProposedApis, stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
 export type {
@@ -197,6 +197,21 @@ async function waitReady(url: string, timeoutMs: number, pollMs: number, signal?
 }
 
 /**
+ * Adopt one pre-slot-layout pin into the twin's state slot. Older hosts
+ * pinned tokens and ports at the shared `.dsh` root; MOVING (not copying)
+ * the pin keeps parked iframes' credentials and origins continuous across
+ * the layout change, and a missing legacy pin is just a cold start. The
+ * spawn round's serialization means no two ensures race the move.
+ */
+async function adoptLegacyPin(legacyRoot: string, stateDir: string, name: string): Promise<void> {
+  try {
+    await rename(join(legacyRoot, name), join(stateDir, name))
+  } catch {
+    /* no legacy pin, or the slot already owns one: either way nothing to do */
+  }
+}
+
+/**
  * Create the per-session spawn manager bound to one host context.
  *
  * Children are spawned through `ctx.subprocess`, which hands us scrubbed
@@ -246,11 +261,22 @@ function createTwinManager(
         await previous
         // Twin-local state dirs keep user settings, server state and installed
         // marketplace extensions inside the twin dist rather than the user's
-        // home: the dist stays the pinned, self-owned payload.
-        const stateDir = join(config.dist, '.dsh')
+        // home: the dist stays the pinned, self-owned payload. Every workspace
+        // twin STAGES INTO ITS OWN SLOT — a shared `.dsh` root meant the
+        // last-spawned twin's bridge.json (its connection-token identity) was
+        // the file every sibling twin re-read on re-activation, and two live
+        // twins then superseded each other's downlink with the same token
+        // while the other workspace's frames drained into the wrong editor.
+        const stateDir = join(config.dist, '.dsh', twinStateDirName(workspaceKey))
         await mkdir(join(stateDir, 'server'), { recursive: true })
         await mkdir(join(stateDir, 'user'), { recursive: true })
         await mkdir(join(stateDir, 'exts'), { recursive: true })
+        // Layout migration: pre-slot spawns pinned the token and port at the
+        // shared `.dsh` root; adopt those pins into the slot so parked
+        // iframes keep their credentials and origins across this change.
+        const legacyRoot = join(config.dist, '.dsh')
+        await adoptLegacyPin(legacyRoot, stateDir, twinTokenPinName(workspaceKey))
+        await adoptLegacyPin(legacyRoot, stateDir, TWIN_PORT_PIN_BASENAME)
         // A workspace-pinned token keeps the client-visible identity stable
         // across respawns: the tuple the spawner persists is workspaceKey →
         // token, so a crashed twin comes back with the credentials every

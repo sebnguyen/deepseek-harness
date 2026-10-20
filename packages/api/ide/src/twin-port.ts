@@ -5,10 +5,11 @@
  * origin — a random-port spawn hands every boot a fresh origin and silently
  * throws the user's Settings-UI choices away (`dsh web` restarts forget the
  * twin theme toggle, font size tweaks, everything). Anchoring the port per
- * twin dist keeps the origin stable, so the twin remembers its user across
+ * twin keeps the origin stable, so the twin remembers its user across
  * harness restarts. The choice is a per-dist hash seeded inside a
  * harness-owned band, de-collided on a loop, and pinned in `<state>/port` so
- * later boots reuse it exactly.
+ * later boots reuse it exactly — `<state>` is one workspace twin's private
+ * state slot, so sibling twins probe the same band and skip occupied pins.
  * @module @deepseek-ai/dsh-api-ide/twin-port
  */
 
@@ -21,6 +22,9 @@ import { join } from 'node:path'
 const BAND_BASE = 45961
 /** Band width; stays clear of common dev servers and stays loopback. */
 const BAND_SIZE = 420
+
+/** Basename of the pin file inside one twin's state slot; exported for the spawner's legacy-pin adoption. */
+export const TWIN_PORT_PIN_BASENAME = 'port'
 
 /** True when the port is bindable on loopback right now. */
 const portFree = async (port: number): Promise<boolean> =>
@@ -48,7 +52,7 @@ function seededCandidate(dist: string): number {
  * @param dist - the twin dist root; feeds the deterministic seed.
  */
 export async function pickStablePort(stateDir: string, dist: string): Promise<number | null> {
-  const pinFile = join(stateDir, 'port')
+  const pinFile = join(stateDir, TWIN_PORT_PIN_BASENAME)
   try {
     const pinned = Number.parseInt((await readFile(pinFile, 'utf8')).trim(), 10)
     if (Number.isInteger(pinned) && pinned >= BAND_BASE && pinned < BAND_BASE + BAND_SIZE && await portFree(pinned)) {

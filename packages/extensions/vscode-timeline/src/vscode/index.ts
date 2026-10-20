@@ -80,6 +80,7 @@ interface VscodeApiFace {
     activeTextEditor(): { readonly path: string | null; readonly line: number; readonly lineText: string } | null
     onDidChangeActiveTextEditor(listener: (editor: unknown) => void): unknown
     createWebviewPanel(viewType: string, title: string, showOptions: number, options: unknown): WebviewPanelLike
+    readonly tabGroups: TabGroupsLike
   }
   languages: {
     registerInlayHintsProvider(selector: unknown, provider: unknown): unknown
@@ -110,6 +111,17 @@ declare module '@deepseek-ai/cordis' {
 export const CHECKPOINT_SCHEME = 'dsh-checkpoint'
 /** The reserved authority naming the empty document (a slot with no prior text). */
 export const EMPTY_DIGEST = 'empty'
+
+/** A vscode tab the way `window.tabGroups` reports one; diff inputs carry original/modified URIs. */
+interface TabLike {
+  readonly input: unknown
+}
+
+/** The `window.tabGroups` slice the step preview uses to swap its one diff tab. */
+interface TabGroupsLike {
+  readonly all: readonly { readonly tabs: readonly TabLike[] }[]
+  close(tab: TabLike): unknown
+}
 
 /** The URI of one frozen document: `dsh-checkpoint://<digest>` (`empty` when the slot holds none). */
 export function digestUri(digest: string | undefined): string {
@@ -285,11 +297,67 @@ function stopLabel(slot: CheckpointSlotLike): string {
   return slot.detail?.toolName ?? slot.label
 }
 
+/**
+ * Stringify one URI-ish value the way a tab's diff input keys it: real
+ * `vscode.Uri`s answer through `toString`; the plane's test double keys
+ * values with a `parsed` string. Anything else is not a diff-input URI.
+ */
+function uriKey(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const text = String((value as { toString(): unknown }).toString())
+  if (text !== '[object Object]') return text
+  const parsed = (value as { parsed?: unknown }).parsed
+  return typeof parsed === 'string' && parsed !== '' ? parsed : undefined
+}
+
 export function apply(ctx: Context): void {
   const api = ctx.vscodeApi
   const plane = new TimelinePlane(ctx.remote.checkpoint, api)
   plane.activate(ctx.twinCore.sessionId)
   console.info('[dsh-timeline] mounted, sessionId =', ctx.twinCore.sessionId)
+
+  // The step preview: following the playhead reopens ONE diff tab on the
+  // current stop instead of stacking a tab per step. The preview tab is
+  // found back by its original/modified URIs, so a repurposed tab is left
+  // alone and a user-closed preview simply reopens on the next step.
+  const preview: { left: string | undefined; right: string | undefined } = { left: undefined, right: undefined }
+  const closePreviewTabs = async (): Promise<void> => {
+    if (preview.left === undefined || preview.right === undefined) return
+    for (const group of api.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = (tab as { input?: unknown }).input
+        if (typeof input !== 'object' || input === null) continue
+        const original = uriKey((input as { original?: unknown }).original)
+        const modified = uriKey((input as { modified?: unknown }).modified)
+        if (original === preview.left && modified === preview.right) await api.window.tabGroups.close(tab)
+      }
+    }
+  }
+  const previewStop = async (slot: CheckpointSlotLike, index: number, total: number): Promise<void> => {
+    const left = digestUri(slot.before)
+    const right = digestUri(slot.after)
+    // Landing twice on the same stop (a wrap, or a friendly re-click) must
+    // not flicker the editor shut and open again.
+    if (preview.left === left && preview.right === right) return
+    await closePreviewTabs()
+    preview.left = left
+    preview.right = right
+    const command = timelineItem(slot, index, total, value => api.uri.parse(value)).command as {
+      id: string
+      arguments: unknown[]
+    }
+    try {
+      await api.commands.executeCommand(command.id, ...command.arguments)
+    } catch (error) {
+      console.error('[dsh-timeline] preview diff failed', error)
+    }
+  }
+  const previewPlayheadAt = (path: string): void => {
+    const slots = plane.timelines.get(path)
+    if (slots === undefined || slots.slots.length === 0) return
+    const index = plane.playhead(path, slots.slots.length)
+    void previewStop(slots.slots[index] as CheckpointSlotLike, index, slots.slots.length)
+  }
 
   // Seat emits land in the shared Context event space via the same escape
   // hatch the bridge uses: `dsh/frame/ideBridge/activate` carries the tab's
@@ -301,6 +369,8 @@ export function apply(ctx: Context): void {
     if (typeof sessionId !== 'string') return
     plane.activate(sessionId)
     plane.refresh()
+    preview.left = undefined
+    preview.right = undefined
   })
 
   // (2) The virtual document: the frozen text of one checkpoint blob.
@@ -335,9 +405,11 @@ export function apply(ctx: Context): void {
 
   // Stepping and diff-opening are plain command work: the tab and the
   // hidden commands ride the same two helpers (the path is the sole arg).
+  // Stepping also previews: the tracked diff tab follows the playhead.
   const stepPath = (path: string, delta: -1 | 1): void => {
     const slots = plane.timelines.get(path)
     plane.step(path, slots?.slots.length ?? 0, delta)
+    if (slots !== undefined) previewPlayheadAt(path)
   }
   const openStopAt = (path: string, index: number): void => {
     const slots = plane.timelines.get(path)
