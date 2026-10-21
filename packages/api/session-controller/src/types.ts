@@ -330,7 +330,7 @@ export interface SessionSetStepPaceValue {
 }
 
 /** Turn-shape vocabulary of the Remote surface (mirrors the conversation-mode taxonomy). */
-export type SessionTurnShape = 'narrate' | 'quiet' | 'tools'
+export type SessionTurnShape = 'narrate' | 'quiet'
 
 /** Set one Session's transcript turn shape. */
 export interface SessionSetTurnShapeRequest {

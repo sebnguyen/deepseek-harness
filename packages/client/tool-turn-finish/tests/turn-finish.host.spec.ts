@@ -63,9 +63,9 @@ describe('finish tool', () => {
     expect(concluded).toHaveLength(1)
   })
 
-  it('a narrate or tools call closes nothing', async () => {
+  it('a narrate call closes nothing', async () => {
     const { finish } = await harness(true)
-    for (const shape of ['narrate', 'tools'] as const) {
+    for (const shape of ['narrate'] as const) {
       const agent = createAgent(`tf-${shape}`)
       agent.session.append('turn-shape/mode', { shape })
       const { exec, concluded } = execFor(agent)

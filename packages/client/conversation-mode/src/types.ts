@@ -6,10 +6,10 @@
  * @module @deepseek-ai/dsh-client-conversation-mode/types
  */
 
-/** The three turn shapes the selector offers. */
-export const TURN_SHAPES = ['narrate', 'quiet', 'tools'] as const
+/** The two turn shapes the selector offers: narrate (show everything) and quiet (render filter). */
+export const TURN_SHAPES = ['narrate', 'quiet'] as const
 
-/** One turn shape: `narrate` is the stock transcript; `quiet` closes with one plain answer; `tools` ends without a summary. */
+/** One turn shape: `narrate` shows thoughts, tool rows, and answers; `quiet` hides intermediate prose and thinking at render time. */
 export type TurnShape = typeof TURN_SHAPES[number]
 
 /** Shape when the session log carries no `turn-shape/mode` event. */

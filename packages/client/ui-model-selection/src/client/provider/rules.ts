@@ -136,9 +136,33 @@ export function entryWith(
 }
 
 /**
+ * Fraction of the context window a fetched entry's default output cap may
+ * occupy. Listings frequently report `maxTokens == contextWindow`; adopting
+ * that verbatim makes the gateway reject every request as soon as any prompt
+ * exists, because it price-checks `prompt + requested output <= window`. A
+ * small reserved tail keeps fetched routes usable; users raise the cell
+ * themselves when a model really streams more.
+ */
+const FETCHED_MAX_TOKENS_SHARE = 0.2
+
+/**
+ * The output cap a fetched model entry stores: the smaller of what the
+ * listing (or the route fallback) advertises and {@link FETCHED_MAX_TOKENS_SHARE}
+ * of its context window, floored at 1 token.
+ * @param contextWindow - the adopted context window.
+ * @param advertised - the listing's cap, or the route's fallback when absent.
+ * @returns the adopted `maxTokens`.
+ */
+function adoptedMaxTokens(contextWindow: number, advertised: number): number {
+  const share = Math.max(1, Math.floor(contextWindow * FETCHED_MAX_TOKENS_SHARE))
+  return Math.min(advertised, share)
+}
+
+/**
  * Additive adoption entries for one endpoint interrogation: ids the route
  * already lists keep every stored cell untouched; unknown ids append with
- * the adapter's declared capacity, or the route's fallbacks.
+ * the adapter's declared capacity — clamped by {@link adoptedMaxTokens} so a
+ * window-sized listing cannot brick the route — or the route's fallbacks.
  * @param existing - model ids the route already serves.
  * @param discovered - the endpoint's candidate rows, in its own order.
  * @param defaults - the route's capacity fallbacks.
@@ -155,10 +179,11 @@ export function adoptionEntries(
   const entries: Record<string, unknown>[] = []
   for (const model of discovered) {
     if (existing.has(model.id)) continue
+    const contextWindow = model.contextWindow ?? defaults.contextWindow
     entries.push({
       id: model.id,
-      contextWindow: model.contextWindow ?? defaults.contextWindow,
-      maxTokens: model.maxTokens ?? defaults.maxTokens,
+      contextWindow,
+      maxTokens: adoptedMaxTokens(contextWindow, model.maxTokens ?? defaults.maxTokens),
       // An empty map is the settings schema's materialization of an omitted
       // route menu. Stamping it makes catalog resolution reject every listed
       // model; omitting the field lets the route menu apply.

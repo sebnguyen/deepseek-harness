@@ -10,8 +10,8 @@ import LlmRuntime, {
 import CommandRuntime from '@deepseek-ai/dsh-commands'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { agentEvents, GRAMMAR_PRIORITY, RequestGrammarService, type Agent } from '@deepseek-ai/dsh-agent'
-import { apply, Config, EMPTY_OBJECT_SCHEMA, turnShapeProjectionDefinition } from '../src/index.ts'
+import { agentEvents, RequestGrammarService, type Agent } from '@deepseek-ai/dsh-agent'
+import { apply, Config, turnShapeProjectionDefinition } from '../src/index.ts'
 import type { TurnShape } from '../src/types.ts'
 
 const SIGNAL = new AbortController().signal
@@ -60,7 +60,7 @@ async function harness() {
   return { ctx, service }
 }
 
-/** Harness mounted with the llm service so the grammar hints can register. */
+/** Harness mounted with the llm service so grammar capability can be queried. */
 async function grammarHarness(capable: boolean) {
   const base = await harness()
   await base.ctx.plugin(LlmRuntime)
@@ -96,11 +96,9 @@ describe('turnShape projection', () => {
     expect(turnShapeProjectionDefinition.apply(init, { type: 'request/header', data: {} } as never)).toBe(init)
     const quiet = turnShapeProjectionDefinition.apply(init, { type: 'turn-shape/mode', data: { shape: 'quiet' } } as never)
     expect(quiet).toEqual({ shape: 'quiet' })
-    expect(turnShapeProjectionDefinition.apply(quiet, { type: 'turn-shape/mode', data: { shape: 'tools' } } as never))
-      .toEqual({ shape: 'tools' })
     // An unchanged shape keeps the same state reference (zero downstream work).
     expect(turnShapeProjectionDefinition.apply(quiet, { type: 'turn-shape/mode', data: { shape: 'quiet' } } as never)).toBe(quiet)
-    expect(turnShapeProjectionDefinition.wire?.view({ shape: 'tools' })).toEqual({ shape: 'tools' })
+    expect(turnShapeProjectionDefinition.wire?.view({ shape: 'quiet' })).toEqual({ shape: 'quiet' })
   })
 
   it('serves folded state per session through the registry the plugin registers', async () => {
@@ -131,7 +129,7 @@ describe('conversation-mode host', () => {
     )).toEqual(seed)
   })
 
-  it('quiet shape: one per-turn reminder plus the shield and explicit toolChoice', async () => {
+  it('quiet shape: one per-turn reminder, no grammar fields', async () => {
     const { ctx } = await grammarHarness(true)
     const agent = createAgent('cm-quiet')
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
@@ -140,8 +138,6 @@ describe('conversation-mode host', () => {
     if (decision.kind !== 'enter') throw new Error('expected an enter decision')
     expect(decision.messages).toHaveLength(2)
     const reminder = decision.messages.at(-1)
-    // Client-package module augmentations do not merge into the host
-    // aggregate program, so the spec narrows structurally instead.
     const quietSource = reminder?.source as { kind: string; turnShape?: string } | undefined
     if (quietSource?.kind !== 'turn-shape' || quietSource.turnShape !== 'quiet') {
       throw new Error('expected a turn-shape quiet reminder source')
@@ -159,32 +155,10 @@ describe('conversation-mode host', () => {
     expect(await foldedRequest(ctx, agent, 1, 2)).toEqual({
       provider: 'test-route',
       model: 'test-model',
-      toolChoice: 'auto',
-      structuredOutput: EMPTY_OBJECT_SCHEMA,
     })
   })
 
-  it('tools shape: summary-free reminder copy and the same grammar hints', async () => {
-    const { ctx } = await grammarHarness(true)
-    const agent = createAgent('cm-tools')
-    agent.session.append('turn-shape/mode', { shape: 'tools' })
-
-    const decision = await preStep(ctx, agent, 1, 1)
-    if (decision.kind !== 'enter') throw new Error('expected an enter decision')
-    const text = decision.messages.at(-1)?.content
-      .map(blockOf => blockOf.type === 'text' ? blockOf.text : '').join('')
-    expect(text).toContain('tools')
-    expect(text).toContain('without a summary')
-
-    expect(await foldedRequest(ctx, agent, 1, 1)).toEqual({
-      provider: 'test-route',
-      model: 'test-model',
-      toolChoice: 'auto',
-      structuredOutput: EMPTY_OBJECT_SCHEMA,
-    })
-  })
-
-  it('quiet on a capability-negative route: reminder yes, grammar no', async () => {
+  it('quiet on a capability-negative route: reminder yes, no grammar fields', async () => {
     const { ctx } = await grammarHarness(false)
     const queued: UserMessage[] = []
     const agent = createAgent('cm-uncapable', undefined, queued)
@@ -196,17 +170,12 @@ describe('conversation-mode host', () => {
 
     expect(await foldedRequest(ctx, agent, 1, 1)).toEqual({ provider: 'test-route', model: 'test-model' })
 
-    // The close still latches; the wrap turn's none pin stays absent where
-    // the route never accepts the field.
+    // No wrap-up latch anymore: nothing is queued at turn-stopping.
     await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
-    expect(queued).toHaveLength(1)
-    const wrapped = await preStep(ctx, agent, 2, 1, queued)
-    if (wrapped.kind !== 'enter') throw new Error('expected an enter decision')
-    expect(wrapped.messages).toHaveLength(1)
-    expect(await foldedRequest(ctx, agent, 2, 1)).toEqual({ provider: 'test-route', model: 'test-model' })
+    expect(queued).toHaveLength(0)
   })
 
-  it('quiet without the llm service: reminder yes, grammar no', async () => {
+  it('quiet without the llm service: reminder yes, no grammar fields', async () => {
     const { ctx } = await harness()
     const agent = createAgent('cm-no-llm')
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
@@ -215,77 +184,14 @@ describe('conversation-mode host', () => {
     expect(await foldedRequest(ctx, agent, 1, 1)).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
-  it('quiet close latches one tagged wrap-up turn with the none pin, which never re-latches', async () => {
+  it('quiet turn-stopping queues nothing', async () => {
     const { ctx } = await grammarHarness(true)
     const queued: UserMessage[] = []
-    const agent = createAgent('cm-wrapup', undefined, queued)
+    const agent = createAgent('cm-quiet-stop', undefined, queued)
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
 
     await preStep(ctx, agent, 1, 1)
-    expect(await foldedRequest(ctx, agent, 1, 1)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
-
-    // The quiet close converges at turn/end: exactly one tagged wrap-up
-    // drive is queued as the next turn's whole drive.
     await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
-    expect(queued).toHaveLength(1)
-    const drive = queued[0]
-    expect(drive?.content.map(blockOf => blockOf.type === 'text' ? blockOf.text : '').join(''))
-      .toContain('plain final answer')
-    const driveSource = drive?.source as { kind?: string; wrapUp?: boolean } | undefined
-    expect(driveSource?.kind).toBe('turn-shape')
-    expect(driveSource?.wrapUp).toBe(true)
-
-    // The wrap turn admits the tagged drive alone: no epoch reminder rides
-    // on top, and its fold carries the none pin, never the shield.
-    const wrapped = await preStep(ctx, agent, 2, 1, queued)
-    if (wrapped.kind !== 'enter') throw new Error('expected an enter decision')
-    expect(wrapped.messages).toHaveLength(1)
-    const wrapFold = await foldedRequest(ctx, agent, 2, 1)
-    expect(wrapFold).toMatchObject({ toolChoice: 'none' })
-    expect(wrapFold.structuredOutput).toBeUndefined()
-
-    // A wrap turn's own close never re-latches.
-    await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 2, signal: SIGNAL })
-    expect(queued).toHaveLength(1)
-
-    // The turn after re-mints: the shield returns and a fresh quiet close
-    // may latch the next wrap turn again.
-    await preStep(ctx, agent, 3, 1)
-    expect(await foldedRequest(ctx, agent, 3, 1)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
-    await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 3, signal: SIGNAL })
-    expect(queued).toHaveLength(2)
-  })
-
-  it('snapshot bookkeeping stays bounded: an evicted wrap mark may latch anew', async () => {
-    const { ctx } = await grammarHarness(true)
-    const queued: UserMessage[] = []
-    const evicted = createAgent('cm-evict-0', undefined, queued)
-    evicted.session.append('turn-shape/mode', { shape: 'quiet' })
-    await preStep(ctx, evicted, 1, 1)
-    await agentEvents(ctx, evicted).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
-    expect(queued).toHaveLength(1)
-
-    // MAX_SNAPSHOTS is 64: the 65th distinct live agent sweeps the oldest.
-    for (let i = 1; i <= 64; i += 1) {
-      await preStep(ctx, createAgent(`cm-evict-${i}`), 1, 1)
-    }
-
-    // The wrap-turn memory went out with the eviction, so the wrap turn's
-    // own stop latches again instead of holding fire.
-    await agentEvents(ctx, evicted).serial('agent/turn-stopping', { turn: 2, signal: SIGNAL })
-    expect(queued).toHaveLength(2)
-  })
-
-  it('tools shape closes silently: no latch, nothing queued', async () => {
-    const { ctx } = await grammarHarness(true)
-    const steered: UserMessage[] = []
-    const queued: UserMessage[] = []
-    const agent = createAgent('cm-tools-stop', steered, queued)
-    agent.session.append('turn-shape/mode', { shape: 'tools' })
-
-    await preStep(ctx, agent, 1, 1)
-    await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
-    expect(steered).toHaveLength(0)
     expect(queued).toHaveLength(0)
   })
 
@@ -299,44 +205,6 @@ describe('conversation-mode host', () => {
     await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
     expect(steered).toHaveLength(0)
     expect(queued).toHaveLength(0)
-  })
-
-  it('grammar hints can be disabled through config; the reminder stays', async () => {
-    const ctx = new Context()
-    new RequestGrammarService(ctx)
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(LlmRuntime)
-    ctx.llm.registerAdapter(['test-route'], new GrammarAdapter(true))
-    await ctx.plugin({ apply, Config }, { grammarHints: false })
-    await settle()
-
-    const agent = createAgent('cm-config-off')
-    agent.session.append('turn-shape/mode', { shape: 'quiet' })
-    const decision = await preStep(ctx, agent, 1, 1)
-    if (decision.kind !== 'enter') throw new Error('expected an enter decision')
-    expect(decision.messages).toHaveLength(2)
-    expect(await foldedRequest(ctx, agent, 1, 1)).toEqual({ provider: 'test-route', model: 'test-model' })
-  })
-
-  it('a capture driver\'s schema outranks the shield; the toolChoice hint still lands', async () => {
-    const { ctx, service } = await grammarHarness(true)
-    const agent = createAgent('cm-arbitration')
-    agent.session.append('turn-shape/mode', { shape: 'quiet' })
-    const childSchema = { type: 'object' as const, properties: { handoff: { type: 'string' as const } }, required: ['handoff'] }
-
-    service.contribute({
-      id: 'test-capture',
-      priority: GRAMMAR_PRIORITY.structuredOutputDriver,
-      attach: ({ agent: draft }) => draft.id === agent.id ? { structuredOutput: childSchema } : undefined,
-    })
-
-    await preStep(ctx, agent, 1, 1)
-    expect(await foldedRequest(ctx, agent, 1, 2)).toEqual({
-      provider: 'test-route',
-      model: 'test-model',
-      toolChoice: 'auto',
-      structuredOutput: childSchema,
-    })
   })
 
   it('scopes the shape per session: one quiet session leaves another narrate', async () => {
@@ -359,11 +227,11 @@ describe('conversation-mode host', () => {
     const agent = createAgent('cm-midturn')
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
 
-    // Step 1 opens under quiet: one epoch reminder, and the fold carries the shield.
+    // Step 1 opens under quiet: one epoch reminder, no grammar fields.
     const first = await preStep(ctx, agent, 1, 1)
     if (first.kind !== 'enter') throw new Error('expected an enter decision')
     expect(first.messages).toHaveLength(2)
-    expect(await foldedRequest(ctx, agent, 1, 1)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
+    expect(await foldedRequest(ctx, agent, 1, 1)).toEqual({ provider: 'test-route', model: 'test-model' })
 
     // A same-step re-admission shares the step's epoch: nothing injects twice.
     const retried = await preStep(ctx, agent, 1, 1)
@@ -379,15 +247,15 @@ describe('conversation-mode host', () => {
     expect(await foldedRequest(ctx, agent, 1, 2)).toEqual({ provider: 'test-route', model: 'test-model' })
 
     // Re-entering quiet re-mints a shaped epoch: the reminder re-notifies at
-    // step 3's admission, and that step's fold carries the shield again.
+    // step 3's admission.
     agent.session.append('turn-shape/mode', { shape: 'quiet' })
     const quietStep = await preStep(ctx, agent, 1, 3)
     if (quietStep.kind !== 'enter') throw new Error('expected an enter decision')
     expect(quietStep.messages).toHaveLength(2)
-    expect(await foldedRequest(ctx, agent, 1, 3)).toMatchObject({ structuredOutput: EMPTY_OBJECT_SCHEMA })
+    expect(await foldedRequest(ctx, agent, 1, 3)).toEqual({ provider: 'test-route', model: 'test-model' })
   })
 
-  it('a quiet turn flipped to narrate mid-turn closes without the wrap-up latch', async () => {
+  it('a quiet turn flipped to narrate mid-turn closes without any latch', async () => {
     const { ctx } = await grammarHarness(true)
     const steered: UserMessage[] = []
     const queued: UserMessage[] = []
@@ -396,8 +264,6 @@ describe('conversation-mode host', () => {
 
     await preStep(ctx, agent, 1, 1)
 
-    // The rescue path: the narrate pick commits before the natural stop, so
-    // the stop-moment projection read folds narrate and no drive is queued.
     agent.session.append('turn-shape/mode', { shape: 'narrate' })
     await agentEvents(ctx, agent).serial('agent/turn-stopping', { turn: 1, signal: SIGNAL })
     expect(steered).toHaveLength(0)
@@ -418,7 +284,7 @@ describe('/turn-shape command', () => {
       definitionId: '@deepseek-ai/dsh-client-conversation-mode',
       name: 'turn-shape',
       description: "Set this session's turn shape",
-      input: { hint: '<narrate|quiet|tools>' },
+      input: { hint: '<narrate|quiet>' },
     }])
 
     const signal = new AbortController().signal
@@ -430,7 +296,7 @@ describe('/turn-shape command', () => {
     expect(repeat?.result).toEqual({ kind: 'success', text: 'Turn shape is already quiet.' })
 
     const invalid = await ctx.commands.execute(agent, '/turn-shape loud', [], signal)
-    expect(invalid?.result).toEqual({ kind: 'error', text: 'Usage: /turn-shape <narrate|quiet|tools>.' })
+    expect(invalid?.result).toEqual({ kind: 'error', text: 'Usage: /turn-shape <narrate|quiet>.' })
   })
 
   it('a command-armed shape reaches the next turn\'s reminder', async () => {
@@ -438,14 +304,14 @@ describe('/turn-shape command', () => {
     await ctx.plugin(CommandRuntime)
     await settle()
     const agent = createAgent('cm-command-turn')
-    await ctx.commands.execute(agent, '/turn-shape tools', [], new AbortController().signal)
+    await ctx.commands.execute(agent, '/turn-shape quiet', [], new AbortController().signal)
 
     const decision = await preStep(ctx, agent, 1, 1)
     if (decision.kind !== 'enter') throw new Error('expected an enter decision')
     expect(decision.messages).toHaveLength(2)
-    const toolsSource = decision.messages.at(-1)?.source as { kind: string; turnShape?: TurnShape } | undefined
-    if (toolsSource?.kind !== 'turn-shape' || toolsSource.turnShape !== 'tools') {
-      throw new Error('expected a turn-shape tools reminder source')
+    const quietSource = decision.messages.at(-1)?.source as { kind: string; turnShape?: TurnShape } | undefined
+    if (quietSource?.kind !== 'turn-shape' || quietSource.turnShape !== 'quiet') {
+      throw new Error('expected a turn-shape quiet reminder source')
     }
   })
 })

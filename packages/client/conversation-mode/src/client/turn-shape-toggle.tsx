@@ -1,6 +1,6 @@
 /**
  * Turn-shape selector, browser half: one `Menu` on the composer input row
- * over Narrate, Quiet, and Tools only. The pill reads the current session's
+ * over Narrate and Quiet. The pill reads the current session's
  * `turnShape` projection, and a pick appends `turn-shape/mode` through the
  * `session.setTurnShape` Remote, so the arming is one session's logged state
  * — never a cross-session setting. The host half snapshots the shape per
@@ -42,7 +42,6 @@ function shapeLabel(t: TranslateNS<'turn-shape'>, shape: TurnShape): string {
   switch (shape) {
     case 'narrate': return t('label.narrate')
     case 'quiet': return t('label.quiet')
-    case 'tools': return t('label.tools')
   }
 }
 
@@ -51,7 +50,6 @@ function shapeTitle(t: TranslateNS<'turn-shape'>, shape: TurnShape): string {
   switch (shape) {
     case 'narrate': return t('title.narrate')
     case 'quiet': return t('title.quiet')
-    case 'tools': return t('title.tools')
   }
 }
 
@@ -69,7 +67,7 @@ export type TurnShapeToggleProps = PropsRuntime<'conversation.input.right'>
     turnShape: TurnShapeToggleFace
   }
 
-/** The Narrate/Quiet/Tools only selector riding the composer input row. */
+/** The Narrate/Quiet selector riding the composer input row. */
 export function TurnShapeToggle(props: TurnShapeToggleProps): ReactNode {
   const [open, setOpen] = useState(false)
   const projection = props.useProjection('turnShape')

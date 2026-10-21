@@ -1,55 +1,32 @@
 /**
- * Turn-shape wire constants: the shape reminder rendering, the grammar hints
- * attached on capable routes, and the quiet wrap-up drive. Turn termination
- * stays the loop's ordinary kinds — the natural zero-tool-call ending or an
- * explicit `finish` — and a quiet close latches one tagged wrap-up turn whose
- * requests travel as `toolChoice: 'none'` where supported; `tools` closes
- * nothing extra.
+ * Turn-shape wire constants: the soft per-turn reminder that names the shape's
+ * transcript promise. Turn termination stays the loop's ordinary kinds — the
+ * natural zero-tool-call ending or an explicit `finish`. Quiet is a render
+ * filter, not a generation constraint: no grammar hints, no wrap-up call.
  * @module @deepseek-ai/dsh-client-conversation-mode/turn-shape
  */
 
-import type { StructuredOutputSchema } from '@deepseek-ai/dsh-llm'
 import type { TurnShape } from './types.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
-    /** The shape reminder injected on a shape epoch, or the tagged quiet wrap-up drive. */
+    /** The shape reminder injected on a shape epoch. */
     'turn-shape': TurnShapeSource
   }
 }
 
-/** Source tag of the injected shape-reminder / wrap-up message. */
+/** Source tag of the injected shape-reminder message. */
 export interface TurnShapeSource {
   kind: 'turn-shape'
   /** The shape in effect for the turn the message rendered on. */
   turnShape: TurnShape
-  /** True when the row is the tagged wrap-up drive queued at a quiet turn's close. */
-  wrapUp?: true
 }
-
-/**
- * The strict empty-object leak shield: the shape's only structured-output
- * hint, binding a quiet/tools working step's text channel to the two-token
- * `{}` that the render contract sanitizes away. Attached only to routes
- * whose adapter declares real `response_format` support, and never to the
- * quiet wrap-up step or alongside a higher-priority capture schema.
- */
-export const EMPTY_OBJECT_SCHEMA: StructuredOutputSchema = Object.freeze({
-  type: 'object',
-  properties: {},
-  additionalProperties: false,
-  strict: true,
-})
 
 /** One-line phrases the reminder uses to name each shape's transcript promise. */
 const REMINDER_LINES: Record<Exclude<TurnShape, 'narrate'>, string> = {
   quiet:
-    'work silently through thoughts and tool calls — narrate nothing now; '
-    + 'calling finish or ending without tool calls closes the turn, and an automatic wrap-up request '
-    + 'then asks for the one plain final answer. Only answer in plain text when that wrap-up request arrives',
-  tools:
-    'work silently through thoughts and tool calls — narrate nothing now; '
-    + 'the turn ends without a summary, and no answer is owed at any point',
+    'work through thoughts and tool calls; narrate nothing now, and answer only '
+    + 'when the work is done. Intermediate prose and thinking are hidden at render time',
 }
 
 /**
@@ -61,15 +38,4 @@ const REMINDER_LINES: Record<Exclude<TurnShape, 'narrate'>, string> = {
  */
 export function turnShapeReminderText(shape: Exclude<TurnShape, 'narrate'>): string {
   return `[turn-shape] Turn shape: ${shape} — ${REMINDER_LINES[shape]}.`
-}
-
-/**
- * The quiet wrap-up drive, queued as the whole drive of the tagged turn a
- * quiet close latches. That turn's requests go out with `toolChoice: 'none'`
- * on capable routes, so the closing plain answer the shape promises is
- * emitted with no tool surface.
- * @returns the wrap-up drive body.
- */
-export function turnShapeWrapUpText(): string {
-  return '[turn-shape] Close now: one plain final answer, no tool calls.'
 }

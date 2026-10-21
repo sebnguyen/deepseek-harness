@@ -42,8 +42,24 @@ describe('provider draft rules', () => {
       ],
       { contextWindow: 262_144, maxTokens: 32_768 },
     )).toEqual([
-      { id: 'fresh', contextWindow: 100_000, maxTokens: 32_768 },
+      { id: 'fresh', contextWindow: 100_000, maxTokens: 20_000 },
       { id: 'bare', contextWindow: 262_144, maxTokens: 32_768 },
+    ])
+    // A window-sized advertised cap clamps to one fifth of the window.
+    expect(adoptionEntries(
+      new Set(),
+      [{ id: 'deepseek-v4.1-flash', contextWindow: 1_048_576, maxTokens: 1_048_576 }],
+      { contextWindow: 262_144, maxTokens: 32_768 },
+    )).toEqual([
+      { id: 'deepseek-v4.1-flash', contextWindow: 1_048_576, maxTokens: 209_715 },
+    ])
+    // A genuinely small advertised cap survives the clamp.
+    expect(adoptionEntries(
+      new Set(),
+      [{ id: 'gemma', contextWindow: 256_000, maxTokens: 8_192 }],
+      { contextWindow: 262_144, maxTokens: 32_768 },
+    )).toEqual([
+      { id: 'gemma', contextWindow: 256_000, maxTokens: 8_192 },
     ])
     expect(adoptionEntries(
       new Set(),
@@ -51,7 +67,7 @@ describe('provider draft rules', () => {
       { contextWindow: 1, maxTokens: 2 },
       { low: 'low', high: 'high' },
     )).toEqual([
-      { id: 'fresh', contextWindow: 1, maxTokens: 2, reasoningEfforts: { low: 'low', high: 'high' } },
+      { id: 'fresh', contextWindow: 1, maxTokens: 1, reasoningEfforts: { low: 'low', high: 'high' } },
     ])
     expect(adoptionEntries(
       new Set(),
@@ -59,7 +75,7 @@ describe('provider draft rules', () => {
       { contextWindow: 1, maxTokens: 2 },
       {},
     )).toEqual([
-      { id: 'all-mini-lm-l6-v2', contextWindow: 1, maxTokens: 2 },
+      { id: 'all-mini-lm-l6-v2', contextWindow: 1, maxTokens: 1 },
     ])
   })
 

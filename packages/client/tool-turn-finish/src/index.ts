@@ -33,10 +33,9 @@ export interface TurnFinishConfig {}
 export const Config = z.object({}).default({}) as unknown as z.ZodType<TurnFinishConfig>
 
 const FINISH_DESCRIPTION =
-  'Close the current turn early. Quiet conversation mode promises one plain closing answer, delivered '
-  + 'through an automatic wrap-up request that fires right after the close — text emitted before that '
-  + 'request is discarded, so call finish only when the work is done. '
-  + 'Outside quiet conversation mode this call is inert and records nothing.'
+  'Close the current turn early. Under the quiet turn shape this ends the turn at the tool result; '
+  + 'the closing answer is the last assistant message of this turn. '
+  + 'Outside the quiet turn shape this call is inert and records nothing.'
 
 /**
  * Register the `finish` tool on `ctx.tools`. The tool's execute reads the

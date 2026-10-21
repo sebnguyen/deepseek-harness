@@ -35,9 +35,38 @@ export function sanitizeAssistantReplyText(text: string): string {
  * @param blocks - Assistant content blocks.
  * @returns the blocks with artifact-only text blocks removed.
  */
+/**
+ * Strip wire-grammar artifacts out of one assistant reasoning block before any
+ * visibility decision runs. A reasoning body that is entirely a JSON value
+ * (the provider-fidelity degradation class) or the `{}`/`{ }` shield marker,
+ * bare or inside a ```json fence, collapses to '' so the whole Think row is
+ * suppressed. Narrative reasoning is returned trimmed.
+ * @param text - one raw assistant reasoning block.
+ * @returns the narrative reasoning, or '' when the block is pure artifact.
+ */
+export function sanitizeAssistantReasoningText(text: string): string {
+  let body = text.trim()
+  if (body === '') return ''
+  if (SHIELD_MARKER_PATTERN.test(body)) return ''
+  const fence = FENCE_PATTERN.exec(body)
+  const fenced = fence?.[1]
+  if (fenced !== undefined) body = fenced.trim()
+  if (SHIELD_MARKER_PATTERN.test(body)) return ''
+  try {
+    const parsed = JSON.parse(body)
+    if (parsed !== null && typeof parsed === 'object') return ''
+  } catch {
+    // Not a JSON document — keep as narrative reasoning.
+  }
+  return body
+}
+
 export function visibleAssistantBlocks(blocks: readonly AssistantBlock[]): readonly AssistantBlock[] {
-  return blocks.filter(block =>
-    block.kind !== 'text' || sanitizeAssistantReplyText(block.text) !== '')
+  return blocks.filter((block) => {
+    if (block.kind === 'text') return sanitizeAssistantReplyText(block.text) !== ''
+    if (block.kind === 'reasoning') return sanitizeAssistantReasoningText(block.text) !== ''
+    return true
+  })
 }
 
 /**
