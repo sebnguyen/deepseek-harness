@@ -55,14 +55,12 @@
 /* Settled-flow identity boundary and the row window's mount unit: shells
    stay mounted with their data-chat-* identity and a reserved height while
    row-window.ts gates content rendering by viewport proximity (340px is the
-   shared estimate). content-visibility layers on top so live-but-offscreen
-   rows inside the overscan band still skip layout/paint until the browser
-   needs them — its intrinsic size matches the row-window estimate, and the
-   browser's `auto` size caches each row's last real height from then on. */
+   shared estimate). Row-window dormancy alone owns virtualization and height
+   reservation; do not layer content-visibility on top, since its intrinsic-
+   size estimate resolves into real layout on mount/scroll and shifts the
+   already-mounted chat. */
 .flowItem {
   min-width: 0;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 340px;
 }
 
 /* The completed-turn tail captions the message above it, so it rides a
