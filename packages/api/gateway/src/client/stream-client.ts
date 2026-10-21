@@ -62,6 +62,17 @@ export class RemoteStreamMuxClient {
   private running = false
   private disposed = false
 
+  /** Application-level keepalive tuning. */
+  private readonly keepAliveIntervalMs: number
+  private readonly idleTimeoutMs: number
+  private keepAliveTimer: ReturnType<typeof setInterval> | undefined
+  private idleTimer: ReturnType<typeof setTimeout> | undefined
+
+  constructor(options?: { keepAliveIntervalMs?: number; idleTimeoutMs?: number }) {
+    this.keepAliveIntervalMs = options?.keepAliveIntervalMs ?? 3_000
+    this.idleTimeoutMs = options?.idleTimeoutMs ?? 9_000
+  }
+
   /** Ensure a physical attempt exists, following the current attempt once if needed. */
   start(): void {
     if (this.disposed) return
@@ -78,6 +89,7 @@ export class RemoteStreamMuxClient {
     const failure = new RemoteStreamCarrierError('api gateway: Remote stream reconnect requested')
     const pending = this.keepAlive
     this.revision++
+    this.stopKeepAlive()
     this.cancelCandidate?.(failure)
     const socket = this.socket
     if (socket !== undefined) {
@@ -149,6 +161,7 @@ export class RemoteStreamMuxClient {
     if (!this.disposed) {
       this.disposed = true
       this.running = false
+      this.stopKeepAlive()
       const error = new Error('api gateway: Remote stream client disposed')
       this.failAll(error)
       for (const waiter of [...this.waiters]) waiter.reject(error)
@@ -178,6 +191,7 @@ export class RemoteStreamMuxClient {
         settled = true
         this.cancelCandidate = undefined
         this.socket = socket
+        this.startKeepAlive()
         for (const waiter of [...this.waiters]) waiter.resolve(socket)
         resolve(socket)
       }
@@ -240,9 +254,11 @@ export class RemoteStreamMuxClient {
 
   private receive(socket: WebSocket, data: unknown): void {
     if (socket !== this.socket) return
+    this.touch()
     try {
       if (typeof data !== 'string') throw new Error('api gateway: Remote stream WebSocket requires text messages')
       const frame = parseRemoteStreamServerMessage(data)
+      if (frame.type === 'pong') return
       this.streams.get(frame.streamId)?.push(frame)
     } catch (error) {
       const failure = new RemoteStreamCarrierError('api gateway: invalid Remote stream frame', { cause: error })
@@ -259,8 +275,48 @@ export class RemoteStreamMuxClient {
     ),
   ): void {
     if (this.socket !== socket) return
+    this.stopKeepAlive()
     this.socket = undefined
     this.failAll(error)
+  }
+
+  private startKeepAlive(): void {
+    this.stopKeepAlive()
+    this.touch()
+    this.keepAliveTimer = setInterval(() => {
+      if (this.disposed || this.socket?.readyState !== WebSocket.OPEN) return
+      try {
+        this.socket.send(JSON.stringify({ type: 'ping' }))
+      } catch {
+        // A send that throws leaves the carrier to its close/error path.
+      }
+    }, this.keepAliveIntervalMs)
+    const ka = this.keepAliveTimer as unknown
+    if (typeof (ka as { unref?: unknown })?.unref === 'function') (ka as { unref: () => void }).unref()
+  }
+
+  private touch(): void {
+    if (this.idleTimer !== undefined) clearTimeout(this.idleTimer)
+    this.idleTimer = setTimeout(() => {
+      if (this.disposed) return
+      const socket = this.socket
+      if (socket === undefined || socket.readyState !== WebSocket.OPEN) return
+      this.lost(socket, new RemoteStreamCarrierError('api gateway: Remote stream WebSocket idle timeout'))
+      try { socket.close(4000, 'idle timeout') } catch { /* ignore */ }
+    }, this.idleTimeoutMs)
+    const it = this.idleTimer as unknown
+    if (typeof (it as { unref?: unknown })?.unref === 'function') (it as { unref: () => void }).unref()
+  }
+
+  private stopKeepAlive(): void {
+    if (this.keepAliveTimer !== undefined) {
+      clearInterval(this.keepAliveTimer)
+      this.keepAliveTimer = undefined
+    }
+    if (this.idleTimer !== undefined) {
+      clearTimeout(this.idleTimer)
+      this.idleTimer = undefined
+    }
   }
 
   private maintain(): void {
