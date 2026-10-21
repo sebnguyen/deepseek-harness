@@ -265,9 +265,10 @@ export function defineStore<T, A extends ActionsDecl<T>>(
       const persistKey = decl.persist === undefined
         ? undefined
         : scopeKey === undefined ? decl.persist : `${decl.persist}.${scopeKey}`
-      const store = createSnapshotStore<T>(
-        decl.init(),
-        persistKey !== undefined ? { persist: { name: persistKey } } : undefined)
+      const opts: { flush?: 'raf' | 'sync'; persist?: { name: string } } = {}
+      if (persistKey !== undefined) opts.persist = { name: persistKey }
+      if (decl.flush !== undefined) opts.flush = decl.flush
+      const store = createSnapshotStore<T>(decl.init(), opts)
       const actions = {} as Record<string, (...params: unknown[]) => void>
       for (const key of Object.keys(decl.actions)) {
         const mutate = decl.actions[key] as (draft: T, ...params: unknown[]) => void

@@ -56,6 +56,13 @@ export type BakedActions<T, A extends ActionsDecl<T>> = {
 export interface StoreSpec<T, A extends ActionsDecl<T>> {
   init: () => T
   persist?: string
+  /**
+   * Subscriber notification cadence. Default 'sync' is the same-tick echo
+   * controlled inputs need; 'raf' coalesces any number of updates in a frame
+   * into one notification — the right cadence for high-frequency read-model
+   * stores (streams, lists, projections), never for input-bound state.
+   */
+  flush?: 'raf' | 'sync'
   actions: A
 }
 
