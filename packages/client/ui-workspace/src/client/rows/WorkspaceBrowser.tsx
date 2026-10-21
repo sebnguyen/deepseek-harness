@@ -130,10 +130,13 @@ function reconciledSessionOrder(sessionIds: readonly SessionId[], stored: readon
   return ordered
 }
 
+/** Record of id -> updatedAt precomputed once per wave; comparator is a pair of Map reads. */
+type SessionRecency = ReadonlyMap<string, number>
+
 /** Newest update first with stable Session identity as the tie-break. */
-function compareSessionRecency(a: SessionId, b: SessionId, byId: SessionListState['byId']): number {
-  const aUpdatedAt = byId[a]?.updatedAt ?? Number.NEGATIVE_INFINITY
-  const bUpdatedAt = byId[b]?.updatedAt ?? Number.NEGATIVE_INFINITY
+function compareSessionRecency(a: SessionId, b: SessionId, recency: SessionRecency): number {
+  const aUpdatedAt = recency.get(a) ?? Number.NEGATIVE_INFINITY
+  const bUpdatedAt = recency.get(b) ?? Number.NEGATIVE_INFINITY
   if (aUpdatedAt !== bUpdatedAt) return bUpdatedAt - aUpdatedAt
   return a < b ? -1 : 1
 }
@@ -206,8 +209,13 @@ function nextSessionOrderAccount({
   sortByRecency: boolean
 }): { order: SessionId[]; updatedAt: Record<string, number>; changed: boolean } {
   let order = reconciledSessionOrder(sessionIds, previousOrder)
+  // Hoist per-session recency out of the comparator: sorting reads a Map
+  // instead of re-keying the byId record for every compared pair.
+  const recency: SessionRecency = new Map(
+    sessionIds.map(id => [id, list.byId[id]?.updatedAt ?? Number.NEGATIVE_INFINITY] as const),
+  )
   if (sortByRecency) {
-    order.sort((a, b) => compareSessionRecency(a, b, list.byId))
+    order.sort((a, b) => compareSessionRecency(a, b, recency))
   } else if (orderBy === 'updated') {
     const promoted = sessionIds
       .filter((id) => {
@@ -215,7 +223,7 @@ function nextSessionOrderAccount({
         return session !== undefined
           && (previousUpdatedAt[id] === undefined || session.updatedAt > previousUpdatedAt[id])
       })
-      .sort((a, b) => compareSessionRecency(a, b, list.byId))
+      .sort((a, b) => compareSessionRecency(a, b, recency))
     if (promoted.length > 0) {
       const promotedIds = new Set(promoted)
       order = [...promoted, ...order.filter(id => !promotedIds.has(id))]

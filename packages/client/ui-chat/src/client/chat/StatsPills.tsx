@@ -614,6 +614,12 @@ export const StatsPills = memo(function StatsPills({
   // billing (e.g. every request failed) shows its counts without a usage pill.
   const hasTokens = usage !== undefined
     && (billedInputTokens(usage) > 0 || usage.outputTokens > 0)
+  // Fold the spend rollup once per data wave, not per render: spends only
+  // change with these three inputs, and hover/composer renders don't touch them.
+  const rollup = useMemo(
+    () => cost === undefined ? undefined : costRollup(cost, listRows, sessionId),
+    [cost, listRows, sessionId],
+  )
   if (stats.steps === 0 && !hasTokens) return null
   // data-composer-stats: InputBar's `.root:has([data-composer-stats])` rule
   // tightens the composer's bottom clearance only while this row renders.
@@ -640,10 +646,10 @@ export const StatsPills = memo(function StatsPills({
           }}
         />
       )}
-      {cost !== undefined && (
+      {cost !== undefined && rollup !== undefined && (
         <CostPill
           cost={cost}
-          rollup={costRollup(cost, listRows, sessionId)}
+          rollup={rollup}
           t={t}
           dialog={{
             open: openPill === 'cost',
