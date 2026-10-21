@@ -133,10 +133,6 @@ class RemoteStreamMuxConnection {
 
   private receive(text: string): void {
     const message = parseRemoteStreamClientMessage(text)
-    if (message.type === 'ping') {
-      void this.send({ type: 'pong' })
-      return
-    }
     if (message.type === 'cancel') {
       this.streams.get(message.streamId)?.abort.abort(new Error('Remote stream cancelled'))
       return

@@ -9,15 +9,12 @@
  * {@link pickStablePort} anchors the port per dist: pinned in
  * `<state>/twin-token.<sha1(workspaceKey)>` so a respawned twin reissues
  * the same `--connection-token` and reconnecting clients ride the
- * workbench's reconnection grace instead of re-credentialling. The pin
- * lives in the twin's private state slot (see {@link twinStateDirName});
- * older layouts pinned one file per workspace under the SHARED `.dsh`
- * root, and the spawner migrates those pins into the slot on first use.
+ * workbench's reconnection grace instead of re-credentialling.
  * @module @deepseek-ai/dsh-api-ide/twin-token
  */
 
 import { createHash, randomBytes } from 'node:crypto'
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 /** Base64url shape the spawner issues: 24 random bytes render as 32 chars. */
@@ -58,24 +55,45 @@ export function twinTokenPinName(workspaceKey: string): string {
 }
 
 /**
+ * Synchronously read a pin; returns undefined when absent or corrupt so
+ * the caller mints a replacement. Synchronous I/O makes the pin's
+ * presence observable before the spawn proceeds, so a parked iframe can
+ * never race a half-written pin.
+ */
+function readPin(pinFile: string): string | undefined {
+  try {
+    const pinned = readFileSync(pinFile, 'utf8').trim()
+    return TOKEN_PATTERN.test(pinned) ? pinned : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * The stable token for one workspace twin: the pinned value when a live pin
  * exists, else a freshly minted token persisted for later respawns. A
- * corrupt pin is treated as absent and overwritten with the replacement,
- * and a failed pin write degrades to a per-spawn token (this boot's
- * behavior) rather than failing the spawn.
+ * corrupt pin is treated as absent and overwritten with the replacement.
+ *
+ * The pin write is synchronous and verified by re-reading; a write that
+ * cannot be persisted throws instead of degrading to a per-spawn token,
+ * because a silently rotated token is exactly the stale-iframe 403 this
+ * module exists to prevent. Callers (the twin spawner) must surface the
+ * failure rather than continue with an unstable identity.
  * @param stateDir - the twin's own state slot (see {@link twinStateDirName}).
  * @param workspaceKey - the twin's workspace key the token is pinned to.
  * @returns the connection token to pass as `--connection-token`.
  */
 export async function stableTwinToken(stateDir: string, workspaceKey: string): Promise<string> {
   const pinFile = join(stateDir, twinTokenPinName(workspaceKey))
-  try {
-    const pinned = (await readFile(pinFile, 'utf8')).trim()
-    if (TOKEN_PATTERN.test(pinned)) return pinned
-  } catch {
-    /* no pin yet, or unreadable content: mint below */
-  }
+  const pinned = readPin(pinFile)
+  if (pinned !== undefined) return pinned
   const token = randomBytes(24).toString('base64url')
-  await writeFile(pinFile, `${token}\n`, 'utf8').catch(() => undefined)
+  // Synchronous, atomic-ish write: write then re-read to confirm the bytes
+  // landed before the spawn consumes the token. A failure here propagates.
+  writeFileSync(pinFile, `${token}\n`, 'utf8')
+  const confirmed = readFileSync(pinFile, 'utf8').trim()
+  if (confirmed !== token) {
+    throw new Error(`ide: twin token pin did not persist (${pinFile})`)
+  }
   return token
 }

@@ -13,7 +13,8 @@
  */
 
 import { createServer } from 'node:net'
-import { mkdir, rename } from 'node:fs/promises'
+import { mkdir } from 'node:fs/promises'
+import { renameSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
@@ -204,10 +205,15 @@ async function waitReady(url: string, timeoutMs: number, pollMs: number, signal?
  * spawn round's serialization means no two ensures race the move.
  */
 async function adoptLegacyPin(legacyRoot: string, stateDir: string, name: string): Promise<void> {
+  const source = join(legacyRoot, name)
+  const target = join(stateDir, name)
   try {
-    await rename(join(legacyRoot, name), join(stateDir, name))
-  } catch {
-    /* no legacy pin, or the slot already owns one: either way nothing to do */
+    renameSync(source, target)
+  } catch (error) {
+    const code = (error as { code?: string } | null)?.code
+    // Missing legacy pin is a cold start; an existing target means the slot
+    // already owns one (idempotent re-run). Anything else is a real failure.
+    if (code !== 'ENOENT' && code !== 'EEXIST') throw error
   }
 }
 

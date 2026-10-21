@@ -641,7 +641,7 @@ describe('Client Remote transport readiness', () => {
         expect(connection.state.getSnapshot()).toBe('connected')
         expect(connection.generation.getSnapshot()?.host.home).toBe('/recovered')
         expect(reset).toHaveBeenCalledOnce()
-        expect(vi.getTimerCount()).toBe(2) // the two client-side keepalive timers (interval + idle watchdog))
+        expect(vi.getTimerCount()).toBe(0)
       } finally {
         await ctx.fiber.dispose()
         await vi.advanceTimersByTimeAsync(0)
