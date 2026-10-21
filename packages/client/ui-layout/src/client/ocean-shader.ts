@@ -407,22 +407,29 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
   readPalette()
 
   const dprCap = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 1.5)
-  const resize = (): void => {
-    const w = Math.max(2, Math.round(canvas.clientWidth * dprCap))
-    const h = Math.max(2, Math.round(canvas.clientHeight * dprCap))
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w
-      canvas.height = h
+  /* Layout reads (clientWidth/clientHeight) force synchronous layout while
+     stream traffic is dirtying the DOM, so the frame loop must never measure:
+     measure() runs only from the ResizeObserver below (plus once at startup)
+     and drawFrame consumes the cached size. */
+  let drawW = 0  // device px
+  let drawH = 0
+  let cssH = 0   // CSS px, feeds the uCssH uniform
+  const measure = (): void => {
+    drawW = Math.max(2, Math.round(canvas.clientWidth * dprCap))
+    drawH = Math.max(2, Math.round(canvas.clientHeight * dprCap))
+    cssH = canvas.clientHeight
+    if (canvas.width !== drawW || canvas.height !== drawH) {
+      canvas.width = drawW
+      canvas.height = drawH
+      const fw = Math.max(2, Math.round(drawW * POSE.scale))
+      const fh = Math.max(2, Math.round(drawH * POSE.scale))
+      twgl.resizeFramebufferInfo(gl, fbi, FBO_OPTS, fw, fh)
     }
-    const fw = Math.max(2, Math.round(w * POSE.scale))
-    const fh = Math.max(2, Math.round(h * POSE.scale))
-    twgl.resizeFramebufferInfo(gl, fbi, FBO_OPTS, fw, fh)
   }
 
   let running = options.running
   let shine = options.running ? POSE.shineTarget : 0
   const drawFrame = (time: number, breath: number): void => {
-    resize()
     const aspect = fbi.width / fbi.height
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbi.framebuffer)
     gl.viewport(0, 0, fbi.width, fbi.height)
@@ -439,7 +446,7 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
       uShine: shine,
       uAspect: aspect,
       uRes: [fbi.width, fbi.height],
-      uCssH: canvas.clientHeight,
+      uCssH: cssH,
       uRayCol: theme.raysCol,
       uRayA: theme.raysA,
       uBoostCol: theme.boostCol,
@@ -480,9 +487,9 @@ export function mountOceanShader(canvas: HTMLCanvasElement | null, options: Ocea
 
   const themeObserver = new MutationObserver(() => { readPalette(); if (options.reduced) drawStatic() })
   themeObserver.observe(document.body, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
-  const sizeObserver = new ResizeObserver(() => { resize(); if (options.reduced) drawStatic() })
+  const sizeObserver = new ResizeObserver(() => { measure(); if (options.reduced) drawStatic() })
   sizeObserver.observe(canvas)
-  resize()
+  measure()
 
   let raf = 0
   let prev = performance.now()
