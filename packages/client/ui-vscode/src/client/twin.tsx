@@ -1,18 +1,29 @@
 /**
- * Workspace twin frame: renders one workspace's workbench iframe with its
- * boot cover and focus guard.
+ * Workspace twin frames: one live document plus at most two parked spares.
  *
- * The frame now lives inside the session-scoped body (VscodeBody) instead of
- * in the root-scoped `shell.ide` seat: a session switch remounts the body,
- * which remounts the frame with a fresh src from a fresh status poll. There
- * is no parked-frame custody, no LRU, and no module-level intent store — the
- * src is a plain prop, so staleness after a host restart is impossible: every
- * mount re-polls.
+ * The seat contract remounts session tab bodies on every session switch, so
+ * the body can never own an iframe — and browsers make any move a trap too:
+ * reparenting an `<iframe>` resets its browsing context, reloading the
+ * workbench like a fresh mount. This module therefore creates frame elements
+ * once inside ui-layout's positional `shell.ide` layer (whose geometry the
+ * frame owns outright) and only ever re-points their `src`: session bodies
+ * publish the active workspace's ready triple through the intent store
+ * below, and this wrapper shows the record for it. Hiding (no body shows a
+ * twin) parks records with `display: none` — never a removal — so tab and
+ * session switches on one workspace keep the live document. A workspace
+ * switch parks the live record and shows its own, creating the element on
+ * first visit; a flip back is a pure unhide. Records cap at three — one
+ * live plus two parked spares, spanning the three-workspace switch cycle —
+ * and the least-recently-shown frame falls out past that: workbench
+ * documents are heavyweight, and an evicted workspace's server still runs
+ * its stable loopback port, so a return is a document boot against a hot
+ * twin, with per-workspace origin-keyed IndexedDB restoring editors and
+ * layout. Reload-visible state across harness restarts rides that storage.
  */
-import { useEffect, useLayoutEffect, useReducer, useRef } from 'react'
+import { useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react'
 import type { ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
@@ -131,6 +142,67 @@ export function BootHero({ line, spinning = false }: { readonly line: string; re
   )
 }
 
+/** One published intent: the src a body is showing, plus its ownership token. */
+let intent: { readonly owner: object; readonly src: string } | null = null
+let twinIntent: string | null = null
+const listeners = new Set<() => void>()
+
+function notify(): void {
+  for (const listener of listeners) listener()
+}
+
+/** Store subscription for `useSyncExternalStore` consumers. */
+export function subscribeTwinIntent(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => { listeners.delete(listener) }
+}
+
+/** Snapshot of the published src, or null while no body shows a twin. */
+export function twinIntentSrc(): string | null {
+  return twinIntent
+}
+
+/**
+ * Publish one body's ready src. Later publishers win; a release clears only
+ * its own intent, so a stale body's unmount can never blank a live one's
+ * publication.
+ * @param owner - the publishing body's identity token.
+ * @param src - the ready triple formed into the iframe source.
+ * @returns the release, run by the body's unmount.
+ */
+export function publishTwinIntent(owner: object, src: string): () => void {
+  intent = { owner, src }
+  if (twinIntent !== src) {
+    twinIntent = src
+    notify()
+  }
+  return () => {
+    if (intent?.owner !== owner) return
+    intent = null
+    if (twinIntent !== null) {
+      twinIntent = null
+      notify()
+    }
+  }
+}
+
+/**
+ * Publish this body's ready src as the frame cache's intent for as long as
+ * the body is mounted.
+ * @param src - the formed frame source, or null while not ready.
+ */
+export function useTwinIntent(src: string | null): void {
+  const [owner] = useState<object>(() => ({}))
+  useEffect(() => (src === null ? undefined : publishTwinIntent(owner, src)), [owner, src])
+}
+
+/** Drop the published intent; specs start from a cold store. */
+export function resetTwinIntent(): void {
+  intent = null
+  twinIntent = null
+  notify()
+}
+
 /** One workspace's frame: its container in the host, the element, its boot lifecycle. */
 interface TwinRecord {
   readonly container: HTMLDivElement
@@ -153,7 +225,13 @@ function createTwinRecord(src: string, onSettled: () => void): TwinRecord {
   const frame = document.createElement('iframe')
   frame.title = 'vscode'
   Object.assign(frame.style, FRAME_STYLE)
+  // Chromium gate: without this attribute the iframe composites opaque even
+  // when both the element and the framed document are transparent.
   frame.setAttribute('allowtransparency', 'true')
+  // Clipboard delegation: the twin is cross-origin (its own 127.0.0.1 port),
+  // so without this the browser's permissions policy blocks the Clipboard API
+  // inside the frame and the workbench shows its sticky "Unable to read from
+  // the browser's clipboard" prompt on the first readText-driven paste path.
   frame.setAttribute('allow', 'clipboard-read; clipboard-write')
   frame.src = src
   container.appendChild(frame)
@@ -174,11 +252,8 @@ function discardTwinRecord(record: TwinRecord): void {
   record.container.remove()
 }
 
-/** The positional shell.ide seat entry's props: a ready src plus copy. */
-export type TwinFrameProps = {
-  readonly src: string | null
-  readonly t: PropsLocale<'vscode'>['t']
-}
+/** The positional shell.ide seat entry's props: runtime share plus copy. */
+export type TwinFrameProps = PropsRuntime<'shell.ide'> & PropsLocale<'vscode'>
 
 /**
  * The workspace frame cache, registered once into the root-scoped positional
@@ -188,7 +263,8 @@ export type TwinFrameProps = {
  * @param props - locale share for the cover's state line.
  * @returns the seat content.
  */
-export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
+export function TwinFrame({ t }: TwinFrameProps): ReactNode {
+  const src = useSyncExternalStore(subscribeTwinIntent, twinIntentSrc)
   const hostRef = useRef<HTMLDivElement | null>(null)
   // Insertion order is the recency queue: a shown record is re-set to move to
   // most-recent, so the map's first key is always the next eviction.

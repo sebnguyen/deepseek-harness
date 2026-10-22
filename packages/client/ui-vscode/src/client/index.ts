@@ -20,6 +20,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { VscodeBody, type VscodeInjected } from './VscodeBody.tsx'
+import { TwinFrame } from './twin.tsx'
 import { vscodeInfo, vscodeWarn } from './log.ts'
 import { VSCODE_ID, VSCODE_KIND, vscodeDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
@@ -86,6 +87,17 @@ export function apply(ctx: ClientContext): void {
     },
     VscodeBody,
   )), 'ui-vscode: vscode body')
+
+  // The frame cache lives one scope above the session-bound bodies: the
+  // root-scoped positional seat mounts once per app, so a session switch only
+  // changes which record shows — it can never remount an element.
+  ctx.effect(() => ctx.slots.inject('shell.ide', () => ctx.slots.register(
+    {
+      name: 'shell.ide',
+      locale: 'vscode',
+    },
+    TwinFrame,
+  )), 'ui-vscode: twin frame cache')
 
   // The twin is the harness's editor: mount it as soon as a session surface
   // exists rather than waiting for a file-row click. The session-scoped path
