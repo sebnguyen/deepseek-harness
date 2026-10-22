@@ -58,6 +58,7 @@ export type {
 export type {
   SidebarRightTabInfo, SidebarRightTabInjected, UseSidebarRightTabInfo, SidebarRightTabActions,
   SidebarRightTabMenuOwnerProps, SidebarRightTabNavigation, SidebarRightTabPlacement,
+  RightbarSurfaceOwnerProps,
 } from './contract/slots.ts'
 export type {
   SidebarRightNavigationParams, SidebarRightResourceParams, SidebarRightResourceParamsMap,
@@ -155,6 +156,7 @@ export function apply(ctx: ClientContext): void {
         name: 'rightbar.session',
         locale: NS,
         children: {
+          'rightbar.surface': { kind: 'chain', scope: 'session' },
           'sidebar.right.pane.tab': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
           'sidebar.right.pane.tab.title': { kind: 'keyed', scope: 'session', inject: { hooks: { tabInfo: tabInfoFactory } } },
           'sidebar.right.tab.menu.item': { kind: 'list', scope: 'session' },

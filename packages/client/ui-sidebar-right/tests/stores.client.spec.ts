@@ -149,6 +149,28 @@ describe('createSidebarRightStore — the sequence', () => {
     expect(dockPaneIds(layout())).toEqual([secondPane])
   })
 
+  it('refocuses a surface type\'s one record across panes instead of opening a second tab', () => {
+    const { actions, layout } = harness()
+    const surfaceOpen = { kind: 'workbench', contentId: pageAddress('workbench'), title: 'workbench', surface: true }
+    const opened = vi.fn<(tabId: TabId) => void>()
+    actions.openContent(SESSION, surfaceOpen, opened)
+    const record = opened.mock.calls[0]![0]
+    const home = layout().activePaneId
+    actions.splitPane(SESSION)
+    const secondPane = layout().activePaneId
+    expect(secondPane).not.toBe(home)
+
+    const refocused = vi.fn<(tabId: TabId) => void>()
+    actions.openContent(SESSION, { ...surfaceOpen, paneId: secondPane }, refocused)
+
+    // Same record, and the column came back to the pane holding it: a surface
+    // cannot be duplicated into a second pane, because it owns one document.
+    expect(refocused).toHaveBeenCalledWith(record)
+    expect(Object.values(layout().tabs).filter(tab => tab.kind === 'workbench')).toHaveLength(1)
+    expect(getPane(layout(), home).tabs).toContain(record)
+    expect(layout().activePaneId).toBe(home)
+  })
+
   it('allows two docked panes and rejects further splits without recording', () => {
     const { actions, layout, entries, expand } = harness()
     expand()

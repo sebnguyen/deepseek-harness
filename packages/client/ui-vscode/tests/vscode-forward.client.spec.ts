@@ -45,18 +45,18 @@ describe('useVscodeAddressForward', () => {
   it('sends each new file address once while ready, and stays silent otherwise', () => {
     const send = vi.fn()
     const { rerender } = renderHook(
-      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) => {
-        useVscodeAddressForward(address, ready, root, send)
+      ({ address, revision, ready, root }: { address: string; revision: number; ready: boolean; root: string | null }) => {
+        useVscodeAddressForward(address, revision, ready, root, send)
       },
-      { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', ready: true, root: '/repo' } },
+      { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', revision: 0, ready: true, root: '/repo' } },
     )
     expect(send).toHaveBeenCalledTimes(1)
     expect(send.mock.calls[0]?.[0]).toEqual({ sessionId: 'sid', path: '/repo/a.ts' })
     // Same address → no re-fire.
-    rerender({ address: 'dsh-resource://file/session/sid/a.ts', ready: true, root: '/repo' })
+    rerender({ address: 'dsh-resource://file/session/sid/a.ts', revision: 0, ready: true, root: '/repo' })
     expect(send).toHaveBeenCalledTimes(1)
     // New address → one more open.
-    rerender({ address: 'dsh-resource://file/session/sid/b.ts', ready: true, root: '/repo' })
+    rerender({ address: 'dsh-resource://file/session/sid/b.ts', revision: 0, ready: true, root: '/repo' })
     expect(send).toHaveBeenCalledTimes(2)
     expect(send.mock.calls[1]?.[0]).toEqual({ sessionId: 'sid', path: '/repo/b.ts' })
   })
@@ -64,11 +64,27 @@ describe('useVscodeAddressForward', () => {
   it('sends nothing when the twin is missing its root or not yet ready', () => {
     const send = vi.fn()
     renderHook(
-      ({ address, ready, root }: { address: string; ready: boolean; root: string | null }) => {
-        useVscodeAddressForward(address, ready, root, send)
+      ({ address, revision, ready, root }: { address: string; revision: number; ready: boolean; root: string | null }) => {
+        useVscodeAddressForward(address, revision, ready, root, send)
       },
-      { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', ready: false, root: null } },
+      { initialProps: { address: 'dsh-resource://file/session/sid/a.ts', revision: 0, ready: false, root: null } },
     )
     expect(send).not.toHaveBeenCalled()
+  })
+
+  it('re-opens the same file when a new navigation revision lands', () => {
+    const send = vi.fn()
+    const { rerender } = renderHook(
+      ({ revision }: { revision: number }) => {
+        useVscodeAddressForward('dsh-resource://file/session/sid/a.ts', revision, true, '/repo', send)
+      },
+      { initialProps: { revision: 1 } },
+    )
+    expect(send).toHaveBeenCalledTimes(1)
+    // A second click on the same file bumps the revision: the address alone
+    // cannot tell that apart from a re-render, so the revision re-fires it.
+    rerender({ revision: 2 })
+    expect(send).toHaveBeenCalledTimes(2)
+    expect(send.mock.calls[1]?.[0]).toEqual({ sessionId: 'sid', path: '/repo/a.ts' })
   })
 })

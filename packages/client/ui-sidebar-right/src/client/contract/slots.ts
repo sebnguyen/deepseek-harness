@@ -1,7 +1,11 @@
 /**
  * The right Sidebar's extension seats and its copy namespace.
  *
- * Five seats, each with a different reason to exist:
+ * Six seats, each with a different reason to exist:
+ * - `rightbar.surface` elects the column's single content: the dock, or one tab
+ *   type that declared itself a surface. Entries select themselves from the
+ *   owner props, and the dock is the owner's fallback, so an election unmounts
+ *   the dock instead of asking it to draw behind a surface.
  * - `sidebar.right.pane.tab` is how a tab type contributes a body. It is keyed by
  *   the type definition's `id`, so adding a type is a registration, never an
  *   edit here. The key domain stays the open string space because a tab type may
@@ -20,10 +24,11 @@
  *   owns the whole column; without one the column disappears and the panes
  *   keep the full panel width.
  *
- * TYPE HOME RATIONALE: this package declares all five at runtime, and anything
+ * TYPE HOME RATIONALE: this package declares all six at runtime, and anything
  * registering into one already depends on it for the declaration. The types
  * therefore live with their declarer.
  */
+import type { ReactNode } from 'react'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type { RightbarOwnerProps } from '@deepseek-ai/dsh-client-ui-layout/client'
 // The locale plugin's own merge carries the shared `common` vocabulary that the
@@ -44,6 +49,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     /** Session content selected by the root-scoped right Sidebar controller. */
     'rightbar.session': { kind: 'single'; scope: 'session'; owner: RightbarOwnerProps }
+    /**
+     * The column's single content: the dock, or one tab type that declared
+     * itself a surface. Entries elect themselves in chain order from the owner
+     * props; the owner's fallback is the dock, so an election unmounts it rather
+     * than drawing a surface over it.
+     */
+    'rightbar.surface': { kind: 'chain'; scope: 'session'; owner: RightbarSurfaceOwnerProps }
     /**
      * One tab's body, dispatched with the `id` of the type in force for
      * `tab.kind`. A tab type registers here under its definition's `id` and
@@ -97,9 +109,31 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
+/** Owner share of one column-content election. */
+export interface RightbarSurfaceOwnerProps {
+  /**
+   * The kind of the surface type currently owning the column, or `undefined`
+   * when the dock holds it.
+   *
+   * Read from the type in force for the active docked tab's declared `surface`
+   * flag — this package never compares a kind name to decide it.
+   */
+  readonly surface: string | undefined
+  /**
+   * That tab's body, already dispatched through `sidebar.right.pane.tab`.
+   *
+   * The seat owns the tab seats, so it is the only party allowed to render one;
+   * an elected entry draws this instead of reaching for a body of its own.
+   */
+  readonly body: ReactNode
+}
+
 /** Where a tab was last navigated to: what the `open` that created or revealed it carried. */
 export interface SidebarRightTabNavigation {
-  /** The address opened; for a tab record this is its `contentId`. */
+  /**
+   * The address opened: the record's `contentId` for an ordinary viewer, and the
+   * address the surface was last navigated to for a `surface` type.
+   */
   readonly address: string
   /** The opener's `params` (see `contract/params.ts`); `undefined` when it gave none. */
   readonly params: SidebarRightNavigationParams

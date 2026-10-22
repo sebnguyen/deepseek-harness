@@ -58,13 +58,17 @@ export type VscodeBodyProps =
  */
 export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forwardFile, activate, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
+  // The address the tab was last navigated to, not the record's identity: a
+  // `surface` type keeps one record for every file it opens, so `contentId` is
+  // the type's page address and the file rides navigation.
+  const address = tab.navigation.address
   // Resource addresses (file rows) carry their session in the URL; page
   // tabs (`sidebar://<kind>`) don't — those take the scope's session, which
   // the seat hands every session-scoped body anyway.
   const sessionId = useMemo<SessionId>(() => {
-    const parsed = parseFileAddress(tab.contentId)
+    const parsed = parseFileAddress(address)
     return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
-  }, [tab.contentId, scopeSessionId])
+  }, [address, scopeSessionId])
   // No module cache: every mount starts cold and re-polls, so a value
   // minted by a twin that has since respawned can never be resurrected.
   const [state, setState] = useState<IdeBridgeStatus | undefined>(undefined)
@@ -139,7 +143,7 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
     },
     [forwardFile],
   )
-  useVscodeAddressForward(tab.contentId, ready, workspaceRoot, sendForward)
+  useVscodeAddressForward(address, tab.navigation.revision, ready, workspaceRoot, sendForward)
 
   if (state === undefined) return <BootHero line={t('state.opening')} spinning />
   if (!state.enabled) return <BootHero line={t('state.unavailable')} />

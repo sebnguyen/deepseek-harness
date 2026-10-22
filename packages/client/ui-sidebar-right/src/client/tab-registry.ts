@@ -28,6 +28,7 @@ import type { ComponentType } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type { IconProps } from '@deepseek-ai/dsh-client-ui-primitives'
 import { notifySubscribers } from '@deepseek-ai/dsh-client-store'
+import { pageAddress } from './contract/seed.ts'
 // The POSIX build: the browser bundle must not reach for node's `path`, and
 // addresses are `/`-separated regardless of the host platform.
 import picomatch from 'picomatch/posix'
@@ -109,6 +110,13 @@ export interface SidebarRightTabDefinition {
   /** Defaults to `extension`: a type that says nothing is one from outside the product. */
   readonly priority?: SidebarRightTabPriority
   /**
+   * This type owns the column's single surface: every address it claims lands on
+   * ONE record per session, and the address rides navigation instead of the
+   * record. For an embedder that owns its own internal tabs (the VS Code
+   * workbench): one document, many files. Omit for a per-address viewer.
+   */
+  readonly surface?: boolean
+  /**
    * Veto an address this type's globs matched.
    *
    * Synchronous and cheap: it runs on every routing decision. Omit it to accept
@@ -132,14 +140,16 @@ export interface SidebarRightTabClaim {
   /** The claiming type. */
   readonly kind: string
   /**
-   * Stable identity of the content, which is the address itself.
-   *
-   * Two opens of the same address are the same tab, which is what makes opening
-   * idempotent.
+   * Stable identity of the content: the address itself for an ordinary viewer,
+   * or the claiming type's page address for a `surface` type, whose one record
+   * stands for every address it takes. Two opens of the same identity are the
+   * same tab, which is what makes opening idempotent.
    */
   readonly contentId: string
   /** Title for the tab chip. */
   readonly title: string
+  /** Whether the claiming type owns the column's single surface (see `SidebarRightTabDefinition.surface`). */
+  readonly surface: boolean
 }
 
 /** A registered type with its patterns compiled. */
@@ -372,13 +382,13 @@ export class SidebarRightTabRegistry {
       if (definition.canOpen !== undefined && !definition.canOpen(address)) {
         throw new Error(`sidebarRight: tab type "${kind}" refuses "${address}"`)
       }
-      return { kind, contentId: address, title: definition.title(address) }
+      return settleClaim(definition, address)
     }
     const [chosen] = this.candidates(address)
     if (chosen === undefined) {
       throw new Error(`sidebarRight: no registered tab type claims "${address}"`)
     }
-    return { kind: chosen.kind, contentId: address, title: chosen.title(address) }
+    return settleClaim(chosen, address)
   }
 
   /**
@@ -398,4 +408,18 @@ export class SidebarRightTabRegistry {
       .sort((left, right) => left.order - right.order)
     notifySubscribers(this.listeners, '[ui-sidebar-right] tab registry')
   }
+}
+
+/**
+ * Turn a routing winner into the record to open. A `surface` type records its
+ * page address as the identity — one record for every address it takes — and
+ * titles it from that address, exactly as an `openTab` of the same kind does;
+ * an ordinary viewer records the address itself.
+ */
+function settleClaim(definition: SidebarRightTabDefinition, address: string): SidebarRightTabClaim {
+  if (definition.surface === true) {
+    const contentId = pageAddress(definition.kind)
+    return { kind: definition.kind, contentId, title: definition.title(contentId), surface: true }
+  }
+  return { kind: definition.kind, contentId: address, title: definition.title(address), surface: false }
 }

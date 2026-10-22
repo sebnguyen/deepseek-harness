@@ -54,13 +54,12 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-/* A mounted vscode tab is the pane's whole identity, and the singleton twin
-   layer (ui-layout's `shell.ide` seat) shows its glass workbench over this
-   card: the card's own surface would sit behind the transparent workbench as
-   a second, flat fill with square corners, so while the twin is mounted the
-   panel drops its chrome and the ocean reads straight through to the twin's
-   floating windows. */
-.panel[data-vscode-mounted] {
+/* A surface owns the column's whole card, and the workbench layer (ui-layout's
+   `shell.ide` seat) shows its glass frame over this one: the card's own surface
+   would sit behind the transparent workbench as a second, flat fill with square
+   corners, so while a surface owns the column the panel drops its chrome and the
+   ocean reads straight through. */
+.panel[data-surface-owned] {
   background: transparent;
   box-shadow: none;
 }

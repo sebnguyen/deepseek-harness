@@ -28,6 +28,9 @@ export function vscodeDefinition(): SidebarRightTabDefinition {
     patterns: ['dsh-resource://file/**'],
     priority: 'extension',
     canOpen: address => parseFileAddress(address)?.scope === 'session',
+    // The twin owns the column: its workbench has its own editor tabs, so every
+    // file lands on this one record and the address travels as navigation.
+    surface: true,
     title: basenameOf,
   }
 }

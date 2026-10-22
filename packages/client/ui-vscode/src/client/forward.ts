@@ -60,11 +60,15 @@ export type VscodeForwardSend = (request: VscodeForwardRequest) => void
 
 /**
  * Forward the current file address to the session twin on each change.
- * Fires strictly per new address (deduped) and only while the twin is
+ * Fires once per address-and-navigation (deduped) and only while the twin is
  * ready; spec-covered through {@link forwardRequestOf}.
+ * @param address - the tab's current navigation address.
+ * @param revision - that navigation's revision, so re-opening the same file
+ *   forwards again instead of looking like a re-render.
  */
 export function useVscodeAddressForward(
   address: string,
+  revision: number,
   ready: boolean,
   workspaceRoot: string | null,
   send: VscodeForwardSend,
@@ -80,7 +84,9 @@ export function useVscodeAddressForward(
       vscodeInfo('forward:skip (address does not translate)', { address, workspaceRoot })
       return
     }
-    const key = `${request.sessionId}:(${request.path})`
+    // `revision` counts navigations, so re-opening the SAME file forwards
+    // again: the address alone cannot tell a second click from a re-render.
+    const key = `${request.sessionId}:(${request.path})#${revision}`
     if (last.current === key) {
       // The dedupe is unbreakable: a click whose key was already sent —
       // regardless of how that send ended — emits nothing. Loud breadcrumb
@@ -92,5 +98,5 @@ export function useVscodeAddressForward(
     last.current = key
     vscodeInfo('forward:send', { sessionId: request.sessionId, path: request.path })
     send(request)
-  }, [address, ready, workspaceRoot, send])
+  }, [address, revision, ready, workspaceRoot, send])
 }

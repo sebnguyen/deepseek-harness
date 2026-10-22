@@ -17,6 +17,8 @@ describe('vscodeDefinition', () => {
     expect(def.id).toBe(VSCODE_ID)
     expect(def.kind).toBe(VSCODE_KIND)
     expect(def.priority).toBe('extension')
+    // One record for the column: the file address rides navigation, not identity.
+    expect(def.surface).toBe(true)
     expect(def.canOpen?.('dsh-resource://file/session/s1/dir/f.ts')).toBe(true)
     expect(def.canOpen?.('dsh-resource://file/absolute/dir/f.ts')).toBe(false)
     expect(def.canOpen?.('sidebar://vscode')).toBe(false)

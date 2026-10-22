@@ -92,6 +92,12 @@ export interface OpenContentIntent {
   readonly replaceTab?: TabId
   /** Resource tabs reveal an existing identity by default; `false` permits duplicates. Pages always deduplicate within the target pane. */
   readonly revealIfOpened?: boolean
+  /**
+   * This open targets a `surface` type: the identity is already that type's page
+   * address, so deduplicate across the whole column (not within one pane) and
+   * keep the kit's cross-pane reveal — one record for the surface is the point.
+   */
+  readonly surface?: boolean
 }
 
 /** A mint that counts, so the surface can carry its position forward. */
@@ -322,7 +328,10 @@ export function createSidebarRightStore(
           // The same page in another pane never draws the open away — the kit's
           // cross-pane reveal is for resources only.
           const page = contentId === pageAddress(kind)
-          const held = page ? panePage(state, paneId ?? activeDockPaneId(state), kind) : undefined
+          // A surface type's one record may live in any pane, so it keeps the
+          // kit's cross-pane reveal instead of the per-pane page lookup below.
+          const surfaceOwned = intent.surface === true
+          const held = page && !surfaceOwned ? panePage(state, paneId ?? activeDockPaneId(state), kind) : undefined
           const planned = held !== undefined
             ? { ops: [{ type: 'focusTab' as const, tabId: held }], tabId: held }
             : planOpenContent(state, mint, {
@@ -331,9 +340,11 @@ export function createSidebarRightStore(
               title,
               ...paneId === undefined ? {} : { paneId },
               ...index === undefined ? {} : { index },
-              ...page
-                ? { revealIfOpened: false }
-                : intent.revealIfOpened === undefined ? {} : { revealIfOpened: intent.revealIfOpened },
+              ...surfaceOwned
+                ? {}
+                : page
+                  ? { revealIfOpened: false }
+                  : intent.revealIfOpened === undefined ? {} : { revealIfOpened: intent.revealIfOpened },
             })
           ops.push(...planned.ops)
           if (replace !== undefined && replace !== planned.tabId) ops.push({ type: 'closeTab', tabId: replace })

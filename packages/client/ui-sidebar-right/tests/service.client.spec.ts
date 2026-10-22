@@ -288,6 +288,36 @@ describe('SidebarRightController — opening', () => {
     expect(occurrence.navigation.getSnapshot()).toEqual({ address: 'dsh-resource://file/session/s-test/a.txt', params: undefined, revision: 2 })
   })
 
+  it('lands every address a surface type claims on its one record, navigating that record', () => {
+    const { controller, publish, layout, tabs, tabOf } = harness()
+    tabs.register({
+      id: 'test/workbench',
+      kind: 'workbench',
+      patterns: ['dsh-resource://file/**'],
+      priority: 'extension',
+      title: () => 'workbench',
+      surface: true,
+    })
+    publish()
+    controller.openResource('dsh-resource://file/session/s-test/a.txt')
+    publish()
+    const record = tabOf('workbench')
+
+    controller.openResource('dsh-resource://file/session/s-test/b.txt')
+    publish()
+
+    // One record for the whole surface: the second file refocused the first,
+    // which is what keeps the workbench document alive across file clicks.
+    expect(Object.values(layout().tabs).filter(tab => tab.kind === 'workbench')).toHaveLength(1)
+    expect(tabOf('workbench')).toBe(record)
+    // The second file is that record's navigation, not a second record.
+    expect(controller.tabDomain.occurrence(SESSION, { id: record }).navigation.getSnapshot()).toEqual({
+      address: 'dsh-resource://file/session/s-test/b.txt',
+      params: undefined,
+      revision: 2,
+    })
+  })
+
   it('closes a tab of the mounted session', () => {
     const { controller, publish, tabOf, titles } = harness()
     publish()

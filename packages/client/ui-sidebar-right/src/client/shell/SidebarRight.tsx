@@ -36,7 +36,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '../contract/slots.ts'
 import type { DockIntents, DockMode, FloatRect, TabId, TabRecord, TabRenderer } from '@deepseek-ai/dsh-client-ui-dockkit'
-import { canSplit, dockPaneIds, DockSurface, findPaneContentTab, FloatLayer } from '@deepseek-ai/dsh-client-ui-dockkit'
+import { canSplit, dockPaneIds, DockSurface, findPaneContentTab, FloatLayer, getPane } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { HalvesFit, LayoutState, PaneId } from '@deepseek-ai/dsh-client-ui-dockkit'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { GUIDE_KIND, pageAddress } from '../contract/seed.ts'
@@ -55,6 +55,7 @@ type Store = PropsStore<ReturnType<typeof createSidebarRightStore>>
 
 /** The child seats this component renders. */
 type Children = PropsRenderSlots<
+  | 'rightbar.surface'
   | 'sidebar.right.pane.tab'
   | 'sidebar.right.pane.tab.title'
   | 'sidebar.right.tab.menu.item'
@@ -127,6 +128,7 @@ interface PanelProps {
   readonly actions: Store['actions']
   readonly t: RightbarSeatProps['t']
   readonly renderSlot: Children['renderSlot']
+  readonly renderSlotChain: Children['renderSlotChain']
   readonly openTab: SidebarRightInjected['openTab']
   readonly useTabTypes: RightbarSeatProps['useTabTypes']
   readonly useTabNavigation: RightbarSeatProps['useTabNavigation']
@@ -293,24 +295,52 @@ function PanelChrome({ sessionId, fullscreen, autoFullscreen, actions, t }: Pick
  * anchored to the frame's right edge and slid off it while collapsed.
  */
 function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<HTMLDivElement> }): ReactNode {
-  const { sessionId, surface, actions, t, renderSlot, openTab, width, reportRoom, fullscreen, autoFullscreen, panelRef } = panel
+  const {
+    sessionId, surface, actions, t, renderSlot, renderSlotChain, openTab, width, reportRoom, fullscreen, autoFullscreen,
+    panelRef, useTabTypes,
+  } = panel
   const { expanded } = surface.layout
-  // A mounted vscode tab brings the twin's own Explorer; the harness tree
-  // would double the file traversal, so this column goes away with it and
-  // returns the moment the last vscode tab closes.
-  const vsMounted = Object.values(surface.layout.tabs).some(tab => tab.kind === 'vscode')
-  // The twin is the pane's entire identity while it occupies it: the tab
-  // strip (chips, add/split controls) yields, and its corner controls drop
-  // down into a floating corner overlay over the workbench itself.
-  const stripHidden = vsMounted
+  // The active docked tab decides the column's content. A tab whose type
+  // declared itself a surface owns the column outright, so the dock leaves the
+  // tree instead of being asked to draw behind it. A floated tab keeps its
+  // float layer's body and never elects here.
+  const activePane = getPane(surface.layout, surface.layout.activePaneId)
+  const activeTab = activePane.activeTabId === undefined ? undefined : surface.layout.tabs[activePane.activeTabId]
+  const surfaceKind = useTabTypes(types => activeTab === undefined || activePane.host !== 'dock'
+    ? undefined
+    : types.find(definition => definition.kind === activeTab.kind && definition.surface === true)?.kind)
+  const elected = surfaceKind !== undefined
   const chrome = <PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />
+  const renderBody = bodiesFor(panel)
+  // The dock is the column's fallback, not its host: an entry that elects itself
+  // replaces this subtree, so none of it — strip, split controls, explorer — is
+  // mounted while a surface owns the column.
+  const dock = (
+    <DockSurface
+      state={surface.layout}
+      canSplit={canSplit(surface.layout) && dockPaneIds(surface.layout).length < 2}
+      hideSplitWhenBlocked
+      dropZones="horizontal"
+      minPaneFraction={0.2}
+      canAddTab={paneId => guideIn(surface.layout, paneId) === undefined}
+      canCloseTab={tabId => canCloseTab(surface, tabId)}
+      intents={intentsFor(sessionId, actions, openTab)}
+      labels={dockLabels(t)}
+      renderTab={renderBody}
+      renderTabTitle={titlesFor(panel)}
+      renderTabMenuItems={(tab, dismiss) =>
+        renderSlot('sidebar.right.tab.menu.item', { tab, dismiss })}
+      chrome={chrome}
+      onRoom={reportRoom}
+    />
+  )
   return (
     <div
       ref={panelRef}
       className={css.panel}
       style={{ width: fullscreen ? '100%' : width }}
       data-sidebar-right-panel={fullscreen ? 'fullscreen' : 'push'}
-      data-vscode-mounted={vsMounted || undefined}
+      data-surface-owned={elected || undefined}
       data-sidebar-right-open={expanded || undefined}
       // Off-edge is out of reach: the stylesheet's visibility flip takes the
       // hidden panel out of the tab order, and this takes it out of the
@@ -319,31 +349,17 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
     >
       <div className={css.panelBody}>
         <div className={css.dockArea}>
-          <DockSurface
-            state={surface.layout}
-            canSplit={canSplit(surface.layout) && dockPaneIds(surface.layout).length < 2}
-            hideSplitWhenBlocked
-            dropZones="horizontal"
-            minPaneFraction={0.2}
-            canAddTab={paneId => guideIn(surface.layout, paneId) === undefined}
-            canCloseTab={tabId => canCloseTab(surface, tabId)}
-            intents={intentsFor(sessionId, actions, openTab)}
-            labels={dockLabels(t)}
-            renderTab={bodiesFor(panel)}
-            renderTabTitle={titlesFor(panel)}
-            renderTabMenuItems={(tab, dismiss) =>
-              renderSlot('sidebar.right.tab.menu.item', { tab, dismiss })}
-            chrome={stripHidden ? undefined : chrome}
-            hideTabStrip={stripHidden}
-            onRoom={reportRoom}
-          />
-          {stripHidden && (
+          {renderSlotChain('rightbar.surface', {
+            surface: surfaceKind,
+            body: activeTab === undefined ? undefined : renderBody(activeTab),
+          }, { fallback: dock })}
+          {elected && (
             <div className={css.panelChromeFloat}>
               {chrome}
             </div>
           )}
         </div>
-        {!vsMounted && (
+        {!elected && (
           <div className={css.explorer} data-sidebar-right-explorer>
             {renderSlot('sidebar.right.explorer', {})}
           </div>
@@ -379,8 +395,8 @@ function Floats(panel: PanelProps): ReactNode {
  * which session it is acting on, because this is the seat that knows both.
  */
 export function RightbarSeat({
-  sessionId, width, viewportWidth, canShow, useStore, actions, t, renderSlot, syncPresentation, bindService, openTab,
-  useTabTypes, useTabNavigation, occurrence,
+  sessionId, width, viewportWidth, canShow, useStore, actions, t, renderSlot, renderSlotChain, syncPresentation,
+  bindService, openTab, useTabTypes, useTabNavigation, occurrence,
 }: RightbarSeatProps): ReactNode {
   // One store instance per session, so this map holds this session's surface.
   // The binding published below serves the public face's commands on the
@@ -444,7 +460,7 @@ export function RightbarSeat({
 
   if (surface === undefined) return null
   const panel: PanelProps = {
-    sessionId, actions, t, renderSlot, surface, openTab, useTabTypes, useTabNavigation, useStore, occurrence,
+    sessionId, actions, t, renderSlot, renderSlotChain, surface, openTab, useTabTypes, useTabNavigation, useStore, occurrence,
     fullscreen, autoFullscreen, reportRoom,
   }
   return (

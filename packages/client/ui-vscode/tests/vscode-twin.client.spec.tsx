@@ -46,17 +46,22 @@ function statusFailing(message: string): VscodeBodyProps['status'] {
   return statusWith({ enabled: true, ready: false, url: null, tkn: null, workspaceRoot: null, detail: message })
 }
 
-function props(session: string, status: VscodeBodyProps['status'], contentId = 'sidebar://vscode'): VscodeBodyProps {
+function props(session: string, status: VscodeBodyProps['status'], address = 'sidebar://vscode', revision = 0): VscodeBodyProps {
   return {
-    useTabInfo: () => ({ tab: { contentId } }),
+    useTabInfo: () => ({
+      tab: {
+        contentId: 'sidebar://vscode',
+        navigation: { address, params: undefined, revision },
+      },
+    }),
     sessionId: session as SessionId,
     status,
     t,
   } as unknown as VscodeBodyProps
 }
 
-function view(session: string, status: VscodeBodyProps['status'], contentId = 'sidebar://vscode') {
-  return render(<VscodeBody {...props(session, status, contentId)} />)
+function view(session: string, status: VscodeBodyProps['status'], address = 'sidebar://vscode') {
+  return render(<VscodeBody {...props(session, status, address)} />)
 }
 
 /** The one seat occupant per test, as ui-layout renders it in the product. */

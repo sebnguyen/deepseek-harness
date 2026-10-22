@@ -1,10 +1,6 @@
 # Agent Note: VS Code twin identity hardened; parked frames retained, readyCache removed
 
-Status: implemented (revised)
-
-## Revision
-
-The first pass of this note moved the iframe into the session scope (inline frames, no parking). That broke file-open: clicking a file forwards an open event, but the vscode body unmounts on the tab/visibility change, destroying the iframe mid-open. This revision restores the root-scoped parked-frame model (TwinFrame in shell.ide, LRU cap 3) so the workbench survives switches, while keeping the identity hardening: per-spawn tokens, direct node spawn, and no readyCache.
+Status: implemented
 
 ## Problem
 
@@ -15,7 +11,7 @@ The VS Code twin was mounted as a root-scoped `TwinFrame` in ui-layout's positio
 - Twin identity was three uncoordinated copies (argv token, bridge.json, iframe URL) with no epoch, so orphans from a dead host re-entered the bridge seat race.
 - The sh launcher (`bin/code-server-oss`) does not `exec` node, so the host's subprocess handle tracked the shell while the real REH became an orphan on every host death.
 
-## Decision (final)
+## Decision
 
 Retain the root-scoped parked-frame model (TwinFrame in shell.ide, LRU cap 3) so the workbench survives tab/visibility switches and file-open lands. Apply the identity hardening on top:
 
@@ -24,7 +20,7 @@ Retain the root-scoped parked-frame model (TwinFrame in shell.ide, LRU cap 3) so
 - No readyCache (client): every mount re-polls, so a host restart can never resurrect a stale src; the parked frame with the old token is parked (display:none) and evicted when a new src is published.
 - TwinFrame keeps its record map, boot cover, and focus guard.
 
-The earlier 'move iframe into session scope' attempt is reverted: inline frames destroyed the workbench on tab switch, breaking file-open.
+This states the amendment: the first pass moved the iframe into the session scope (inline frames, no parking) and broke file-open, because clicking a file forwards an open event while the vscode body unmounts on the tab/visibility change, destroying the iframe mid-open. Parking the frame at the root is what makes the forward survive, so that attempt is reverted.
 
 ## API changes
 
@@ -46,3 +42,14 @@ Host (`@deepseek-ai/dsh-api-ide`):
 - Layered liveness watch (HTTP probe every ~2s + bridge-attach grace + capped respawns) and adopt-or-kill on ensure: not implemented in this pass; the direct-spawn + per-spawn-token changes remove the orphan fleet and the seat race, and the client no longer caches stale src. Full liveness reconciliation remains a follow-up.
 - The parked-frame cap (3) is a heuristic pinned to the observed three-workspace cycle; it stays as-is.
 - A respawn rotates the token, so a parked frame for that workspace is re-pointed to a new record on the next publication rather than reusing the stale one; the old record falls out of the LRU.
+
+## Alternatives considered
+
+- **Move the iframe into the session scope** (the reverted first pass): the frame then tracks tab identity exactly, but every tab or visibility change unmounts it, which destroys the workbench document mid-open. File-open is the product's primary use, so this loses.
+- **Keep `readyCache` and invalidate it on publication:** there is no reliable invalidation signal for a twin respawn — the client cannot distinguish "same twin" from "new twin at the same URL" — so any cache can serve a src whose token is already dead. Re-polling on every mount removes the class instead of narrowing it.
+- **Keep the workspace-stable pinned token (`stableTwinToken`):** a pinned token admits every live twin for that workspace at once, so orphans keep passing the bridge handshake. A per-spawn token makes a dead twin's frames fail closed.
+
+## Consequences
+
+- Bought: the workbench survives tab switches, session switches, and the body remounts that preceded this note; an orphaned twin can no longer hold the bridge seat; a host restart cannot resurrect a stale src.
+- Cost: up to three dead workbench documents stay mounted (parked, `display:none`) until the LRU evicts them; every body mount pays one status round trip before the frame appears; a respawn invalidates every open frame, which re-point only on the next publication.

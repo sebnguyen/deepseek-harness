@@ -177,7 +177,24 @@ describe('SidebarRightTabRegistry — claiming', () => {
       kind: 'text',
       contentId: 'dsh-resource://file/session/s/a.txt',
       title: 'text:dsh-resource://file/session/s/a.txt',
+      surface: false,
     })
+  })
+
+  it('gives a surface type one identity — its page address, titled from it', () => {
+    const registry = new SidebarRightTabRegistry(new Context())
+    registry.register(typeFor('workbench', ['dsh-resource://file/**'], { surface: true }))
+    const first = registry.claim('dsh-resource://file/session/s/a.txt')
+    const second = registry.claim('dsh-resource://file/session/s/b.txt')
+    expect(first).toEqual({
+      kind: 'workbench',
+      contentId: 'sidebar://workbench',
+      title: 'workbench:sidebar://workbench',
+      surface: true,
+    })
+    // Two different files are one record, which is what makes the second open a
+    // refocus instead of a second tab.
+    expect(second.contentId).toBe(first.contentId)
   })
 
   it('reads the title fresh, so a language change needs no re-registration', () => {

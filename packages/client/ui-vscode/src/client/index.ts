@@ -12,13 +12,14 @@
  * host face contributes nothing; status reads run straight through the
  * injected `ideBridge` remote namespace.
  */
+import type { ReactNode } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
-import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import type { RightbarSurfaceOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { VscodeBody, type VscodeInjected } from './VscodeBody.tsx'
 import { TwinFrame } from './twin.tsx'
 import { vscodeInfo, vscodeWarn } from './log.ts'
@@ -44,6 +45,20 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
  * carrier with its `ideBridge` namespace.
  */
 export const inject = ['slots', 'locale', 'sidebarRightTabs', 'sidebarRight', 'remote', 'remote.ideBridge']
+
+/**
+ * The column while a surface type owns it.
+ *
+ * The election is this package's claim on `rightbar.surface`; the markup is the
+ * surface tab's body, which the seat dispatched through
+ * `sidebar.right.pane.tab` and handed over as an owner prop. Drawing it here is
+ * what lets the dock leave the tree while the workbench shows.
+ * @param props - the seat's owner share.
+ * @returns the elected body.
+ */
+function SurfaceColumn({ body }: PropsRuntime<'rightbar.surface'>): ReactNode {
+  return body
+}
 
 /**
  * Client plugin body: register the type, its dictionaries, and its body.
@@ -87,6 +102,17 @@ export function apply(ctx: ClientContext): void {
     },
     VscodeBody,
   )), 'ui-vscode: vscode body')
+
+  // The twin owns the column whenever its own tab type owns the active tab. The
+  // seat reads that from the type's declared `surface` flag, so this package is
+  // the only place the `vscode` kind decides anything about the column.
+  ctx.effect(() => ctx.slots.inject('rightbar.surface', () => ctx.slots.register(
+    {
+      name: 'rightbar.surface',
+      select: ({ surface }: RightbarSurfaceOwnerProps) => surface === VSCODE_KIND ? {} : null,
+    },
+    SurfaceColumn,
+  )), 'ui-vscode: column surface election')
 
   // The frame cache lives one scope above the session-bound bodies: the
   // root-scoped positional seat mounts once per app, so a session switch only

@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent } from '@testing-library/react'
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -128,6 +129,38 @@ describe('RightbarSeat presentation', () => {
     act(() => { h.runtime.panelInfo.set({ activePanelId: null }) })
     expect(h.view.container.querySelector('[data-sidebar-right-panel]')).not.toBeNull()
     expect(h.layout()).toBe(retained)
+  })
+
+  it('lets a declared surface own the column, unmounting the dock rather than hiding it', async () => {
+    const h = await mountSeat()
+    await act(async () => {
+      h.runtime.ctx.sidebarRightTabs.register({
+        id: 'test/workbench', kind: 'workbench', priority: 'extension', patterns: ['dsh-resource://file/**'],
+        surface: true, title: () => 'workbench',
+      })
+      h.runtime.slots.register({ name: 'sidebar.right.pane.tab', key: 'test/workbench' },
+        ({ useTabInfo }: PropsRuntime<'sidebar.right.pane.tab'>) => <span data-workbench-body={useTabInfo().tab.id} />)
+      // The surface type's own claim on the column, exactly as a viewer package
+      // makes it: a pure selector over the owner props.
+      h.runtime.slots.register({
+        name: 'rightbar.surface',
+        select: ({ surface }: { surface: string | undefined }) => surface === 'workbench' ? {} : null,
+      }, ({ body }: { body: ReactNode }) => <span data-surface-column>{body}</span>)
+    })
+    // No surface owns the column yet: the dock draws its strip.
+    expect(h.view.container.querySelector('[data-dockkit-tab]')).not.toBeNull()
+    expect(h.view.container.querySelector('[data-surface-column]')).toBeNull()
+
+    h.open('a.txt')
+    await act(async () => {})
+
+    // The workbench type claimed the file, so its surface owns the column: the
+    // strip and the explorer column are gone from the tree, not hidden in it.
+    expect(h.view.container.querySelector('[data-surface-owned]')).not.toBeNull()
+    expect(h.view.container.querySelector('[data-surface-column]')).not.toBeNull()
+    expect(h.view.container.querySelector('[data-dockkit-tab]')).toBeNull()
+    expect(h.view.container.querySelector('[data-sidebar-right-explorer]')).toBeNull()
+    expect(h.view.container.querySelector('[data-workbench-body]')).not.toBeNull()
   })
 
   it('opens on the guide and protects it while it is the docked surface\'s only tab', async () => {
