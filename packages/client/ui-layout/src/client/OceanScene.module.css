@@ -1,8 +1,9 @@
-/* Ocean scene: god-ray shafts, a dot grid and a sun core — the app's global
+/* Ocean scene: a static dot lattice over the sea gradient — the app's global
    background, painted at z-index -1 inside ui-layout's isolated .frame: above
    the frame's opaque base fill, below every floating card. All palette values
    come from the ui-theme ocean-scene sheet (--dsh-ocean-*), which flips per
-   theme. */
+   theme. Every layer here is static: the scene repaints only when the
+   viewport or the theme changes. */
 
 .scene {
   position: absolute;
@@ -10,65 +11,8 @@
   z-index: -1;
   overflow: hidden;
   pointer-events: none;
-  /* The sea gradient the scene paints on; the rays and dot grid sit in it. */
+  /* The sea gradient the scene paints on; the dot lattice sits in it. */
   background: var(--dsh-ocean-sea);
-}
-
-/* ray fan host: bloom/saturation are driven by OceanScene's shine loop */
-.rays {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  filter: saturate(var(--raySat, 1));
-}
-
-/* boost layer: an extra DO-blue shaft per ray; the shine loop only writes
-   its collective opacity, so inferencing deepens blue instead of clipping
-   white through a brightness() filter */
-.boost {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: opacity .4s ease;
-}
-
-/* one shaft: a vertical strip hinged on the sun point (origin 50% 0) */
-.ray,
-.boostRay {
-  position: absolute;
-  top: 0;
-  height: 190vh;
-  display: block;
-  opacity: .45;
-  transform-origin: 50% 0;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, black 16%, black 84%, transparent 100%);
-  animation: raysway var(--sw, 26s) var(--ds-ease-in-out, ease-in-out) infinite alternate;
-}
-.boostRay {
-  background: linear-gradient(180deg,
-    var(--dsh-ocean-ray-boost) 0%,
-    color-mix(in srgb, var(--dsh-ocean-ray-boost) 55%, transparent) 36%,
-    transparent 76%);
-  opacity: .9;
-}
-
-@keyframes raysway {
-  from { transform: rotate(calc(var(--r) - 1.4deg)); }
-  to { transform: rotate(calc(var(--r) + 1.4deg)); }
-}
-
-/* blurred halo at the fan's hinge point */
-.suncore {
-  position: absolute;
-  width: 220px;
-  height: 220px;
-  margin: -110px 0 0 -110px;
-  border-radius: 50%;
-  background: radial-gradient(closest-side, var(--dsh-ocean-ray-b), transparent 70%);
-  filter: blur(38px);
-  opacity: .45;
 }
 
 /* gridspace does not use perspective — zoom-fading layers stand in for
@@ -77,8 +21,8 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  /* the sheet sits ABOVE the rays and blends additively: ray glow passing
-     underneath adds into the dots, so the grid shines wherever a ray is on it */
+  /* the sheet sits above the sea gradient and blends additively: light
+     passing underneath adds into the dots */
   mix-blend-mode: screen;
 }
 /* a single STATIC sheet the size of the viewport — one compositor layer,
@@ -91,17 +35,17 @@
   inset: 0;
   background-position: center;
   background-repeat: repeat;
-  opacity: 0;
 }
 .glayerA {
+  opacity: .32;
   background-image: radial-gradient(circle, var(--dsh-ocean-grid-a) 0 1px, transparent 2.4px);
   background-size: 32px 32px;
 }
 .glayerB {
+  opacity: 0;
   background-image: radial-gradient(circle, var(--dsh-ocean-grid-b) 0 1.4px, transparent 3.4px);
   background-size: 46px 46px;
 }
-
 
 /* readability veil; dense variant deepens while a transcript owns the
    centre — the global scene keeps the light veil in every phase. */
@@ -117,7 +61,7 @@
 
 /* depth attenuation: two alpha-curves that dim the scene the way water
    dims sunlight — a gentle linear sink toward the ocean floor (never fully
-   opaque, so rays which do reach stay visible) and a radial scatter fog
+   opaque, so the lattice below stays visible) and a radial scatter fog
    centered on the sun's projection, so light fades with distance from its
    source the way it fades with depth. */
 .fades {
@@ -134,21 +78,4 @@
       transparent 42%,
       color-mix(in srgb, var(--dsw-alias-bg-base) 16%, transparent) 70%,
       color-mix(in srgb, var(--dsw-alias-bg-base) 32%, transparent) 100%);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ray,
-  .boostRay {
-    animation: none;
-  }
-}
-
-/* shader canvas: the GPU renderer paints sea, rays, halo and grid in one
-   fullscreen pass; the DOM fallback hosts stay empty beside it. */
-.gl {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  display: block;
 }

@@ -26,8 +26,7 @@ all findings below were verified against `deepseek-harness` only.
   no React-ecosystem library deps (only react/react-dom in package.json). `react-dom/client`
   used in ~3 files (`packages/client/web/src/seed.ts`, `platform.ts`, `ui-renderer/src/client/index.ts`).
 - Escape hatches needing per-site attention in any port: 17 `createPortal` call sites,
-  58 `.innerHTML` writes + 4 `dangerouslySetInnerHTML`, WebGL ocean scene
-  (`ui-layout/src/client/OceanScene.tsx` + `ocean-shader.ts`), and imperative embeds of
+  58 `.innerHTML` writes + 4 `dangerouslySetInnerHTML`, and imperative embeds of
   CodeMirror 6, mermaid, KaTeX, shiki, pdfjs-dist.
 - Tests: ~407 spec files under `packages/client`, ~178 importing `@testing-library/react`;
   coverage gate explicitly exempts large UI areas (see `vitest.config.ts` `TODO(gui)` block) →

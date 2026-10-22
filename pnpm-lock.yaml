@@ -3758,10 +3758,6 @@ importers:
         version: 18.3.1
 
   packages/client/ui-layout:
-    dependencies:
-      twgl.js:
-        specifier: ^7.0.0
-        version: 7.0.0
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:^
@@ -19323,8 +19319,6 @@ packages:
     resolution: {integrity: sha512-I8yFsfRzmzK0WV1pNNOA4A7y4RDfFxPRxb3t+e3ui14qSGOxGtiSP6GjeX+Y6CHb7HYaFj7ECUD7VE5kQMZWGQ==}
     engines: {node: '>=18', npm: '>=9'}
 
-  twgl.js@7.0.0:
-    resolution: {integrity: sha512-9HHZ8emdZb2nKPU0FDIGDlkp6AD9rWFv7ThqdbmUqyBhD3WTQpLN+89w4B+YshGwD1fL6PMVpVKZqC0pikgmcA==}
 
   type-check@0.4.0:
     resolution: {integrity: sha512-XleUoc9uwGXqjWwXaUTZAmzMcFZ5858QA2vvx1Ur5xIcixXIP+8LnFDgRplU30us6teqdlskFfu+ae4K79Ooew==}
@@ -26955,7 +26949,6 @@ snapshots:
     dependencies:
       '@mixmark-io/domino': 2.2.0
 
-  twgl.js@7.0.0: {}
 
   type-check@0.4.0:
     dependencies:

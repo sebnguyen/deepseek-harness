@@ -151,14 +151,6 @@ export function AppFrame({
   const swapped = layoutInfo.swapped
   const frameRef = useRef<HTMLDivElement | null>(null)
   const viewport = layoutInfo.viewportWidth
-  /* Engine state feeding the global ocean scene's inference boost: the current
-     session's list-row running flag (list and selection ride one snapshot, so
-     the selector follows session switches without a second subscription). */
-  const engineRunning = useSessions((s) => {
-    const current = s.current
-    return current === undefined ? false : (s.byId[current]?.running ?? false)
-  })
-
   // Track the frame's own box (not the window): rAF-throttled ResizeObserver.
   useLayoutEffect(() => {
     const el = frameRef.current
@@ -258,9 +250,8 @@ export function AppFrame({
       data-dragging={dragging || undefined}
     >
       {/* The ambient DO ocean scene: the app's global background, painted
-          behind the floating cards; its inference boost climbs while the
-          current session's engine runs. */}
-      <OceanScene running={engineRunning} dense={false} />
+          behind the floating cards as static layers. */}
+      <OceanScene dense={false} />
       <DocumentTitle
         productTitle={productTitle}
         useSessions={useSessions}
