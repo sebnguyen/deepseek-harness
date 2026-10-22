@@ -227,7 +227,7 @@ describe('twin state layout', () => {
     expect([first.workspaceKey, second.workspaceKey].sort()).toEqual(['/repo-a', '/repo-b'])
   })
 
-  it('adopts pre-slot token and port pins from the shared .dsh root into the twin slot', async () => {
+  it('adopts the legacy port pin (but mints a fresh token) from the shared .dsh root', async () => {
     const sessions = [{ id: 's1', header: { cwd: '/repo' } }]
     const { ide, dist } = await harnessSlots(sessions)
     const legacyRoot = join(dist, '.dsh')
@@ -238,12 +238,12 @@ describe('twin state layout', () => {
 
     const status = await ide.status('s1', new AbortController().signal)
     expect(status.ready).toBe(true)
-    expect(status.tkn).toBe(legacyToken)
+    // Per-spawn secret: a respawn never reuses a legacy token.
+    expect(status.tkn).not.toBe(legacyToken)
+    expect(status.tkn).toMatch(/^[A-Za-z0-9_-]{32}$/)
 
     const slot = join(dist, '.dsh', twinStateDirName('/repo'))
-    expect((await readFile(join(slot, twinTokenPinName('/repo')), 'utf8')).trim()).toBe(legacyToken)
     const pin = Number.parseInt((await readFile(join(slot, TWIN_PORT_PIN_BASENAME), 'utf8')).trim(), 10)
     expect(Number.isInteger(pin)).toBe(true)
-    await expect(readFile(join(legacyRoot, twinTokenPinName('/repo')), 'utf8')).rejects.toThrow()
   })
 })

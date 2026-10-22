@@ -19,7 +19,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
-import { BootHero, useTwinIntent } from './twin.tsx'
+import { BootHero, TwinFrame } from './twin.tsx'
 import { useVscodeAddressForward, type VscodeForwardRequest } from './forward.ts'
 import { vscodeDebug, vscodeWarn } from './log.ts'
 import type { IdeBridgeStatus, IdeOpenRequest } from './rpc.ts'
@@ -52,19 +52,6 @@ export type VscodeBodyProps =
   & PropsLocale<'vscode'>
 
 /**
- * Last ready answer per session id, kept module-level so a session switch —
- * which remounts this body per the seat's contract — paints the ready
- * branch (and therefore re-points the singleton frame) immediately instead
- * of re-showing the boot hero for one poll cycle.
- */
-const readyCache = new Map<string, IdeBridgeStatus>()
-
-/** Drop every cached ready answer; specs start from a cold cache. */
-export function resetVscodeReadyCache(): void {
-  readyCache.clear()
-}
-
-/**
  * The vscode type's body, registered under `sidebar.right.pane.tab`.
  * @param props - composed slot props.
  * @returns the state line standing in for the twin, or nothing once ready.
@@ -78,7 +65,7 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
     const parsed = parseFileAddress(tab.contentId)
     return parsed?.scope === 'session' ? parsed.sessionId as SessionId : scopeSessionId
   }, [tab.contentId, scopeSessionId])
-  const [state, setState] = useState<IdeBridgeStatus | undefined>(readyCache.get(sessionId))
+  const [state, setState] = useState<IdeBridgeStatus | undefined>(undefined)
   // Transition-only breadcrumbs: the poll fires every POLL_MS, but only a
   // ready flip says something new about why clicks can/cannot reach a twin.
   const lastLoggedReady = useRef<boolean | undefined>(undefined)
@@ -108,7 +95,10 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
           detail: next.detail,
         })
       }
-      if (next.ready) readyCache.set(sessionId, next)
+      if (next.ready) {
+        // no cache: each mount re-polls so a host restart can never resurrect
+        // a stale src. Correctness over the boot-hero flash.
+      }
       setState(next)
     }
     void tick()
@@ -120,19 +110,6 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
     }
   }, [sessionId, status])
 
-  // The singleton frame's src, published for as long as this body is mounted:
-  // the release clears only this body's own publication.
-  // dshGlass: the twin runs in glass-frame mode, composited transparent over
-  // the harness page behind its iframe (the chat-window look).
-  const src = state !== undefined && state.ready && state.url !== null && state.tkn !== null
-    ? `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}&dshGlass=1`
-    : null
-  useTwinIntent(src)
-
-  // File forwarding: the tab's current file address arrives at the twin's
-  // editor while the twin is ready. State misses (not-ready, no root) are
-  // dropped on the floor — the extension-side seat would have no twin to
-  // address anyway.
   const ready = state !== undefined && state.ready && state.tkn !== null
   const workspaceRoot = ready ? state.workspaceRoot : null
 
@@ -163,7 +140,9 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
       />
     )
   }
-  // Ready: the singleton in the positional seat shows the workspace frame;
-  // this body owns nothing visible past publication.
-  return null
+  // Ready: render the workspace frame inline. Each session switch remounts
+  // this body, so the frame (and its document) is recreated with a fresh src
+  // from the latest poll — no parked custody, no stale-cache ghosts.
+  const frameSrc = `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}&dshGlass=1`
+  return <TwinFrame src={frameSrc} t={t} />
 }

@@ -14,6 +14,7 @@
 
 import { createServer } from 'node:net'
 import { mkdir } from 'node:fs/promises'
+import { randomBytes } from 'node:crypto'
 import { renameSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
@@ -35,7 +36,7 @@ import type {
 } from './types.ts'
 import { resolveTwinDist } from './twin-dist.ts'
 import { pickStablePort, TWIN_PORT_PIN_BASENAME } from './twin-port.ts'
-import { stableTwinToken, twinStateDirName, twinTokenPinName } from './twin-token.ts'
+import { twinStateDirName } from './twin-token.ts'
 import { stageTwinProposedApis, stageVscodeBridgeExtension, stageVscodeBridgeIdentity, stageTwinTheme } from './twin-theme.ts'
 
 export type {
@@ -277,17 +278,17 @@ function createTwinManager(
         await mkdir(join(stateDir, 'server'), { recursive: true })
         await mkdir(join(stateDir, 'user'), { recursive: true })
         await mkdir(join(stateDir, 'exts'), { recursive: true })
-        // Layout migration: pre-slot spawns pinned the token and port at the
-        // shared `.dsh` root; adopt those pins into the slot so parked
-        // iframes keep their credentials and origins across this change.
+        // Layout migration: pre-slot spawns pinned the port at the shared
+        // `.dsh` root; adopt that pin into the slot so parked iframes keep
+        // their origins across this change. The token is no longer pinned:
+        // each spawn mints a fresh secret so an orphaned twin (left over
+        // from a dead host) presenting a stale token is rejected 403.
         const legacyRoot = join(config.dist, '.dsh')
-        await adoptLegacyPin(legacyRoot, stateDir, twinTokenPinName(workspaceKey))
         await adoptLegacyPin(legacyRoot, stateDir, TWIN_PORT_PIN_BASENAME)
-        // A workspace-pinned token keeps the client-visible identity stable
-        // across respawns: the tuple the spawner persists is workspaceKey →
-        // token, so a crashed twin comes back with the credentials every
-        // parked iframe already holds.
-        const token = await stableTwinToken(stateDir, workspaceKey)
+        // Per-spawn secret: a fresh token every time, so an orphaned twin
+        // (left over from a dead host) presenting a stale token is rejected
+        // 403 and its bridge backs off forever instead of winning the seat.
+        const token = randomBytes(24).toString('base64url')
         // A stable port keeps the iframe origin stable, which is what makes
         // the browser-side IndexedDB user settings survive a harness restart.
         const port = await pickStablePort(stateDir, config.dist) ?? await freePort()
@@ -317,7 +318,8 @@ function createTwinManager(
           const setup = new AbortController()
           const handle = ctx.subprocess.spawn({
             argv: [
-              join(config.dist, 'bin', 'code-server-oss'),
+              join(config.dist, 'node'),
+              join(config.dist, 'out', 'server-main.js'),
               '--host', '127.0.0.1',
               '--port', String(port),
               '--connection-token', token,
