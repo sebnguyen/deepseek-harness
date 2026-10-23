@@ -222,15 +222,26 @@ export class ClientSessions implements ISessions {
   private watched: SessionId | undefined
   /** Removed-while-staged sessions whose teardown waits for the stage to move away. */
   private readonly deferredRemovals = new Set<SessionId>()
+  /**
+   * Recency cap: only the most recent N listed sessions keep a live scope /
+   * instance / event window. Configurable; defaults to 5. The staged session
+   * and any session on the host list beyond the cap survive as list rows only.
+   */
+  private readonly recentCap: number
+  /** The N most-recent listed session ids retained as eligible (ranked by updatedAt desc). */
+  private keptSessionIds = new Set<SessionId>()
 
   /**
    * @param ctx - client root context (scope fibers mount under it).
    * @param remote - generated Remote namespaces shared with every Session.
+   * @param recentCap - listed sessions that keep a live scope/instance/window (default 5).
    */
   constructor(
     private readonly rootCtx: Context,
     remote: SessionRemotes,
+    recentCap = 5,
   ) {
+    this.recentCap = Math.max(1, Math.floor(recentCap))
     this.selection = createSnapshotStore<SessionSelection>(
       {},
       { persist: { name: 'dsh.sessions.current' } })
@@ -576,10 +587,10 @@ export class ClientSessions implements ISessions {
     return record
   }
 
-  /** The one aliveness predicate shared by scope mint and prune: host-listed or currently addressed. */
+  /** The one aliveness predicate shared by scope mint and prune: host-listed-within-recency-cap or currently staged. */
   private eligible(id: SessionId): boolean {
-    const { ids, current } = this.list.getSnapshot()
-    return current === id || ids.includes(id)
+    const { current } = this.list.getSnapshot()
+    return current === id || this.keptSessionIds.has(id)
   }
 
   /** Project the manager's list snapshot into the store (title derivation is display-only). */
@@ -654,6 +665,17 @@ export class ClientSessions implements ISessions {
     this.list.set({
       ids, byId, current, phase, subagentsByParent, jobsBySession, jobOutputBySession, currentAddress,
     })
+    // Recency eviction: only the most recent N listed sessions keep a live
+    // scope/instance/event window. Lineage flattening nests children beside
+    // their parent, so rank by updatedAt instead of display order. The staged
+    // session is pinned separately via `current === id` in eligible().
+    const kept = new Set<SessionId>(
+      [...ids]
+        .sort((left, right) => (byId[right]?.updatedAt ?? 0) - (byId[left]?.updatedAt ?? 0))
+        .slice(0, this.recentCap),
+    )
+    if (current !== undefined) kept.add(current)
+    this.keptSessionIds = kept
     this.pruneScopes()
   }
 

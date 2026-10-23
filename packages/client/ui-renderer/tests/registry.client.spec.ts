@@ -91,11 +91,12 @@ function captureHost(bench: Bench, children?: object): SlotRendererHost {
   return host
 }
 
-function scopedBinding(_ctx: Context, key: string) {
+function scopedBinding(_ctx: Context, key: string, durable?: () => boolean) {
   const ctx = new Context()
   const binding: ScopedStandardSourceBinding = {
     key,
     ctx,
+    ...(durable === undefined ? {} : { durable }),
     hooks: {},
     keyedHooks: {},
     props: {},
@@ -619,6 +620,25 @@ describe('store instance axis', () => {
     const replacement = scopedBinding(bench.ctx, 's1')
     expect(host.storeOf(entry as never, replacement.binding)).not.toBe(s1)
     await replacement.fiber.dispose()
+  })
+
+  it('keeps persisted state through a durable eviction but still drops the instance', async () => {
+    const { bench, host } = await storeBench()
+    const { handle, created } = fakeHandle()
+    bench.erased.register({ name: 't.panel', store: handle }, C)
+    const [entry] = host.entriesOf('t.panel')
+    const evicted = scopedBinding(bench.ctx, 's1', () => true)
+    const s1 = host.storeOf(entry as never, evicted.binding)
+    expect(s1).toBe(created[0])
+
+    await evicted.fiber.dispose()
+
+    // Durable scope: the instance goes, the persisted value stays.
+    expect(created[0]?.clearPersisted).not.toHaveBeenCalled()
+    const reopened = scopedBinding(bench.ctx, 's1', () => false)
+    expect(host.storeOf(entry as never, reopened.binding)).not.toBe(s1)
+    await reopened.fiber.dispose()
+    expect(created[1]?.clearPersisted).toHaveBeenCalledOnce()
   })
 
   it('clears persisted state for scoped stores that were never materialized', async () => {

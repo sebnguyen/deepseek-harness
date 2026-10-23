@@ -39,11 +39,11 @@ interface Bench {
   svc: ClientSessions
 }
 
-function bench(configureRemote?: (remote: RuntimeRemotes) => RuntimeRemotes): Bench {
+function bench(configureRemote?: (remote: RuntimeRemotes) => RuntimeRemotes, recentCap?: number): Bench {
   const ctx = new Context()
   const api = new FakeApiClient()
   const remote = fakeRemote(api)
-  const svc = new ClientSessions(ctx, configureRemote?.(remote) ?? remote)
+  const svc = new ClientSessions(ctx, configureRemote?.(remote) ?? remote, recentCap)
   return { ctx, api, svc }
 }
 
@@ -653,7 +653,7 @@ describe('Agent scope disposal lifecycle', () => {
           }
         },
       },
-    }))
+    }), Number.MAX_SAFE_INTEGER)
     const readiness = b.ctx.plugin(() => undefined)
     await readiness
     const sessionIds = Array.from({ length: 24 }, (_, index) => sid(`load-${String(index)}`))
@@ -691,6 +691,42 @@ describe('Agent scope disposal lifecycle', () => {
     closeGates.get(held)?.resolve(undefined)
     await observed
     expect(settled).toHaveBeenCalledOnce()
+  })
+})
+
+describe('recency eviction (keep last N scopes)', () => {
+  const evRows = (count: number): { id: string }[] =>
+    Array.from({ length: count }, (_, index) => ({ id: `ev-${String(index)}` }))
+
+  it('evicts scopes beyond the cap and re-materializes on reopen', async () => {
+    const b = bench(undefined, 5)
+    const rows = evRows(6)
+    await feedList(b, rows)
+    // Open oldest-first so the newest session is the final stage.
+    for (const row of [...rows].reverse()) b.svc.open(sid(row.id))
+    await vi.waitFor(() => {
+      expect(b.svc.binding(sid('ev-0'))?.session.getSnapshot().openState).toBe('open')
+    })
+    // ev-5 is the oldest: opened, but outside the five newest and off stage.
+    await vi.waitFor(() => { expect(b.svc.binding(sid('ev-5'))).toBeUndefined() })
+    expect(b.svc.scope(sid('ev-5'))).toBeUndefined()
+    for (const row of rows.slice(0, 5)) expect(b.svc.binding(sid(row.id))).toBeDefined()
+    // Reopening an evicted session re-mints its scope and re-opens the window.
+    b.svc.open(sid('ev-5'))
+    await vi.waitFor(() => {
+      expect(b.svc.binding(sid('ev-5'))?.session.getSnapshot().openState).toBe('open')
+    })
+  })
+
+  it('pins the staged session even when it is outside the recency cap', async () => {
+    const b = bench(undefined, 5)
+    const rows = evRows(6)
+    await feedList(b, rows)
+    b.svc.open(sid('ev-5'))
+    await vi.waitFor(() => {
+      expect(b.svc.binding(sid('ev-5'))?.session.getSnapshot().openState).toBe('open')
+    })
+    expect(b.svc.scope(sid('ev-5'))).toBeDefined()
   })
 })
 

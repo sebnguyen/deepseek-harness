@@ -3,7 +3,9 @@
      original vector -> hard (nearest-neighbour, no-AA) downsample -> sample over an
      NxN window -> one vector <rect> per kept cell -> CSS sweep/twinkle on top,
      gap stored in viewBox units so it scales with the mark.
-     Open directly in a browser; no build step, no network. -->
+     The shipped engine locks N at 16: that is the stable pixel scale every face
+     renders, and the comparison at the bottom proves the shipped grid is this
+     derivation. Open directly in a browser; no build step, no network. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -56,14 +58,14 @@
     <p>No — this page runs exactly that pipeline, live, on the real <code>website/public/favicon.svg</code> path. Three refinements fell out of implementing it:</p>
     <ul>
       <li><b>How you sample the window matters once features get small.</b> At 24×24 and 16×16, threshold 50%, a single centre sample and a whole-window alpha average agree to the cell (255 vs 256 cells). They diverge at 12×12 — the detached dot’s cells flip between the two readings — and at high thresholds, where centre sampling turns cells on that window averaging sheds as a few per-cent mass. Coverage is the honest reading.</li>
-      <li><b>The gap needs no per-size bookkeeping.</b> Stored as a fraction of the viewBox unit, it scales with the mark automatically — the ratio is preserved for free. Widening the gap only below ~1px pitch is an optical tuning for tiny renders, not a correction of the method.</li>
-      <li><b>The shipped mark is hand-drawn ASCII, not derived.</b> A true downsample matches <code>GRID24</code> within 3 of 258 cells — close, but every logo tweak means re-eyeballing literals by hand. This pipeline derives the grid from the real path at any N (comparison at the bottom).</li>
+      <li><b>The gap needs no per-size bookkeeping.</b> Stored as a fraction of the viewBox unit, it scales with the mark automatically — the ratio is preserved for free. The shipped engine pins it at 20% at every size; there is no sub-pixel widening.</li>
+      <li><b>The shipped mark is derived at one stable scale.</b> The engine locks <code>N = 16</code> and samples through the 16×16 kernel, so every face prints the same grid at 12px and 168px. Earlier hand-drawn literals and the independently derived 24 grid are gone; the comparison at the bottom is zero by construction.</li>
     </ul>
   </div>
 
   <div class="controls">
     <label>grid N
-      <input type="number" id="ctlN" min="4" max="64" step="1" value="24" title="any grid from 4 to 64" style="width:70px;accent-color:#0063f8">
+      <input type="number" id="ctlN" min="4" max="64" step="1" value="16" title="any grid from 4 to 64" style="width:70px;accent-color:#0063f8">
     </label>
     <label>window sample
       <select id="ctlMode"><option value="coverage" selected>coverage (mean over window)</option><option value="nearest">centre / nearest pixel</option></select>
@@ -130,13 +132,13 @@
   </section>
 
   <section>
-    <h2>7 · Why the current one feels off — shipped hand-drawn grid vs this downsample</h2>
+    <h2>7 · Proof: the shipped stable mark is this derivation</h2>
     <div class="row">
-      <div class="frame"><div class="panel light" id="shippedPanel"></div><small>shipped GRID24 (hand-drawn ASCII)</small></div>
-      <div class="frame"><div class="panel light" id="derivedPanel"></div><small>derived at 24×24, coverage ≥ 50%</small></div>
+      <div class="frame"><div class="panel light" id="shippedPanel"></div><small>shipped stable grid (16×16)</small></div>
+      <div class="frame"><div class="panel light" id="derivedPanel"></div><small>derived at 16×16, coverage ≥ 50%</small></div>
       <span class="stat" id="diffStat"></span>
     </div>
-    <p class="note">The shipped sweep/twinkle bakes <code>GRID24</code>/<code>GRID16</code> string literals into <code>design/pixel-do-loader-gen.mjs</code>. They agree with a true downsample within 3 cells, so the geometry was never the problem — the literals just have to be redrawn by hand whenever the logo changes. The pipeline above replaces them with derivation.</p>
+    <p class="note">The shipped engine locks <code>N = 16</code> and derives <code>PIXEL_LOADER_CELLS</code> from this same path at 16×16 with the 16×16 coverage window. There is no hand-drawn <code>GRID24</code>/<code>GRID16</code> literal left, and no independently derived 24 grid to switch to; the comparison above is zero by construction.</p>
   </section>
 </div>
 
@@ -146,8 +148,8 @@ const $ = (s) => document.querySelector(s);
 
 // Injected at finalize time from website/public/favicon.svg (the ground truth).
 const LOGO_D = 'M12.04 0C5.408-.02.005 5.37.005 11.992h4.638c0-4.923 4.882-8.731 10.064-6.855a6.95 6.95 0 014.147 4.148c1.889 5.177-1.924 10.055-6.84 10.064v-4.61H7.391v4.623h4.61V24c7.86 0 13.967-7.588 11.397-15.83-1.115-3.59-3.985-6.446-7.575-7.575A12.8 12.8 0 0012.039 0zM7.39 19.362H3.828v3.564H7.39zm-3.563 0v-2.978H.85v2.978z';
-// Injected from design/pixel-do-loader-gen.mjs GRID24 (the hand-drawn comparison).
-const SHIPPED_24 = ['.........#######........','......############......','.....##############.....','....#################...','...##################...','..#######......#######..','.######..........######.','.#####............#####.','######............######','#####..............#####','#####..............#####','#####..............#####','...................#####','...................#####','...................#####','.......#####......#####.','.###...#####......#####.','.###...#####.....######.','.###...#####...#######..','....###.....#########...','....###.....########....','....###.....#######.....','....###.....######......','............###.........'];
+// Injected from design/pixel-do-loader-gen.mjs: the one stable 16x16 grid.
+const SHIPPED_16 = ['.....######.....','...##########...','..############..','.#####....#####.','.####......####.','####........####','###..........###','###..........###','.............###','.............###','.....###....####','.##..###...####.','.##..###..#####.','...##...######..','...##...#####...','........###.....'];
 
 // Shipped animation recipe, reused verbatim so the comparison is apples-to-apples.
 const F = 16, PERIOD = 1.2, DIM = 0.22;
@@ -163,7 +165,7 @@ function mulberry32(seed) {
   };
 }
 
-const state = { N: 24, mode: 'coverage', thr: 0.5, gap: 20 };
+const state = { N: 16, mode: 'coverage', thr: 0.5, gap: 20 };
 
 /* Step 1-2: rasterize the vector path at N*16 supersample, then hard-downsample. */
 function highResCanvas(N) {
@@ -329,17 +331,18 @@ function render() {
     row.append(frame);
   }
 
-  // 7 shipped vs derived at 24
+  // 7 shipped stable grid vs derived at 16
   const shippedCells = [];
-  SHIPPED_24.forEach((line, r) => { for (let c = 0; c < line.length; c++) if (line[c] === '#') shippedCells.push([c, r]); });
-  const derived24 = sampleCells(highResCanvas(24), downsampledCanvas(highResCanvas(24), 24), 24, 'coverage', 0.5);
-  mount($('#shippedPanel'), svgShell(24, rectsFor(shippedCells, gap), 168));
-  mount($('#derivedPanel'), svgShell(24, rectsFor(derived24, gap), 168));
+  SHIPPED_16.forEach((line, r) => { for (let c = 0; c < line.length; c++) if (line[c] === '#') shippedCells.push([c, r]); });
+  const hr16 = highResCanvas(16);
+  const derived16 = sampleCells(hr16, downsampledCanvas(hr16, 16), 16, 'coverage', 0.5);
+  mount($('#shippedPanel'), svgShell(16, rectsFor(shippedCells, gap), 168));
+  mount($('#derivedPanel'), svgShell(16, rectsFor(derived16, gap), 168));
   const sSet = new Set(shippedCells.map(([c, r]) => c + ',' + r));
-  const dSet = new Set(derived24.map(([c, r]) => c + ',' + r));
-  const added = derived24.filter(([c, r]) => !sSet.has(c + ',' + r)).length;
+  const dSet = new Set(derived16.map(([c, r]) => c + ',' + r));
+  const added = derived16.filter(([c, r]) => !sSet.has(c + ',' + r)).length;
   const removed = shippedCells.filter(([c, r]) => !dSet.has(c + ',' + r)).length;
-  $('#diffStat').textContent = `vs the downsample: +${added} cells added, −${removed} missing in the shipped grid`;
+  $('#diffStat').textContent = `vs the stable derivation: +${added} added, −${removed} missing`;
 }
 
 for (const [id, fn] of [

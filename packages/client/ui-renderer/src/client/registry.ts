@@ -323,14 +323,17 @@ export class SlotRegistry extends Service {
    *
    * @param binding - materialized scope identity and its owning Context.
    */
-  bindStoreScope(binding: Pick<ScopedStandardSourceBinding, 'key' | 'ctx'>): void {
+  bindStoreScope(binding: Pick<ScopedStandardSourceBinding, 'key' | 'ctx' | 'durable'>): void {
     const current = this._storeScopeOwners.get(binding.key)
     if (current === binding.ctx) return
     this._storeScopeOwners.set(binding.key, binding.ctx)
     binding.ctx.effect(() => () => {
       if (this._storeScopeOwners.get(binding.key) !== binding.ctx) return
       this._storeScopeOwners.delete(binding.key)
-      this.clearStoreScope(binding.key)
+      // A durable scope outlives the memory eviction that disposes it, so its
+      // persisted values must survive for the reopen (composer drafts ride
+      // this path). Only a scope that ceases to exist clears its keys.
+      this.clearStoreScope(binding.key, binding.durable?.() !== true)
     }, `slots: store scope ${binding.key}`)
   }
 
@@ -549,12 +552,18 @@ export class SlotRegistry extends Service {
   }
 
   /** Clear every live non-root Store handle for one dead scope key. */
-  private clearStoreScope(key: string): void {
+  private clearStoreScope(key: string, clearPersisted = true): void {
     for (const [handle, record] of this._stores) {
       if (record.scope === 'root') continue
-      const instance = record.instances.get(key) ?? handle.create(key)
-      instance.clearPersisted()
-      record.instances.delete(key)
+      const instance = record.instances.get(key)
+      if (instance !== undefined) {
+        if (clearPersisted) instance.clearPersisted()
+        record.instances.delete(key)
+        continue
+      }
+      // A never-materialized scope still owns whatever a previous application
+      // run persisted under its key; clear that only when the scope is gone.
+      if (clearPersisted) handle.create(key).clearPersisted()
     }
   }
 

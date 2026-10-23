@@ -704,6 +704,14 @@ export interface PiAiModelProfile {
    * the route menu when the route has one.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /**
+   * Whether this model's chat template accepts `allow_missing_thinking` as a
+   * `chat_template_kwargs` member. An OpenAI-compatible server that requires
+   * `reasoning_content` on every replayed assistant message rejects a turn
+   * whose reasoning the adapter could not replay; this setting sends the
+   * template's own waiver for that turn. `openai-completions` only.
+   */
+  allowMissingThinking?: boolean
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
   /**
@@ -963,6 +971,12 @@ export interface RouteCatalog {
    * resolution exposes them as the model's request defaults.
    */
   configuredTunes: ReadonlyMap<string, PiAiModelTune>
+  /**
+   * Models whose profile opts into the `allow_missing_thinking` template
+   * waiver, by model id. Like {@link configuredMaxTokens}, only an explicit
+   * configuration lands here; the adapter sends the kwarg for these models.
+   */
+  configuredAllowMissingThinking: ReadonlySet<string>
 }
 
 /**
@@ -1034,6 +1048,7 @@ export function resolveRouteModels(
   const seen = new Set<string>()
   const configuredMaxTokens = new Map<string, number>()
   const configuredTunes = new Map<string, PiAiModelTune>()
+  const configuredAllowMissingThinking = new Set<string>()
   /** The reasoning fields one entry materializes, for validating its tune before the model literal is built. */
   const reasoningForEntry = (entry: PiAiModelProfile, base: Model<Api> | undefined): ModelReasoning =>
     resolveModelReasoning(provider, entry, base, request.defaultReasoningEfforts)
@@ -1052,6 +1067,11 @@ export function resolveRouteModels(
     if (baseUrl === undefined) {
       invalid(provider, `model "${entry.id}" needs a baseURL; the installed catalog does not describe this route`)
     }
+    if (entry.allowMissingThinking !== undefined && api !== 'openai-completions') {
+      invalid(provider, `model "${entry.id}" sets allowMissingThinking, which only the openai-completions`
+        + ' protocol takes')
+    }
+    if (entry.allowMissingThinking === true) configuredAllowMissingThinking.add(entry.id)
     // Capacities fall back to the route's own defaults, so a model listing that
     // discloses nothing but ids still yields a serviceable route. The fallback
     // is a guess by construction, which is why it is a configurable route field
@@ -1136,5 +1156,11 @@ export function resolveRouteModels(
     invalid(provider, `sets compat "${field}", but no model on the route speaks a protocol that takes it;`
       + ` it exists on ${takers.join(', ')}`)
   }
-  return { models: serviceableModels, configuredMaxTokens, configuredTunes, modelErrors }
+  return {
+    models: serviceableModels,
+    configuredMaxTokens,
+    configuredTunes,
+    configuredAllowMissingThinking,
+    modelErrors,
+  }
 }

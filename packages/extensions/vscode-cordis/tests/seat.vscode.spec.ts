@@ -108,6 +108,46 @@ describe('runSeatLoop', () => {
     expect(Math.max(...sleeps)).toBeGreaterThanOrEqual(sleeps[0] ?? 0)
   })
 
+  it('grows the backoff when the downlink dies immediately after each hello', async () => {
+    const remote = new RemoteFake()
+    remote.downlinkError = new Error('carrier lost')
+    const sleeps: number[] = []
+    const controller = new AbortController()
+    const done = runSeatLoop({
+      remote,
+      identity: HELLO_ID,
+      signal: controller.signal,
+      emit: () => undefined,
+      sleep: async (ms) => {
+        sleeps.push(ms)
+        if (sleeps.length >= 3) controller.abort()
+      },
+    })
+    await done
+    expect(remote.reports).toHaveLength(3)
+    expect(sleeps).toEqual([500, 1000, 2000])
+  })
+
+  it('resets the backoff after a cycle stays up for stableAfterMs', async () => {
+    const remote = new RemoteFake()
+    remote.downlinkError = new Error('carrier lost')
+    const sleeps: number[] = []
+    const controller = new AbortController()
+    const done = runSeatLoop({
+      remote,
+      identity: HELLO_ID,
+      signal: controller.signal,
+      emit: () => undefined,
+      stableAfterMs: 0,
+      sleep: async (ms) => {
+        sleeps.push(ms)
+        if (sleeps.length >= 3) controller.abort()
+      },
+    })
+    await done
+    expect(sleeps).toEqual([500, 500, 500])
+  })
+
   it('stays silent after abort — no reports, no opens', async () => {
     const remote = new RemoteFake()
     const controller = new AbortController()

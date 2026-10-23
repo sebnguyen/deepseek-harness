@@ -154,6 +154,28 @@ describe('hand-declared providers', () => {
     expect(directory.find(entry => entry.provider === 'mistral')?.declared).toBe(false)
   })
 
+  it('records the missing-thinking waiver only where a model declares it', () => {
+    const resolved = resolveProfiles({
+      'acme-gateway': {
+        api: 'openai-completions',
+        baseURL: 'https://acme.test',
+        models: [{ id: 'beam', allowMissingThinking: true }, { id: 'plain' }],
+      },
+    })
+
+    expect([...(resolved.get('acme-gateway')?.configuredAllowMissingThinking ?? [])]).toEqual(['beam'])
+  })
+
+  it('refuses the missing-thinking waiver on a protocol with no chat template', () => {
+    expect(() => resolveProfiles({
+      'acme-messages': {
+        api: 'anthropic-messages',
+        baseURL: 'https://acme.test',
+        models: [{ id: 'claude', allowMissingThinking: true }],
+      },
+    })).toThrow(/allowMissingThinking, which only the openai-completions protocol takes/)
+  })
+
   it('sizes a model the catalog cannot describe from the route\u2019s own fallbacks', () => {
     const resolved = resolveProfiles({
       'acme-gateway': {

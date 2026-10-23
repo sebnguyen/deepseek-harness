@@ -1,15 +1,15 @@
 // @vitest-environment jsdom
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { pixelLoaderGap, pixelLoaderInner, PixelLoader, pixelLoaderTwinkleInner } from '@deepseek-ai/dsh-client-ui-primitives'
+import { pixelLoaderInner, PixelLoader, pixelLoaderTwinkleInner } from '@deepseek-ai/dsh-client-ui-primitives'
 
 afterEach(cleanup)
 
 describe('PixelLoader', () => {
-  it('renders the 24-grid sweep with the hoisted stylesheet, decorative', () => {
+  it('renders the stable 16-grid sweep with the hoisted stylesheet, decorative', () => {
     const { container } = render(<PixelLoader />)
     const svg = container.querySelector('svg')
-    expect(svg?.getAttribute('viewBox')).toBe('0 0 24 24')
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16')
     expect(svg?.getAttribute('width')).toBe('24')
     expect(svg?.getAttribute('fill')).toBe('currentColor')
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
@@ -21,8 +21,8 @@ describe('PixelLoader', () => {
     expect(svg?.textContent).toBe('')
   })
 
-  it('renders the coarser 16 grid for small chrome at a custom size and class', () => {
-    const { container } = render(<PixelLoader grid={16} size={16} className="seat" />)
+  it('renders the same stable grid at a custom size and class', () => {
+    const { container } = render(<PixelLoader size={16} className="seat" />)
     const svg = container.querySelector('svg')
     expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16')
     expect(svg?.getAttribute('width')).toBe('16')
@@ -45,19 +45,18 @@ describe('PixelLoader', () => {
     expect(host?.textContent).toContain('prefers-reduced-motion')
     expect(svg?.textContent).toBe('')
     // Seeded schedule: same markup every render.
-    expect(pixelLoaderTwinkleInner(24, 48)).toBe(pixelLoaderTwinkleInner(24, 48))
+    expect(pixelLoaderTwinkleInner()).toBe(pixelLoaderTwinkleInner())
   })
 
-  it('widens the pixel gap as the rendered pitch drops below one cell', () => {
-    expect(pixelLoaderGap(24, 24)).toBe(0.3)
-    expect(pixelLoaderGap(24, 12)).toBe(0.5)
-    expect(pixelLoaderGap(16, 16)).toBe(0.3)
-    expect(pixelLoaderGap(16, 12)).toBeCloseTo(0.4)
-    // 12px on the 24 grid renders 0.5-unit squares against 0.8 at full pitch.
-    expect(pixelLoaderInner(24, 12)).toContain('width="0.5"')
-    expect(pixelLoaderInner(24, 24)).toContain('width="0.8"')
+  it('keeps one pixel scale and one 20% gap at every rendered size', () => {
+    // 12px and 24px render the same 16-grid geometry: 0.8-unit squares, never
+    // a sub-pixel gap retune.
+    const small = pixelLoaderInner()
+    const large = pixelLoaderInner()
+    expect(small).toBe(large)
+    expect(small).toContain('width="0.8"')
+    expect(small).not.toContain('width="0.5"')
     // Buckets keep their clockwise staggered delays.
-    expect(pixelLoaderInner(24, 24)).toContain('animation-delay: calc(0.08s')
-    expect(pixelLoaderInner(16, 16)).toContain('width="0.8"')
+    expect(small).toContain('animation-delay: calc(0.08s')
   })
 })

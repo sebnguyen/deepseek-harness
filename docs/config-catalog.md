@@ -1460,6 +1460,14 @@ export interface PiAiModelProfile {
    * the route menu when the route has one.
    */
   reasoningEfforts?: false | PiAiReasoningEfforts
+  /**
+   * Whether this model's chat template accepts `allow_missing_thinking` as a
+   * `chat_template_kwargs` member. An OpenAI-compatible server that requires
+   * `reasoning_content` on every replayed assistant message rejects a turn
+   * whose reasoning the adapter could not replay; this setting sends the
+   * template's own waiver for that turn. `openai-completions` only.
+   */
+  allowMissingThinking?: boolean
   /** pi-ai wire-compatibility switches for this model, winning over the route's per field; one its protocol does not declare is refused. */
   compat?: PiAiCompatProfile
   /**

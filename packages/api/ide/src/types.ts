@@ -16,7 +16,11 @@ export interface IdeBridgeStatus {
   readonly ready: boolean
   /** Loopback base URL of the session's REH, e.g. "http://127.0.0.1:3481". */
   readonly url: string | null
-  /** The connection token this spawn was armed with; goes into the `tkn` query. */
+  /**
+   * The REH connection token this host armed the twin with; goes into the
+   * `tkn` query and the host-scoped `vscode-tkn` cookie. Every twin of one
+   * host shares this value, because a cookie is scoped by host, not by port.
+   */
   readonly tkn: string | null
   /** Absolute workspace root for the session, for the `folder` query. */
   readonly workspaceRoot: string | null
@@ -69,9 +73,12 @@ export interface IdeBridgeHelloMeta {
 export type IdeBridgeReportEvent =
   | ({ readonly type: 'hello' } & IdeBridgeHelloMeta)
 
-/** Input of `ideBridge.downlink` / `ideBridge.report`: the twin identifies by its spawn token. */
+/** Input of `ideBridge.downlink` / `ideBridge.report`: the twin identifies by its bridge seat token. */
 export interface IdeBridgeTwinCall {
-  /** The per-twin spawn token (from the staged `bridge.json`); authenticated on the bearer boundary. */
+  /**
+   * The per-twin bridge seat token staged in `bridge.json`; authenticated on
+   * the bearer boundary. Distinct from the REH connection token.
+   */
   readonly token: string
 }
 
@@ -91,11 +98,11 @@ export interface VscodeBridgeIdentity {
   /** Loopback origin of the hosting dsh web server ('' while webServer is unknown). */
   readonly dshOrigin: string
   /**
-   * The workspace-pinned connection token the bridge presents as its bearer
-   * credential. Minted once per workspaceKey (pinned beside the port pin in
-   * the twin state dir) and reissued verbatim across respawns, so a client
-   * iframe's `?tkn=` stays valid through a twin death instead of dying as an
-   * "auth mismatch" ghost.
+   * The twin's private bridge seat token, presented as its bearer credential
+   * and as the `tkn` query on its mux WebSocket. Minted per spawn so an
+   * orphan cannot claim the seat, and never part of an iframe URL: the REH
+   * connection token is a separate host-wide secret (see
+   * {@link IdeBridgeStatus.tkn}).
    */
   readonly token: string
   /** The spawner's key for this twin (workspace root, else session id). */

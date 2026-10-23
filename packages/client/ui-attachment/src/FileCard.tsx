@@ -44,7 +44,7 @@ export function FileCard({
     >
       <span className={css.icon} aria-hidden>
         {state === 'uploading'
-          ? <PixelLoader grid={16} size={20} className={css.spinner} />
+          ? <PixelLoader size={20} className={css.spinner} />
           : <FileTypeIcon path={name} />}
       </span>
       {retryable

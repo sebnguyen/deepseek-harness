@@ -40,7 +40,7 @@ export class BootPage {
     // The large pixel mark idles as a random dot pop & fade twinkle; the brand
     // carries the page, so boot progress no longer rides the sweep window.
     installPixelLoaderStyles()
-    this.spinner.innerHTML = `<svg viewBox="0 0 16 16" width="128" height="128" fill="currentColor" aria-hidden="true">${pixelLoaderTwinkleInner(16, 128)}</svg>`
+    this.spinner.innerHTML = `<svg viewBox="0 0 16 16" width="128" height="128" fill="currentColor" aria-hidden="true">${pixelLoaderTwinkleInner()}</svg>`
     this.hint = div(css.hint, 'Loading plugins…')
     this.card.append(this.titleRow, this.spinner, this.hint)
     this.root.append(this.card)

@@ -29,7 +29,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
         leadingClassName={css.leading}
         titleClassName={css.title}
         chevronClassName={css.chevron}
-        icon={running ? <PixelLoader grid={16} size={14} /> : <IconThinkOutline14 size={14} />}
+        icon={running ? <PixelLoader size={14} /> : <IconThinkOutline14 size={14} />}
         title={t('message.think')}
         open={expanded}
         expandable

@@ -276,10 +276,65 @@ describe('idleWatchdog', () => {
     watchdog[Symbol.dispose]()
   })
 
+  it('uses the first-demand deadline until a value arrives, then the idle deadline', async () => {
+    vi.useFakeTimers()
+    const first = Promise.withResolvers<IteratorResult<number>>()
+    const second = Promise.withResolvers<IteratorResult<number>>()
+    const iterator: AsyncIterator<number> = {
+      next: vi.fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementationOnce(() => second.promise),
+    }
+    using watchdog = idleWatchdog(undefined, 100, 'IDLE', { timeoutMs: 25, code: 'FIRST' })
+
+    const firstNext = watchdog.next(iterator)
+    await vi.advanceTimersByTimeAsync(24)
+    expect(watchdog.signal.aborted).toBe(false)
+    first.resolve({ done: false, value: 1 })
+    await expect(firstNext).resolves.toEqual({ done: false, value: 1 })
+
+    const secondNext = watchdog.next(iterator)
+    await vi.advanceTimersByTimeAsync(99)
+    expect(watchdog.signal.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(timeoutOf(watchdog.signal, 'IDLE')).toMatchObject({ timeoutMs: 100 })
+    second.reject(watchdog.signal.reason)
+    await expect(secondNext).rejects.toBe(watchdog.signal.reason)
+  })
+
+  it('aborts the first demand with its own code when no value arrives', async () => {
+    vi.useFakeTimers()
+    const pending = Promise.withResolvers<IteratorResult<number>>()
+    using watchdog = idleWatchdog(undefined, 100, 'IDLE', { timeoutMs: 25, code: 'FIRST' })
+    const next = watchdog.next({ next: () => pending.promise })
+    await vi.advanceTimersByTimeAsync(25)
+    expect(timeoutOf(watchdog.signal, 'FIRST')).toMatchObject({ code: 'FIRST', timeoutMs: 25 })
+    expect(timeoutOf(watchdog.signal, 'IDLE')).toBeUndefined()
+    pending.reject(watchdog.signal.reason)
+    await expect(next).rejects.toBe(watchdog.signal.reason)
+  })
+
+  it('does not extend the first-demand deadline on an activity pulse', async () => {
+    vi.useFakeTimers()
+    const pending = Promise.withResolvers<IteratorResult<number>>()
+    using watchdog = idleWatchdog(undefined, 100, 'IDLE', { timeoutMs: 25, code: 'FIRST' })
+    const next = watchdog.next({ next: () => pending.promise })
+    await vi.advanceTimersByTimeAsync(20)
+    watchdog.pulse()
+    await vi.advanceTimersByTimeAsync(5)
+    expect(timeoutOf(watchdog.signal, 'FIRST')).toMatchObject({ timeoutMs: 25 })
+    pending.reject(watchdog.signal.reason)
+    await expect(next).rejects.toBe(watchdog.signal.reason)
+  })
+
   it('rejects invalid bounds and concurrent iterator demand', async () => {
     expect(() => idleWatchdog(undefined, 0, 'IDLE')).toThrow(/positive finite/)
     expect(() => idleWatchdog(undefined, Number.NaN, 'IDLE')).toThrow(/positive finite/)
     expect(() => idleWatchdog(undefined, MAX_TIMER_DELAY_MS + 1, 'IDLE'))
+      .toThrow(`no greater than ${MAX_TIMER_DELAY_MS}`)
+    expect(() => idleWatchdog(undefined, 100, 'IDLE', { timeoutMs: 0, code: 'FIRST' }))
+      .toThrow(/firstDemand.timeoutMs.*positive finite/)
+    expect(() => idleWatchdog(undefined, 100, 'IDLE', { timeoutMs: MAX_TIMER_DELAY_MS + 1, code: 'FIRST' }))
       .toThrow(`no greater than ${MAX_TIMER_DELAY_MS}`)
     const pending = Promise.withResolvers<IteratorResult<number>>()
     using watchdog = idleWatchdog(undefined, 100, 'IDLE')

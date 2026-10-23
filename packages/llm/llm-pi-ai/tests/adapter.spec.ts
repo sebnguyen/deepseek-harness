@@ -412,12 +412,32 @@ describe('PiAiAdapter provider routing', () => {
     })
   })
 
-  it('stops the SDK request when the adapter idle watchdog expires', async () => {
+  it('stops the SDK request when no first token arrives within its deadline', async () => {
     const server = await mockServer([{ events: textEvents, delayMs: 200 }])
-    const ctx = await harness(server.url, { streamIdleTimeoutMs: 20 })
+    const ctx = await harness(server.url, { streamIdleTimeoutMs: 10_000, firstTokenTimeoutMs: 20 })
 
     const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
-    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: 'TIMEOUT' } })
+    expect(result.finish).toMatchObject({
+      kind: 'error',
+      failure: { code: 'TIMEOUT', message: 'pi-ai stream produced no first token within 20ms' },
+    })
+    await Promise.race([
+      server.responseClosed,
+      new Promise<never>((_resolve, reject) => {
+        setTimeout(() => { reject(new Error('SDK request did not close after first-token timeout')) }, 1_000)
+      }),
+    ])
+  })
+
+  it('stops the SDK request when a started stream stays idle past its watchdog', async () => {
+    const server = await mockServer([{ events: textEvents, delayMs: 200 }])
+    const ctx = await harness(server.url, { streamIdleTimeoutMs: 20, firstTokenTimeoutMs: 10_000 })
+
+    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+    expect(result.finish).toMatchObject({
+      kind: 'error',
+      failure: { code: 'TIMEOUT', message: 'pi-ai stream idle timeout after 20ms' },
+    })
     await Promise.race([
       server.responseClosed,
       new Promise<never>((_resolve, reject) => {
@@ -864,6 +884,9 @@ describe('provider profile lifecycle', () => {
       { streamIdleTimeoutMs: 0 },
       { streamIdleTimeoutMs: Number.NaN },
       { streamIdleTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
+      { firstTokenTimeoutMs: 0 },
+      { firstTokenTimeoutMs: Number.NaN },
+      { firstTokenTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
       { maxRequestImageBytes: 0 },
       { maxRequestImageBytes: 1.5 },
       { maxRequestImageBytes: Number.NaN },
@@ -949,6 +972,13 @@ describe('provider profile lifecycle', () => {
     expect(() => resolveProfiles({
       openai: { streamIdleTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
     })).toThrow(/streamIdleTimeoutMs.*no greater/)
+    expect(() => resolveProfiles({
+      openai: { firstTokenTimeoutMs: 0 },
+    })).toThrow(/firstTokenTimeoutMs.*positive finite/)
+    expect(() => resolveProfiles({
+      openai: { firstTokenTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
+    })).toThrow(/firstTokenTimeoutMs.*no greater/)
+    expect(resolveProfiles({ openai: {} }).get('openai')?.firstTokenTimeoutMs).toBe(5_000)
   })
 })
 

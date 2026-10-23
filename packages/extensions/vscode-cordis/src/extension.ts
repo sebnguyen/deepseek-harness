@@ -190,7 +190,13 @@ export async function spawnBridgeSeat(deps: {
       },
       signal: abort.signal,
       emit: (name, frame) => { local.emit(name, frame) },
-      logger: (message, error) => { deps.logger?.(message, error) },
+      logger: (message, error) => {
+        // Forward the second argument only when present: the output-channel
+        // sink stringifies every argument, so an explicit undefined would
+        // append "undefined" to every healthy seat line.
+        if (error === undefined) deps.logger?.(message)
+        else deps.logger?.(message, error)
+      },
     })
 
     return {

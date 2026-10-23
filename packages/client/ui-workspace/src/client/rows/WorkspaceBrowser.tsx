@@ -515,7 +515,7 @@ function SessionTree({
       >
         {groups.length === 0 && list.phase !== 'ready' && (
           <div className={css.listStatus} role="status">
-            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            <PixelLoader size={14} className={css.listStatusSpinner} />
             {t('list.loading')}
           </div>
         )}
@@ -776,7 +776,7 @@ function FlatList({
       <div className={clsx(css.list, css.flatList)} role="tree" aria-label={t('section.sessions')}>
         {rows.length === 0 && list.phase !== 'ready' && (
           <div className={css.listStatus} role="status">
-            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            <PixelLoader size={14} className={css.listStatusSpinner} />
             {t('list.loading')}
           </div>
         )}
@@ -903,7 +903,7 @@ function SearchResults({
         </div>
         {pending && (
           <div className={css.searchStatus} role="status">
-            <PixelLoader grid={16} size={14} className={css.listStatusSpinner} />
+            <PixelLoader size={14} className={css.listStatusSpinner} />
             {t('search.pending')}
           </div>
         )}

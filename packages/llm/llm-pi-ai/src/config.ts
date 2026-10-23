@@ -48,6 +48,8 @@ import { buildProvider, supportedProtocols } from './provider.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
+/** Default bound on the first streamed chunk before the transport reports `TIMEOUT`. */
+export const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 5_000
 
 /**
  * Default request-level bound on base64-encoded image payload. Every image in
@@ -191,6 +193,8 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
+  /** Maximum time before the first streamed chunk arrives. */
+  firstTokenTimeoutMs?: number
   /**
    * Maximum base64-encoded image payload per request. When a request's
    * accumulated images exceed it, the oldest images are replaced by text
@@ -220,6 +224,8 @@ export interface ResolvedPiAiProviderProfile
   apiKeyEnv?: CredentialRef
   /** Positive finite provider-idle interval after defaulting. */
   streamIdleTimeoutMs: number
+  /** Positive finite first-token interval after defaulting. */
+  firstTokenTimeoutMs: number
   /** Positive request-level base64 image payload bound after defaulting. */
   maxRequestImageBytes: number
   /** Positive total-pixel request-version budget after defaulting. */
@@ -255,6 +261,12 @@ export interface ResolvedPiAiProviderProfile
    * always wins over its tune.
    */
   configuredTunes: ReadonlyMap<string, PiAiModelTune>
+  /**
+   * Models whose profile opts into the `allow_missing_thinking` template
+   * waiver, by model id. Like {@link configuredMaxTokens}, only an explicit
+   * configuration lands here.
+   */
+  configuredAllowMissingThinking: ReadonlySet<string>
 }
 
 /** Plugin configuration: the provider routes this instance owns. */
@@ -355,6 +367,7 @@ const modelFields = {
   // `{}`, and absent must stay distinguishable — it means "inherit the
   // installed catalog's capability", while `false` disables reasoning.
   reasoningEfforts: z.union([z.const(false), reasoningEfforts]),
+  allowMissingThinking: z.boolean(),
   compat: compatProfile,
 }
 
@@ -389,6 +402,7 @@ const profile = z.object({
   timeoutMs: z.natural(),
   websocketConnectTimeoutMs: z.natural(),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  firstTokenTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_FIRST_TOKEN_TIMEOUT_MS),
   maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   requestImagePixelBudget: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET),
   requestImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_MAX_BYTES),
@@ -485,6 +499,14 @@ export function resolveProfiles(
       || streamIdleTimeoutMs > MAX_TIMER_DELAY_MS) {
       throw new Error(
         `llm-pi-ai: provider "${provider}" streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
+      )
+    }
+    const firstTokenTimeoutMs = source.firstTokenTimeoutMs ?? DEFAULT_FIRST_TOKEN_TIMEOUT_MS
+    if (!Number.isFinite(firstTokenTimeoutMs)
+      || firstTokenTimeoutMs <= 0
+      || firstTokenTimeoutMs > MAX_TIMER_DELAY_MS) {
+      throw new Error(
+        `llm-pi-ai: provider "${provider}" firstTokenTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
       )
     }
     const maxRequestImageBytes = source.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
@@ -584,6 +606,7 @@ export function resolveProfiles(
       ...mergedEfforts === undefined ? {} : { defaultReasoningEfforts: mergedEfforts },
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
       streamIdleTimeoutMs,
+      firstTokenTimeoutMs,
       maxRequestImageBytes,
       requestImagePixelBudget,
       requestImageMaxBytes,
@@ -592,6 +615,7 @@ export function resolveProfiles(
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
       configuredTunes: catalog?.configuredTunes ?? new Map(),
+      configuredAllowMissingThinking: catalog?.configuredAllowMissingThinking ?? new Set(),
       modelErrors: catalog?.modelErrors ?? new Map(),
       ...piProvider === undefined ? {} : { piProvider },
       ...catalogError === undefined ? {} : { catalogError },

@@ -93,4 +93,22 @@ describe('Conversation state survives on its store seat', () => {
     expect(reborn.store.getSnapshot()).toEqual({ draft: '', view: null, viewRequest: null })
     await b.runtime.dispose()
   })
+
+  it('keeps a half-typed draft through a recency eviction and restores it on reopen', async () => {
+    const b = await createBench()
+    await b.runtime.sessions.add({ id: 's1' })
+    const evicted = storeFor(b, 'conversation.session', sid('s1'))
+    evicted.actions.setDraft('half-typed')
+    await flushPersist()
+    expect(localStorage.getItem('dsh.conversation.s1')).not.toBeNull()
+
+    await b.runtime.sessions.evict('s1')
+
+    // The scope's memory is gone, but the still-durable row keeps its draft.
+    expect(localStorage.getItem('dsh.conversation.s1')).not.toBeNull()
+    const reopened = storeFor(b, 'conversation.session', sid('s1'))
+    expect(reopened).not.toBe(evicted)
+    expect(reopened.store.getSnapshot().draft).toBe('half-typed')
+    await b.runtime.dispose()
+  })
 })

@@ -359,6 +359,21 @@ export class TestSessions implements ISessions {
   }
 
   /**
+   * Evict a session's in-memory scope while keeping its list row — the
+   * production recency-cap prune shape (a durable session whose memory is
+   * reclaimed). A later binding resolution re-mints the scope over that row.
+   * @param id - session id.
+   */
+  async evict(id: string): Promise<void> {
+    const record = this.require(id)
+    const fiber = record.scopeFiber
+    record.scope = undefined
+    record.scopeFiber = undefined
+    record.binding = undefined
+    if (fiber !== undefined) await this.stabilize(() => fiber.dispose())
+  }
+
+  /**
    * Resolve (mint on first touch) the session-scoped Cordis context through
    * the production `createScope`, so real `scopeOf`/scope-addressed services
    * resolve it.

@@ -69,7 +69,7 @@ afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH
 })
 
-async function harness(): Promise<{ ide: Ide; rules: ConnectionBearerRule[] }> {
+async function harness(): Promise<{ ide: Ide; rules: ConnectionBearerRule[]; dist: string }> {
   const ctx = new Context()
   contexts.push(ctx)
   const dist = realpathSync.native(mkdtempSync(join(tmpdir(), 'dsh-ide-bridge-')))
@@ -81,7 +81,7 @@ async function harness(): Promise<{ ide: Ide; rules: ConnectionBearerRule[] }> {
   const { rules } = provideConnection(ctx)
   const ide = new Ide(ctx, { dist, readinessTimeoutMs: 1_000, readinessPollMs: 5 })
   await new Promise(resolve => setTimeout(resolve, 0))
-  return { ide, rules }
+  return { ide, rules, dist }
 }
 
 /** A harness variant recording spawn argv and accepting arbitrary sessions, for state-layout specs. */
@@ -125,11 +125,27 @@ async function nextFrame(iterator: AsyncIterator<IdeBridgeDownlinkFrame>): Promi
   return next.value
 }
 
+/** Read one twin slot's staged bridge seat token (not the REH connection token). */
+async function seatTokenOf(dist: string, workspaceKey: string): Promise<string> {
+  const bridgePath = join(dist, '.dsh', twinStateDirName(workspaceKey), 'bridge.json')
+  return (JSON.parse(await readFile(bridgePath, 'utf8')) as { token: string }).token
+}
+
+/** Read one spawn argv's staged bridge identity (the per-twin seat facts). */
+async function bridgeIdentityOf(argv: string[]): Promise<{ token: string; workspaceKey: string }> {
+  const bridgePath = join(argOf(argv, '--extensions-dir'), '..', 'bridge.json')
+  return JSON.parse(await readFile(bridgePath, 'utf8')) as { token: string; workspaceKey: string }
+}
+
 describe('ideBridge twin wire', () => {
-  it('registers a bearer rule scoped to the twin wire plus the plane remotes', async () => {
+  it('registers a bearer rule scoped to the twin wire, the event-result RPC, and the plane remotes', async () => {
     const { rules } = await harness()
     expect(rules).toHaveLength(1)
+    // `$events/result` is what keeps a cookie-less seat's connection
+    // generation alive while an approval or user-question waterfall is
+    // pending; see the bearer-rule comment in src/index.ts.
     expect(rules[0]!.endpoints).toEqual([
+      '$events/result',
       'ideBridge/downlink',
       'ideBridge/report',
       'checkpoint/slots',
@@ -139,15 +155,15 @@ describe('ideBridge twin wire', () => {
     ])
   })
 
-  it('open enqueues downlink frames the token-bound stream receives in order', async () => {
-    const { ide } = await harness()
+  it('open enqueues downlink frames the seat-token-bound stream receives in order', async () => {
+    const { ide, dist } = await harness()
     const controller = new AbortController()
     const bogus = ide.downlink({ token: 'bogus' }, controller.signal)[Symbol.asyncIterator]()
     await expect(bogus.next()).rejects.toThrow(RemoteError)
 
     const status = await ide.status('s1', new AbortController().signal)
     expect(status.ready).toBe(true)
-    const token = status.tkn as string
+    const token = await seatTokenOf(dist, '/repo')
 
     await ide.open('s1', { path: '/repo/a.ts', line: 4 }, new AbortController().signal)
     const framesBeforeSeat = ide.downlink({ token }, controller.signal)[Symbol.asyncIterator]()
@@ -164,10 +180,10 @@ describe('ideBridge twin wire', () => {
   })
 
   it('activate enqueues the focused-session frame for the workspace twin', async () => {
-    const { ide } = await harness()
+    const { ide, dist } = await harness()
     const controller = new AbortController()
-    const status = await ide.status('s1', new AbortController().signal)
-    const token = status.tkn as string
+    await ide.status('s1', new AbortController().signal)
+    const token = await seatTokenOf(dist, '/repo')
 
     await ide.activate('s1', new AbortController().signal)
     const frames = ide.downlink({ token }, controller.signal)[Symbol.asyncIterator]()
@@ -177,9 +193,9 @@ describe('ideBridge twin wire', () => {
   })
 
   it('report hello binds the seat; other verbs fail with a named Remote code', async () => {
-    const { ide } = await harness()
+    const { ide, dist } = await harness()
     await ide.status('s1', new AbortController().signal)
-    const token = (await ide.status('s1', new AbortController().signal)).tkn as string
+    const token = await seatTokenOf(dist, '/repo')
     await ide.report({
       token,
       event: { type: 'hello', extensionId: 'dsh.do-harness-bridge', version: '0.0.1', workspaceRoot: '/repo' },
@@ -214,17 +230,35 @@ describe('twin state layout', () => {
     }
 
     // Each slot's bridge.json (two levels up from the twin's extension dir,
-    // i.e. one level up from --extensions-dir) carries ITS OWN token — the
-    // shared-file layout was the lost-frames bug.
-    const identityOf = async (argv: string[]): Promise<{ token: string; workspaceKey: string }> => {
-      const bridgePath = join(argOf(argv, '--extensions-dir'), '..', 'bridge.json')
-      return JSON.parse(await readFile(bridgePath, 'utf8')) as { token: string; workspaceKey: string }
-    }
-    const first = await identityOf(spawns[0]!)
-    const second = await identityOf(spawns[1]!)
+    // i.e. one level up from --extensions-dir) carries ITS OWN seat token —
+    // the shared-file layout was the lost-frames bug. That secret is private
+    // to the bridge and is not the REH connection token the iframe rides.
+    const first = await bridgeIdentityOf(spawns[0]!)
+    const second = await bridgeIdentityOf(spawns[1]!)
     expect(first.token).not.toBe(second.token)
-    expect([first.token, second.token].sort()).toEqual([s1.tkn, s2.tkn].sort())
+    expect(first.token).not.toBe(s1.tkn)
+    expect(second.token).not.toBe(s2.tkn)
     expect([first.workspaceKey, second.workspaceKey].sort()).toEqual(['/repo-a', '/repo-b'])
+  })
+
+  it('serves every twin one host-scoped connection token so the vscode-tkn cookie cannot clobber a sibling', async () => {
+    const { ide, spawns } = await harnessSlots([
+      { id: 's1', header: { cwd: '/repo-a' } },
+      { id: 's2', header: { cwd: '/repo-b' } },
+    ])
+    const s1 = await ide.status('s1', new AbortController().signal)
+    const s2 = await ide.status('s2', new AbortController().signal)
+    expect(s1.ready).toBe(true)
+    expect(s2.ready).toBe(true)
+    // A browser scopes a cookie by host, not port: two different secrets on
+    // 127.0.0.1 overwrote `vscode-tkn`, so the twin loaded last 403'd the
+    // sibling's cookie-only requests (each webview's pre/index.html). One
+    // token per host keeps every twin's port authorized by the same cookie.
+    expect(s1.tkn).toMatch(/^[A-Za-z0-9_-]{32}$/)
+    expect(s2.tkn).toBe(s1.tkn)
+    expect(argOf(spawns[0]!, '--connection-token')).toBe(argOf(spawns[1]!, '--connection-token'))
+    // The bridge seat identity stays per spawn, so the downlink never merges.
+    expect((await bridgeIdentityOf(spawns[0]!)).token).not.toBe((await bridgeIdentityOf(spawns[1]!)).token)
   })
 
   it('adopts the legacy port pin (but mints a fresh token) from the shared .dsh root', async () => {
@@ -238,7 +272,8 @@ describe('twin state layout', () => {
 
     const status = await ide.status('s1', new AbortController().signal)
     expect(status.ready).toBe(true)
-    // Per-spawn secret: a respawn never reuses a legacy token.
+    // The legacy token pin is never read: the REH connection token is minted
+    // per host and the bridge seat token per spawn.
     expect(status.tkn).not.toBe(legacyToken)
     expect(status.tkn).toMatch(/^[A-Za-z0-9_-]{32}$/)
 
