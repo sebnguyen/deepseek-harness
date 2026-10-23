@@ -1303,7 +1303,8 @@ html body::after {
   z-index: 9999;
   pointer-events: none;
   opacity: 0.26;
-  background-image: var(--a-grain);
+  display: none;
+  background-image: none;
   background-size: 32px 32px;
   opacity: 0.05;
 }
