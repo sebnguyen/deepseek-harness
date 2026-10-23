@@ -71,6 +71,7 @@ export function ConversationSessionHeader({
   return (
     <header
       className={clsx(css.header, hideChrome && css.headerHidden)}
+      data-dsh-header=""
       aria-hidden={hideChrome || undefined}
     >
       {!hideChrome && (

@@ -29,7 +29,7 @@ import { OceanScene } from './OceanScene.tsx'
 /* Frame card geometry mirrored from AppFrame.module.css: the outer inset and
    the inter-card gap. Drag handles center on a gap, so a handle's left gains
    the inset plus half the gap on each side of the frame. */
-const FRAME_INSET = 8
+const FRAME_INSET = 0
 const FRAME_GAP = 8
 const GAP_CENTER = FRAME_INSET + FRAME_GAP / 2
 
@@ -236,6 +236,7 @@ export function AppFrame({
     <div
       ref={frameRef}
       className={css.frame}
+      data-dsh-shell=""
       style={{
         gridTemplateColumns: swapped
           ? `${cols.sidebar}px ${cols.rightbar}px minmax(0, 1fr)`
