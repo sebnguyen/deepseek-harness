@@ -1480,6 +1480,80 @@ html body [data-dsh-shell] :is(code, kbd, samp):not(#dsh-inline-code-ink) {
   font-family: var(--a-mono);
 }
 
+/* --------------------------------------------------------------------------
+   14. Quiet ground — no grid, no ruled rows, aligned mark
+
+   The empty state paints its own dotted grid and vignette (a radial-gradient
+   layer inside the component), which is the "grid background" still visible
+   after the grain came out. The hero mark is a full-width box whose glyph was
+   centred, so it sat at x=0 while the headline began at the measure; it is
+   pulled back to the same axis. The row and header hairlines are withdrawn:
+   the sheet keeps its measure and its one panel, not a ledger of rules.
+   -------------------------------------------------------------------------- */
+
+html body [data-dsh-shell] [class*='_glayerA'],
+html body [data-dsh-shell] [class*='_fades'] {
+  display: none;
+}
+
+html body [data-dsh-shell] [data-dsh-hero] [data-dsh-hero-mark] {
+  display: flex;
+  justify-content: flex-start;
+  width: 100%;
+  margin: 0 0 18px;
+}
+
+html body [data-dsh-shell] [data-chat-flow-kind='tool-call'],
+html body [data-dsh-shell] [data-chat-flow-kind='context'],
+html body [data-dsh-shell] [data-dsh-header],
+html body [data-dsh-shell] [data-chat-flow-kind='user'],
+html body [data-dsh-shell] [data-chat-flow-kind='steering'] {
+  border-top: 0;
+  border-bottom: 0;
+}
+
+/* The live edge of a streaming answer: a caret that pulses with the stream.
+   One element, opacity only, and it exists exactly while text is arriving. */
+@keyframes tide-caret {
+  0%, 100% { opacity: 0.15; transform: translateY(0); }
+  50%      { opacity: 1;    transform: translateY(-1px); }
+}
+
+html body [data-dsh-shell] [data-streaming] [class*='_body'] > *:last-child::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  margin-left: 5px;
+  border-radius: 1px;
+  background: var(--a-foam);
+  vertical-align: text-bottom;
+  animation: tide-caret 1.6s ease-in-out infinite;
+}
+
+/* The newest row rises in; older rows never re-animate. */
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind]:last-child {
+  animation: surf-up 320ms var(--a-ease) both;
+}
+
+/* The empty-state mark is a matrix of twinkling dots: 116 infinite animations
+   on one page, and at full width it reads as a dotted grid rather than a logo.
+   Stop the per-dot twinkle, keep one slow breathe on the mark as a whole, cap
+   its size and pin it to the measure. */
+html body [data-dsh-shell] [data-dsh-hero-mark] * {
+  animation: none;
+}
+
+html body [data-dsh-shell] [data-dsh-hero-mark] {
+  max-width: 96px;
+  animation: tide-caret 4.6s ease-in-out infinite;
+}
+
+html body [data-dsh-shell] [data-dsh-hero-mark] > * {
+  margin-left: 0;
+  margin-right: auto;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html body [data-dsh-shell] * {
     animation: none !important;
