@@ -181,6 +181,7 @@ html body [data-dsh-shell] [data-rightbar-col] {
    4. Rail
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-dsh-sidebar] {
+  border-right: 1px solid var(--a-rule);
   padding: 0;
   background: var(--a-panel);
   color: var(--a-ink);
