@@ -63,6 +63,7 @@ html {
   --a-rule: rgba(232, 241, 248, 0.11);
   --a-rule-2: rgba(232, 241, 248, 0.2);
   --a-err: #FF7A66;
+  --a-ok: #4FD1A5;
   --a-r: 2px;
   --a-r-sm: 1px;
   --a-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='32' height='32' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
@@ -130,13 +131,13 @@ html body[data-ds-dark-theme] {
   --dsw-alias-state-error-primary: var(--a-err);
   --dsw-alias-state-error-secondary: var(--a-err);
   --dsw-alias-state-error-bg: color-mix(in oklab, var(--a-err) 8%, transparent);
-  --dsw-alias-state-success-primary: var(--a-signal);
-  --dsw-alias-state-success-bg: color-mix(in oklab, var(--a-signal) 8%, transparent);
+  --dsw-alias-state-success-primary: var(--a-ok);
+  --dsw-alias-state-success-bg: color-mix(in oklab, var(--a-ok) 10%, transparent);
   --dsw-alias-state-warn-primary: var(--a-ink-2);
   --dsw-alias-state-warn-label: var(--a-ink-2);
   --dsw-alias-state-warn-bg: var(--a-panel);
-  --dsw-alias-toast-bg: var(--a-signal);
-  --dsw-alias-tooltip-bg: var(--a-signal);
+  --dsw-alias-toast-bg: var(--a-panel-2);
+  --dsw-alias-tooltip-bg: var(--a-panel-2);
   --dsw-alias-scrollbar-bg-l1: transparent;
   --dsw-alias-scrollbar-bg-l2: transparent;
   --dsw-alias-scrollbar-hover-l1: var(--a-rule-2);
