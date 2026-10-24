@@ -345,3 +345,25 @@
   text-decoration: underline dotted var(--dsw-alias-link);
   text-underline-offset: 3px;
 }
+
+/* Bubble up: the tail span rises a hair and warms from deep ocean blue to ink,
+   layered on the opacity fade. `position` + `top` rather than `transform`:
+   a transform does not apply to a non-replaced inline box, and inline-block
+   would stop the span from wrapping mid-line. */
+@keyframes markdown-tail-rise {
+  from { opacity: 0.35; color: var(--a-deep, #0E4A7A); top: 2px; }
+  to   { opacity: 1;    color: var(--a-ink, currentColor); top: 0; }
+}
+
+.markdown [data-tail] {
+  position: relative;
+  animation: markdown-tail-rise 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .markdown [data-tail] {
+    animation: none;
+    color: inherit;
+    top: 0;
+  }
+}
