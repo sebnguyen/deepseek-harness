@@ -823,6 +823,8 @@ html body [data-dsh-shell] [data-chat-flow-kind='assistant-step-reason'] .body {
 }
 
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] {
+  border-top: 1px solid var(--a-rule);
+  min-height: 30px;
   padding-left: 0;
   border: 0;
   background: transparent;
@@ -1407,6 +1409,39 @@ html body [data-dsh-shell] [data-tool][data-state='running'] [class*='title'] {
 
 html body [data-dsh-shell] [data-tool][data-state='ok'] [class*='title'] {
   animation: tide-settle 480ms var(--a-ease) both;
+}
+
+/* Header: the session chrome reads as ruled segments, not bare words. */
+html body [data-dsh-shell] [data-dsh-header] button {
+  font-family: var(--a-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--a-ink-3);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  padding: 6px 2px;
+  transition: color 120ms var(--a-ease);
+}
+
+html body [data-dsh-shell] [data-dsh-header] button:hover {
+  color: var(--a-ink-2);
+}
+
+html body [data-dsh-shell] [data-dsh-header] button[aria-selected='true'],
+html body [data-dsh-shell] [data-dsh-header] button[data-active='true'],
+html body [data-dsh-shell] [data-dsh-header] button[data-state='active'] {
+  color: var(--a-ink);
+  box-shadow: inset 0 -2px 0 var(--a-signal);
+}
+
+/* Work rows sit on hairlines: the ledger reads as ruled stock, not a stack. */
+html body [data-dsh-shell] [data-chat-flow-kind='tool-call'],
+html body [data-dsh-shell] [data-chat-flow-kind='context'] {
+  border-top: 1px solid var(--a-rule);
 }
 
 @media (prefers-reduced-motion: reduce) {
