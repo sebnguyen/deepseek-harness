@@ -1536,20 +1536,18 @@ html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind]:last-child {
   animation: surf-up 320ms var(--a-ease) both;
 }
 
-/* The empty-state mark is a matrix of twinkling dots: 116 infinite animations
-   on one page, and at full width it reads as a dotted grid rather than a logo.
-   Stop the per-dot twinkle, keep one slow breathe on the mark as a whole, cap
-   its size and pin it to the measure. */
-html body [data-dsh-shell] [data-dsh-hero-mark] * {
-  animation: none;
+/* The swimming mark: stock motion is left intact — only its box is corrected,
+   so the glyph starts on the same axis as the headline instead of centring
+   itself in a full-width row. */
+html body [data-dsh-shell] [data-dsh-hero] [data-dsh-hero-mark] {
+  display: flex;
+  justify-content: flex-start;
+  align-self: flex-start;
+  width: auto;
+  margin: 0 0 18px;
 }
 
-html body [data-dsh-shell] [data-dsh-hero-mark] {
-  max-width: 96px;
-  animation: tide-caret 4.6s ease-in-out infinite;
-}
-
-html body [data-dsh-shell] [data-dsh-hero-mark] > * {
+html body [data-dsh-shell] [data-dsh-hero] [data-dsh-hero-mark] > * {
   margin-left: 0;
   margin-right: auto;
 }
