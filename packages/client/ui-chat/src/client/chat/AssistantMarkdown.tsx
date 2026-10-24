@@ -1,4 +1,4 @@
-import { Fragment, memo, useMemo } from 'react'
+import { Fragment, memo, useEffect, useMemo, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { JsonBlock, MarkdownText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MarkdownFileMentions, MarkdownPathImages } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -51,6 +51,23 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     const { protocol, origin } = window.location
     return { resolve: value => localPathMediaUrl(protocol, origin, value) }
   }, [])
+  // Pulse the live tail as text arrives: the parser freezes every block but the
+  // last two, so a CSS animation never re-triggers on its own. One compositor
+  // animation per flush, on one element, keyed by the tail's length.
+  const bodyRef = useRef<HTMLDivElement | null>(null)
+  const tail = streaming ? blocks[blocks.length - 1] : undefined
+  const tailLength = tail !== undefined && (tail.kind === 'text' || tail.kind === 'reasoning')
+    ? tail.text.length
+    : 0
+  useEffect(() => {
+    if (tailLength === 0) return
+    const reduced = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduced) return
+    const el = bodyRef.current?.lastElementChild
+    if (!(el instanceof HTMLElement) || typeof el.animate !== 'function') return
+    el.animate([{ opacity: 0.55 }, { opacity: 1 }], { duration: 110, easing: 'ease-out' })
+  }, [tailLength])
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
   // a node that is only those heads (or empty) would paint an empty root
@@ -121,7 +138,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   }
   return (
     <div className={css.root} data-streaming={streaming || undefined}>
-      <div className={css.body}>
+      <div className={css.body} ref={bodyRef}>
         {rendered}
         {interrupted && <span className={css.stopped}>{t('message.stopped')}</span>}
       </div>
