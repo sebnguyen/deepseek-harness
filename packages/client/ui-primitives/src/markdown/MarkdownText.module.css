@@ -355,7 +355,10 @@
   to   { opacity: 1;    color: var(--a-ink, currentColor); top: 0; }
 }
 
-.markdown [data-tail] {
+/* Doubled attribute selector: the earlier opacity-only rule for the same
+   element wins by source order in the built stylesheet, which silently reduced
+   the rise to a plain fade. Specificity makes the winner independent of order. */
+.markdown [data-tail][data-tail] {
   position: relative;
   animation: markdown-tail-rise 220ms ease-in both;
 }
