@@ -1470,6 +1470,16 @@ html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[
   color: var(--a-ink-3);
 }
 
+/* Inline code is text, not a link.
+
+   The renderer paints it with a class-level :is(code, …) rule that outranks a
+   plain element selector, so this carries a non-matching :not(#id) to win the
+   cascade without !important. */
+html body [data-dsh-shell] :is(code, kbd, samp):not(#dsh-inline-code-ink) {
+  color: var(--a-ink);
+  font-family: var(--a-mono);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html body [data-dsh-shell] * {
     animation: none !important;
