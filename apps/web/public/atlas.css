@@ -970,7 +970,7 @@ html body [data-dsh-shell] [data-composer-card] {
 }
 
 html body [data-dsh-shell] [data-composer-card]:focus-within {
-  border-color: var(--a-ink);
+  border-color: var(--a-signal);
 }
 
 html body [data-dsh-shell] [data-input-scroll] {
@@ -1442,6 +1442,31 @@ html body [data-dsh-shell] [data-dsh-header] button[data-state='active'] {
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'],
 html body [data-dsh-shell] [data-chat-flow-kind='context'] {
   border-top: 1px solid var(--a-rule);
+}
+
+/* Composer: one focus signal, one press, nothing at rest.
+
+   The press is a transform on :active — no keyframes, so a settled page still
+   has zero running animations, and scale never touches layout. */
+html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[aria-label='Send message']) {
+  background: var(--a-signal);
+  color: #FFFFFF;
+  border: 0;
+  border-radius: var(--a-r);
+  transition: background-color 120ms var(--a-ease), transform 120ms var(--a-ease);
+}
+
+html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[aria-label='Send message']):hover {
+  background: var(--a-signal-2);
+}
+
+html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[aria-label='Send message']):active {
+  transform: scale(0.96);
+}
+
+html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[aria-label='Send message']):disabled {
+  background: var(--a-panel-2);
+  color: var(--a-ink-3);
 }
 
 @media (prefers-reduced-motion: reduce) {
