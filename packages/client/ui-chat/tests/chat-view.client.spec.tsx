@@ -1351,7 +1351,11 @@ describe('ChatView', () => {
     act(() => {
       h.setChat({ partial: { turn: 2, step: 1, blocks: [{ kind: 'text', text: 'streaming… more' }] } })
     })
-    expect(view.getByText('streaming… more')).toBeTruthy()
+    // getByText only joins an element's own text nodes, and the fade suffix
+    // is a nested [data-tail] span: assert the block's full textContent.
+    const streamingBody = view.container.querySelector('[data-streaming="true"]')
+    expect(streamingBody?.textContent).toBe('streaming… more')
+    expect(streamingBody?.querySelector('[data-tail]')?.textContent).toBe(' more')
     expect(view.getByTestId('tool-seat-a')).toBe(tool)
     expect(tool.innerHTML).toBe(beforeHtml)
   })

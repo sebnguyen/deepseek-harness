@@ -193,6 +193,12 @@ export interface MarkdownRenderContext {
   readonly footnoteOrder: string[]
   /** References rendered per identifier; drives the section's back-reference count. */
   readonly footnoteCounts: Map<string, number>
+  /**
+   * Streaming tail mark: slice-relative source offset where the characters
+   * that arrived in this chunk begin. Set on the trailing block only; text
+   * nodes split at it and splittable constructs wrap whole.
+   */
+  readonly tail?: number | undefined
 }
 
 /**
@@ -201,15 +207,44 @@ export interface MarkdownRenderContext {
  * replaced pipeline's child lists so separator newlines land identically.
  * @param blocks - Blocks with their stream-stable render keys.
  * @param context - The pass state; footnote numbering mutates in document order.
+ * @param tailFrom - Streaming only: full-source offset where the characters
+ * that arrived in this chunk begin. The mark is placed inside the LAST block
+ * when the offset falls there; every other block renders unmarked.
  * @returns One React node per rendered block.
  */
 export function renderBlocks(
   blocks: readonly PositionedBlock[],
   context: MarkdownRenderContext,
+  tailFrom?: number | undefined,
 ): ReactNode[] {
+  const lastIndex = blocks.length - 1
+  const last = blocks[lastIndex]
+  const tail = last === undefined || tailFrom === undefined ? undefined : tailOffset(last, tailFrom)
   return blocks
-    .map(block => renderNode(block.node, block.key, context))
+    .map((block, index) => renderNode(
+      block.node,
+      block.key,
+      index === lastIndex && tail !== undefined ? { ...context, tail } : context,
+    ))
     .filter(element => element !== null)
+}
+
+/**
+ * Translate a full-source streaming offset into the slice-relative offset the
+ * trailing block's mdast positions use, or undefined when it does not land
+ * inside that block. Tail positions are relative to the incremental parse
+ * slice while the block key is its absolute source start, so the slice base is
+ * `key - start.offset`.
+ * @param block - The trailing tail block.
+ * @param tailFrom - Full-source offset where this chunk's new characters begin.
+ * @returns The block-relative mark offset, or undefined when unplaceable.
+ */
+function tailOffset(block: PositionedBlock, tailFrom: number): number | undefined {
+  const start = block.node.position?.start.offset
+  const end = block.node.position?.end.offset
+  if (start === undefined || end === undefined) return undefined
+  const offset = tailFrom - (block.key - start)
+  return offset >= start && offset < end ? offset : undefined
 }
 
 /**
@@ -262,10 +297,27 @@ function renderChildren(
   return nodes.map((node, index) => renderNode(node, index, context))
 }
 
+/**
+ * Render one mdast node, marking whichever part of it arrived in this chunk.
+ * Text and literal raw-HTML nodes split at the mark (no HTML parser enters
+ * the pipeline, so raw HTML is text); phrasing constructs that cannot be
+ * split without breaking their authored form animate whole. Block containers
+ * pass the mark down, and constructs where a span would corrupt the structure
+ * (fences) leave it unclaimed.
+ */
 function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderContext): ReactNode {
+  if (node.type === 'text' || node.type === 'html') return renderText(node, key, context)
+  const element = renderNodeBody(node, key, context)
+  const tail = context.tail
+  const end = node.position?.end.offset
+  if (element === null || tail === undefined || end === undefined || tail >= end || !isTailWrapped(node)) {
+    return element
+  }
+  return tailSpan(`tail:${String(key)}:${tail}`, element)
+}
+
+function renderNodeBody(node: Md.RootContent, key: Key, context: MarkdownRenderContext): ReactNode {
   switch (node.type) {
-    case 'text':
-      return node.value
     case 'paragraph':
       return <p key={key}>{renderChildren(node.children, context)}</p>
     case 'heading':
@@ -285,11 +337,11 @@ function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderConte
       // The replaced pipeline emitted a newline text node after each <br>.
       return <Fragment key={key}><br />{'\n'}</Fragment>
     case 'strong':
-      return <strong key={key}>{renderChildren(node.children, context)}</strong>
+      return <strong key={key}>{renderChildren(node.children, tailOpaque(context))}</strong>
     case 'emphasis':
-      return <em key={key}>{renderChildren(node.children, context)}</em>
+      return <em key={key}>{renderChildren(node.children, tailOpaque(context))}</em>
     case 'delete':
-      return <del key={key}>{renderChildren(node.children, context)}</del>
+      return <del key={key}>{renderChildren(node.children, tailOpaque(context))}</del>
     case 'inlineCode': {
       // Parity with mdast-util-to-hast: inline code renders line endings as spaces.
       const value = node.value.replace(/\r?\n|\r/g, ' ')
@@ -322,9 +374,6 @@ function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderConte
       }
       return <code key={key}>{value}</code>
     }
-    case 'html':
-      // No HTML parser enters the pipeline: raw HTML stays literal text.
-      return node.value
     case 'code':
       return renderCode(node, key, context)
     case 'math':
@@ -338,8 +387,10 @@ function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderConte
       return renderListItem(node, listItemLoose(node), key, context)
     case 'table':
       return renderTable(node, key, context)
-    case 'link':
-      return renderAnchor(node.url, renderChildren(node.children, { ...context, inLink: true }), key, !anchorWrapsOnlyImages(node.children))
+    case 'link': {
+      const children = renderChildren(node.children, tailOpaque({ ...context, inLink: true }))
+      return renderAnchor(node.url, children, key, !anchorWrapsOnlyImages(node.children))
+    }
     case 'linkReference':
       return renderLinkReference(node, key, context)
     case 'image':
@@ -359,6 +410,100 @@ function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderConte
       // grammar contributions) render nothing.
       return null
   }
+}
+
+/**
+ * Phrasing node types the tail mark may wrap whole. Block containers
+ * (paragraph, heading, quote, list, table) descend instead so the mark lands on
+ * their inline runs; fenced code is deliberately absent because a span there
+ * would break the highlighted block's structure.
+ */
+function isTailWrapped(node: Md.RootContent): boolean {
+  switch (node.type) {
+    case 'strong':
+    case 'emphasis':
+    case 'delete':
+    case 'link':
+    case 'linkReference':
+    case 'inlineCode':
+    case 'image':
+    case 'imageReference':
+    case 'footnoteReference':
+    case 'break':
+    case 'inlineMath':
+    case 'math':
+      return true
+    default:
+      return false
+  }
+}
+
+/**
+ * Pass state for an atomic construct's children: the wrapper carries the tail
+ * mark, so its pieces must not mark themselves (that would nest the spans and
+ * split the construct into separately animated fragments).
+ * @param context - The enclosing pass state.
+ * @returns The same state with the tail mark cleared.
+ */
+function tailOpaque(context: MarkdownRenderContext): MarkdownRenderContext {
+  return { ...context, tail: undefined }
+}
+
+/**
+ * Render a text node, splitting its value at the tail mark. The mdast value
+ * can be shorter than its source span (backslash escapes, character
+ * references), so the split clamps: a transient escape may leave the mark
+ * covering more of the value, but no character is ever lost or duplicated.
+ * Raw HTML reaches here too: it renders as literal text, so it splits like
+ * one instead of re-fading the whole node on every chunk.
+ * @param node - The text or html node to render.
+ * @param key - Stable stream key for the node.
+ * @param context - The pass state carrying the tail mark.
+ * @returns The value, marked from the split on when it is new.
+ */
+function renderText(node: Md.Text | Md.Html, key: Key, context: MarkdownRenderContext): ReactNode {
+  const tail = context.tail
+  const start = node.position?.start.offset
+  const end = node.position?.end.offset
+  if (tail === undefined || start === undefined || end === undefined || tail >= end) return node.value
+  const split = Math.min(Math.max(tail - start, 0), node.value.length)
+  if (split >= node.value.length) return node.value
+  if (split === 0) return tailSpan(`tail:${String(key)}:${tail}`, node.value)
+  return (
+    <Fragment key={key}>
+      {node.value.slice(0, split)}
+      {tailSpan(`tail:${String(key)}:${tail}`, node.value.slice(split))}
+    </Fragment>
+  )
+}
+
+/**
+ * Whether the one-shot tail fade may run. Non-browser callers and test DOMs
+ * may lack `matchMedia`; the absent API keeps the animation on rather than
+ * failing the render.
+ * @returns False only for an explicit reduced-motion preference.
+ */
+function tailMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+  return !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/**
+ * Wrap one newly arrived run. The key carries the split offset so every delta
+ * mounts a FRESH span: a stable key would reuse the DOM node, and then the CSS
+ * animation would not fire again. Under reduced motion the span still renders
+ * but carries an inline `animation: none` — the sheet's media query is the
+ * browser backstop, and this inline gate is what a DOM test can observe.
+ * @param key - Caller-supplied key; must change whenever the split moves.
+ * @param children - The newly arrived rendered content.
+ * @returns The marked span.
+ */
+function tailSpan(key: Key, children: ReactNode): ReactNode {
+  return (
+    <span key={key} data-tail style={tailMotion() ? undefined : { animation: 'none' }}>
+      {children}
+    </span>
+  )
 }
 
 function renderCode(node: Md.Code, key: Key, context: MarkdownRenderContext): ReactNode {
@@ -619,9 +764,9 @@ function renderLinkReference(
     // the same parse, but incremental segments and hand-built trees may still
     // present unresolved ones: revert to the bracketed source text — which is
     // not an anchor, so mentions inside it stay live.
-    return <Fragment key={key}>{'['}{renderChildren(node.children, context)}{referenceSuffix(node)}</Fragment>
+    return <Fragment key={key}>{'['}{renderChildren(node.children, tailOpaque(context))}{referenceSuffix(node)}</Fragment>
   }
-  const rendered = renderChildren(node.children, { ...context, inLink: true })
+  const rendered = renderChildren(node.children, tailOpaque({ ...context, inLink: true }))
   return renderAnchor(definition.url, rendered, key, !anchorWrapsOnlyImages(node.children))
 }
 

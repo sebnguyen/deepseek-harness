@@ -71,19 +71,22 @@ class StreamingRenderer {
   private frozenFootnoteOrder: string[] = []
   private frozenFootnoteCounts = new Map<string, number>()
   private lastText: string | null = null
+  private lastTailFrom: number | undefined
   private lastRendered: ReactNode[] = []
 
   /** @param labels - Localized Markdown chrome baked into cached elements; the owner replaces the renderer when it changes. */
   constructor(private readonly labels: MarkdownLabels) {}
 
   /**
-   * Render the current accumulated text. Idempotent per text value, so React
-   * may re-execute the calling render freely.
+   * Render the current accumulated text. Idempotent per text value and tail
+   * mark, so React may re-execute the calling render freely.
    * @param text - The full accumulated markdown source.
+   * @param tailFrom - Full-source offset where this chunk's new characters
+   * begin; the trailing block marks the suffix so only it fades in.
    * @returns Frozen elements, re-rendered tail, and the footnote section.
    */
-  render(text: string): ReactNode[] {
-    if (text === this.lastText) return this.lastRendered
+  render(text: string, tailFrom?: number | undefined): ReactNode[] {
+    if (text === this.lastText && tailFrom === this.lastTailFrom) return this.lastRendered
     const { frozen, tail, generation } = this.parser.update(text)
     if (generation !== this.generation) {
       this.generation = generation
@@ -133,13 +136,14 @@ class StreamingRenderer {
       footnoteCounts: new Map(this.frozenFootnoteCounts),
     }
     const children = [...this.frozenElements]
-    for (const element of renderBlocks(tail, tailContext)) {
+    for (const element of renderBlocks(tail, tailContext, tailFrom)) {
       if (children.length > 0) children.push('\n')
       children.push(element)
     }
     const section = renderFootnoteSection(tailContext)
     if (section !== null) children.push('\n', section)
     this.lastText = text
+    this.lastTailFrom = tailFrom
     this.lastRendered = children
     return this.lastRendered
   }
@@ -159,14 +163,22 @@ class StreamingRenderer {
  * displayable URLs its resolver vouches for; both vocabularies are the
  * single streaming gate — they apply to settled renders only, because a
  * streaming message's vocabulary is not final and frozen cached elements
- * must not bake in handlers that could go stale.
+ * must not bake in handlers that could go stale. `tailFrom` marks the
+ * characters that arrived in this streaming chunk so only they fade in.
  * @returns A GFM document with TeX math rendered through KaTeX; raw HTML,
  * relative links, and unsafe protocols are disabled, while absolute HTTP(S)
  * images render directly.
  */
-export const MarkdownText = memo(function MarkdownText({ text, streaming = false, labels, fileMentions, pathImages }: {
+export const MarkdownText = memo(function MarkdownText({ text, streaming = false, tailFrom, labels, fileMentions, pathImages }: {
   text: string
   streaming?: boolean
+  /**
+   * Streaming only: source offset in `text` where the characters that arrived
+   * in this chunk begin. The rendered suffix is marked `data-tail` so the
+   * component sheet fades exactly those characters. Undefined on settled
+   * renders and on blocks that are not the live tail.
+   */
+  tailFrom?: number | undefined
   labels: MarkdownLabels
   fileMentions?: MarkdownFileMentions | undefined
   pathImages?: MarkdownPathImages | undefined
@@ -182,7 +194,7 @@ export const MarkdownText = memo(function MarkdownText({ text, streaming = false
       streamRef.current = new StreamingRenderer(labels)
       streamLabelsRef.current = labels
     }
-    return streamRef.current.render(text)
-  }, [text, streaming, labels, fileMentions, pathImages])
+    return streamRef.current.render(text, tailFrom)
+  }, [text, streaming, tailFrom, labels, fileMentions, pathImages])
   return <div className={css.markdown}>{children}</div>
 })

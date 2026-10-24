@@ -51,31 +51,30 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
     const { protocol, origin } = window.location
     return { resolve: value => localPathMediaUrl(protocol, origin, value) }
   }, [])
-  // Pulse the live tail as text arrives: the parser freezes every block but the
-  // last two, so a CSS animation never re-triggers on its own. One compositor
-  // animation per flush, on one element, keyed by the tail's length.
-  const bodyRef = useRef<HTMLDivElement | null>(null)
-  const lastPulseRef = useRef(0)
-  const tail = streaming ? blocks[blocks.length - 1] : undefined
-  const tailLength = tail !== undefined && (tail.kind === 'text' || tail.kind === 'reasoning')
-    ? tail.text.length
-    : 0
-  useEffect(() => {
-    if (tailLength === 0) return
-    // Throttle: deltas arrive faster than the fade, and restarting it on every
-    // one holds the block below full opacity — that reads as a strobe. Never
-    // start a new fade while the previous one is still running.
-    const now = Date.now()
-    if (now - lastPulseRef.current < 260) return
-    const reduced = typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduced) return
-    const el = bodyRef.current?.lastElementChild
-    if (!(el instanceof HTMLElement) || typeof el.animate !== 'function') return
-    lastPulseRef.current = now
-    el.animate([{ opacity: 0.82 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' })
-  }, [tailLength])
+  // Granularity: fade the characters that arrived since the previous commit,
+  // not the block that holds them. Track the trailing prose block's committed
+  // length — a block change (index or kind) and the end of streaming both
+  // restart the measurement, so a fresh block fades whole and no stale length
+  // marks a later block.
+  const tailRef = useRef<{ index: number; kind: 'text' | 'reasoning'; length: number } | null>(null)
   const last = blocks.length - 1
+  const trailing = blocks[last]
+  const trailingText = trailing !== undefined && (trailing.kind === 'text' || trailing.kind === 'reasoning')
+    ? { kind: trailing.kind, length: trailing.text.length }
+    : undefined
+  const trailingKind = trailingText?.kind
+  const trailingLength = trailingText?.length
+  const previousTail = tailRef.current
+  const tailFrom = streaming && trailingKind === 'text'
+    ? previousTail !== null && previousTail.index === last && previousTail.kind === 'text'
+      ? previousTail.length
+      : 0
+    : undefined
+  useEffect(() => {
+    tailRef.current = streaming && trailingKind !== undefined && trailingLength !== undefined
+      ? { index: last, kind: trailingKind, length: trailingLength }
+      : null
+  }, [streaming, last, trailingKind, trailingLength])
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
   // a node that is only those heads (or empty) would paint an empty root
   // between tool groups — skip the shell unless something visible remains.
@@ -94,6 +93,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
             key={i}
             text={block.text}
             streaming={streaming}
+            tailFrom={i === last ? tailFrom : undefined}
             labels={labels}
             fileMentions={mentions}
             pathImages={pathImages}
@@ -145,7 +145,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   }
   return (
     <div className={css.root} data-streaming={streaming || undefined}>
-      <div className={css.body} ref={bodyRef}>
+      <div className={css.body}>
         {rendered}
         {interrupted && <span className={css.stopped}>{t('message.stopped')}</span>}
       </div>

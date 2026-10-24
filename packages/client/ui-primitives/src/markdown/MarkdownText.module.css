@@ -9,6 +9,32 @@
   color: var(--dsw-alias-label-primary);
 }
 
+/* Streaming tail: MarkdownText marks exactly the characters that arrived in
+   the current chunk, and every delta mounts a fresh span. The animation thus
+   runs once per arrival over the new characters only — never over the whole
+   trailing block, which is what strobed. */
+@keyframes markdown-tail-in {
+  from {
+    opacity: 0.35;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.markdown [data-tail] {
+  animation: markdown-tail-in 140ms ease-out both;
+}
+
+/* Reduced motion: MarkdownText also opts the span out inline (the gate DOM
+   tests can observe); this rule is the browser-side backstop. */
+@media (prefers-reduced-motion: reduce) {
+  .markdown [data-tail] {
+    animation: none;
+  }
+}
+
 .markdown strong {
   font-weight: 600;
 }
