@@ -76,7 +76,7 @@ export interface HeroShellProps {
  */
 export function HeroShell({ t, children }: HeroShellProps) {
   return (
-    <div className={css.root}>
+    <div className={css.root} data-dsh-hero="">
       <div className={css.stack}>
         {/* The large pixel logo from the loader mockup, idling as a random
             dot pop & fade instead of the clockwise sweep. */}
