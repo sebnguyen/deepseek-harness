@@ -55,18 +55,25 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   // last two, so a CSS animation never re-triggers on its own. One compositor
   // animation per flush, on one element, keyed by the tail's length.
   const bodyRef = useRef<HTMLDivElement | null>(null)
+  const lastPulseRef = useRef(0)
   const tail = streaming ? blocks[blocks.length - 1] : undefined
   const tailLength = tail !== undefined && (tail.kind === 'text' || tail.kind === 'reasoning')
     ? tail.text.length
     : 0
   useEffect(() => {
     if (tailLength === 0) return
+    // Throttle: deltas arrive faster than the fade, and restarting it on every
+    // one holds the block below full opacity — that reads as a strobe. Never
+    // start a new fade while the previous one is still running.
+    const now = Date.now()
+    if (now - lastPulseRef.current < 260) return
     const reduced = typeof window.matchMedia === 'function'
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) return
     const el = bodyRef.current?.lastElementChild
     if (!(el instanceof HTMLElement) || typeof el.animate !== 'function') return
-    el.animate([{ opacity: 0.55 }, { opacity: 1 }], { duration: 110, easing: 'ease-out' })
+    lastPulseRef.current = now
+    el.animate([{ opacity: 0.82 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' })
   }, [tailLength])
   const last = blocks.length - 1
   // Tool-call heads render as tool rows in the chat view's grouping pass, so
