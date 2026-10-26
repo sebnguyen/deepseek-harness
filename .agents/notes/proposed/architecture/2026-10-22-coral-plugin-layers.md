@@ -1,16 +1,18 @@
-# Agent Note: The Coral and Reef plugin layers — seven runtime layers, a types-only contract, and their API surfaces
+# Agent Note: The Coral and Reef Plugin layers — seven runtime layers, a types-only contract, and their API surfaces
 
 Status: proposed
 
+Cordis terms (`Plugin`, `Runtime`, `Fiber`, `Context`, `Impl`, `scope`, `inject`, `epoch`, `effect`, `provide`, `resolve`) are used per the canonical definitions in `/home/snguyen/dev/digitalocean/idk/AGENTS.md` §3 and §7; engine behavior cited as `file.ts:line` refers to `deepseek-harness-oceanic/vendor/cordis/src/` (the built form is `.../lib/index.js`).
+
 ## Problem
 
-The Coral and Reef plane is specified across four proposed Agent Notes and a reference document outside this repository (`Cordises/docs/CORAL-PLUGIN-LAYERS.md`). No in-repo document states the layer membership, the `ctx` service key, the store, and the call direction for every plugin. Without that map a new plugin can land in the wrong layer, call upward, or fork a contract another layer already owns; the out-of-repo reference carries no alternatives and no acceptance criteria, and its type snippets predate the four notes — an `Endpoint` with a `carrier` string, `inproc | ipc | net` flavors, a registry subscribed to lease events, and a `CarrierCapabilities` struct that the standard plane replaces with spec-owned facets.
+The Coral and Reef plane is specified across four proposed Agent Notes. (A fifth reference document previously lived outside this repository at `Cordises/docs/CORAL-PLUGIN-LAYERS.md`; that directory is now deleted, and this note is the in-repo authority that supersedes it.) No in-repo document states the layer membership, the `ctx` service key, the store, and the call direction for every Plugin. Without that map a new Plugin can land in the wrong layer, call upward, or fork a contract another layer already owns; the out-of-repo reference carries no alternatives and no acceptance criteria, and its type snippets predate the four notes — an `Endpoint` with a `carrier` string, `inproc | ipc | net` flavors, a registry subscribed to lease events, and a `CarrierCapabilities` struct that the standard plane replaces with spec-owned facets.
 
-The call map alone also hides a second question readers keep asking: which plugin owns data, which owns logic, which owns the socket, and which owns a lifecycle. The registry is described as a service but is really a store; a flavor is described as an adapter but really owns the frame loop and the live-link lifecycle; the websocket is split across three layers. The layer list states direction but not role, so the same conceptual questions return. This note adds the role model, the lifecycle inventory, and the transport-ownership table to the same map.
+The call map alone also hides a second question readers keep asking: which Plugin owns data, which owns logic, which owns the socket, and which owns a lifecycle. The registry is described as a service but is really a store; a flavor is described as an adapter but really owns the frame loop and the live-link lifecycle; the websocket is split across three layers. The layer list states direction but not role, so the same conceptual questions return. This note adds the role model, the lifecycle inventory, and the transport-ownership table to the same map.
 
 ## Proposal
 
-Adopt a types-only contract layer (`coral.contract`, L0), seven runtime layers below the engine, one plugin family per layer, and one rule: **a layer calls only the layers below it.** Every runtime plugin also declares its primary role — `STATE`, `LOGIC`, `TRANSPORT`, or `LIFECYCLE` — and a plugin that owns state names its single writer family.
+Adopt a types-only contract layer (`coral.contract`, L0), seven runtime layers below the engine, one Plugin family per layer, and one rule: **a layer calls only the layers below it.** Every runtime Plugin also declares its primary role — `STATE`, `LOGIC`, `TRANSPORT`, or `LIFECYCLE` — and a Plugin that owns state names its single writer family.
 
 This note owns the layer membership, the `ctx` key, the store, the call direction, the role assignment, and the API index. The detailed contracts remain in the four owning notes: [the standard plane](2026-10-22-coral-standard-plane.md), [the webserver](2026-10-22-coral-webserver-scopes.md), [the standard cells](2026-10-22-coral-standard-cells.md), and [the reef ownership note](2026-10-22-reef-lease-registry-ownership.md). A signature shown below is an index entry, not a second source of truth; the owning note wins on conflict.
 
@@ -31,7 +33,7 @@ The map:
 
 ### Four roles
 
-One plugin may own more than one role, but one role is primary. The primary role decides what the package may change; the secondary roles describe responsibilities that cannot move without a contract change.
+One Plugin may own more than one role, but one role is primary. The primary role decides what the package may change; the secondary roles describe responsibilities that cannot move without a contract change.
 
 | Role | Question it answers | Owners |
 |---|---|---|
@@ -44,11 +46,11 @@ A useful rule: if it can be rebuilt from the event log or the registry, it is st
 
 ### The five lifecycles
 
-These are the ones readers collapse into "the plugin lifecycle". They are not the same, and each has a different owner.
+These are the ones readers collapse into "the Plugin lifecycle". They are not the same, and each has a different owner.
 
 | Lifecycle | Owner | Begins | Ends |
 |---|---|---|---|
-| Cordis plugin fiber | Loader and `ctx` | `apply` or `setup` | `teardown` or fiber dispose |
+| Cordis Plugin Fiber | Loader and `ctx` | `apply` or `setup` | `teardown` or Fiber dispose |
 | Listener and routes | L1 host webserver | bind | listener close, route disposer |
 | Link generation | L2 flavor | `dial` or `accept` | `dispose`, stale generation |
 | Agent and session | DSH `ctx.agents` (`AgentHandle`) | `agents.create` | settle or `handle.dispose()` |
@@ -56,11 +58,11 @@ These are the ones readers collapse into "the plugin lifecycle". They are not th
 | Session snapshot and baked tools | L6 | session open | session close |
 | Run | L7 engine | `bind` | `dispose` |
 
-The Cordis fiber is the container lifecycle. Every other lifecycle happens inside a fiber and must be disposed before that fiber unloads; a plugin that owns one of these and only implements `teardown` has a lifecycle leak.
+The Cordis Fiber is the container lifecycle. Every other lifecycle happens inside a Fiber and must be disposed before that Fiber unloads; a Plugin that owns one of these and only implements `teardown` has a lifecycle leak.
 
 ### Transport ownership
 
-The websocket is the clearest example of a resource split across layers: no single plugin owns it.
+The websocket is the clearest example of a resource split across layers: no single Plugin owns it.
 
 | Wire | Socket or listener owner | Frame and protocol owner | Message semantics owner |
 |---|---|---|---|
@@ -74,9 +76,9 @@ So "the websocket" is three owners: L1 holds the upgrade socket, L2 runs the fra
 
 ### The substrate is not a layer
 
-The seven runtime layers are the plane. The base plugins are cross-cutting substrate that every layer imports.
+The seven runtime layers are the plane. The base Plugins are cross-cutting substrate that every layer imports.
 
-| Substrate plugin | State | Logic |
+| Substrate Plugin | State | Logic |
 |---|---|---|
 | `coral.base.envelope` | none (pure value) | `of`, `rebind`, `isEnvelope` |
 | `coral.base.identity` | key material, token records | `snapshot`, `issue`, `verify`, `provenance` |
@@ -193,7 +195,7 @@ export interface Standards {
 
 **Transport:** it uses L2 for outbound connections and registers scopes on L1 for inbound ones. It never owns a listener, a pipe, or a frame loop.
 
-**Lifecycle:** none beyond the plugin fiber. The connections and protocol sessions a standard creates belong to its caller or to L2; a standard that keeps a session open past its caller's disposal is a leak.
+**Lifecycle:** none beyond the Plugin Fiber. The connections and protocol sessions a standard creates belong to its caller or to L2; a standard that keeps a session open past its caller's disposal is a leak.
 
 **Calls down:** L1 (`mountHost`) and L2 (`dial` inside `connect`). It does **not** call L4. A standard receives an `Endpoint` and a `RawFacet` as arguments from the handshake or from L6, and returns a client. The earlier version of this note listed L4 in the standard's calls; that was an upward edge and is corrected here. The full `Standard<RawFacet, Client>` contract — `facetSchema`, `mountHost`, `detect`, `discovery`, `connect`, `adapt` — is owned by [the standard plane](2026-10-22-coral-standard-plane.md); each protocol's raw facet, detection call, level-1 trigger, and normalization table are owned by [the standard cells](2026-10-22-coral-standard-cells.md).
 
@@ -366,7 +368,7 @@ export interface CoralProjections {
 
 **Lifecycle:** runs (`bind` to `dispose`), projection subscriptions, UI shell handles, and leases. The engine's run disposal must quiesce before the bound carrier disposes; the reverse order leaves a send into a dead link.
 
-**Calls down:** L6 (the four verbs) and L4 (`resolve`, plus the local row bind when the engine spawns a native child). Reef plugins also call L5 (leases, cards, journal). **Called by:** the human client, `cordis-patch`, and the CLI.
+**Calls down:** L6 (the four verbs) and L4 (`resolve`, plus the local row bind when the engine spawns a native child). Reef Plugins also call L5 (leases, cards, journal). **Called by:** the human client, `cordis-patch`, and the CLI.
 
 ```mermaid
 flowchart TB
@@ -391,32 +393,32 @@ flowchart TB
 
 ## Plugin, Runtime, Fiber, Context
 
-The layer table names `ctx` keys, but a `ctx` key is not a plugin. Cordis keeps four objects with four lifetimes: the **plugin** is the callable definition; the **Runtime** is the registry row keyed by that callable; the **Fiber** is one mount of it; and the **Context** is the child lens that mount exposes. One Runtime can have N fibers. A service-providing plugin normally has one fiber per root registry; an effect-only plugin can have one fiber per session.
+The layer table names `ctx` keys, but a `ctx` key is not a Plugin. Cordis keeps four objects with four lifetimes: the **Plugin** is the callable definition; the **Runtime** is the registry row keyed by that callable (`registry.ts:197`); the **Fiber** is one mount of it (`fiber.ts:236`); and the **Context** is the child lens that mount exposes (`context.ts:74`, `context.ts:99`). One Runtime can have N Fibers. A service-providing Plugin normally has one Fiber per root registry; an effect-only Plugin can have one Fiber per session.
 
-Every Runtime below lives in the root `RegistryService._internal`; a second Cordis root has its own Runtime map. The `Config` schema lives on the Runtime and is shared by every mount; `fiber.config` is the per-mount validated value.
+Every Runtime below lives in the root `RegistryService._internal` (`registry.ts:197`); a second Cordis root has its own Runtime map. The `Config` schema lives on the Runtime (`registry.ts:50-53`) and is shared by every mount; `fiber.config` is the per-mount validated value (`fiber.ts:643`).
 
 ### L1–L2 — server and transport
 
 | Plugin (definition) | Runtime | Fiber | Context |
 |---|---|---|---|
-| `coral.webserver` — class `WebServer extends Service` (the host service this plan extends) | 1 row, key = constructor; `Config` = host, port, TLS | 1 per host composition, parent = root; owns the listener and every route effect | root child; provides `webServer`; sees core services only |
+| `coral.webserver` — class `WebServer extends Service` (the host Service this plan extends; `service.ts` — `Service` calls `ctx.reflect.provide`) | 1 row, key = constructor; `Config` = host, port, TLS | 1 per host composition, parent = root; owns the listener and every route effect (`fiber.ts:236`) | root child; provides `webServer`; sees core services only |
 | `coral.flavor.inproc` — object `{ name, inject: ['coralFlavors'], apply }` | 1 row, key = `apply` | 1 per composition; no socket; the link map is instance state | root child; registers into `coralFlavors`; sees `coralFlavors` and `webServer` for `accept` |
 | `coral.flavor.stdio` | 1 row | 1; owns the child process pipes | same |
 | `coral.flavor.http-sse` | 1 row | 1; owns the SSE streams | same |
 | `coral.flavor.ws` | 1 row | 1; owns the upgrade socket's frame loop | same |
 
-A flavor's `CarrierLink` is not a fiber. `dial` returns a handle; the flavor's fiber owns the map and the disposers, and the link dies with the fiber or with its generation.
+A flavor's `CarrierLink` is not a Fiber. `dial` returns a handle; the flavor's Fiber owns the map and the disposers, and the link dies with the Fiber or with its generation.
 
 ### L3–L4 — standards and registry
 
 | Plugin (definition) | Runtime | Fiber | Context |
 |---|---|---|---|
-| `coral.standard.native` — object `{ id, facetSchema, mountHost, detect, discovery, connect, adapt }` | 1 row per standard, key = `apply` | 1 per composition; `mountHost` scopes are fiber effects; each `connect` returns a `Client` handle that is not a fiber | root child; injects `coralStandards`, `coralFlavors`, `webServer`; must not inject `coralRegistry` |
+| `coral.standard.native` — object `{ id, facetSchema, mountHost, detect, discovery, connect, adapt }` | 1 row per standard, key = `apply` | 1 per composition; `mountHost` scopes are Fiber effects; each `connect` returns a `Client` handle that is not a Fiber | root child; injects `coralStandards`, `coralFlavors`, `webServer`; must not inject `coralRegistry` |
 | `coral.standard.acp` | 1 row | 1; the stdio flavor owns the pipes, not the standard | same |
 | `coral.standard.a2a` | 1 row | 1; mounts the card and JSON-RPC scopes | same |
 | `coral.base.registry` — class or object providing `coralRegistry` | 1 row | 1 per composition; bind disposers are effects; durable rows live in storage | root child; provides `coralRegistry`; sees storage and events |
 
-The registry's service instance is the state holder; its fiber is only the mount. If the fiber reloads, a new instance is created, the provider uid changes, and every consumer with `inject: ['coralRegistry']` restarts. That is why the registry mounts early and reloads rarely, and why federated rows are durable.
+The registry's service instance is the state holder; its Fiber is only the mount (`fiber.ts:236`). If the Fiber reloads, a new instance is created, the provider uid changes, and every consumer with `inject: ['coralRegistry']` restarts (`fiber.ts:611-625` — `_refresh` joins provider uids into the epoch; a changed uid drives `_setEpoch` → unload/reload). That is why the registry mounts early and reloads rarely, and why federated rows are durable (`registry.ts:197` — one map keyed by the Plugin callback).
 
 ### L5–L6 — bridge and per-session
 
@@ -424,18 +426,18 @@ The registry's service instance is the state holder; its fiber is only the mount
 |---|---|---|---|
 | `coral.peer-handshake` | 1 row | 1 per instance; the `cells` map is instance state; cell mounts and links are effects | root child; injects registry, standards, flavors, webserver, `reefTrust`, `reefMesh` |
 | `coral.gate` / `coralCarriers` | 1 row | 1 per instance; gate verdicts are pure; session snapshots are per-session data | root child; injects standards, registry, events |
-| `coral.bake` | 1 row **shared by all sessions** | **N fibers**, one per session or agent; parent = that session's context; the disposer is scoped to the session | session child; injects `tools`, `toolCordis`, `sessions`, `sessionProjections` |
-| carrier view | none — it is not a plugin | none — it is a value produced by `adapt` | n/a |
+| `coral.bake` | 1 row **shared by all sessions** | **N Fibers**, one per session or agent; parent = that session's context; the disposer is scoped to the session | session child; injects `tools`, `toolCordis`, `sessions`, `sessionProjections` |
+| carrier view | none — it is not a Plugin | none — it is a value produced by `adapt` | n/a |
 
-`coral.bake` is the clearest N-fiber case: same Runtime, same `Config` schema, different `fiber.config` and different `ctx` per session. Unloading session A's fiber disposes only A's baked tools; the Runtime row and session B's fiber are untouched.
+`coral.bake` is the clearest N-Fiber case: same Runtime, same `Config` schema, different `fiber.config` and different `ctx` per session (`fiber.ts:236` — `ctx = parent.extend({ Fiber: this })`). Unloading session A's Fiber disposes only A's baked tools (`fiber.ts:266` — `runtime.fibers.push`); the Runtime row and session B's Fiber are untouched.
 
 ### L7 — engine and reef
 
 | Plugin | Runtime | Fiber | Context |
 |---|---|---|---|
-| `coral.engine` | 1 row | 1 per instance; documents and log durable, plans in instance; runs are records and effects, **not fibers** | root child; injects `coralCarriers`, `coralRegistry`, `coralProjections`, events |
+| `coral.engine` | 1 row | 1 per instance; documents and log durable, plans in instance; runs are records and effects, **not Fibers** | root child; injects `coralCarriers`, `coralRegistry`, `coralProjections`, events |
 | `coral.projections` | 1 row | 1 per instance; views and cursor in instance; subscriptions are effects | root child; injects events and the ledger cursor |
-| `coral.ui` | 1 row | 1 per UI host; browser connections are handles, not fibers | root or web child; injects projections and engine |
+| `coral.ui` | 1 row | 1 per UI host; browser connections are handles, not Fibers | root or web child; injects projections and engine |
 | `reef.mesh` | 1 row | 1 per instance; leases in instance and storage | root child; injects events and storage |
 | `reef.trust` | 1 row | 1 per instance; key material and cache in instance | root child; injects identity and events |
 | `reef.ledger` | 1 row | 1 per instance; durable log | root child; injects storage and events |
@@ -458,24 +460,24 @@ The registry's service instance is the state holder; its fiber is only the mount
 
 | Plugin | Runtime | Fiber | Context |
 |---|---|---|---|
-| `cordis-patch` | 1 row | **N fibers**, one per attached session; parent = session context; applies the compiled plan as session effects | session child; injects engine, carriers, `tools` |
-| `coral.contract` | none | none | none — it is types only, not a plugin |
+| `cordis-patch` | 1 row | **N Fibers**, one per attached session; parent = session context; applies the compiled plan as session effects | session child; injects engine, carriers, `tools` |
+| `coral.contract` | none | none | none — it is types only, not a Plugin |
 
 ### Three contrasts that make it click
 
-- **Registry vs bake.** The registry is a service plugin: one fiber, one instance, one Runtime. Bake is effect-only: one Runtime, N fibers, one per session. Both have a Runtime row keyed by `apply`; only the mount count differs.
-- **Standard vs client.** `coral.standard.native` is one fiber. The `Client` returned by `connect` is not a fiber and not a service; it is a handle owned by the caller (an edge, a bake, or the engine). If the standard fiber reloads, its `mountHost` scopes dispose, but existing clients stay alive until their owner disposes them. That is a real leak to test for.
-- **Plugin vs agent.** An `Agent` from `ctx.agents.create` is not a fiber: `agents.create` makes an agent object and a child context, not a `ctx.plugin()` mount. The per-session Coral plugins (`bake`, `cordis-patch`) are fibers under that child context; the agent loop is driven by the factory's own lifecycle. Two inproc agents therefore mean two agent contexts, each with its own bake and patch fibers, under one root Coral composition.
+- **Registry vs bake.** The registry is a service Plugin: one Fiber, one instance, one Runtime (`fiber.ts:236`). Bake is effect-only: one Runtime, N Fibers, one per session. Both have a Runtime row keyed by `apply` (`registry.ts:197`); only the mount count differs.
+- **Standard vs client.** `coral.standard.native` is one Fiber (`fiber.ts:236`). The `Client` returned by `connect` is not a Fiber and not a Service; it is a handle owned by the caller (an edge, a bake, or the engine). If the standard Fiber reloads, its `mountHost` scopes dispose, but existing clients stay alive until their owner disposes them. That is a real leak to test for (`fiber.ts:236` — a reload creates a new Fiber; clients are not tied to the Fiber lifecycle).
+- **Plugin vs agent.** An `Agent` from `ctx.agents.create` is not a Fiber: `agents.create` makes an agent object and a child Context, not a `ctx.plugin()` mount (`fiber.ts:236` — a Fiber is created only by `ctx.plugin()`). The per-session Coral Plugins (`bake`, `cordis-patch`) are Fibers under that child Context; the agent loop is driven by the factory's own lifecycle. Two inproc agents therefore mean two agent contexts, each with its own bake and patch Fibers, under one root Coral composition.
 
 ### Ownership gaps to settle before M0
 
-1. **No named provider for `coralFlavors`, `coralStandards`, or `coralCarriers`.** The roster lists the four flavor packages and the three standard packages, but those are registrants. Without a provider plugin, the first registrant owns the service key and the others depend on a peer. Add a small `coral.flavor.registry` and `coral.standard.registry` (one fiber each), or let the profile composition own both; do the same for the carrier service.
-2. **The layer rule is not a runtime fence.** `inject` controls activation, not reads: a child context resolves an ancestor's service unless the name is isolated. A standard can therefore read `coralRegistry` without declaring it. If the plane wants a hard L3/L4 fence, mount standards under a context that isolates `coralRegistry`, or state that the rule is static analysis only.
-3. **`coral.contract` deliberately has none of the four objects.** It is a types-only package, not a plugin; a dependency check that expects a Runtime row for every package will misclassify it.
+1. **No named provider for `coralFlavors`, `coralStandards`, or `coralCarriers`.** The roster lists the four flavor packages and the three standard packages, but those are registrants. Without a provider Plugin, the first registrant owns the service key and the others depend on a peer. Add a small `coral.flavor.registry` and `coral.standard.registry` (one Fiber each), or let the profile composition own both; do the same for the carrier service.
+2. **The layer rule is not a runtime fence.** `inject` controls activation, not reads: a child Context resolves an ancestor's service unless the name is isolated (`reflect.ts:135-171` get trap waterfall — `Reflect.has(target, prop)` short-circuits before the inject check; `context.ts:99` child context is `Object.create(parent)`). A standard can therefore read `coralRegistry` without declaring it. If the plane wants a hard L3/L4 fence, mount standards under a Context that isolates `coralRegistry` (`context.ts:121-125` `isolate`), or state that the rule is static analysis only.
+3. **`coral.contract` deliberately has none of the four objects.** It is a types-only package, not a Plugin; a dependency check that expects a Runtime row for every package will misclassify it.
 
 ## State ownership
 
-Only these stores exist, and each has one writer family. If a plugin is not in the writer column, it may read but not write.
+Only these stores exist, and each has one writer family. If a Plugin is not in the writer column, it may read but not write.
 
 ```mermaid
 flowchart LR
@@ -590,7 +592,7 @@ The inproc flavor adds no socket: it is an in-memory channel whose send side cal
 
 ## Plugin roster
 
-Exactly the plugins this note assigns a layer. Any plugin not on this list is either substrate or a runtime detail excluded above.
+Exactly the Plugins this note assigns a layer. Any Plugin not on this list is either substrate or a runtime detail excluded above.
 
 ```text
 coral.contract       # L0, types only
@@ -622,7 +624,7 @@ Runtime-only details excluded from the roster: `coral.base.carriers` and `coral.
 ## The call graph
 
 ```text
-L7 → L6, L4            (reef plugins also → L5)
+L7 → L6, L4            (reef Plugins also → L5)
 L6 → L3, L4
 L5 → L1, L3, L4, reef.trust, reef.mesh
 L4 → none
@@ -632,7 +634,7 @@ L1 → none
 L0 → none              (types only, imported by every layer)
 ```
 
-Two maps stay distinct: the **layer graph** above shows runtime call direction, and the **state map** shows data ownership. A plugin can be high in the layer graph and own no state (standards), or low and own the durable truth (registry). The dependency check must verify both: no runtime import crossing upward, and no write outside the store's writer family.
+Two maps stay distinct: the **layer graph** above shows runtime call direction, and the **state map** shows data ownership. A Plugin can be high in the layer graph and own no state (standards), or low and own the durable truth (registry). The dependency check must verify both: no runtime import crossing upward, and no write outside the store's writer family.
 
 ## Sequencing
 
@@ -655,11 +657,11 @@ Two maps stay distinct: the **layer graph** above shows runtime call direction, 
 ## Acceptance criteria
 
 - The layer graph is enforced mechanically: no package imports a runtime service from a layer above it, and L0 has no runtime imports.
-- Every runtime plugin declares its primary role and, if it owns state, its single writer family. The state map has no unnamed writer.
+- Every runtime Plugin declares its primary role and, if it owns state, its single writer family. The state map has no unnamed writer.
 - L3 injects `coralFlavors` for `dial` but never `coralRegistry`; it receives `Endpoint` and `RawFacet` values and calls L1/L2 only.
-- L4 never calls a plugin, never dials, and never resolves a lease on read.
+- L4 never calls a Plugin, never dials, and never resolves a lease on read.
 - L1 remains the only package that binds a listening socket; L2 remains the only package that owns a frame loop or child pipe.
-- Every `ctx` key in the layer table names the plugin that provides it; no registry service is owned by its first registrant.
+- Every `ctx` key in the layer table names the Plugin that provides it; no registry service is owned by its first registrant.
 - The five lifecycles each have one owner and one disposal test: listener, link generation, cell, session bake, run.
 - The three diagrams (state ownership, full plane, two-agent sequence) parse under the repository Mermaid gate.
 - The two-agent chain passes in a booted composition: one envelope round-trip, one settle, and no direct sibling send.
@@ -669,8 +671,8 @@ Two maps stay distinct: the **layer graph** above shows runtime call direction, 
 - **Reference rot.** The roster names packages that will move as the plane lands. Keep the roster to ids and owning notes, and gate membership rather than paths.
 - **Type-only leakage.** L0 removes the `Endpoint` exception, but a standard could still import a runtime helper from L4 if the dependency gate only checks package names. The gate must check runtime imports, not just type imports.
 - **Runtime fences and static rules diverge.** A standards package that imports nothing from L4 can still resolve `coralRegistry` through its child context. Without isolation, the downward rule is a review and lint rule, not a runtime guarantee; the acceptance test must state which one the plane claims.
-- **Role ambiguity.** A plugin that declares two primary roles will blur the state map. Keep one primary role per plugin; secondary roles are listed only to make the owned responsibility explicit.
+- **Role ambiguity.** A Plugin that declares two primary roles will blur the state map. Keep one primary role per Plugin; secondary roles are listed only to make the owned responsibility explicit.
 - **Diagram rot.** The diagrams encode call direction and state ownership; the dependency gate and the store tests are the authority, not the drawings. Regenerate them when the layer map changes.
 - **L7 is overloaded.** It carries engine, projections, UI, and the whole reef line. A future split is likely; the layer rule survives it, but this note will need an update.
 - **Status drift.** "Design-approved, unbuilt" rots, and the DSH format deliberately keeps status out of prose. The note states the plan in the Proposal and leaves shipped status to the repository.
-- **The out-of-repo reference remains.** Two documents describing the same layers can diverge; this note is the in-repo authority, and the old document should be reduced to a pointer or deleted when the Coral notes move.
+- **The out-of-repo reference is now deleted.** `Cordises/` was removed; this note is the in-repo authority for the layer map. If a future doc re-introduces the old `Endpoint.carrier` / `inproc | ipc | net` vocabulary, treat it as superseded by this note and the standard plane.

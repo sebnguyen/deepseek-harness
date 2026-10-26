@@ -85,9 +85,10 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
         })
       ) : (
         // Dormant row: identity stays queryable, geometry reserved. The
-        // spacer child keeps the shell non-empty so the column's adjacent
-        // gap rule keeps applying around windows the reader cannot see.
-        // Content remounts with the same subscriptions and live history.
+        // data-row-dormant marker opts the shell out of the declined-row
+        // display:none rule, and the spacer child keeps the column's adjacent
+        // gap rule applying around windows the reader cannot see. Content
+        // remounts with the same subscriptions and live history.
         <div aria-hidden="true" style={{ height: dormantHeight }} />
       )}
     </div>

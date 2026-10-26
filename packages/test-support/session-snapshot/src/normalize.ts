@@ -324,6 +324,19 @@ export function normalizeStdout(
   return frames.map(f => JSON.stringify(f)).join('\n') + '\n'
 }
 
+/** Remove the replay adapter's stamped purpose `description` from one tool-call arguments string. */
+function stripPurposeDescription(argumentsText: string): string {
+  try {
+    const parsed = JSON.parse(argumentsText) as unknown
+    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      delete (parsed as Record<string, unknown>).description
+      delete (parsed as Record<string, unknown>)._dsh_harness_purpose
+      return JSON.stringify(parsed)
+    }
+  } catch { /* historical arguments recorded verbatim stay verbatim */ }
+  return argumentsText
+}
+
 /**
  * Normalize a session JSONL log into a stable expected output: the header line's
  * volatile fields (`createdAt`, `id`, `cwd`) are zeroed/scrubbed; event,
@@ -373,26 +386,43 @@ export function normalizeSessionLog(
       // `description` is a common key with legitimate meanings elsewhere),
       // keeping the corpus comparable across pre- and post-contract
       // recordings. Unparseable historical arguments pass through verbatim.
-      if (typeof data.arguments === 'string') {
-        try {
-          const parsed = JSON.parse(data.arguments) as unknown
-          if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-            delete (parsed as Record<string, unknown>).description
-            data.arguments = JSON.stringify(parsed)
-          }
-        } catch { /* historical arguments recorded verbatim stay verbatim */ }
-      }
+      if (typeof data.arguments === 'string') data.arguments = stripPurposeDescription(data.arguments)
     }
     if ((record.type === 'assistant/message' || record.type === 'assistant/attempt')
       && record.data !== null && typeof record.data === 'object') {
-      const stream = (record.data as { stream?: unknown }).stream
-      if (Array.isArray(stream)) {
-        for (const member of stream) {
+      const data = record.data as { message?: unknown; stream?: unknown }
+      const content = (data.message as { content?: unknown } | undefined)?.content
+      if (Array.isArray(content)) {
+        for (const block of content) {
+          if (block !== null && typeof block === 'object'
+            && (block as { type?: unknown }).type === 'tool-call'
+            && typeof (block as { arguments?: unknown }).arguments === 'string') {
+            (block as { arguments: string }).arguments = stripPurposeDescription((block as { arguments: string }).arguments)
+          }
+        }
+      }
+      if (Array.isArray(data.stream)) {
+        for (const member of data.stream) {
           if (member === null || typeof member !== 'object') continue
-          const timed = member as { time?: unknown; time0?: unknown; dt?: unknown }
+          const timed = member as { time?: unknown; time0?: unknown; dt?: unknown; chunk?: unknown }
           if (typeof timed.time === 'number') timed.time = 0
           if (typeof timed.time0 === 'number') timed.time0 = 0
           if (Array.isArray(timed.dt)) timed.dt = timed.dt.map(() => 0)
+          const block = (timed.chunk as { block?: unknown } | undefined)?.block
+          if (block !== null && typeof block === 'object'
+            && (block as { type?: unknown }).type === 'tool-call'
+            && typeof (block as { arguments?: unknown }).arguments === 'string') {
+            (block as { arguments: string }).arguments = stripPurposeDescription((block as { arguments: string }).arguments)
+          }
+        }
+      }
+    }
+    if (record.type === 'checkpoint/scan' && record.data !== null && typeof record.data === 'object') {
+      const data = record.data as { rows?: unknown; entries?: unknown }
+      for (const rows of [data.rows, data.entries]) {
+        if (!Array.isArray(rows)) continue
+        for (const row of rows) {
+          if (row !== null && typeof row === 'object') delete (row as Record<string, unknown>).purpose
         }
       }
     }

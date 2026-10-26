@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
 /**
- * The way back into a hidden panel: the header's corner button exists exactly
- * while the panel is collapsed, asks for it to expand, and renders nothing
- * while the panel is shown.
+ * The header's sidebar toggle: it exists in both states, opens a collapsed
+ * panel, closes an open one, and always reads as the action it performs.
  */
 import { describe, expect, it } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { ExpandButton } from '../src/client/shell/ExpandButton.tsx'
-import type { ExpandButtonProps } from '../src/client/shell/ExpandButton.tsx'
+import { SidebarToggle } from '../src/client/shell/SidebarToggle.tsx'
+import type { SidebarToggleProps } from '../src/client/shell/SidebarToggle.tsx'
 import { createSidebarRightStore } from '../src/client/stores.ts'
 
 const SESSION = 's-test' as SessionId
@@ -22,11 +21,11 @@ function hookOf<T>(inst: { subscribe: (fn: () => void) => () => void; getSnapsho
 }
 
 /**
- * Mount the button over a real store instance. It reads four of its props; the
+ * Mount the toggle over a real store instance. It reads four of its props; the
  * rest of the standard kit is framework-injected and never touched here, so one
  * documented cast keeps the harness to what is actually exercised.
  */
-function mountButton() {
+function mountToggle() {
   const instance = createSidebarRightStore(() => ({ kind: 'guide', title: 'Start' })).create()
   const props = {
     sessionId: SESSION,
@@ -34,31 +33,34 @@ function mountButton() {
     actions: instance.actions,
     // Copy is the dictionary's contract; the key stands in for the translation.
     t: (key: string) => key,
-  } as unknown as ExpandButtonProps
-  const view = render(<ExpandButton {...props} />)
-  const control = (): HTMLElement | null => view.container.querySelector('[data-sidebar-right-expand]')
+  } as unknown as SidebarToggleProps
+  const view = render(<SidebarToggle {...props} />)
+  const control = (): HTMLElement | null => view.container.querySelector('[data-sidebar-right-header-toggle]')
   return { instance, view, control }
 }
 
-describe('ExpandButton', () => {
+describe('SidebarToggle', () => {
   it('offers the way in while the session has no surface yet, and asks the panel to expand', () => {
-    const { instance, view, control } = mountButton()
+    const { instance, control } = mountToggle()
     const button = control()
-    if (button === null) throw new Error('expected the expand control')
+    if (button === null) throw new Error('expected the header toggle')
     expect(button.getAttribute('aria-label')).toBe('chrome.expandAria')
     fireEvent.click(button)
     expect(instance.getSnapshot().bySession[SESSION]?.layout.expanded).toBe(true)
-    // Shown: the seat is empty, so the header lays out without it.
-    expect(view.container.childElementCount).toBe(0)
+    // The same control stays in the header, now reading as the close action.
+    expect(control()?.getAttribute('aria-label')).toBe('chrome.collapseAria')
     cleanup()
   })
 
-  it('comes back when the panel collapses again', () => {
-    const { instance, control } = mountButton()
+  it('closes the panel when clicked while it is open', () => {
+    const { instance, control } = mountToggle()
     act(() => { instance.actions.setExpanded(SESSION, true) })
-    expect(control()).toBeNull()
-    act(() => { instance.actions.setExpanded(SESSION, false) })
-    expect(control()).not.toBeNull()
+    const button = control()
+    if (button === null) throw new Error('expected the header toggle')
+    expect(button.getAttribute('aria-label')).toBe('chrome.collapseAria')
+    fireEvent.click(button)
+    expect(instance.getSnapshot().bySession[SESSION]?.layout.expanded).toBe(false)
+    expect(control()?.getAttribute('aria-label')).toBe('chrome.expandAria')
     cleanup()
   })
 })

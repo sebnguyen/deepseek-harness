@@ -74,12 +74,12 @@ function positiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 1
 }
 
-/** The validated `files` elements of a batched write call, or null for non-batch or malformed args. */
+/** The validated `write_array` elements of a batched write call, or null for non-batch or malformed args. */
 function writeBatchFiles(args: Record<string, unknown>): Record<string, unknown>[] | null {
-  const { files } = args
-  if (!Array.isArray(files) || files.length === 0) return null
+  const { write_array } = args
+  if (!Array.isArray(write_array) || write_array.length === 0) return null
   const elements: Record<string, unknown>[] = []
-  for (const element of files) {
+  for (const element of write_array) {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) return null
     elements.push(element as Record<string, unknown>)
   }
@@ -113,8 +113,8 @@ export function readFramesRowModel(
     return {
       items: [],
       count: batch.length,
-      firstPath: first.file_path,
-      firstLabel: abbreviateHomePath(relativizeToCwd(first.file_path, sessionCwd), home),
+      firstPath: first.path,
+      firstLabel: abbreviateHomePath(relativizeToCwd(first.path, sessionCwd), home),
       stat: null,
     }
   }
@@ -145,7 +145,7 @@ export function readFramesRowModel(
     items.push({
       kind: 'failure',
       failure: {
-        filePath: element.file_path,
+        filePath: element.path,
         ...positiveInteger(element.offset) ? { line: element.offset } : {},
         kind: record.kind === 'error' ? 'error' : 'not-run',
         message: record.kind === 'error' ? record.message ?? '' : record.reason ?? '',
@@ -158,8 +158,8 @@ export function readFramesRowModel(
   return {
     items,
     count: batch.length,
-    firstPath: firstResolved ?? first.file_path,
-    firstLabel: firstResolved ?? abbreviateHomePath(relativizeToCwd(first.file_path, sessionCwd), home),
+    firstPath: firstResolved ?? first.path,
+    firstLabel: firstResolved ?? abbreviateHomePath(relativizeToCwd(first.path, sessionCwd), home),
     stat: null,
   }
 }
@@ -191,7 +191,7 @@ export function writeFramesRowModel(
   let added = 0
   let removed = 0
   for (const [index, element] of batch.entries()) {
-    const filePath = typeof element.file_path === 'string' ? element.file_path : ''
+    const filePath = typeof element.path === 'string' ? element.path : ''
     const record = byIndex?.get(index)
     // A committed element shows the backend-resolved absolute path it wrote;
     // pending and failed elements fall back to the argument label.
@@ -234,7 +234,7 @@ export function writeFramesRowModel(
   }
   const first = batch[0]
   if (first === undefined) return null
-  const firstArgPath = typeof first.file_path === 'string' ? first.file_path : ''
+  const firstArgPath = typeof first.path === 'string' ? first.path : ''
   const firstResolved = byIndex?.get(0)?.path
   return {
     items,

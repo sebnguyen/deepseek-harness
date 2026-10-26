@@ -2,11 +2,13 @@
 
 Status: proposed
 
+Cordis terms (`Plugin`, `Runtime`, `Fiber`, `Context`, `Impl`, `scope`, `inject`) are used per `/home/snguyen/dev/digitalocean/idk/AGENTS.md` §3 and §7; engine behavior cited as `file.ts:line` refers to `deepseek-harness-oceanic/vendor/cordis/src/`.
+
 ## Problem
 
 Four facts determine whether the Coral and Reef plane wires at all, and the notes disagree about each.
 
-1. **Lease payload.** `reef.mesh` emits `reef/lease-announced` with `{ id, address, carrier }`; `coral.peer-handshake` subscribes to the same name expecting `{ row }`; `reef.trust` expects `{ lease }`. `base.registry` subscribes to `reef/registry-lease`, a name no plugin emits.
+1. **Lease payload.** `reef.mesh` emits `reef/lease-announced` with `{ id, address, carrier }`; `coral.peer-handshake` subscribes to the same name expecting `{ row }`; `reef.trust` expects `{ lease }`. `base.registry` subscribes to `reef/registry-lease`, a name no Plugin emits.
 2. **Row writer.** `reef.mesh` says lease rows are rebound in the registry; `coral.peer-handshake` says registry rows are written there or nowhere. Two writers make `address-already-bound` ambiguous and can bind the same peer twice.
 3. **Trust event.** `reef.trust` emits `reef/token-attested`; `reef.carrier.a2a-server` subscribes to `reef/trust-attested`.
 4. **Log event.** `reef.ledger` emits `reef/log-append`; `base.projections` subscribes to `coral/log-append`.
@@ -38,7 +40,7 @@ export interface Mesh extends Disposable {
 
 ### One registry writer
 
-`coral.peer-handshake` is the only plugin that calls `registry.bind` for federated rows. `reef.mesh` publishes leases and never touches the registry. The handshake performs, in order: read the lease from the event or `hint`; for each standard that owns the advertised flavor, call `detect()`; verify the card or token through `reef.trust`; call `registry.bind(addr, endpoint, standard, record)` for each detected standard; mount the standard's cells; and emit `reef/peer-discovered { addr, cell }`.
+`coral.peer-handshake` is the only Plugin that calls `registry.bind` for federated rows. `reef.mesh` publishes leases and never touches the registry. The handshake performs, in order: read the lease from the event or `hint`; for each standard that owns the advertised flavor, call `detect()`; verify the card or token through `reef.trust`; call `registry.bind(addr, endpoint, standard, record)` for each detected standard; mount the standard's cells; and emit `reef/peer-discovered { addr, cell }`.
 
 `meet(addr, hint)` is idempotent: a second call for the same address returns the same `MountedCell`, and the single-owner bind is the guard rather than a lock. `relisten(instanceId)` re-runs detection on a TTL refresh or card revision and rebinds only when a facet changed. `forget(instanceId)` runs in reverse: unmount cells, delete rows, close links. A failure in one step still proceeds with the rest; a leaked link or row is a bug, not an accepted outcome. When `registry.bind` rejects with `address-already-bound`, the handshake treats the address as already met and returns the existing cell rather than retrying.
 
@@ -48,7 +50,7 @@ export interface Mesh extends Disposable {
 
 ### One log event
 
-`reef.ledger` emits `coral/log-append { envelope, seq }` for every appended row, and `base.projections` keeps its subscription to that name. The ledger also emits `reef/log-crossed { seq, kind }` for rows that represent an instance crossing, which `reef.carrier.api` consumes. The ledger's existing `reef/log-append` is renamed `coral/log-append` because the append fact is intra-instance even though the plugin is reef-line.
+`reef.ledger` emits `coral/log-append { envelope, seq }` for every appended row, and `base.projections` keeps its subscription to that name. The ledger also emits `reef/log-crossed { seq, kind }` for rows that represent an instance crossing, which `reef.carrier.api` consumes. The ledger's existing `reef/log-append` is renamed `coral/log-append` because the append fact is intra-instance even though the Plugin is reef-line.
 
 ### Event namespace rule
 
@@ -56,7 +58,7 @@ The prefix names the scope of the fact, not the line of the emitter.
 
 | Prefix | Meaning | Emitters |
 |---|---|---|
-| `coral/` | a fact inside one instance | base and coral plugins, and the ledger's intra-instance append |
+| `coral/` | a fact inside one instance | base and coral Plugins, and the ledger's intra-instance append |
 | `reef/` | a fact that crosses an instance boundary | mesh, trust, federation, reef carriers, and the handshake's peer events |
 | `cordis/` | retired | none |
 
@@ -89,7 +91,7 @@ A lease expiry calls `forget(instanceId)` once, and the handshake emits `reef/pe
 
 **Keep `reef/registry-lease` and have mesh emit it.** This would make the registry a subscriber to discovery and require it to understand lease payloads. The registry is data; discovery feeds it through the one writer, not by direct subscription.
 
-**Keep `reef/log-append` and move projections onto it.** The log row is an intra-instance fact even though the ledger is reef-line; naming it `reef/*` forces a base plugin to subscribe to a reef name and splits the append stream from the projections' documented inlet. Splitting append from crossing keeps the prefix rule honest.
+**Keep `reef/log-append` and move projections onto it.** The log row is an intra-instance fact even though the ledger is reef-line; naming it `reef/*` forces a base Plugin to subscribe to a reef name and splits the append stream from the projections' documented inlet. Splitting append from crossing keeps the prefix rule honest.
 
 **Keep `cordis/*` as the client namespace.** No note declares a boundary for it, the same fact appears under both `cordis/` and `coral/`, and the template uses `cordis/x` as an example. Retiring it removes a third vocabulary rather than documenting one.
 
@@ -97,7 +99,7 @@ A lease expiry calls `forget(instanceId)` once, and the handshake emits `reef/pe
 
 ## Acceptance criteria
 
-- A manifest and event test proves every subscribed event has exactly one declared emitter and every emitted event is declared by its plugin.
+- A manifest and event test proves every subscribed event has exactly one declared emitter and every emitted event is declared by its Plugin.
 - Two `meet()` calls for one address return the same `MountedCell`; no `address-already-bound` reaches the caller.
 - A lease expiry calls `forget` once, unmounts the cell, deletes the row, closes the link, and emits `reef/peer-lost`.
 - A card that fails signature verification leaves no row and emits `reef/peer-lost` with `POLICY_REFUSED`.

@@ -158,19 +158,18 @@ function text(result: { content: { type: string; text?: string }[] }): string {
   return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }
 
-describe('the commands face', () => {
-  it('wraps a remembered singleton root into one strict element', async () => {
+describe('the bash_array face', () => {
+  it('rejects a remembered singleton root instead of normalizing it', async () => {
     const ctx = await setup()
     const result = await call(ctx, { command: 'echo singleton', workdir: '/tmp' })
-    expect(result.isError).not.toBe(true)
-    const rendered = text(result)
-    expect(rendered).toContain('[1/1] $ echo singleton')
+    expect(result.isError).toBe(true)
+    expect(text(result)).toMatch(/missing required property "bash_array"/)
   })
 
   it('runs every element to its own frame, in written order, earlier failures included', async () => {
     const ctx = await setup()
     const result = await call(ctx, {
-      commands: [
+      bash_array: [
         { command: 'echo first' },
         { command: 'exit 7' },
         { command: 'echo third' },
@@ -195,7 +194,7 @@ describe('the commands face', () => {
   it('starts a background element as a real job and labels its frame with the id', async () => {
     const ctx = await setup()
     const result = await call(ctx, {
-      commands: [
+      bash_array: [
         { command: 'echo fg' },
         { command: 'sleep 0.2; echo bg-done', run_in_background: true },
       ],
@@ -235,7 +234,7 @@ describe('the commands face', () => {
     // observable here.
     const tool = ctx.tools.get('multi_bash')!
     const value = await (tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
-      { commands: [{ command: 'echo a' }, { command: 'echo b' }] },
+      { bash_array: [{ command: 'echo a' }, { command: 'echo b' }] },
       { signal: controller.signal, callId: ToolCallId('frames-direct') },
     )
     expect(value).toMatchObject({ kind: 'frames' })
@@ -245,7 +244,7 @@ describe('the commands face', () => {
     expect(frames[1]!.outcome).toEqual({ kind: 'not-run', reason: 'call aborted' })
     // Through the registry the same call settles as the abort error contract.
     const viaScheduler = await call(ctx, {
-      commands: [{ command: 'echo a' }, { command: 'echo b' }],
+      bash_array: [{ command: 'echo a' }, { command: 'echo b' }],
     }, controller.signal)
     expect(viaScheduler.isError).toBe(true)
   })
@@ -263,7 +262,7 @@ describe('the commands face', () => {
     await ctx.plugin(DenyingSandboxExecutor)
     await ctx.plugin(ToolBashFrames)
     const result = await call(ctx, {
-      commands: [{ command: 'echo read-ok' }, { command: 'write-now >&2' }],
+      bash_array: [{ command: 'echo read-ok' }, { command: 'write-now >&2' }],
     })
     const rendered = text(result)
     expect(rendered).toContain('read-ok')
@@ -283,7 +282,7 @@ describe('the commands face', () => {
     await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
     await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
     const result = await call(ctx, {
-      commands: [{ command: 'echo x', run_in_background: true }],
+      bash_array: [{ command: 'echo x', run_in_background: true }],
     })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('run_in_background is disabled')
@@ -292,7 +291,7 @@ describe('the commands face', () => {
   it('runs an arbitrarily large batch: element count is not capped', async () => {
     const ctx = await setup()
     const commands = Array.from({ length: 12 }, (_, index) => ({ command: `echo batch-${index}` }))
-    const result = await call(ctx, { commands })
+    const result = await call(ctx, { bash_array: commands })
     expect(result.isError).not.toBe(true)
     const rendered = text(result)
     expect(rendered).toContain('[12/12] $ echo batch-11')
@@ -301,7 +300,7 @@ describe('the commands face', () => {
   it('presents a pending frames call as a generic execute card listing every command', async () => {
     const ctx = await setup()
     const view = ctx.tools.get('multi_bash')!.presentCall!({
-      commands: [{ command: 'echo a' }, { command: 'git status' }],
+      bash_array: [{ command: 'echo a' }, { command: 'git status' }],
     }) as { card: string; kind?: string; title?: string; content?: { type: string; text?: string }[] }
     expect(view.card).toBe('generic')
     expect(view.kind).toBe('execute')
@@ -310,10 +309,10 @@ describe('the commands face', () => {
     expect(view.content?.[0]?.text).toBe('$ echo a\n$ git status')
   })
 
-  it('resolves element workdir and timeout overrides into the dispatch request', async () => {
+  it('resolves element path and timeout overrides into the dispatch request', async () => {
     const ctx = await setup()
     const result = await call(ctx, {
-      commands: [{ command: 'pwd', workdir: '.', timeoutMs: 9_000 }],
+      bash_array: [{ command: 'pwd', path: '.', timeoutMs: 9_000 }],
     })
     expect(result.isError).not.toBe(true)
     expect(text(result)).toContain('[1/1] $ pwd')
@@ -330,7 +329,7 @@ describe('the commands face', () => {
     await ctx.plugin(ToolBashFrames)
     const tool = ctx.tools.get('multi_bash')!
     await expect((tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
-      { commands: [{ command: 'echo a' }] },
+      { bash_array: [{ command: 'echo a' }] },
       { signal: new AbortController().signal, callId: ToolCallId('frames-aborting') },
     )).rejects.toMatchObject({ name: 'AbortError', code: ABORT_CODE })
   })
@@ -345,10 +344,10 @@ describe('the commands face', () => {
     await ctx.plugin(LocalBashExecutor, { timeoutMs: 10_000, graceMs: 200 })
     await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
     const schema = ctx.tools.schemas().find(candidate => candidate.name === 'multi_bash')!
-    const items = (schema.parameters.properties as { commands: { items: { properties: Record<string, unknown> } } }).commands.items
+    const items = (schema.parameters.properties as { bash_array: { items: { properties: Record<string, unknown> } } }).bash_array.items
     expect(items.properties).not.toHaveProperty('run_in_background')
     const result = await call(ctx, {
-      commands: [{ command: 'echo a', run_in_background: true }],
+      bash_array: [{ command: 'echo a', run_in_background: true }],
     })
     expect(result.isError).toBe(true)
     expect(text(result)).toContain('run_in_background is disabled')
@@ -374,14 +373,14 @@ describe('the commands face', () => {
   it('presents empty batches and invalid results as generic cards', async () => {
     const ctx = await setup()
     const tool = ctx.tools.get('multi_bash')!
-    const emptyView = tool.presentCall!({ commands: [] }) as {
+    const emptyView = tool.presentCall!({ bash_array: [] }) as {
       card: string
       title?: string
       content?: { type: string; text: string }[]
     }
     expect(emptyView.title).toBe('0 commands: ')
     expect(emptyView.content?.[0]?.text).toBe('')
-    const invalid = tool.presentResult!({ commands: [{ command: 'x' }] }, {
+    const invalid = tool.presentResult!({ bash_array: [{ command: 'x' }] }, {
       content: [{ type: 'text', text: 'raw' }],
       isError: true,
     }) as { card: string }
@@ -392,9 +391,9 @@ describe('the commands face', () => {
     const ctx = await setup()
     const tool = ctx.tools.get('multi_bash')!
     const executed = await call(ctx, {
-      commands: [{ command: 'echo one' }],
+      bash_array: [{ command: 'echo one' }],
     })
-    const view = tool.presentResult!({ commands: [{ command: 'echo one' }] }, executed) as
+    const view = tool.presentResult!({ bash_array: [{ command: 'echo one' }] }, executed) as
       | { card: string; content?: { type: string; text?: string }[]; output?: string }
       | undefined
     expect(view?.card).toBe('generic')
@@ -415,7 +414,7 @@ describe('presentation and config edges', () => {
     // The core wrapper soft-validates replay args before the presenter runs,
     // so a non-array batch settles to the generic undefined-view fallback.
     expect(ctx.tools.get('multi_bash')!.presentCall!({
-      commands: null,
+      bash_array: null,
     } as never)).toBeUndefined()
   })
 
@@ -432,7 +431,7 @@ describe('presentation and config edges', () => {
       isError: false,
     }) as { card: string } | undefined
     expect(nullifiedArgs).toBeUndefined()
-    const multiBlock = tool.presentResult!({ commands: [{ command: 'x' }] }, {
+    const multiBlock = tool.presentResult!({ bash_array: [{ command: 'x' }] }, {
       content: [{ type: 'text', text: 'a' }, { type: 'text', text: 'b' }],
       isError: false,
     })
@@ -450,7 +449,7 @@ describe('presentation and config edges', () => {
     await ctx.plugin(ToolBashFrames, { enableRunInBackground: false })
     const tool = ctx.tools.get('multi_bash')!
     await expect((tool.execute as (args: unknown, exec: unknown) => Promise<unknown>)(
-      { commands: [{ command: 'echo x', run_in_background: true }] },
+      { bash_array: [{ command: 'echo x', run_in_background: true }] },
       { signal: new AbortController().signal, callId: ToolCallId('frames-bg-off-direct') },
     )).rejects.toThrow('run_in_background is disabled')
   })

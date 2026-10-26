@@ -180,6 +180,14 @@ export interface ShippedRouteDefaults {
   compat?: PiAiCompatProfile
   /** Effort menu stamped onto models the endpoint listing cannot carry. */
   defaultReasoningEfforts?: PiAiReasoningEfforts
+  /**
+   * Whether every model on this shipped route waives missing reasoning on
+   * replayed assistant turns by default. A shipped route that requires
+   * reasoning content on assistant messages and whose endpoint accepts the
+   * `allow_missing_thinking` template waiver sets this so deployments do not
+   * have to opt in per model.
+   */
+  allowMissingThinking?: boolean
 }
 
 /**
@@ -196,6 +204,7 @@ const DIGITALOCEAN_INFERENCE: Readonly<ShippedRouteDefaults> = {
     maxTokensField: 'max_completion_tokens',
     requiresReasoningContentOnAssistantMessages: true,
   },
+  allowMissingThinking: true,
   defaultReasoningEfforts: {
     off: null,
     low: 'low',
@@ -780,6 +789,14 @@ export interface RouteCatalogRequest {
    * materializes for an omitted menu.
    */
   defaultReasoningEfforts?: PiAiReasoningEfforts
+  /**
+   * Route-level default for the `allow_missing_thinking` template waiver.
+   * Applies to every openai-completions model on the route whose own entry
+   * does not set `allowMissingThinking`; a model-level `true` or `false`
+   * always wins. Shipped routes that accept the waiver set this so the
+   * waiver is on without per-model configuration.
+   */
+  allowMissingThinking?: boolean
 }
 
 /** An expected configuration failure that stored-catalog reads may retain for repair. */
@@ -1071,7 +1088,8 @@ export function resolveRouteModels(
       invalid(provider, `model "${entry.id}" sets allowMissingThinking, which only the openai-completions`
         + ' protocol takes')
     }
-    if (entry.allowMissingThinking === true) configuredAllowMissingThinking.add(entry.id)
+    const waived = entry.allowMissingThinking ?? request.allowMissingThinking
+    if (waived === true && api === 'openai-completions') configuredAllowMissingThinking.add(entry.id)
     // Capacities fall back to the route's own defaults, so a model listing that
     // discloses nothing but ids still yields a serviceable route. The fallback
     // is a guess by construction, which is why it is a configurable route field

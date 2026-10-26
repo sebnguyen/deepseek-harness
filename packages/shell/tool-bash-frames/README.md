@@ -44,13 +44,13 @@ Configuration fields tune the batch face and background support.
 | Field | Default | Meaning |
 |---|---|---|
 | `enableRunInBackground` | `true` | Expose element `run_in_background`; when `false`, background elements are rejected |
-| `maxCommandsPerCall` | `8` | Maximum elements one `commands` invocation may carry |
+| `maxCommandsPerCall` | `8` | Maximum elements one `bash_array` invocation may carry |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-bash-frames) is the exhaustive source for every accepted field and its JSDoc; the generated [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-bash-frames) carries the full argument schema.
 
 ### Running commands
 
-A call carries one to `maxCommandsPerCall` elements; each runs as its own fresh-shell dispatch, serially in written order, and the result is one section per element headed `[i/N] $ <command>` with that element's output and markers exactly as a one-command result would render them. A non-zero exit on one element is reported in its own frame and does not stop later elements; steps that must read an earlier output belong in a later call. An element's `workdir` and `timeoutMs` override the call-level `workdir` and `timeoutMs` defaults, and an element's `run_in_background` starts a background job whose frame reads `started background job <jobId>`; the job runtime's `job_output`, `job_list`, and `job_kill` manage it. A `description` in active voice (5–10 words) labels the call in the UI. Output beyond the executor's stream caps is truncated to its tail, with the full output saved to a spill file whose path is reported.
+A call carries one to `maxCommandsPerCall` elements; each runs as its own fresh-shell dispatch, serially in written order, and the result is one section per element headed `[i/N] $ <command>` with that element's output and markers exactly as a one-command result would render them. A non-zero exit on one element is reported in its own frame and does not stop later elements; steps that must read an earlier output belong in a later call. An element's `path` (working directory) and `timeoutMs` override the session defaults, and an element's `run_in_background` starts a background job whose frame reads `started background job <jobId>`; the job runtime's `job_output`, `job_list`, and `job_kill` manage it. A `description` in active voice (5–10 words) labels the call in the UI. Output beyond the executor's stream caps is truncated to its tail, with the full output saved to a spill file whose path is reported.
 
 ### Sandboxed execution and escalation
 
@@ -88,7 +88,7 @@ This section explains the design decisions behind the tool and points at the cod
 
 ### Request resolution
 
-The tool resolves each workdir before `ctx.shell.resolve()` runs: an explicit relative `workdir` is resolved against the session cwd, and a sandbox policy's canonical workspace root wins so confinement and launch use the same identity. Sandbox policy resolves per call through `ctx.sandboxPolicy`; an element's escalation request goes through `ctx.approval` before that element dispatches, and the tool fails at load if the executor confines but no policy service is mounted.
+The tool resolves each element's `path` before `ctx.shell.resolve()` runs: an explicit relative path is resolved against the session cwd, and a sandbox policy's canonical workspace root wins so confinement and launch use the same identity. Sandbox policy resolves per call through `ctx.sandboxPolicy`; an element's escalation request goes through `ctx.approval` before that element dispatches, and the tool fails at load if the executor confines but no policy service is mounted.
 
 ### Rendering story
 

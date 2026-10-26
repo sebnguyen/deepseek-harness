@@ -107,9 +107,9 @@ async function holdPanelSlide(panel: Locator) {
   })
 }
 
-/** The expand button in the conversation header, present only while collapsed. */
-function expandOf(page: Page): Locator {
-  return page.locator('[data-sidebar-right-expand]')
+/** The sidebar toggle in the conversation header; it exists in both states. */
+function toggleOf(page: Page): Locator {
+  return page.locator('[data-sidebar-right-header-toggle]')
 }
 
 /**
@@ -122,7 +122,7 @@ function expandOf(page: Page): Locator {
  */
 async function ensureExpanded(page: Page, column: Locator): Promise<void> {
   if (await column.locator('[data-sidebar-right-open]').count() > 0) return
-  await expandOf(page).click()
+  await toggleOf(page).click()
   await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 10_000 })
 }
 
@@ -131,7 +131,7 @@ async function resetSidebar(page: Page): Promise<Locator> {
   await page.reload({ waitUntil: 'load' })
   const column = page.locator('[data-rightbar-col]')
   // The surface starts expanded, but a collapse persisted from an earlier case
-  // may still hold; the way back in then is the header's expand button.
+  // may still hold; the way back in then is the header's toggle.
   await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 15_000 })
     .catch(() => ensureExpanded(page, column))
   await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
@@ -233,11 +233,11 @@ describe('web e2e: shipped right Sidebar', () => {
     const column = page.locator('[data-rightbar-col]')
     await column.waitFor({ state: 'attached', timeout: 15_000 })
 
-    // With no session there is no surface: no panel in the column, no expand
-    // button in the header, and no track — the conversation reaches the frame's edge.
+    // With no session there is no surface: no panel in the column, no sidebar
+    // toggle in the header, and no track — the conversation reaches the frame's edge.
     expect(await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
     expect(await column.locator('[data-sidebar-right-panel]').count()).toBe(0)
-    expect(await expandOf(page).count()).toBe(0)
+    expect(await toggleOf(page).count()).toBe(0)
     expect(await width(column)).toBe(0)
     await shot(page, '01-hero-no-sidebar')
 
@@ -332,61 +332,63 @@ describe('web e2e: shipped right Sidebar', () => {
       const conversation = page.locator('[class*="centerCol"]').first()
 
       // Expanded default: the settled session's surface starts open with its
-      // seeded guide, so the frame holds the panel's track without any click
-      // and the header's expand button has nothing to do — it only exists
-      // while collapsed.
+      // seeded guide, so the frame holds the panel's track without any click.
+      // The header's toggle is present in both states and reads as the close
+      // action while the panel is open.
       await column.locator('[data-sidebar-right-open]').waitFor({ timeout: 15_000 })
       await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
-      expect(await expandOf(page).count()).toBe(0)
+      const toggle = toggleOf(page)
+      await toggle.waitFor({ timeout: 15_000 })
+      expect(await toggle.getAttribute('aria-label')).toBe('Collapse right sidebar')
       const squeezed = await width(conversation)
       const panelWidth = await width(column)
       expect(panelWidth).toBeGreaterThan(0)
 
-      // Collapsing hands the track back to the conversation, and the way back
-      // in arrives in the header: on the same row as the other header
-      // utilities, at its far right.
-      await column.locator('[data-sidebar-right-toggle]').click()
+      // Collapsing hands the track back to the conversation from the header, on
+      // the same row as the other header utilities, at its far right.
+      await toggle.click()
       await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
       expect(await width(conversation)).toBe(squeezed + panelWidth)
+      await expect.poll(async () => await toggle.getAttribute('aria-label')).toBe('Open right sidebar')
       const utilities = page.locator('[class*="headerUtilities"]')
-      const expand = expandOf(page)
-      await expand.waitFor({ timeout: 15_000 })
-      const expandBox = await expand.boundingBox()
+      const toggleBox = await toggle.boundingBox()
       const rowBox = await utilities.boundingBox()
-      if (expandBox === null || rowBox === null) throw new Error('header utilities are not rendered')
-      expect(Math.round(expandBox.y + expandBox.height / 2)).toBe(Math.round(rowBox.y + rowBox.height / 2))
+      if (toggleBox === null || rowBox === null) throw new Error('header utilities are not rendered')
+      expect(Math.round(toggleBox.y + toggleBox.height / 2)).toBe(Math.round(rowBox.y + rowBox.height / 2))
       // Its own corner seat, past the utilities' right edge — not a utility.
-      expect(expandBox.x).toBeGreaterThan(rowBox.x + rowBox.width)
+      expect(toggleBox.x).toBeGreaterThan(rowBox.x + rowBox.width)
       await shot(page, '02a-collapsed-header-button')
 
-      // The header button squeezes the conversation back by exactly the track,
-      // and leaves with the panel's arrival.
-      await expand.click()
+      // The same header control squeezes the conversation back by exactly the
+      // track; unlike the old expand button it stays for the next close.
+      await toggle.click()
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
       expect(await width(conversation)).toBe(squeezed)
       expect(await width(column)).toBe(panelWidth)
-      await expect.poll(async () => await expandOf(page).count()).toBe(0)
+      await expect.poll(async () => await toggle.getAttribute('aria-label')).toBe('Collapse right sidebar')
 
       // The panel is in the column, not over it, and carries the seeded guide —
       // whose body arrives through the guide type's keyed registration, not
-      // from any dispatch inside the seat. Its two controls sit at the end of
-      // the top-right pane's strip: the panel has no header row of its own.
+      // from any dispatch inside the seat. Its one push-mode control is the
+      // presentation switch at the end of the top-right pane's strip; the close
+      // control is the header's, and the panel draws one again only in
+      // fullscreen, where it covers the header.
       expect(await column.locator('[data-sidebar-right-panel="push"]').count()).toBe(1)
       const chrome = column.locator('[data-dockkit-strip-chrome]')
       expect(await chrome.count()).toBe(1)
       expect(await chrome.locator('[data-sidebar-right-mode]').count()).toBe(1)
-      expect(await chrome.locator('[data-sidebar-right-toggle]').count()).toBe(1)
+      expect(await chrome.locator('[data-sidebar-right-toggle]').count()).toBe(0)
 
-      // One centre line across the strip: chip text, split, and the two panel
-      // controls all sit at the same height.
+      // One centre line across the strip: chip text, split, and the panel
+      // presentation switch all sit at the same height.
       const centreY = async (selector: string): Promise<number> => {
         const box = await column.locator(selector).first().boundingBox()
         if (box === null) throw new Error(`${selector} is not rendered`)
         return Math.round(box.y + box.height / 2)
       }
       const textLine = await centreY('[data-dockkit-tab-title]')
-      for (const selector of ['[data-dockkit-split-button]', '[data-sidebar-right-mode]', '[data-sidebar-right-toggle]']) {
+      for (const selector of ['[data-dockkit-split-button]', '[data-sidebar-right-mode]']) {
         expect(await centreY(selector), selector).toBe(textLine)
       }
 
@@ -437,7 +439,10 @@ describe('web e2e: shipped right Sidebar', () => {
       const viewport = page.viewportSize()
       if (viewport === null) throw new Error('expected a fixed viewport')
       await expect.poll(async () => await panel.boundingBox()).toEqual({ x: 0, y: 0, ...viewport })
-      expect(await expandOf(page).count()).toBe(0)
+      // The header toggle stays in the corner under the fullscreen panel; the
+      // panel carries its own collapse control because the header is covered.
+      expect(await toggleOf(page).count()).toBe(1)
+      expect(await column.locator('[data-sidebar-right-toggle]').count()).toBe(1)
       expect(await frame.locator('[data-side="rightbar"]').count()).toBe(0)
       await shot(page, '03-fullscreen-panel')
 
@@ -445,6 +450,7 @@ describe('web e2e: shipped right Sidebar', () => {
       await expect.poll(async () => await panel.getAttribute('data-sidebar-right-panel')).toBe('push')
       expect(await width(conversation)).toBe(squeezed)
       expect(await panel.boundingBox()).toEqual(before)
+      expect(await column.locator('[data-sidebar-right-toggle]').count()).toBe(0)
 
       expect(tripwire.pageErrors).toEqual([])
       expect(tripwire.warnings).toEqual([])
@@ -484,7 +490,7 @@ describe('web e2e: shipped right Sidebar', () => {
       // skip the partly covered frame whose underlying width is under test.
       const held = await holdPanelSlide(panel)
       try {
-        await expandOf(page).click()
+        await toggleOf(page).click()
         await expect.poll(() => held.evaluate(state => state.animation?.playState)).toBe('paused')
         const entering = await panel.boundingBox()
         if (entering === null) throw new Error('entering panel is not rendered')
@@ -519,7 +525,7 @@ describe('web e2e: shipped right Sidebar', () => {
           await exit.dispose()
         }
 
-        await expandOf(page).click()
+        await toggleOf(page).click()
         await expect.poll(() => frame.getAttribute('data-rightbar-fullscreen')).toBe('true')
         await column.locator('[data-sidebar-right-mode="push"]').click()
         expect((await geometry()).columns).toBe(normalColumns)
@@ -529,7 +535,7 @@ describe('web e2e: shipped right Sidebar', () => {
         await column.locator('[data-sidebar-right-mode="fullscreen"]').click()
         await column.locator('[data-sidebar-right-toggle]').click()
         await expect.poll(() => frame.getAttribute('data-rightbar-fullscreen')).toBeNull()
-        await expandOf(page).click()
+        await toggleOf(page).click()
         await expect.poll(() => frame.getAttribute('data-rightbar-fullscreen')).toBe('true')
         expect(await panel.boundingBox()).toEqual({ x: 0, y: 0, ...viewport })
         expect((await geometry()).columns).toBe(normalColumns)
@@ -570,7 +576,7 @@ describe('web e2e: shipped right Sidebar', () => {
         await page.setViewportSize(viewport)
         await expect.poll(async () => await width(sidebar)).toBe(420)
         expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
-        await expandOf(page).click()
+        await toggleOf(page).click()
         await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
 
         await page.setViewportSize({ width: 767, height: viewport.height })
@@ -986,7 +992,7 @@ describe('web e2e: shipped right Sidebar', () => {
       await column.locator('[data-dockkit-tab]').first().hover()
       await column.locator('[data-dockkit-tab-close]').first().click()
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
-      await expandOf(page).click()
+      await toggleOf(page).click()
       await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
       expect(await column.locator('[data-sidebar-right-explorer] [data-files-explorer-state="tree"]').count()).toBe(1)
 
@@ -994,20 +1000,33 @@ describe('web e2e: shipped right Sidebar', () => {
       expect(tripwire.warnings).toEqual([])
     }, 90_000)
 
-    it('§9.7 returns to the default surface after a reload', async () => {
+    it('§9.7 keeps the remembered open choice across a reload', async () => {
       onTestFailed(() => saveFailureShot(page, 'web-e2e-sidebar-right-reload'))
+      // Reset the memory-only surface first, so this case starts in normal
+      // presentation regardless of what the previous one left behind.
       await page.reload({ waitUntil: 'load' })
       await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
       const frame = page.locator('[class*="frame"]').first()
       const column = page.locator('[data-rightbar-col]')
       await column.waitFor({ state: 'attached', timeout: 15_000 })
-      // The surface is view state, not durable session data: a reload zeroes it
-      // back to the expanded default — open panel, seeded guide, and no header
-      // expand button. Expected behaviour, not a defect.
-      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe(null)
+      await ensureExpanded(page, column)
+      // The layout is view state, but the open/closed choice is remembered per
+      // session: closing it here must survive the reload.
+      await toggleOf(page).click()
+      await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+      await expect.poll(async () => await page.evaluate(() => localStorage.getItem('dsh.sidebar-right.choice.v1') ?? ''))
+        .toContain('false')
+      await page.reload({ waitUntil: 'load' })
+      await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
+      await column.waitFor({ state: 'attached', timeout: 15_000 })
+      await expect.poll(async () => await frame.getAttribute('data-rightbar-collapsed')).toBe('true')
+      await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(0)
+      await expect.poll(async () => await toggleOf(page).getAttribute('aria-label')).toBe('Expand right sidebar')
+      // Reopening is the ordinary expansion: the page the twin seated while the
+      // column was closed is ready.
+      await toggleOf(page).click()
       await expect.poll(async () => await column.locator('[data-sidebar-right-open]').count()).toBe(1)
-      expect(await expandOf(page).count()).toBe(0)
-      await expect.poll(async () => await tabTitles(column)).toEqual(['Start'])
+      await expect.poll(async () => await column.locator('[data-dockkit-tab]').count()).toBeGreaterThan(0)
     })
 
     it('opens a context menu on right-click that the strip cannot clip', async () => {

@@ -285,7 +285,7 @@ function grammarOptions(options: GenerateOptions): Partial<SimpleStreamOptions> 
  * @returns whether the payload needs the waiver.
  */
 function waivesMissingThinking(profile: ResolvedPiAiProviderProfile, model: Model<Api>): boolean {
-  return model.api === 'openai-completions' && profile.configuredAllowMissingThinking.has(model.id)
+  return model.api === 'openai-completions' && (profile.configuredAllowMissingThinking.has(model.id) || profile.allowMissingThinking === true)
 }
 
 /**

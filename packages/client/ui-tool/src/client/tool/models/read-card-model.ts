@@ -45,18 +45,18 @@ function validReadCall(block: ToolCallBlock): boolean {
   return true
 }
 
-/** The validated `files` elements of a batched read call, or null for non-batch or malformed args. */
-export function readBatchFiles(args: Record<string, unknown>): { file_path: string; offset?: number }[] | null {
-  const { files } = args
-  if (!Array.isArray(files) || files.length === 0) return null
-  const elements: { file_path: string; offset?: number }[] = []
-  for (const element of files) {
+/** The validated `read_array` elements of a batched read call, or null for non-batch or malformed args. */
+export function readBatchFiles(args: Record<string, unknown>): { path: string; offset?: number }[] | null {
+  const { read_array } = args
+  if (!Array.isArray(read_array) || read_array.length === 0) return null
+  const elements: { path: string; offset?: number }[] = []
+  for (const element of read_array) {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) return null
-    const { file_path: path, offset, limit } = element as Record<string, unknown>
+    const { path, offset, limit } = element as Record<string, unknown>
     if (typeof path !== 'string' || path.trim() === '') return null
     if (offset !== undefined && !positiveInteger(offset)) return null
     if (limit !== undefined && !positiveInteger(limit)) return null
-    elements.push({ file_path: path, ...positiveInteger(offset) ? { offset } : {} })
+    elements.push({ path, ...positiveInteger(offset) ? { offset } : {} })
   }
   return elements
 }
@@ -210,7 +210,7 @@ function frameSectionBody(text: string, filesLength: number, index: number, file
 /**
  * Derive a settled root read card after validating its persisted metadata and
  * model-facing read envelope. Singular calls read their one window; batched
- * `files` calls render the first successful frame's window (the row is a
+ * `read_array` calls render the first successful frame's window (the row is a
  * one-card summary surface, the raw sections stay in the generic body).
  * @param block - running or settled Tool block.
  * @param sessionCwd - retained for the call-site shape; the label is the
@@ -251,7 +251,7 @@ export function readCardModel(
   if (frames === null) return null
   const [first] = frames
   if (first === undefined || first.index >= batch.length) return null
-  const filePath = batch[first.index]?.file_path
+  const filePath = batch[first.index]?.path
   if (filePath === undefined) return null
   const text = singleResultText(block)
   if (text === undefined) return null

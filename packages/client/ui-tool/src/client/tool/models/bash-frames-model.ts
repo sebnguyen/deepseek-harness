@@ -43,17 +43,17 @@ export type BashFramesModel =
   | { kind: 'settled'; frames: readonly FramesCard[]; failed: boolean }
 
 function batchCommands(args: Record<string, unknown>): FramesCommand[] | null {
-  const { commands } = args
-  if (!Array.isArray(commands) || commands.length === 0) return null
+  const { bash_array } = args
+  if (!Array.isArray(bash_array) || bash_array.length === 0) return null
   const list: FramesCommand[] = []
-  for (const element of commands) {
+  for (const element of bash_array) {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) return null
     const record = element as Record<string, unknown>
     if (typeof record.command !== 'string' || record.command.trim() === '') return null
-    if (record.workdir !== undefined && typeof record.workdir !== 'string') return null
-    list.push(record.workdir === undefined
+    if (record.path !== undefined && typeof record.path !== 'string') return null
+    list.push(record.path === undefined
       ? { command: record.command }
-      : { command: record.command, workdir: record.workdir })
+      : { command: record.command, workdir: record.path })
   }
   return list
 }

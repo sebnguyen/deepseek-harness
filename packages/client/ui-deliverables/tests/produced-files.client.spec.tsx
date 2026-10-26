@@ -487,7 +487,7 @@ describe('observed-file Turn data', () => {
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'read-cfg', 'read', { file_path: '~/.dsh/settings.yaml' }),
       result(3, 'read-cfg', false, 1, { path: '/home/u/.dsh/settings.yaml', offset: 1, lines: [], totalLines: 0 }),
-      call(4, 'batch', 'multi_read', { files: [{ file_path: 'a.ts' }] }),
+      call(4, 'batch', 'multi_read', { read_array: [{ path: 'a.ts' }] }),
       result(5, 'batch', false, 1, { frames: [{ index: 0, path: '/w/app/src/a.ts', offset: 1, lines: [], totalLines: 0 }] }),
       call(6, 'write', 'write', { file_path: 'out.html', content: 'x' }),
       result(7, 'write', false, 1, { path: '/w/app/out.html', diffs: [{ path: '/w/app/out.html', oldText: null, newText: 'x' }] }),

@@ -365,7 +365,7 @@ describe('fileMutationToolview registration', () => {
 })
 
 describe('diffCardModel batched write', () => {
-  const BATCH_ARGS = '{"files":[{"file_path":"notes/a.txt","content":"A\\n"},{"file_path":"notes/b.txt","edits":[{"old_string":"o","new_string":"n"}]}]}'
+  const BATCH_ARGS = '{"write_array":[{"path":"notes/a.txt","content":"A\\n"},{"path":"notes/b.txt","edits":[{"old_string":"o","new_string":"n"}]}]}'
   const runningBatch = (over?: Partial<RunningToolCall>): RunningToolCall => ({
     callId: 'c2', name: 'write', argsRaw: BATCH_ARGS,
     turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
@@ -403,11 +403,11 @@ describe('diffCardModel batched write', () => {
   })
 
   it.each([
-    ['an empty batch', '{"files":[]}'],
-    ['a blank element path', '{"files":[{"file_path":" ","content":"x"}]}'],
-    ['an element with neither arm', '{"files":[{"file_path":"a"}]}'],
-    ['an unknown edit entry', '{"files":[{"file_path":"a","edits":[{"z":1}]}]}'],
-    ['an invalid escalation pair', '{"files":[{"file_path":"a","content":"x"}],"sandbox_permissions":"read-only"}'],
+    ['an empty batch', '{"write_array":[]}'],
+    ['a blank element path', '{"write_array":[{"path":" ","content":"x"}]}'],
+    ['an element with neither arm', '{"write_array":[{"path":"a"}]}'],
+    ['an unknown edit entry', '{"write_array":[{"path":"a","edits":[{"z":1}]}]}'],
+    ['an invalid escalation pair', '{"write_array":[{"path":"a","content":"x"}],"sandbox_permissions":"read-only"}'],
   ])('keeps unusable batches generic: %s', (_label, argsRaw) => {
     expect(diffCardModel(runningBatch({ argsRaw }))).toBeNull()
   })
@@ -420,7 +420,7 @@ describe('FileMutationRow batched write', () => {
     t,
   } as unknown as FileMutationRowProps)
 
-  const BATCH_ARGS = '{"files":[{"file_path":"fixtures/a.txt","content":"alpha\\nbeta\\n"},{"file_path":"src/handler.ts","edits":[{"old_string":"respond(401)","new_string":"respond(401, \'missing\')"}]},{"file_path":"locked.txt","content":"x"}]}'
+  const BATCH_ARGS = '{"write_array":[{"path":"fixtures/a.txt","content":"alpha\\nbeta\\n"},{"path":"src/handler.ts","edits":[{"old_string":"respond(401)","new_string":"respond(401, \'missing\')"}]},{"path":"locked.txt","content":"x"}]}'
   const WRITTEN_A = { index: 0, file_path: 'fixtures/a.txt', kind: 'written', path: 'fixtures/a.txt', before: null, after: 'alpha\nbeta\n', committed: true }
   const WRITTEN_B = { index: 1, file_path: 'src/handler.ts', kind: 'written', path: 'src/handler.ts', before: '  respond(401)', after: "  respond(401, 'missing')", committed: true, outcomes: [{ index: 0, kind: 'replace', matches: 1 }] }
   const ERROR_C = { index: 2, file_path: 'locked.txt', kind: 'error', message: 'not read this session' }
@@ -471,7 +471,7 @@ describe('FileMutationRow batched write outcomes', () => {
     t,
   } as unknown as FileMutationRowProps)
 
-  const ARGS = '{"files":[{"file_path":"pre.txt","content":"p","dry_run":true},{"file_path":"skip.txt","content":"s"}]}'
+  const ARGS = '{"write_array":[{"path":"pre.txt","content":"p","dry_run":true},{"path":"skip.txt","content":"s"}]}'
   const PREVIEW = { index: 0, file_path: 'pre.txt', kind: 'written', path: 'pre.txt', before: null, after: 'p', committed: false }
   const SKIP = { index: 1, file_path: 'skip.txt', kind: 'not-run', reason: 'call aborted' }
 

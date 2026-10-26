@@ -113,18 +113,20 @@ function counting(from: number): { mint: Mint; used: () => number } {
 }
 
 /**
- * The surface a session starts with: expanded, one docked pane holding the
- * default page, so the column is open by default and never shows an empty
- * docked area. The seated page is not a recorded intent — the history starts
- * with the user's first one.
+ * The surface a session starts with: the kit's initial state, opened to the
+ * remembered choice (open before the first choice), with the default page
+ * seated when expanded. A collapsed start is empty; the first expansion reseeds
+ * it. The seated page is not a recorded intent — the history starts with the
+ * user's first one.
  * @param seed - the registered default page, read once at creation.
+ * @param expanded - whether the column starts open; the remembered choice, or `true` before one exists.
  * @returns the initial surface.
  */
-export function createSurface(seed: () => SidebarRightSeed): SurfaceState {
+export function createSurface(seed: () => SidebarRightSeed, expanded = true): SurfaceState {
   const counter = counting(0)
   const makeTab = (id: TabId): TabRecord => seedRecord(id, seed)
   const initial = createInitialState({ next: counter.mint })
-  const opened = replay(initial, planSetExpanded(initial, true))
+  const opened = replay(initial, planSetExpanded(initial, expanded))
   const seeded = replay(opened, planSettle(opened, counter.mint, makeTab))
   return { layout: seeded, history: EMPTY_HISTORY, minted: counter.used() }
 }
@@ -218,15 +220,16 @@ function seat(
   sessionId: string,
   seed: () => SidebarRightSeed,
   next: (surface: SurfaceState) => SurfaceState,
+  expanded = true,
 ): Record<string, SurfaceState> {
   const existing = state.bySession[sessionId]
-  const updated = next(existing ?? createSurface(seed))
+  const updated = next(existing ?? createSurface(seed, expanded))
   return updated === existing ? state.bySession : { ...state.bySession, [sessionId]: updated }
 }
 
 /** Declared write set; each entry is one settled intent. */
 type SidebarRightActions = {
-  open: (draft: SidebarRightState, sessionId: string) => void
+  open: (draft: SidebarRightState, sessionId: string, expanded?: boolean) => void
   setExpanded: (draft: SidebarRightState, sessionId: string, expanded: boolean) => void
   toggleExpanded: (draft: SidebarRightState, sessionId: string) => void
   setMode: (draft: SidebarRightState, sessionId: string, mode: DockMode) => void
@@ -278,9 +281,12 @@ export function createSidebarRightStore(
     init: (): SidebarRightState => ({ bySession: {} }),
     actions: {
       // Materialize a session's surface without changing it, so the first read
-      // after a session switch sees the open column with its default page
-      // rather than nothing.
-      open: (d, sessionId: string) => { d.bySession = seat(d, sessionId, seed, surface => surface) },
+      // after a session switch sees the remembered open/closed state with its
+      // default page rather than nothing. `expanded` only applies when the
+      // surface is created; an existing surface keeps its current state.
+      open: (d, sessionId: string, expanded = true) => {
+        d.bySession = seat(d, sessionId, seed, surface => surface, expanded)
+      },
       setExpanded: (d, sessionId: string, expanded: boolean) => {
         d.bySession = seat(d, sessionId, seed, s => advance(s, state => planSetExpanded(state, expanded), seed))
       },
@@ -309,14 +315,16 @@ export function createSidebarRightStore(
           return next
         })
       },
-      // One entry carries the whole open: revealing the column (an open behind
-      // a collapsed panel is not an open), focusing or seating the tab, and
-      // closing the tab it replaces. `settled` reports the tab the planner
-      // landed on, synchronously, because actions return nothing.
+      // One entry carries the whole open: seating and focusing the tab, and
+      // closing the tab it replaces. The column's expanded state is the
+      // session's remembered choice, so an open never changes it; expanding is
+      // the header toggle's job, not a side effect of opening content.
+      // `settled` reports the tab the planner landed on, synchronously, because
+      // actions return nothing.
       openContent: (d, sessionId: string, intent, settled) => {
         d.bySession = seat(d, sessionId, seed, s => advance(s, (state, mint) => {
           const { kind, contentId, title, replaceTab: replace } = intent
-          const ops: LayoutOp[] = [...planSetExpanded(state, true)]
+          const ops: LayoutOp[] = []
           // A replaced tab lends its pane and slot; one that floats cannot (a
           // floating pane holds one tab), so the new tab lands as if unplaced.
           const replaced = replace === undefined ? undefined : findTabPane(state, replace)

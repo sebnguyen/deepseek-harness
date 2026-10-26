@@ -1,7 +1,8 @@
 /*
- * The Sidebar's own chrome only: the panel box, its two strip-end controls, and
- * the placeholder tab bodies. Everything inside the split tree is styled by the
- * docking kit; the expand button in the conversation header has its own sheet.
+ * The Sidebar's own chrome only: the panel box, its presentation switch (with
+ * the fullscreen collapse control), and the placeholder tab bodies. Everything
+ * inside the split tree is styled by the docking kit; the header's toggle has
+ * its own sheet.
  * Tokens only.
  */
 
@@ -125,7 +126,7 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* The expand button's glyph, so collapse and expand share one affordance. */
+/* Mirrored like the header toggle's glyph, so close and open share one affordance. */
 .collapseGlyph {
   transform: scaleX(-1);
 }
@@ -159,10 +160,11 @@
   min-width: 0;
 }
 
-/* The strip's two controls, floating over the twin's own workbench chrome
-   while the tab strip itself yields (a mounted vscode tab hides it). A card
-   wall is 20; the twin's in-iframe stacking is its own document, so a modest
-   level over the pane content suffices. */
+/* The panel's presentation switch (and the fullscreen collapse control),
+   floating over the twin's own workbench chrome while the tab strip itself
+   yields (a mounted vscode tab hides it). A card wall is 20; the twin's
+   in-iframe stacking is its own document, so a modest level over the pane
+   content suffices. */
 .panelChromeFloat {
   position: absolute;
   top: 8px;

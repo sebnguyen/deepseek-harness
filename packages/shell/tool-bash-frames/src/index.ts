@@ -1,6 +1,6 @@
 /**
  * Model-facing Consumer of the `ctx.shell` capability seam whose registered
- * `bash` tool carries the `commands` batch face as its only call shape: one
+ * `bash` tool carries the `bash_array` batch face as its only call shape: one
  * invocation fans out across independent shell jobs, each settling into its own
  * labeled frame while the wire contract stays one tool call to one tool result.
  * `run_in_background` rides single elements, so one element starts as a
@@ -19,7 +19,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool, TOOL_ABORTED, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
+import { defineTool, TOOL_ABORTED } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ToolExecution, ToolResult, ToolResultView } from '@deepseek-ai/dsh-tools'
 import { HarnessError } from '@deepseek-ai/dsh-llm'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -43,7 +43,7 @@ export const inject = ['tools', 'shell', 'systemPrompt', 'shellEnv']
 export interface Config {
   /** Expose element `run_in_background` (default true); disabled elements are also rejected. */
   enableRunInBackground?: boolean
-  /** Maximum elements one `commands` invocation may carry (default 8). */
+  /** Maximum elements one `bash_array` invocation may carry (default 8). */
   /** Register under the legacy `bash` name for recorded-session replay instead of the shipped `multi_bash` name (default false). */
   legacyName?: boolean
 }
@@ -60,17 +60,17 @@ function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
 
-/** One element of a `commands` invocation before validation defaults it. */
+/** One element of a `bash_array` invocation before validation defaults it. */
 interface FramesCommandArgs {
   command: string
-  workdir?: string
+  path?: string
   timeoutMs?: number
   run_in_background?: boolean
 }
 
 /** Parsed tool args; execute validates value constraints absent from ParameterSchemaSpec. */
 interface BashToolArgs {
-  commands?: FramesCommandArgs[]
+  bash_array?: FramesCommandArgs[]
 }
 
 /** Validate a positive finite timeout value; the label names the failing argument. */
@@ -81,14 +81,14 @@ function validateTimeoutMs(value: number | undefined, label: string): void {
 }
 
 function validateBashArgs(args: BashToolArgs): void {
-  if (!Array.isArray(args.commands) || args.commands.length === 0) {
-    throw new Error('invalid commands: expected a non-empty array of command objects')
+  if (!Array.isArray(args.bash_array) || args.bash_array.length === 0) {
+    throw new Error('invalid bash_array: expected a non-empty array of command objects')
   }
-  for (const element of args.commands) {
+  for (const element of args.bash_array) {
     if (typeof element.command !== 'string' || element.command.trim().length === 0) {
-      throw new Error('invalid commands element: expected a non-empty command string')
+      throw new Error('invalid bash_array element: expected a non-empty command string')
     }
-    validateTimeoutMs(element.timeoutMs, 'commands element timeoutMs')
+    validateTimeoutMs(element.timeoutMs, 'bash_array element timeoutMs')
   }
 }
 
@@ -97,7 +97,7 @@ function bashDescription(backgroundEnabled: boolean): string {
     ? 'Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.'
     : 'Background execution is not available; elements must finish within the timeout.'
   const base = 'Execute bash commands (`bash -c`) and return their stdout/stderr. '
-    + 'Pass a `commands` array: elements run in a fresh shell each, in written order, '
+    + 'Pass a `bash_array` array: elements run in a fresh shell each, in written order, '
     + 'and every element runs even if an earlier one fails; keep steps that read an '
     + 'earlier output in separate calls, so the step that needs a result sees it. '
     + 'Each element settles on its own under a `[i/N] $ command` header (its own exit '
@@ -124,7 +124,7 @@ type FramesValue = {
 /** The schema-validated slice of bash args the presenters read; the core
  *  registry soft-validates every call before invoking a presenter. */
 interface PresentBashArgs {
-  commands: FramesCommandArgs[]
+  bash_array: FramesCommandArgs[]
 }
 
 /**
@@ -133,7 +133,7 @@ interface PresentBashArgs {
  * card stays reserved for single-exit tools.
  */
 function presentBashCall(args: PresentBashArgs): GenericCallView {
-  const elements = args.commands
+  const elements = args.bash_array
   const first = elements.at(0)
   return {
     card: 'generic',
@@ -235,20 +235,15 @@ export function apply(ctx: Context, config: Config = {}): void {
     name: `tool:${toolName}`,
     order: ctx.systemPrompt.getSectionOrder('TOOL_BASH'),
     text: adviceLine('Bash covers builds, git, installs, and test runners, the work no structured tool performs; pass a short description so the user can follow what ran. Example: bash pnpm test with filter api after code changes, with description Run api package tests.')
-      + ' Batch the independent steps of one thought into one `commands` call — one call running the narrowed test, grepping the symbol, and listing the directory instead of three calls; a step that reads an earlier output belongs in a later call. '
+      + ' Batch the independent steps of one thought into one `bash_array` call — one call running the narrowed test, grepping the symbol, and listing the directory instead of three calls; a step that reads an earlier output belongs in a later call. '
       + 'Check the [exit code: N] marker on every frame; investigate failures before moving on.',
   })
 
   ctx.tools.register(defineTool({
     name: toolName,
     description: bashDescription(backgroundEnabled),
-    // Shape tolerance, not type tolerance: a model remembering the pre-batch
-    // singleton `"{command: "…"}"` root receives one wrapped element, then
-    // strict validation evaluates the wrapped form. String containers and
-    // other non-conforming payloads fail validation outright.
-    normalizeArgs: args => wrapSingletonArgs(args, 'commands', 'command'),
     parameters: {
-      commands: {
+      bash_array: {
         type: 'array',
         required: true,
         items: {
@@ -259,7 +254,7 @@ export function apply(ctx: Context, config: Config = {}): void {
           additionalProperties: true,
           properties: {
             command: { type: 'string', required: true, description: 'The bash command this element runs in its own fresh shell.' },
-            workdir: { type: 'string', description: 'Working directory for this element; defaults to the session workspace, and a relative path is resolved against it.' },
+            path: { type: 'string', description: 'Working directory for this element; defaults to the session workspace, and a relative path is resolved against it.' },
             timeoutMs: { type: 'number', description: 'Timeout in milliseconds for this element; the executor applies its configured default and cap, and kills the element on expiry.' },
             ...backgroundEnabled ? {
               run_in_background: { type: 'boolean' as const, description: 'Run this element as a background job instead of waiting for it; its frame carries the job id, and job_output reads its output.' },
@@ -390,7 +385,7 @@ export function apply(ctx: Context, config: Config = {}): void {
     dshEnv: ReturnType<typeof ctx.shellEnv.collect>,
   ): Promise<FramesValue> {
     const baseWorkdir = resolveWorkdir(undefined, exec, standingPolicy?.workspaceRoot)
-    const elements = args.commands as FramesCommandArgs[]
+    const elements = args.bash_array as FramesCommandArgs[]
     const frames: FramesValue['frames'] = []
     for (const [index, element] of elements.entries()) {
       if (exec.signal.aborted) {
@@ -409,8 +404,8 @@ export function apply(ctx: Context, config: Config = {}): void {
         frames.push({ index, command: element.command, outcome: { kind: 'not-run', reason: 'call aborted' } })
         continue
       }
-      const workdir = element.workdir !== undefined
-        ? resolveWorkdir(element.workdir, exec, standingPolicy?.workspaceRoot)
+      const workdir = element.path !== undefined
+        ? resolveWorkdir(element.path, exec, standingPolicy?.workspaceRoot)
         : baseWorkdir
       const request = {
         command: element.command,

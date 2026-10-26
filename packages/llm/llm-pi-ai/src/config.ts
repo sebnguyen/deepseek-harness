@@ -141,6 +141,12 @@ export interface PiAiProviderProfile {
    */
   defaultReasoningEfforts?: PiAiReasoningEfforts
   /**
+   * Default for the `allow_missing_thinking` template waiver across every
+   * openai-completions model on this route. A model's own `allowMissingThinking`
+   * always wins. Shipped routes that accept the waiver set this by default.
+   */
+  allowMissingThinking?: boolean
+  /**
    * pi-ai wire-compatibility switches defaulting every model on this route
    * whose protocol declares them; each model's own `compat` overrides per
    * field. What neither sets keeps the installed catalog entry's value, then
@@ -261,6 +267,11 @@ export interface ResolvedPiAiProviderProfile
    * always wins over its tune.
    */
   configuredTunes: ReadonlyMap<string, PiAiModelTune>
+  /**
+   * Route-level default for the `allow_missing_thinking` template waiver, when
+   * configured. Shipped routes that accept the waiver carry it here.
+   */
+  allowMissingThinking?: boolean
   /**
    * Models whose profile opts into the `allow_missing_thinking` template
    * waiver, by model id. Like {@link configuredMaxTokens}, only an explicit
@@ -390,6 +401,7 @@ const profile = z.object({
   modelOverrides: z.dict(modelOverride),
   defaultReasoningEfforts: reasoningEfforts,
   compat: compatProfile,
+  allowMissingThinking: z.boolean(),
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   maxContextWindow: z.number().step(1).min(1),
   defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
@@ -539,6 +551,7 @@ export function resolveProfiles(
     const mergedCompat = shipped?.compat === undefined
       ? source.compat
       : { ...shipped.compat, ...source.compat }
+    const mergedAllowMissingThinking = source.allowMissingThinking ?? shipped?.allowMissingThinking
     // The settings schema materializes an absent effort menu as an empty dict,
     // and an empty menu offers nothing: both defer to the shipped vendor menu.
     const declaredEfforts = source.defaultReasoningEfforts !== undefined
@@ -567,6 +580,7 @@ export function resolveProfiles(
         ...source.models === undefined ? {} : { models: source.models },
         ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
         ...mergedCompat === undefined ? {} : { compat: mergedCompat },
+        ...mergedAllowMissingThinking === undefined ? {} : { allowMissingThinking: mergedAllowMissingThinking },
         defaultInput,
         defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
         ...source.maxContextWindow === undefined ? {} : { maxContextWindow: source.maxContextWindow },
@@ -600,6 +614,7 @@ export function resolveProfiles(
       ...mergedCompat === undefined || Object.keys(mergedCompat).length === 0
         ? {}
         : { compat: mergedCompat },
+      ...mergedAllowMissingThinking === undefined ? {} : { allowMissingThinking: mergedAllowMissingThinking },
       provider,
       displayName,
       live,

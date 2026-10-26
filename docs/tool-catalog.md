@@ -236,13 +236,13 @@ The bash tool is the model-facing consumer of the bash executor seam. A `run_in_
 
 ### `multi_bash`
 
-Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.
+Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `bash_array` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "commands": {
+    "bash_array": {
       "type": "array",
       "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
       "items": {
@@ -253,7 +253,7 @@ Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `comman
             "type": "string",
             "description": "The bash command this element runs in its own fresh shell."
           },
-          "workdir": {
+          "path": {
             "type": "string",
             "description": "Working directory for this element; defaults to the session workspace, and a relative path is resolved against it."
           },
@@ -277,7 +277,7 @@ Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `comman
     }
   },
   "required": [
-    "commands",
+    "bash_array",
     "description"
   ]
 }
@@ -842,20 +842,20 @@ Standalone view/create/unique literal replace/line insert tool over the filesyst
 
 ### `multi_read`
 
-Read UTF-8 text files and return line-numbered content; each element of `files` runs and settles into its own labeled frame, in written order, earlier failures included.
+Read UTF-8 text files and return line-numbered content; each element of `read_array` runs and settles into its own labeled frame, in written order, earlier failures included.
 
 ```json
 {
   "type": "object",
   "properties": {
-    "files": {
+    "read_array": {
       "type": "array",
       "description": "The files to read, in written order; 1 or more elements, with no upper cap. Independent reads of one thought belong in one call.",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "file_path": {
+          "path": {
             "type": "string",
             "description": "Path to read, resolved by the filesystem backend."
           },
@@ -869,7 +869,7 @@ Read UTF-8 text files and return line-numbered content; each element of `files` 
           }
         },
         "required": [
-          "file_path"
+          "path"
         ]
       }
     },
@@ -879,7 +879,7 @@ Read UTF-8 text files and return line-numbered content; each element of `files` 
     }
   },
   "required": [
-    "files",
+    "read_array",
     "description"
   ]
 }
@@ -895,14 +895,14 @@ Create, replace, or patch several UTF-8 text files in one call. Think of one cal
 {
   "type": "object",
   "properties": {
-    "files": {
+    "write_array": {
       "type": "array",
       "description": "The files to write, in written order. Independent file changes of one thought belong in one call; an element that edits a file another element creates or edits addresses that element's result, since elements see earlier commits.",
       "items": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "file_path": {
+          "path": {
             "type": "string",
             "description": "Path of the file to write, resolved by the filesystem backend."
           },
@@ -1010,7 +1010,7 @@ Create, replace, or patch several UTF-8 text files in one call. Think of one cal
           }
         },
         "required": [
-          "file_path"
+          "path"
         ]
       }
     },
@@ -1020,7 +1020,7 @@ Create, replace, or patch several UTF-8 text files in one call. Think of one cal
     }
   },
   "required": [
-    "files",
+    "write_array",
     "description"
   ]
 }
@@ -1932,7 +1932,7 @@ todo_write is session-owned state; UIs render the latest todo/write event as a c
 
 ### `finish`
 
-Close the current turn early. Quiet conversation mode promises one plain closing answer; call finish when the work is done and the turn should close into its summary. Outside quiet conversation mode this call is inert and records nothing.
+Close the current turn early. Under the quiet turn shape this ends the turn at the tool result; the closing answer is the last assistant message of this turn. Outside the quiet turn shape this call is inert and records nothing.
 
 ```json
 {

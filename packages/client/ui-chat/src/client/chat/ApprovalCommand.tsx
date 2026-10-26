@@ -10,7 +10,7 @@ interface ApprovalToolCall {
 
 /**
  * Extract a shell command from a correlated Tool call when its arguments carry
- * one: the singular face carries it at the root, the `commands` batch face at
+ * one: the singular face carries it at the root, the `bash_array` batch face at
  * its first element with a command string.
  * @param call - Tool call arguments, when a correlated call exists.
  * @returns command text, or undefined for absent, malformed, or unrelated arguments.
@@ -20,8 +20,8 @@ export function commandOf(call: ApprovalToolCall | undefined): string | undefine
   try {
     const args = JSON.parse(call.argsRaw) as Record<string, unknown>
     if (typeof args.command === 'string') return args.command
-    if (!Array.isArray(args.commands)) return undefined
-    for (const element of args.commands) {
+    if (!Array.isArray(args.bash_array)) return undefined
+    for (const element of args.bash_array) {
       if (typeof element === 'object' && element !== null
         && typeof (element as { command?: unknown }).command === 'string') {
         return (element as { command: string }).command

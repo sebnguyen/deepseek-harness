@@ -1,7 +1,8 @@
 /*
  * Sits in the conversation header's corner seat, level with the Session log
- * control. The same icon button as the panel's own strip controls: a 28px
- * circle around a 15px glyph.
+ * control. The same icon button as the panel's presentation switch: a 28px
+ * circle around a 15px glyph. It renders in both states, so the header keeps
+ * one control's footprint and the close action never leaves the conversation.
  */
 .button {
   display: inline-flex;

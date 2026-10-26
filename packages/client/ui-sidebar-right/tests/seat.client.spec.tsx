@@ -14,7 +14,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { apply, inject } from '../src/client/index.ts'
 import { intentsFor } from '../src/client/shell/SidebarRight.tsx'
 import type { SidebarRightTabInfo, SidebarRightTabMenuOwnerProps } from '../src/client/contract/slots.ts'
+import { SIDEBAR_RIGHT_CHOICE_KEY } from '../src/client/choice.ts'
 import type { createSidebarRightStore } from '../src/client/stores.ts'
+import { createLayoutStore } from '../../ui-layout/src/client/stores.ts'
 
 declare module '../src/client/contract/params.ts' {
   interface SidebarRightResourceParamsMap {
@@ -27,7 +29,16 @@ const OTHER = 's-other' as SessionId
 const runtimes: SlotTestRuntime[] = []
 let getAnimationsDescriptor: PropertyDescriptor | undefined
 
-beforeEach(() => {
+/** Persistence writes coalesce onto the next animation frame, or a microtask where rAF is absent. */
+const flushPersist = (): Promise<void> => new Promise((resolve) => {
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { resolve() })
+  else queueMicrotask(resolve)
+})
+
+beforeEach(async () => {
+  // Let the previous case's coalesced write land before its storage is cleared.
+  await flushPersist()
+  localStorage.clear()
   getAnimationsDescriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'getAnimations')
   Object.defineProperty(Element.prototype, 'getAnimations', { configurable: true, writable: true, value: () => [] })
 })
@@ -58,10 +69,19 @@ function transition(property = 'transform') {
   }
 }
 
-async function mountSeat(viewportWidth = 1440, canShow = true, entryCount = 0) {
+async function mountSeat(
+  viewportWidth = 1440,
+  canShow = true,
+  entryCount = 0,
+  rememberedChoice?: boolean,
+  frameOverride?: { openRightbar?: (track: boolean, fullscreen: boolean) => void; closeRightbar?: () => void },
+) {
   const runtime = await SlotTestRuntime.create()
   runtimes.push(runtime)
-  const frame = { openRightbar: vi.fn(), closeRightbar: vi.fn() }
+  const frame = {
+    openRightbar: vi.fn<(track: boolean, fullscreen: boolean) => void>(frameOverride?.openRightbar),
+    closeRightbar: vi.fn<() => void>(frameOverride?.closeRightbar),
+  }
   const pin = vi.fn<(address: string, signal: AbortSignal) => void>()
   runtime.ctx.provide('layout', frame as never)
   runtime.ctx.provide('resources', { pin } as never)
@@ -73,6 +93,9 @@ async function mountSeat(viewportWidth = 1440, canShow = true, entryCount = 0) {
     'conversation.session.header.corner': { kind: 'single', scope: 'session' },
   })
   await runtime.sessions.add({ id: SESSION })
+  if (rememberedChoice !== undefined) {
+    localStorage.setItem(SIDEBAR_RIGHT_CHOICE_KEY, JSON.stringify({ bySession: { [SESSION]: rememberedChoice } }))
+  }
   const feature = await runtime.mount({ inject: [...inject], apply })
   const bodies = new Map<string, SidebarRightTabInfo>()
   const titles = new Map<string, SidebarRightTabInfo>()
@@ -221,8 +244,14 @@ describe('RightbarSeat presentation', () => {
     act(() => { h.controller.toggleExpanded() })
     expect(panel.getAttribute('aria-hidden')).toBe('true')
     expect(h.frame.closeRightbar).toHaveBeenCalled()
+    const opens = h.frame.openRightbar.mock.calls.length
     h.open()
+    // The open seats the tab without changing the collapsed choice: only the
+    // toggle expands.
     expect(element(h.view.container, '[data-sidebar-right-panel]')).toBe(panel)
+    expect(panel.hasAttribute('data-sidebar-right-open')).toBe(false)
+    expect(h.frame.openRightbar).toHaveBeenCalledTimes(opens)
+    act(() => { h.controller.toggleExpanded() })
     expect(panel.hasAttribute('data-sidebar-right-open')).toBe(true)
     expect(h.frame.openRightbar).toHaveBeenLastCalledWith(true, false)
     await h.runtime.dispose()
@@ -239,6 +268,8 @@ describe('RightbarSeat presentation', () => {
     expect(h.layout().mode).toBe('fullscreen')
     expect(panel.style.width).toBe('100%')
     expect(panel.dataset['sidebarRightPanel']).toBe('fullscreen')
+    // Fullscreen covers the conversation, so the panel keeps its own close control.
+    expect(h.view.container.querySelector('[data-sidebar-right-toggle]')).not.toBeNull()
     expect(element(h.view.container, '[data-tab-body]')).toBe(body)
     expect(h.frame.openRightbar).toHaveBeenLastCalledWith(true, true)
     expect(h.bodies.get(tab.id)?.sidebar).toEqual({ expanded: true, fullscreen: true })
@@ -246,7 +277,9 @@ describe('RightbarSeat presentation', () => {
     expect(panel.style.width).toBe('420px')
     expect(element(h.view.container, '[data-tab-body]')).toBe(body)
     expect(h.frame.openRightbar).toHaveBeenLastCalledWith(true, false)
-    fireEvent.click(element(h.view.container, '[data-sidebar-right-toggle]'))
+    // Normal presentation has no panel close control: the header toggle owns it.
+    expect(h.view.container.querySelector('[data-sidebar-right-toggle]')).toBeNull()
+    act(() => { h.controller.toggleExpanded() })
     expect(h.layout().expanded).toBe(false)
     expect(h.frame.closeRightbar).toHaveBeenCalled()
   })
@@ -318,6 +351,7 @@ describe('RightbarSeat fullscreen entry', () => {
     h.frame.openRightbar.mockClear()
     h.frame.closeRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     expect(panel.hasAttribute('data-sidebar-right-open')).toBe(true)
     expect(panel.dataset['sidebarRightPanel']).toBe('fullscreen')
     expect(h.frame.openRightbar).not.toHaveBeenCalled()
@@ -340,6 +374,7 @@ describe('RightbarSeat fullscreen entry', () => {
       .mockReturnValue([unrelated.animation, ended.animation])
     h.frame.openRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     expect(h.frame.openRightbar).toHaveBeenCalledExactlyOnceWith(true, true)
     unrelated.finish()
   })
@@ -351,6 +386,7 @@ describe('RightbarSeat fullscreen entry', () => {
     vi.spyOn(element(h.view.container, '[data-sidebar-right-panel]'), 'getAnimations').mockReturnValue([slide.animation])
     h.frame.openRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     expect(h.frame.openRightbar).not.toHaveBeenCalled()
     await act(async () => { slide.cancel(); await Promise.allSettled([slide.animation.finished]) })
     expect(h.frame.openRightbar).toHaveBeenCalledExactlyOnceWith(false, true)
@@ -365,6 +401,7 @@ describe('RightbarSeat fullscreen entry', () => {
       .mockReturnValue([first.animation])
     h.frame.openRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     animations.mockReturnValue([replacement.animation])
     await act(async () => { first.cancel(); await Promise.allSettled([first.animation.finished]) })
     expect(h.frame.openRightbar).not.toHaveBeenCalled()
@@ -381,6 +418,7 @@ describe('RightbarSeat fullscreen entry', () => {
     h.frame.openRightbar.mockClear()
     h.frame.closeRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     expect(h.frame.openRightbar).not.toHaveBeenCalled()
     if (change === 'close') fireEvent.click(element(h.view.container, '[data-sidebar-right-toggle]'))
     else if (change === 'push') fireEvent.click(element(h.view.container, '[data-sidebar-right-mode]'))
@@ -403,6 +441,7 @@ describe('RightbarSeat fullscreen entry', () => {
     vi.spyOn(element(h.view.container, '[data-sidebar-right-panel]'), 'getAnimations').mockReturnValue([slide.animation])
     h.frame.openRightbar.mockClear()
     h.open()
+    act(() => { h.controller.toggleExpanded() })
     h.view.update({ width: 420, viewportWidth: 500, canShow: false })
     expect(h.frame.openRightbar).not.toHaveBeenCalled()
     await act(async () => { slide.finish(); await slide.animation.finished })
@@ -494,8 +533,7 @@ describe('slot-owned useTabInfo', () => {
 
   it('updates guide replacements through the same hook and guide boxes through framework injection', async () => {
     const h = await mountSeat()
-    // The first expansion seeds the guide the replacement renders over.
-    act(() => { h.controller.toggleExpanded() })
+    // The seeded guide is already materialized for the replacement to render over.
     let captured: SidebarRightTabInfo | undefined
     await act(async () => {
       h.runtime.ctx.sidebarRightTabs.register({
@@ -613,6 +651,7 @@ describe('intentsFor — the kit\'s gestures as one session\'s store actions', (
     expect(actions.focusPane).toHaveBeenCalledWith(SESSION, PANE_1)
     expect(actions.splitPane).toHaveBeenCalledWith(SESSION, PANE_1)
     expect(actions.closeTab).toHaveBeenCalledWith(SESSION, TAB_1)
+
     expect(actions.duplicateTab).toHaveBeenCalledWith(SESSION, TAB_1)
     expect(actions.floatTab).toHaveBeenCalledWith(SESSION, TAB_1, rect)
     expect(actions.unfloatPane).toHaveBeenCalledWith(SESSION, PANE_2)
@@ -624,5 +663,35 @@ describe('intentsFor — the kit\'s gestures as one session\'s store actions', (
     // The add control is the guide opened by kind, in that pane, beside any guide elsewhere.
     intents.addTab(PANE_1)
     expect(openTab).toHaveBeenCalledWith('guide', { paneId: PANE_1, revealIfOpened: false })
+  })
+})
+
+describe('RightbarSeat remembered choice', () => {
+  it('opens to the remembered closed choice and writes later changes back', async () => {
+    const h = await mountSeat(1440, true, 0, false)
+    await act(async () => {})
+    expect(h.instance.getSnapshot().bySession[SESSION]?.layout.expanded).toBe(false)
+    expect(h.view.container.querySelector('[data-sidebar-right-open]')).toBeNull()
+    expect(h.frame.openRightbar).not.toHaveBeenCalled()
+    expect(h.frame.closeRightbar).toHaveBeenCalled()
+
+    act(() => { h.actions.setExpanded(SESSION, true) })
+    await flushPersist()
+    const stored = JSON.parse(localStorage.getItem(SIDEBAR_RIGHT_CHOICE_KEY) ?? 'null') as {
+      bySession?: Record<string, boolean>
+    } | null
+    expect(stored?.bySession?.[SESSION]).toBe(true)
+  })
+
+  it('closes a stale frame track when the remembered close mounts', async () => {
+    const layout = createLayoutStore().create()
+    layout.actions.openRightbar(true, false)
+    const h = await mountSeat(1440, true, 0, false, {
+      openRightbar: (track, fullscreen) => { layout.actions.openRightbar(track, fullscreen) },
+      closeRightbar: () => { layout.actions.closeRightbar() },
+    })
+    expect(h.instance.getSnapshot().bySession[SESSION]?.layout.expanded).toBe(false)
+    expect(layout.getSnapshot().layoutInfo.rightbarShown).toBe(false)
+    expect(layout.getSnapshot().layoutInfo.rightbarTrack).toBe(false)
   })
 })

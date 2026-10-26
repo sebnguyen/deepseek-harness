@@ -56,20 +56,22 @@ interface Adoption {
 
 /**
  * Create the public controller and the plugin-private store adoption callback.
- * Adoption subscribes without reconciling; the first store commit creates occurrences.
+ * Adoption subscribes, seeds the surface at the remembered expanded choice, and
+ * only then tells listeners; the seed commit creates occurrences, and an open
+ * listener never changes the column's expanded state.
  * @param tabs - registered tab types.
  * @param pin - resource retention for an occurrence's lifetime.
  * @returns the controller and a callback releasing exactly its own adoption.
  */
 export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin: PinResource): {
   controller: SidebarRightController
-  adopt: (sessionId: SessionId, store: SidebarRightSurfaceStore) => () => void
+  adopt: (sessionId: SessionId, store: SidebarRightSurfaceStore, expanded?: boolean) => () => void
 } {
   const adopted = new Map<SessionId, Adoption>()
   const controller = new SidebarRightController(tabs, pin, adopted)
   return {
     controller,
-    adopt(sessionId, store) {
+    adopt(sessionId, store, expanded = true) {
       adopted.get(sessionId)?.unsubscribe()
       const sync = (): void => {
         const surface = store.getSnapshot().bySession[sessionId]
@@ -77,6 +79,9 @@ export function createSidebarRightController(tabs: SidebarRightTabRegistry, pin:
       }
       const adoption: Adoption = { store, unsubscribe: store.subscribe(sync) }
       adopted.set(sessionId, adoption)
+      // Seed the surface before listeners run: a listener may open a page, and
+      // the open gate reads this layout's expanded state instead of changing it.
+      store.actions.open(sessionId, expanded)
       controller.didAdoptSession(sessionId)
       return () => {
         adoption.unsubscribe()

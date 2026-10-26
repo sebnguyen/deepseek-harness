@@ -2,19 +2,21 @@
 
 Status: proposed
 
+Cordis terms (`Plugin`, `Runtime`, `Fiber`, `Context`, `Impl`, `scope`, `inject`) are used per `/home/snguyen/dev/digitalocean/idk/AGENTS.md` §3 and §7; engine behavior cited as `file.ts:line` refers to `deepseek-harness-oceanic/vendor/cordis/src/`.
+
 ## Problem
 
 Coral's recorded carrier contract (`base-carriers.md` v0.2, outside this repository under `Cordises/docs/notes/`) makes one interface the substrate for every protocol: four verbs plus a `CarrierCapabilities` struct that every standard must fill. That shape cannot express discovery. "Speaks A2A" is not a boolean — an A2A card advertises streaming, push notifications, task history, skill media types, security schemes, and interface bindings; ACP advertises `loadSession`, prompt content capabilities, and auth methods, then reveals modes and models only when a session is created. Flattening those into one shared struct either loses fields or grows the shared type for one protocol's sake, and cross-protocol comparisons become lies: `streaming` in A2A is not `promptModes` in ACP.
 
 The contract also duplicates transport facts. `Carrier` names `protocol` and `transport`, the manifest declares a `{protocol, transport, direction}` cell, and the registry's `Endpoint` stores a third flat `carrier` string. Three vocabularies describe the same peer; none is authoritative.
 
-Finally, the carrier is a god plugin. Every protocol must implement the same four verbs even when the protocol has no session (A2A tasks) or no wire (native `ctx.subagents`), and every consumer that only needs "ask this peer to do work" routes through a central binding layer that knows all protocols. DSH already uses the opposite arrangement: `Connection` is a two-sided plugin over multiple transports, the API Gateway dispatches descriptor-driven requests with no authority, and `SubagentCapabilities` declares provider features that the service checks before dispatch. Coral adopts that inversion instead of centralizing it again.
+Finally, the carrier is a god Plugin. Every protocol must implement the same four verbs even when the protocol has no session (A2A tasks) or no wire (native `ctx.subagents`), and every consumer that only needs "ask this peer to do work" routes through a central binding layer that knows all protocols. DSH already uses the opposite arrangement: `Connection` is a two-sided Plugin over multiple transports, the API Gateway dispatches descriptor-driven requests with no authority, and `SubagentCapabilities` declares provider features that the service checks before dispatch. Coral adopts that inversion instead of centralizing it again.
 
 ## Proposal
 
-The plane splits into four contracts, each with one owner: a **Standard** plugin per protocol that owns detection, the outbound client, inbound mounts, and facet normalization; a generic **Registry** of `Address → Endpoint + per-standard facet records`; a **Carrier** derived view produced by `adapt()`, the only surface the engine consumes; and a **Bake** that mounts peer tools at session open and releases them at session end. The engine keeps deciding who; standards decide how; the registry answers what exists and what it advertises; the gate answers whether an edge or tool may form.
+The plane splits into four contracts, each with one owner: a **Standard** Plugin per protocol that owns detection, the outbound client, inbound mounts, and facet normalization; a generic **Registry** of `Address → Endpoint + per-standard facet records`; a **Carrier** derived view produced by `adapt()`, the only surface the engine consumes; and a **Bake** that mounts peer tools at session open and releases them at session end. The engine keeps deciding who; standards decide how; the registry answers what exists and what it advertises; the gate answers whether an edge or tool may form.
 
-### The standard plugin
+### The standard Plugin
 
 ```ts
 export type StandardId = 'native' | 'acp' | 'a2a'
@@ -174,7 +176,7 @@ export function gate(
 
 ### Event and ownership rules
 
-Event prefixes name the scope of the fact, not the line of the emitting plugin. `coral/*` carries facts inside one instance; `reef/*` carries facts that cross instance boundaries. `cordis/*` is retired, and every existing `cordis/` name is renamed mechanically in [the reef ownership note](2026-10-22-reef-lease-registry-ownership.md). The handshake is the one coral-line plugin that emits `reef/*` events, because peer discovery is a cross-instance fact.
+Event prefixes name the scope of the fact, not the line of the emitting Plugin. `coral/*` carries facts inside one instance; `reef/*` carries facts that cross instance boundaries. `cordis/*` is retired, and every existing `cordis/` name is renamed mechanically in [the reef ownership note](2026-10-22-reef-lease-registry-ownership.md). The handshake is the one coral-line Plugin that emits `reef/*` events, because peer discovery is a cross-instance fact.
 
 ### Relationship to the other notes
 
@@ -182,7 +184,7 @@ Event prefixes name the scope of the fact, not the line of the emitting plugin. 
 
 ## Alternatives considered
 
-**Keep `Carrier` as the substrate interface.** This is the v0.2 contract: every protocol implements `start/send/observe/dispose` and fills `CarrierCapabilities`, and a central binding layer gates everything. It loses because discovery is not representable, the shared capability struct grows for one protocol at a time, and the central layer must know every protocol's verbs — the god plugin the design set out to remove.
+**Keep `Carrier` as the substrate interface.** This is the v0.2 contract: every protocol implements `start/send/observe/dispose` and fills `CarrierCapabilities`, and a central binding layer gates everything. It loses because discovery is not representable, the shared capability struct grows for one protocol at a time, and the central layer must know every protocol's verbs — the god Plugin the design set out to remove.
 
 **Keep one `CarrierCapabilities` struct and add fields.** Cheaper to migrate, but the same defect: a new A2A capability edits a type owned by no protocol, and a consumer comparing ACP's `promptModes` to A2A's `streaming` compares unrelated facts. The two-tier facet keeps the shared vocabulary deliberately small.
 

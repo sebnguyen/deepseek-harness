@@ -2,13 +2,15 @@
 
 Status: proposed
 
+Cordis terms (`Plugin`, `Runtime`, `Fiber`, `Context`, `Impl`, `scope`, `inject`) are used per `/home/snguyen/dev/digitalocean/idk/AGENTS.md` §3 and §7; engine behavior cited as `file.ts:line` refers to `deepseek-harness-oceanic/vendor/cordis/src/`.
+
 ## Problem
 
 Coral's inbound frontier has no owner. `base-carriers.md` v0.2 declares `ServerCarrier.bind(server: ServerLike)`, `reef.carrier.a2a-server` declares a different `cardUrl()/bind(HTTPServer)/handle(envelope)` triple, and `coral.webserver` is named as the "one dumb socket" in the carrier-plane overview but has no note, no package, and no contract. Three consequences follow: the `/api` trusted-client frontier and the peer `/a2a` frontier can share a listener with no declared trust boundary; two standards can claim the same path; and TLS or mTLS configuration has no owner. The old `ServerCarrier` note also defines the inbound face differently from the standard-plane proposal, so there is no single contract for a peer request to enter.
 
 ## Proposal
 
-`coral.webserver` is a base plugin at the bottom of the plane. It binds one listener per instance and mounts URL scopes into a route table. It knows routes, TLS, and compression; it knows no harness concepts.
+`coral.webserver` is a base Plugin at the bottom of the plane. It binds one listener per instance and mounts URL scopes into a route table. It knows routes, TLS, and compression; it knows no harness concepts.
 
 ```ts
 export type UrlScope = `/${string}/`

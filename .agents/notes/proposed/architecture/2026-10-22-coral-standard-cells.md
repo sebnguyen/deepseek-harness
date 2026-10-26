@@ -1,6 +1,8 @@
-# Agent Note: Native, ACP, and A2A as Coral standard plugins
+# Agent Note: Native, ACP, and A2A as Coral standard Plugins
 
 Status: proposed
+
+Cordis terms (`Plugin`, `Runtime`, `Fiber`, `Context`, `Impl`, `scope`, `inject`) are used per `/home/snguyen/dev/digitalocean/idk/AGENTS.md` §3 and §7; engine behavior cited as `file.ts:line` refers to `deepseek-harness-oceanic/vendor/cordis/src/`.
 
 ## Problem
 

@@ -3,7 +3,7 @@
  * patch. `content` alone creates or fully replaces the file; `edits` alone runs
  * sed-style entries (literal, regex, line-range, insert) against the current
  * disk text; together, `content` seeds the stream and the entries patch it
- * before the single atomic commit. The shipped face is the `files` batch:
+ * before the single atomic commit. The shipped face is the `write_array` batch:
  * elements dispatch in written order, each committing its own program
  * atomically — a failed element settles into its frame while later elements
  * still run (partial commit by construction; every element re-checks the target
@@ -18,7 +18,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { DiffCallView, DiffResultView, FileDiff, ToolExecution, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import type { } from '@deepseek-ai/dsh-fs'
@@ -39,7 +39,7 @@ import { sessionResolveOptions } from './session-cwd.ts'
  */
 function batchWriteTitle(files: RawWriteElement[]): string {
   /* v8 ignore next -- replay of obsolete singular args cannot name a batched first element; the soft validator declines first. */
-  const first = typeof files[0]?.file_path === 'string' ? (files[0] as RawWriteElement).file_path as string : '<invalid>'
+  const first = typeof files[0]?.path === 'string' ? (files[0] as RawWriteElement).path as string : '<invalid>'
   return files.length > 1
     ? `${files.length} writes: ${first}`
     : files[0]?.edits !== undefined ? `Patch ${first}` : `Write ${first}`
@@ -54,7 +54,7 @@ function batchWriteTitle(files: RawWriteElement[]): string {
 function intendedWriteDiffs(files: RawWriteElement[]): FileDiff[] {
   return files.flatMap((element) => {
     /* v8 ignore next -- schema-validated batches carry string paths; the fallback guards replay of foreign args. */
-    const path = typeof element.file_path === 'string' ? element.file_path : '<invalid>'
+    const path = typeof element.path === 'string' ? element.path : '<invalid>'
     if (typeof element.content === 'string') return [{ path, oldText: null, newText: element.content }]
     return presentEntrySnippets(element.edits as RawProgramEntry[] | undefined)
       .map(snippet => ({ path, ...snippet }))
@@ -91,9 +91,9 @@ ${line}
 </content>`
 }
 
-/** One schema-validated `files` array element of the batched face. */
+/** One schema-validated `write_array` array element of the batched face. */
 export interface RawWriteElement {
-  file_path?: unknown
+  path?: unknown
   content?: unknown
   overwrite?: unknown
   edits?: unknown
@@ -277,20 +277,20 @@ export async function runWriteProgram(
 }
 
 /**
- * Validate one `files` element the schema DSL can't express: a non-blank
- * `file_path` string and at least one arm, plus boolean/entry re-typing.
+ * Validate one `write_array` element the schema DSL can't express: a non-blank
+ * `path` string and at least one arm, plus boolean/entry re-typing.
  * @param raw - one schema-validated array element.
  * @returns the typed element arguments.
  */
 export function parseWriteElement(raw: RawWriteElement): WriteElementArgs {
-  if ((raw.file_path as string).trim().length === 0) {
-    throw new Error('file_path must be a non-empty string')
+  if ((raw.path as string).trim().length === 0) {
+    throw new Error('path must be a non-empty string')
   }
   if (raw.content === undefined && raw.edits === undefined) {
     throw new Error('provide content, edits, or both — a write with neither is a no-op')
   }
   return {
-    file_path: raw.file_path as string,
+    file_path: raw.path as string,
     ...typeof raw.content === 'string' ? { content: raw.content } : {},
     ...raw.overwrite === true ? { overwrite: true } : {},
     ...Array.isArray(raw.edits) ? { edits: raw.edits as RawProgramEntry[] } : {},
@@ -300,7 +300,7 @@ export function parseWriteElement(raw: RawWriteElement): WriteElementArgs {
 
 /**
  * Register the unified `write` tool and its scope-aware system-prompt guidance.
- * The shipped face is the `files` batch; `legacy` re-registers the pre-batch
+ * The shipped face is the `write_array` batch; `legacy` re-registers the pre-batch
  * singular call for recorded-session replay compositions.
  * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
  * @param sandbox - the shared sandbox-escalation API (advertisement, mode stamping, denial mapping).
@@ -317,18 +317,14 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
     order: ctx.systemPrompt.getSectionOrder('TOOL_WRITE'),
     text: ({ scope }) => ctx.tools.get('multi_write', scope) === undefined
       ? ''
-      : adviceLine('Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `files` call. Elements run in written order, each commits atomically, and later elements see earlier commits — so dependent writes (create a file, then edit it; rename across three call sites) belong in the same call as much as independent ones do. Guards are stricter than the shell\'s: overwriting a file this session never read needs overwrite: true on that element, and an edit entry fails loudly when its literal match is not unique — dry_run previews an element without committing. A mid-batch stop leaves earlier elements applied, so order for recoverability and verify after the batch. Example: two new fixtures and the spec that imports them as three elements once their shapes are agreed.'),
+      : adviceLine('Write creates, replaces, or patches UTF-8 text files; pass every file this step changes as one `write_array` call. Elements run in written order, each commits atomically, and later elements see earlier commits — so dependent writes (create a file, then edit it; rename across three call sites) belong in the same call as much as independent ones do. Guards are stricter than the shell\'s: overwriting a file this session never read needs overwrite: true on that element, and an edit entry fails loudly when its literal match is not unique — dry_run previews an element without committing. A mid-batch stop leaves earlier elements applied, so order for recoverability and verify after the batch. Example: two new fixtures and the spec that imports them as three elements once their shapes are agreed.'),
   })
 
   ctx.tools.register(defineTool({
     name: 'multi_write',
-    // Shape tolerance, not type tolerance: a model remembering the pre-batch
-    // singleton `{file_path, content}`-style root receives one wrapped element;
-    // string containers and other non-conforming payloads still fail strictly.
-    normalizeArgs: args => wrapSingletonArgs(args, 'files', 'file_path'),
     description: 'Create, replace, or patch several UTF-8 text files in one call. Think of one call as one small shell script: elements execute in written order, each commits atomically in its own labeled frame, and later elements see earlier commits — batch every write whose final content is fully determined before the call. A failed element does not stop later ones and nothing is rolled back (a script without `set -e`), so dry_run a risky element before committing. Serialize across calls only when a result must be read to decide the next change.',
     parameters: {
-      files: {
+      write_array: {
         type: 'array',
         required: true,
         description: 'The files to write, in written order. Independent file changes of one thought belong in one call; an element that edits a file another element creates or edits addresses that element\'s result, since elements see earlier commits.',
@@ -392,7 +388,7 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
       }),
     },
     async execute(args, exec) {
-      const files = parseWriteBatch(args.files as RawWriteElement[])
+      const files = parseWriteBatch(args.write_array as RawWriteElement[])
       // Resolve the per-call sandbox policy (session override > backend
       // default, plus the session cwd root) BEFORE anything executes; the
       // shipped face takes no per-call escalation fields.
@@ -405,7 +401,7 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
         } catch (error: unknown) {
           frames.push({
             index,
-            file_path: raw.file_path as string,
+            file_path: raw.path as string,
             kind: 'error',
             message: error instanceof Error ? error.message : String(error),
           })
@@ -436,20 +432,20 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController, gate:
     },
     // Pure display: one diff card listing every element's intended hunks.
     presentCall(args): DiffCallView {
-      const files = (args.files ?? []) as RawWriteElement[]
+      const files = (args.write_array ?? []) as RawWriteElement[]
       return {
         card: 'diff',
         title: batchWriteTitle(files),
         diffs: intendedWriteDiffs(files),
         locations: files
-          .filter(element => typeof element.file_path === 'string')
-          .map(element => ({ path: element.file_path as string })),
+          .filter(element => typeof element.path === 'string')
+          .map(element => ({ path: element.path as string })),
       }
     },
     // Result-time display repeats the intended diffs; applied hunks ride meta.
     presentResult(args, result: ToolResult): DiffResultView | undefined {
       if (result.isError) return undefined
-      const files = (args.files ?? []) as RawWriteElement[]
+      const files = (args.write_array ?? []) as RawWriteElement[]
       return {
         card: 'diff',
         title: batchWriteTitle(files),
@@ -505,7 +501,7 @@ const EDITS_ITEM_SHAPE = {
   type: 'object',
   additionalProperties: false,
   properties: {
-    file_path: { type: 'string', required: true, description: 'Path of the file to write, resolved by the filesystem backend.' },
+    path: { type: 'string', required: true, description: 'Path of the file to write, resolved by the filesystem backend.' },
     content: {
       type: 'string',
       description: 'The element\'s input stream. Without edits, creates or fully replaces the file; with edits, this text — not the current disk content — is what the entries operate on.',
@@ -529,11 +525,11 @@ const EDITS_ITEM_SHAPE = {
 /**
  * Validate the batch envelope the schema DSL can't express: at least one
  * element, no upper cap.
- * @param files - the schema-validated `files` array.
+ * @param files - the schema-validated `write_array` array.
  * @returns the element list after the length guard.
  */
 export function parseWriteBatch(files: RawWriteElement[]): RawWriteElement[] {
-  if (files.length === 0) throw new Error('files must contain at least one element')
+  if (files.length === 0) throw new Error('write_array must contain at least one element')
   return files
 }
 

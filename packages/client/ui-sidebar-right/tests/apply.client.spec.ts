@@ -20,13 +20,14 @@ import { SidebarRightTabRegistry } from '../src/client/tab-registry.ts'
 import type { createSidebarRightStore } from '../src/client/stores.ts'
 import { RightbarSeat } from '../src/client/shell/SidebarRight.tsx'
 import { RightbarRoot } from '../src/client/shell/RightbarRoot.tsx'
-import { ExpandButton } from '../src/client/shell/ExpandButton.tsx'
+import { SidebarToggle } from '../src/client/shell/SidebarToggle.tsx'
 import { GuideBody } from '../src/client/tabs/guide/GuideBody.tsx'
 import { GuideTitle } from '../src/client/tabs/guide/GuideTitle.tsx'
 import { GUIDE_ID } from '../src/client/tabs/guide/definition.ts'
 import { en, zh } from '../src/client/locales.ts'
 
 const SESSION = 's-test' as SessionId
+const OTHER = 's-other' as SessionId
 
 interface Recorded {
   name: string
@@ -99,7 +100,7 @@ describe('ui-sidebar-right apply', () => {
     expect(registered.map(entry => [entry.name, entry.key, entry.locale, entry.component])).toEqual([
       ['rightbar', undefined, undefined, RightbarRoot],
       ['rightbar.session', undefined, 'sidebarRight', RightbarSeat],
-      ['conversation.session.header.corner', undefined, 'sidebarRight', ExpandButton],
+      ['conversation.session.header.corner', undefined, 'sidebarRight', SidebarToggle],
       ['sidebar.right.pane.tab', GUIDE_ID, undefined, GuideBody],
       ['sidebar.right.pane.tab.title', GUIDE_ID, undefined, GuideTitle],
     ])
@@ -148,6 +149,12 @@ describe('ui-sidebar-right apply', () => {
     expect(resources.pin).toHaveBeenCalledWith('sidebar://guide', expect.any(AbortSignal))
     release()
     expect(() => { ctx.sidebarRight.toggleExpanded() }).toThrow('no session surface is mounted')
+    // The remembered choice is a per-session field in its own root-scoped store.
+    expect(injected.readExpandedChoice()).toBe(true)
+    injected.writeExpandedChoice(false)
+    expect(injected.readExpandedChoice()).toBe(false)
+    const other = (seat('rightbar.session').inject as (id: SessionId) => SidebarRightInjected)(OTHER)
+    expect(other.readExpandedChoice()).toBe(true)
   })
 
   it('adopts each session\'s store instance as the runtime mints it, so a tab\'s own actions land with no seat bound', async () => {
@@ -168,6 +175,25 @@ describe('ui-sidebar-right apply', () => {
     occurrence.tabActions.close()
     expect(instance.getSnapshot().bySession[SESSION]?.layout.tabs[guide.id]).toBeUndefined()
     expect(occurrence.signal.aborted).toBe(true)
+  })
+
+  it('keeps a remembered close after an adoption listener opens its page', async () => {
+    const { ctx, seat, injectedOf } = await boot()
+    const injected = injectedOf(seat('rightbar.session')) as SidebarRightInjected
+    injected.writeExpandedChoice(false)
+    // The VS Code twin opens its page synchronously on adoption. Adoption seeds
+    // the surface closed and the open seats the page without expanding it, so
+    // the remembered close is the final state.
+    const stop = ctx.sidebarRight.onSessionAdopted((sessionId) => {
+      ;(ctx.sidebarRight as unknown as { openTabIn: (id: SessionId, kind: string) => void })
+        .openTabIn(sessionId, 'guide')
+    })
+    const handle = seat('rightbar.session').store as ReturnType<typeof createSidebarRightStore>
+    const instance = handle.create(SESSION)
+    stop()
+    const surface = instance.getSnapshot().bySession[SESSION]
+    expect(surface?.layout.expanded).toBe(false)
+    expect(Object.values(surface?.layout.tabs ?? {}).map(tab => tab.kind)).toContain('guide')
   })
 
   it('hands the guide body the registry\'s entry boxes, observable', async () => {
