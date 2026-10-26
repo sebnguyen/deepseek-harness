@@ -7,13 +7,13 @@ kind: "package-reference"
 
 ## Summary
 
-The right Sidebar: where the docking kit meets this product. It holds one docking surface per session, draws it as one edge-anchored panel in the frame's right column in either of two presentations, puts the expand button in the conversation header, and owns the navigation controller (`ctx.sidebarRight`), the tab-type registry (`ctx.sidebarRightTabs`), and the Tab domain that tells each open tab how it was navigated to and how long it lives.
+The right Sidebar: where the docking kit meets this product. It holds one docking surface per session, draws it as one edge-anchored panel in the frame's right column in either of two presentations, puts the sidebar toggle in the conversation header, and owns the navigation controller (`ctx.sidebarRight`), the tab-type registry (`ctx.sidebarRightTabs`), and the Tab domain that tells each open tab how it was navigated to and how long it lives.
 
 ## Table of Contents
 
 - [What lives here, and what does not](#what-lives-here-and-what-does-not)
 - [Presentations](#presentations)
-- [The expand button](#the-expand-button)
+- [The sidebar toggle](#the-sidebar-toggle)
 - [State](#state)
 - [Extension seats](#extension-seats)
 - [`ctx.sidebarRight`](#ctxsidebarright)
@@ -43,12 +43,12 @@ Normal and fullscreen presentations share the same content tree, so switching do
 
 The seat reports presentation through `ctx.layout.openRightbar(track, fullscreen)` / `closeRightbar()`; the frame does not inject this package. Switching fullscreen on a wide viewport leaves the center width unchanged, and the width handle appears only in expanded normal mode. Independent floating panels and `float`/`dock` operations remain available.
 
-The panel has no header row. Its two controls — the presentation switch and the collapse button — ride the kit's chrome seat at the far end of the top-right pane's tab strip, so the strip is the panel's whole top edge. Each strip reads, left to right: the tab capsules with close controls where allowed, the add control (drawn only while that pane holds no guide tab; it opens the guide there through `ctx.sidebarRight.openTab`), the pane's split control, and in the top-right pane the two panel controls. Only the chips give way in a narrow pane; the controls after them never shrink or clip.
+The panel has no header row. Its presentation switch rides the kit's chrome seat at the far end of the top-right pane's tab strip, so the strip is the panel's whole top edge. The close control is not on the panel in normal presentation: it is the header's [toggle](#the-sidebar-toggle), which stays reachable when a surface tab owns the column and the strip is unmounted. In fullscreen the panel covers the conversation, so it draws its own collapse control beside the switch; that is the only close affordance visible there. Each strip reads, left to right: the tab capsules with close controls where allowed, the add control (drawn only while that pane holds no guide tab; it opens the guide there through `ctx.sidebarRight.openTab`), the pane's split control, and in the top-right pane the presentation switch — plus the fullscreen collapse control while the panel fills the viewport. Only the chips give way in a narrow pane; the controls after them never shrink or clip.
 
-<a id="the-expand-button"></a>
-## The expand button
+<a id="the-sidebar-toggle"></a>
+## The sidebar toggle
 
-While the panel is hidden, one button in the conversation header's corner seat (`conversation.session.header.corner`, past the utilities' right edge and level with the Session log control) is the way back in. Its glyph is the left sidebar's collapse icon mirrored. It shares the panel's store (the slot runtime allows one handle across two same-scope seats); while the panel is shown it renders nothing, and the corner seat collapses with it. A collapsed Sidebar therefore costs the conversation nothing: no rail, no width, and the transcript's scrollbar stays at the column's edge. Without a session there is no button and no panel.
+One button in the conversation header's corner seat (`conversation.session.header.corner`, past the utilities' right edge and level with the Session log control) closes the panel while it is open and opens it while it is hidden. Its glyph is the left sidebar's collapse icon mirrored, and its accessible name follows the action. It shares the panel's store (the slot runtime allows one handle across two same-scope seats) and renders in both states, so the header keeps one control's footprint and the close action never leaves the conversation. That placement matters while a surface tab owns the column — the VS Code workbench covers the panel's own chrome — so the user can always collapse the sidebar (and with it the workbench) from the chat. A collapsed Sidebar costs the conversation no rail or width, and the transcript's scrollbar stays at the column's edge. Without a session there is no button and no panel.
 
 The panel takes the conversation's ground colour and content font sizes rather than a raised layer of its own: it is a column of the page, not a card over it.
 
@@ -57,15 +57,15 @@ The `rightbar` entry is a root-scoped controller. It reads `usePanelInfo` and mo
 <a id="state"></a>
 ## State
 
-One `SurfaceState` per session id — the layout, its recorded sequence, and how many ids it has minted — held in a store declared at the registration. Every action follows the same shape: mint the ids the intent needs, ask a kit planner which operations carry it out, record them, then assign the session's whole surface back. No action edits a layout in place, which is what keeps the kit's pure functions the only thing that computes one.
+One `SurfaceState` per session id — the layout, its recorded sequence, and how many ids it has minted — held in a store declared at the registration; the open/closed choice is a separate root-scoped store, because it outlives a reload while the surface does not. Every action follows the same shape: mint the ids the intent needs, ask a kit planner which operations carry it out, record them, then assign the session's whole surface back. No action edits a layout in place, which is what keeps the kit's pure functions the only thing that computes one.
 
 Carrying the mint counter in the surface is what makes a recorded sequence replayable: operations embed the ids they create, so replaying from the same initial state reproduces the same tree. Every action records one history entry, however many operations it needed. Expanding, collapsing, and switching presentation are recorded too.
 
-After every action the kit's settle planner keeps the expanded surface populated: a docked pane whose last tab was moved out or floated is merged away, and an emptied root pane receives the default page. A surface starts expanded with that page seated, so a session's column is open the first time it is drawn; the seed is part of the initial state, not a recorded intent. A close that empties the docked surface collapses the column and leaves it empty — the next expansion reseeds it. Explicit closing follows [the default-page and close rules](#the-guide). While expanded there is always at least one tab, and never an empty pane — so there is no separate "close pane" gesture.
+After every action the kit's settle planner keeps the expanded surface populated: a docked pane whose last tab was moved out or floated is merged away, and an emptied root pane receives the default page. A surface starts expanded with that page seated unless the session's remembered choice is closed, so a session's column is open the first time it is drawn; the seed is part of the initial state, not a recorded intent. A close that empties the docked surface collapses the column and leaves it empty — the next expansion reseeds it. Explicit closing follows [the default-page and close rules](#the-guide). While expanded there is always at least one tab, and never an empty pane — so there is no separate "close pane" gesture.
 
 The docked surface's last tab carries one more rule, decided in the store's `closeTab` and mirrored to the kit through `canCloseTab`: the guide standing as the only docked tab draws no close control and no menu close item — its chip sits quiet, and with no extension item contributed a secondary press opens no menu — and a programmatic close of it records nothing; any other tab standing alone closes together with the column in one entry — the layout stays empty until the next expansion seeds its current default page. Floating panels take no part in the rule: they render whether or not the column is expanded, and their tabs close freely.
 
-State is memory-only. A reload returns every session to the open default — expanded, default page seated; switching sessions keeps each surface where it was.
+The surface is memory-only: a reload reseeds every session's tabs, panes, and history, and switching sessions keeps each surface where it was. The one remembered fact is the open/closed choice — the panel stores it per session in browser storage, so a session reopens expanded or collapsed as the user left it. Automatic opens do not override it: every open seats its tab but never changes the column's expanded state, so a remembered close keeps the column closed while the page stays ready; only the header toggle expands.
 
 <a id="extension-seats"></a>
 ## Extension seats
@@ -116,7 +116,7 @@ None; this package neither assembles nor sends a provider request.
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Memory-only.** Nothing is persisted; a reload starts every session open on the default page.
+- **The surface is memory-only.** Tabs, panes, and history reset on reload; the header toggle's open/closed choice is the one remembered fact.
 - **No surface without a session.** State is keyed by session id, so the hero screen shows nothing on the right.
 - **Hard-coded stacking.** The panel and the float host use fixed z-index values because the client has no z-index token layer yet.
 - **Undo is not exposed.** The recorded sequence is stepped only through the `@internal` service methods; product controls are deliberately absent.

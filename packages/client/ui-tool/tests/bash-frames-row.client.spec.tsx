@@ -24,7 +24,7 @@ afterEach(cleanup)
 const SID = 's1' as SessionId
 
 const framesArgs = (commands: unknown[] = [{ command: 'ls -la' }, { command: 'pwd' }]): string =>
-  JSON.stringify({ commands, description: 'Inspect frames tool surface' })
+  JSON.stringify({ bash_array: commands, description: 'Inspect frames tool surface' })
 
 const running = (over?: Partial<RunningToolCall>): RunningToolCall => ({
   callId: 'c1', name: 'bash', argsRaw: framesArgs(), turn: 1, step: 1, time: 1_000, subCalls: [], ...over,
@@ -52,7 +52,7 @@ describe('bashFramesModel', () => {
       commands: [{ command: 'ls -la' }, { command: 'pwd' }],
     })
     expect(bashFramesModel(running({
-      argsRaw: framesArgs([{ command: 'ls', workdir: 'packages/ui' }]),
+      argsRaw: framesArgs([{ command: 'ls', path: 'packages/ui' }]),
     }))).toEqual({ kind: 'pending', commands: [{ command: 'ls', workdir: 'packages/ui' }] })
   })
 
@@ -113,7 +113,7 @@ describe('bashFramesModel', () => {
     expect(bashFramesModel(running({ argsRaw: '{' }))).toBeNull()
     expect(bashFramesModel(running({ argsRaw: framesArgs([]) }))).toBeNull()
     expect(bashFramesModel(running({ argsRaw: framesArgs([{ command: '  ' }]) }))).toBeNull()
-    expect(bashFramesModel(running({ argsRaw: framesArgs([{ command: 'x', workdir: 7 }]) }))).toBeNull()
+    expect(bashFramesModel(running({ argsRaw: framesArgs([{ command: 'x', path: 7 }]) }))).toBeNull()
     expect(bashFramesModel(settled({ isError: true }))).toBeNull()
     expect(bashFramesModel(settled({ content: [] }))).toBeNull()
     // A result the header grammar does not line up with stays generic.
@@ -193,7 +193,7 @@ describe('BashRow frames card', () => {
 
   it('labels the frame prompt with an element workdir resolved against the session workspace', async () => {
     const view = render(<BashRow {...props(settled({
-      call: { name: 'bash', argsRaw: framesArgs([{ command: 'ls', workdir: 'packages/ui' }]) },
+      call: { name: 'bash', argsRaw: framesArgs([{ command: 'ls', path: 'packages/ui' }]) },
       content: [{ type: 'text', text: '[1/1] $ ls\nok\n' }],
     }))} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)

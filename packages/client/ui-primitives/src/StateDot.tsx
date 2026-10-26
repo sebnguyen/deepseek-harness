@@ -29,7 +29,7 @@ export function StateDot({ state, size = 10, className }: {
         data-state="ongoing"
         aria-hidden="true"
       >
-        <PixelLoader grid={16} size={size} />
+        <PixelLoader size={size} />
       </span>
     )
   }

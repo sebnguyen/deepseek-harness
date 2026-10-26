@@ -56,6 +56,7 @@ A request selects the route with `provider: deepseek-official`; the model id pas
 | `defaultContextWindow` | `1,000,000` | Capacity fallback for models without an exact value |
 | `models` | V41 Flash + V4 Flash + V4 Pro + V4 Flash Vision Exp | Advisory catalog shown by discovery consumers |
 | `streamIdleTimeoutMs` | `300,000` | Maximum provider idle time per outstanding stream read |
+| `firstTokenTimeoutMs` | `5,000` | Maximum time before the first streamed chunk arrives |
 | `maxRequestFilesBytes` | `128 MiB` | High watermark for retained request-image bytes before oldest-first offload |
 | `maxInlineRequestImageBytes` | `20 MiB` | Independent base64 fallback high watermark |
 | `maxImagesPerRequest` | `600` | High watermark for retained request-image count |
@@ -111,7 +112,7 @@ The plugin is built on one explicit resolve step and one registration fact. `res
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, per-request resolution, settings and credential wiring |
-| [`src/adapter.ts`](src/adapter.ts) | The `DeepSeekAdapter`: model resolution, image projection, Files fallback, streaming with idle timeout |
+| [`src/adapter.ts`](src/adapter.ts) | The `DeepSeekAdapter`: model resolution, image projection, Files fallback, streaming with first-token and idle timeouts |
 | [`src/file-store.ts`](src/file-store.ts) + [`src/files-api.ts`](src/files-api.ts) | Scoped upload caching, expiry, stale-id recovery, quota cleanup, and remote file operations |
 | [`src/serialize.ts`](src/serialize.ts) | Wire serialization: thinking defaults, Files or inline image blocks, history rules |
 | [`src/sse.ts`](src/sse.ts) | `eventsource-parser` SSE framing for the direct `fetch` stream |

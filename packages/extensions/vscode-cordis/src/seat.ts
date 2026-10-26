@@ -7,7 +7,9 @@
  * the mounted gateway client face, the same object the web client's
  * remotest high layers call. Lifecycle (signal abort) is the caller's;
  * backoff here is unbounded-but-throttled, because a twin's seat lives
- * with its host process.
+ * with its host process. Only a cycle that stayed up for `stableAfterMs`
+ * resets it: a host that accepts `hello` and then drops the downlink (a
+ * rejected event-result RPC, for one) must not drive a 500ms hammer.
  * @module @deepseek-ai/dsh-vscode-cordis/seat
  */
 
@@ -58,30 +60,41 @@ export async function runSeatLoop(deps: {
   sleep?: (ms: number) => Promise<void>
   initialBackoffMs?: number
   maxBackoffMs?: number
+  /**
+   * How long one cycle must stay up before it resets the backoff. Defaults
+   * to `maxBackoffMs`: a fresh hello with an immediately lost downlink is not
+   * a recovery.
+   */
+  stableAfterMs?: number
 }): Promise<void> {
   const sleep = deps.sleep ?? defaultSleep
   const initialBackoff = deps.initialBackoffMs ?? 500
   const maxBackoff = deps.maxBackoffMs ?? 30_000
+  const stableAfterMs = deps.stableAfterMs ?? maxBackoff
   const { signal } = deps
   let backoff = initialBackoff
 
   while (!signal.aborted) {
+    const began = Date.now()
     try {
       await deps.remote.report({
         token: deps.identity.token,
         event: { type: 'hello', ...deps.identity.hello },
       })
-      backoff = initialBackoff
       deps.logger?.('twin seat: established')
       for await (const frame of deps.remote.downlink({ token: deps.identity.token }, signal)) {
         publish(deps.emit, frame, deps.logger)
       }
+      const healthy = Date.now() - began >= stableAfterMs
+      if (healthy) backoff = initialBackoff
       if (!signal.aborted) {
         deps.logger?.(`twin seat: downlink stream ended; re-establishing after ${backoff}ms`)
         await sleep(backoff)
+        if (!healthy) backoff = Math.min(backoff * 2, maxBackoff)
       }
     } catch (error) {
       if (signal.aborted) return
+      if (Date.now() - began >= stableAfterMs) backoff = initialBackoff
       deps.logger?.(`twin seat: connection attempt failed; retrying in ${backoff}ms`, error)
       await sleep(backoff)
       backoff = Math.min(backoff * 2, maxBackoff)

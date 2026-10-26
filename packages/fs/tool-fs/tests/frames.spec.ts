@@ -1,5 +1,5 @@
 /**
- * The shipped `files` batch faces of `read` and `write`: batch envelope
+ * The shipped `read_array`/`write_array` batch faces of `read` and `write`: batch envelope
  * validation, per-element frame settlement (failures settle, later elements
  * still run), abort skip, presenters, and persisted frame meta narrowing.
  */
@@ -120,23 +120,23 @@ describe('frames registration', () => {
     const names = ctx.tools.schemas().map(s => s.name).sort()
     expect(names).toEqual(['multi_read', 'multi_write'])
     const read = ctx.tools.schemas().find(s => s.name === 'multi_read')
-    expect(JSON.stringify(read?.parameters)).toContain('"files"')
+    expect(JSON.stringify(read?.parameters)).toContain('"read_array"')
     const write = ctx.tools.schemas().find(s => s.name === 'multi_write')
-    expect(JSON.stringify(write?.parameters)).toContain('"files"')
+    expect(JSON.stringify(write?.parameters)).toContain('"write_array"')
   })
 
   it('declares batched read parallel-safe and batched write exclusive', async () => {
     const { ctx } = await setup()
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-frames'), name: 'multi_read', arguments: { files: [{ file_path: 'a.txt' }] } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('read-frames'), name: 'multi_read', arguments: { read_array: [{ path: 'a.txt' }] } }))
       .toEqual({ kind: 'parallel' })
-    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-frames'), name: 'multi_write', arguments: { files: [{ file_path: 'a.txt', content: 'x' }] } }))
+    expect(ctx.tools.executionMode({ signal: testToolSignal, callId: ToolCallId('write-frames'), name: 'multi_write', arguments: { write_array: [{ path: 'a.txt', content: 'x' }] } }))
       .toEqual({ kind: 'exclusive' })
   })
 
   it('writes the batch prompt guidance', async () => {
     const { ctx } = await setup()
     const prompt = renderPrompt(await ctx.systemPrompt.assemble())
-    expect(prompt).toContain('`files` element')
+    expect(prompt).toContain('`read_array` element')
     expect(prompt).toContain('overwrite: true on that element')
   })
 
@@ -145,38 +145,38 @@ describe('frames registration', () => {
     const write = ctx.tools.schemas().find(s => s.name === 'multi_write')
     // `description` rides every schema via the registry.
     expect(Object.keys((write?.parameters as { properties?: Record<string, unknown> }).properties ?? {})
-      .sort()).toEqual(['description', 'files'])
+      .sort()).toEqual(['description', 'write_array'])
   })
 
 })
 
 describe('batch envelope validation', () => {
   it('parseReadBatch rejects an empty batch and takes arbitrarily large ones', () => {
-    expect(() => parseReadBatch([])).toThrow('files must contain at least one element')
+    expect(() => parseReadBatch([])).toThrow('read_array must contain at least one element')
     expect(parseReadBatch(new Array(64).fill({}))).toHaveLength(64)
-    expect(parseReadBatch([{ file_path: 'a' }])).toHaveLength(1)
+    expect(parseReadBatch([{ path: 'a' }])).toHaveLength(1)
   })
 
   it('parseWriteBatch rejects an empty batch and takes arbitrarily large ones', () => {
-    expect(() => parseWriteBatch([])).toThrow('files must contain at least one element')
+    expect(() => parseWriteBatch([])).toThrow('write_array must contain at least one element')
     expect(parseWriteBatch(new Array(64).fill({}))).toHaveLength(64)
-    expect(parseWriteBatch([{ file_path: 'a', content: '' }])).toHaveLength(1)
+    expect(parseWriteBatch([{ path: 'a', content: '' }])).toHaveLength(1)
   })
 
   it('parseReadElement validates paths and caps', () => {
-    expect(parseReadElement({ file_path: 'a.txt' }, 5)).toEqual({ filePath: 'a.txt', offset: 1, limit: 5 })
-    expect(() => parseReadElement({ file_path: '  ' }, 5)).toThrow('file_path must be a non-empty string')
-    expect(() => parseReadElement({ file_path: 'a', offset: 0 }, 5)).toThrow('offset must be a positive integer')
-    expect(() => parseReadElement({ file_path: 'a', limit: 6 }, 5)).toThrow('limit must be less than or equal to 5')
+    expect(parseReadElement({ path: 'a.txt' }, 5)).toEqual({ filePath: 'a.txt', offset: 1, limit: 5 })
+    expect(() => parseReadElement({ path: '  ' }, 5)).toThrow('path must be a non-empty string')
+    expect(() => parseReadElement({ path: 'a', offset: 0 }, 5)).toThrow('offset must be a positive integer')
+    expect(() => parseReadElement({ path: 'a', limit: 6 }, 5)).toThrow('limit must be less than or equal to 5')
   })
 
   it('parseWriteElement requires a path and one arm', () => {
-    expect(parseWriteElement({ file_path: 'a', content: 'x' })).toEqual({ file_path: 'a', content: 'x' })
-    expect(parseWriteElement({ file_path: 'a', edits: [] })).toEqual({ file_path: 'a', edits: [] })
-    expect(parseWriteElement({ file_path: 'a', content: 'x', overwrite: true, dry_run: true }))
+    expect(parseWriteElement({ path: 'a', content: 'x' })).toEqual({ file_path: 'a', content: 'x' })
+    expect(parseWriteElement({ path: 'a', edits: [] })).toEqual({ file_path: 'a', edits: [] })
+    expect(parseWriteElement({ path: 'a', content: 'x', overwrite: true, dry_run: true }))
       .toEqual({ file_path: 'a', content: 'x', overwrite: true, dry_run: true })
-    expect(() => parseWriteElement({ file_path: '', content: 'x' })).toThrow('file_path must be a non-empty string')
-    expect(() => parseWriteElement({ file_path: 'a' })).toThrow('provide content, edits, or both')
+    expect(() => parseWriteElement({ path: '', content: 'x' })).toThrow('path must be a non-empty string')
+    expect(() => parseWriteElement({ path: 'a' })).toThrow('provide content, edits, or both')
   })
 })
 
@@ -184,10 +184,10 @@ describe('read frames', () => {
   it('settles every element into its own frame, failures included', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:a.txt', 'one\ntwo')
-    const result = await call(ctx, 'multi_read', { files: [
-      { file_path: 'a.txt' },
-      { file_path: 'missing.txt' },
-      { file_path: 'a.txt', offset: 2 },
+    const result = await call(ctx, 'multi_read', { read_array: [
+      { path: 'a.txt' },
+      { path: 'missing.txt' },
+      { path: 'a.txt', offset: 2 },
     ] })
     expect(result.isError).toBe(false)
     const body = text(result)
@@ -202,17 +202,17 @@ describe('read frames', () => {
     const { ctx } = await setup()
     const definition = ctx.tools.get('multi_read')
     if (definition === undefined) throw new Error('read not registered')
-    const value = await definition.execute({ files: [{ file_path: '  ' }, { file_path: 'a.txt' }] }, { signal: testToolSignal } as never) as {
+    const value = await definition.execute({ read_array: [{ path: '  ' }, { path: 'a.txt' }] }, { signal: testToolSignal } as never) as {
       frames: { file_path: string; kind: string; message?: string }[]
     }
-    expect(value.frames[0]).toMatchObject({ file_path: '  ', kind: 'error', message: 'file_path must be a non-empty string' })
+    expect(value.frames[0]).toMatchObject({ file_path: '  ', kind: 'error', message: 'path must be a non-empty string' })
   })
 
   it('rejects an empty batch as a failed call', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'multi_read', { files: [] })
+    const result = await call(ctx, 'multi_read', { read_array: [] })
     expect(result.isError).toBe(true)
-    expect(text(result)).toContain('files must contain at least one element')
+    expect(text(result)).toContain('read_array must contain at least one element')
   })
 
   it('labels skipped elements not-run when the call is aborted', async () => {
@@ -221,7 +221,7 @@ describe('read frames', () => {
     if (definition === undefined) throw new Error('read not registered')
     const aborted = new AbortController()
     aborted.abort()
-    const value = await definition.execute({ files: [{ file_path: 'a.txt' }] }, { signal: aborted.signal } as never) as {
+    const value = await definition.execute({ read_array: [{ path: 'a.txt' }] }, { signal: aborted.signal } as never) as {
       frames: { kind: string; reason?: string }[]
     }
     expect(value.frames).toEqual([{ index: 0, file_path: 'a.txt', kind: 'not-run', reason: 'call aborted' }])
@@ -230,7 +230,7 @@ describe('read frames', () => {
   it('projects successful windows into persisted frame meta', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:a.ts', 'const x = 1')
-    const result = await call(ctx, 'multi_read', { files: [{ file_path: 'a.ts' }, { file_path: 'missing.ts' }] })
+    const result = await call(ctx, 'multi_read', { read_array: [{ path: 'a.ts' }, { path: 'missing.ts' }] })
     const meta = (result as { meta?: unknown }).meta as { frames: unknown[] }
     expect(meta.frames).toHaveLength(1)
     const entry = (meta.frames as Record<string, unknown>[])[0]
@@ -242,9 +242,9 @@ describe('read frames', () => {
   it('presentCall titles single and multi batches and lists locations', async () => {
     const { ctx } = await setup()
     const read = ctx.tools.get('multi_read')
-    const single = read?.presentCall?.({ files: [{ file_path: 'a.txt', offset: 3 }] })
+    const single = read?.presentCall?.({ read_array: [{ path: 'a.txt', offset: 3 }] })
     expect(single).toEqual({ card: 'generic', title: 'Read a.txt', kind: 'read', locations: [{ path: 'a.txt', line: 3 }] })
-    const multi = read?.presentCall?.({ files: [{ file_path: 'a.txt' }, { file_path: 'b.txt' }, { file_path: 'c.txt' }] })
+    const multi = read?.presentCall?.({ read_array: [{ path: 'a.txt' }, { path: 'b.txt' }, { path: 'c.txt' }] })
     expect(multi?.title).toBe('3 reads: a.txt')
     expect((multi as { locations?: unknown[] } | undefined)?.locations).toEqual([
       { path: 'a.txt', line: 1 },
@@ -286,10 +286,10 @@ describe('write frames', () => {
   it('commits each element atomically and lets later elements run after a failure', async () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:existing.txt', 'untouched')
-    const result = await call(ctx, 'multi_write', { files: [
-      { file_path: 'new.txt', content: 'fresh\n' },
-      { file_path: 'existing.txt', content: 'clobber' },
-      { file_path: 'after.txt', content: 'later\n' },
+    const result = await call(ctx, 'multi_write', { write_array: [
+      { path: 'new.txt', content: 'fresh\n' },
+      { path: 'existing.txt', content: 'clobber' },
+      { path: 'after.txt', content: 'later\n' },
     ] })
     expect(result.isError).toBe(false)
     const body = text(result)
@@ -305,9 +305,9 @@ describe('write frames', () => {
 
   it('applies per-element programs against earlier committed results', async () => {
     const { ctx, fs } = await setup()
-    const result = await call(ctx, 'multi_write', { files: [
-      { file_path: 'doc.txt', content: 'alpha\n' },
-      { file_path: 'doc.txt', edits: [{ old_string: 'alpha', new_string: 'beta' }] },
+    const result = await call(ctx, 'multi_write', { write_array: [
+      { path: 'doc.txt', content: 'alpha\n' },
+      { path: 'doc.txt', edits: [{ old_string: 'alpha', new_string: 'beta' }] },
     ] })
     expect(result.isError).toBe(false)
     expect(text(result)).toContain('1 edits applied (1 matches)')
@@ -316,9 +316,9 @@ describe('write frames', () => {
 
   it('previews one element without committing while siblings commit', async () => {
     const { ctx, fs } = await setup()
-    const result = await call(ctx, 'multi_write', { files: [
-      { file_path: 'draft.txt', content: 'draft\n', dry_run: true },
-      { file_path: 'real.txt', content: 'real\n' },
+    const result = await call(ctx, 'multi_write', { write_array: [
+      { path: 'draft.txt', content: 'draft\n', dry_run: true },
+      { path: 'real.txt', content: 'real\n' },
     ] })
     expect(result.isError).toBe(false)
     expect(text(result)).toContain('Dry run — no commit. 0 entries would apply.')
@@ -328,7 +328,7 @@ describe('write frames', () => {
 
   it('settles invalid elements as error frames', async () => {
     const { ctx } = await setup()
-    const result = await call(ctx, 'multi_write', { files: [{ file_path: 'a' }] })
+    const result = await call(ctx, 'multi_write', { write_array: [{ path: 'a' }] })
     expect(result.isError).toBe(false)
     expect(text(result)).toContain('[1/1] a')
     expect(text(result)).toContain('provide content, edits, or both')
@@ -341,7 +341,7 @@ describe('write frames', () => {
     const aborted = new AbortController()
     aborted.abort()
     const value = await definition.execute(
-      { files: [{ file_path: 'a.txt', content: 'x' }] },
+      { write_array: [{ path: 'a.txt', content: 'x' }] },
       { signal: aborted.signal } as never,
     ) as { frames: { kind: string }[] }
     expect(value.frames[0]?.kind).toBe('not-run')
@@ -349,7 +349,7 @@ describe('write frames', () => {
 
   it('stamps the standing sandbox policy onto batched commits', async () => {
     const { ctx, fs } = await setup(true)
-    const result = await call(ctx, 'multi_write', { files: [{ file_path: 'locked.txt', content: 'x\n' }] })
+    const result = await call(ctx, 'multi_write', { write_array: [{ path: 'locked.txt', content: 'x\n' }] })
     expect(result.isError).toBe(false)
     expect((fs as SandboxingFakeFs).stamped).toEqual([expect.objectContaining({ mode: 'workspace-write' })])
   })
@@ -358,10 +358,10 @@ describe('write frames', () => {
     const { ctx, fs } = await setup()
     fs.files.set('key:known.txt', 'old')
     // observe so the update commits
-    await call(ctx, 'multi_read', { files: [{ file_path: 'known.txt' }] })
-    const result = await call(ctx, 'multi_write', { files: [
-      { file_path: 'known.txt', edits: [{ old_string: 'old', new_string: 'new' }] },
-      { file_path: 'fresh.txt', content: 'brand new' },
+    await call(ctx, 'multi_read', { read_array: [{ path: 'known.txt' }] })
+    const result = await call(ctx, 'multi_write', { write_array: [
+      { path: 'known.txt', edits: [{ old_string: 'old', new_string: 'new' }] },
+      { path: 'fresh.txt', content: 'brand new' },
     ] })
     const frames = ((result as { meta?: unknown }).meta as { frames: { index: number; diffs: unknown[] }[] }).frames
     expect(frames.map(frame => frame.index)).toEqual([0])
@@ -371,11 +371,11 @@ describe('write frames', () => {
   it('presentCall renders single and multi diff cards', async () => {
     const { ctx } = await setup()
     const write = ctx.tools.get('multi_write')
-    const single = write?.presentCall?.({ files: [{ file_path: 'a.txt', content: 'x' }] }) as DiffCallView | undefined
+    const single = write?.presentCall?.({ write_array: [{ path: 'a.txt', content: 'x' }] }) as DiffCallView | undefined
     expect(single?.title).toBe('Write a.txt')
-    const patch = write?.presentCall?.({ files: [{ file_path: 'a.txt', edits: [{ old_string: 'x', new_string: 'y' }] }] }) as DiffCallView | undefined
+    const patch = write?.presentCall?.({ write_array: [{ path: 'a.txt', edits: [{ old_string: 'x', new_string: 'y' }] }] }) as DiffCallView | undefined
     expect(patch?.title).toBe('Patch a.txt')
-    const multi = write?.presentCall?.({ files: [{ file_path: 'a.txt', content: 'x' }, { file_path: 'b.txt', content: 'y' }] }) as DiffCallView | undefined
+    const multi = write?.presentCall?.({ write_array: [{ path: 'a.txt', content: 'x' }, { path: 'b.txt', content: 'y' }] }) as DiffCallView | undefined
     expect(multi?.title).toBe('2 writes: a.txt')
     expect(multi?.diffs).toHaveLength(2)
   })
@@ -384,11 +384,11 @@ describe('write frames', () => {
     const { ctx } = await setup()
     const write = ctx.tools.get('multi_write')
     const view = write?.presentResult?.(
-      { files: [{ file_path: 'a.txt', content: 'x' }] },
+      { write_array: [{ path: 'a.txt', content: 'x' }] },
       { content: [{ type: 'text' as const, text: 'ok' }], isError: false },
     ) as DiffResultView | undefined
     expect(view?.diffs).toEqual([{ path: 'a.txt', oldText: null, newText: 'x' }])
-    expect(write?.presentResult?.({ files: [{ file_path: 'a.txt', content: 'x' }] }, { content: [], isError: true }))
+    expect(write?.presentResult?.({ write_array: [{ path: 'a.txt', content: 'x' }] }, { content: [], isError: true }))
       .toBeUndefined()
   })
 })

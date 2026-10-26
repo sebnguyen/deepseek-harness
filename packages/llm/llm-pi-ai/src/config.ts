@@ -48,6 +48,8 @@ import { buildProvider, supportedProtocols } from './provider.ts'
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
+/** Default bound on the first streamed chunk before the transport reports `TIMEOUT`. */
+export const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 5_000
 
 /**
  * Default request-level bound on base64-encoded image payload. Every image in
@@ -139,6 +141,12 @@ export interface PiAiProviderProfile {
    */
   defaultReasoningEfforts?: PiAiReasoningEfforts
   /**
+   * Default for the `allow_missing_thinking` template waiver across every
+   * openai-completions model on this route. A model's own `allowMissingThinking`
+   * always wins. Shipped routes that accept the waiver set this by default.
+   */
+  allowMissingThinking?: boolean
+  /**
    * pi-ai wire-compatibility switches defaulting every model on this route
    * whose protocol declares them; each model's own `compat` overrides per
    * field. What neither sets keeps the installed catalog entry's value, then
@@ -191,6 +199,8 @@ export interface PiAiProviderProfile {
   websocketConnectTimeoutMs?: number
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs?: number
+  /** Maximum time before the first streamed chunk arrives. */
+  firstTokenTimeoutMs?: number
   /**
    * Maximum base64-encoded image payload per request. When a request's
    * accumulated images exceed it, the oldest images are replaced by text
@@ -220,6 +230,8 @@ export interface ResolvedPiAiProviderProfile
   apiKeyEnv?: CredentialRef
   /** Positive finite provider-idle interval after defaulting. */
   streamIdleTimeoutMs: number
+  /** Positive finite first-token interval after defaulting. */
+  firstTokenTimeoutMs: number
   /** Positive request-level base64 image payload bound after defaulting. */
   maxRequestImageBytes: number
   /** Positive total-pixel request-version budget after defaulting. */
@@ -255,6 +267,17 @@ export interface ResolvedPiAiProviderProfile
    * always wins over its tune.
    */
   configuredTunes: ReadonlyMap<string, PiAiModelTune>
+  /**
+   * Route-level default for the `allow_missing_thinking` template waiver, when
+   * configured. Shipped routes that accept the waiver carry it here.
+   */
+  allowMissingThinking?: boolean
+  /**
+   * Models whose profile opts into the `allow_missing_thinking` template
+   * waiver, by model id. Like {@link configuredMaxTokens}, only an explicit
+   * configuration lands here.
+   */
+  configuredAllowMissingThinking: ReadonlySet<string>
 }
 
 /** Plugin configuration: the provider routes this instance owns. */
@@ -355,6 +378,7 @@ const modelFields = {
   // `{}`, and absent must stay distinguishable — it means "inherit the
   // installed catalog's capability", while `false` disables reasoning.
   reasoningEfforts: z.union([z.const(false), reasoningEfforts]),
+  allowMissingThinking: z.boolean(),
   compat: compatProfile,
 }
 
@@ -377,6 +401,7 @@ const profile = z.object({
   modelOverrides: z.dict(modelOverride),
   defaultReasoningEfforts: reasoningEfforts,
   compat: compatProfile,
+  allowMissingThinking: z.boolean(),
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   maxContextWindow: z.number().step(1).min(1),
   defaultMaxTokens: z.number().step(1).min(1).default(DEFAULT_MAX_TOKENS),
@@ -389,6 +414,7 @@ const profile = z.object({
   timeoutMs: z.natural(),
   websocketConnectTimeoutMs: z.natural(),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  firstTokenTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_FIRST_TOKEN_TIMEOUT_MS),
   maxRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_IMAGE_BYTES),
   requestImagePixelBudget: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_PIXEL_BUDGET),
   requestImageMaxBytes: z.number().step(1).min(1).default(DEFAULT_REQUEST_IMAGE_MAX_BYTES),
@@ -487,6 +513,14 @@ export function resolveProfiles(
         `llm-pi-ai: provider "${provider}" streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
       )
     }
+    const firstTokenTimeoutMs = source.firstTokenTimeoutMs ?? DEFAULT_FIRST_TOKEN_TIMEOUT_MS
+    if (!Number.isFinite(firstTokenTimeoutMs)
+      || firstTokenTimeoutMs <= 0
+      || firstTokenTimeoutMs > MAX_TIMER_DELAY_MS) {
+      throw new Error(
+        `llm-pi-ai: provider "${provider}" firstTokenTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
+      )
+    }
     const maxRequestImageBytes = source.maxRequestImageBytes ?? DEFAULT_MAX_REQUEST_IMAGE_BYTES
     if (!Number.isInteger(maxRequestImageBytes) || maxRequestImageBytes <= 0) {
       throw new Error(`llm-pi-ai: provider "${provider}" maxRequestImageBytes must be a positive integer`)
@@ -517,6 +551,7 @@ export function resolveProfiles(
     const mergedCompat = shipped?.compat === undefined
       ? source.compat
       : { ...shipped.compat, ...source.compat }
+    const mergedAllowMissingThinking = source.allowMissingThinking ?? shipped?.allowMissingThinking
     // The settings schema materializes an absent effort menu as an empty dict,
     // and an empty menu offers nothing: both defer to the shipped vendor menu.
     const declaredEfforts = source.defaultReasoningEfforts !== undefined
@@ -545,6 +580,7 @@ export function resolveProfiles(
         ...source.models === undefined ? {} : { models: source.models },
         ...source.modelOverrides === undefined ? {} : { modelOverrides: source.modelOverrides },
         ...mergedCompat === undefined ? {} : { compat: mergedCompat },
+        ...mergedAllowMissingThinking === undefined ? {} : { allowMissingThinking: mergedAllowMissingThinking },
         defaultInput,
         defaultContextWindow: source.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
         ...source.maxContextWindow === undefined ? {} : { maxContextWindow: source.maxContextWindow },
@@ -578,12 +614,14 @@ export function resolveProfiles(
       ...mergedCompat === undefined || Object.keys(mergedCompat).length === 0
         ? {}
         : { compat: mergedCompat },
+      ...mergedAllowMissingThinking === undefined ? {} : { allowMissingThinking: mergedAllowMissingThinking },
       provider,
       displayName,
       live,
       ...mergedEfforts === undefined ? {} : { defaultReasoningEfforts: mergedEfforts },
       ...apiKeyEnv === undefined ? {} : { apiKeyEnv: credentialRef(apiKeyEnv) },
       streamIdleTimeoutMs,
+      firstTokenTimeoutMs,
       maxRequestImageBytes,
       requestImagePixelBudget,
       requestImageMaxBytes,
@@ -592,6 +630,7 @@ export function resolveProfiles(
       ...rest.thinkingBudgets === undefined ? {} : { thinkingBudgets: { ...rest.thinkingBudgets } },
       configuredMaxTokens: catalog?.configuredMaxTokens ?? new Map(),
       configuredTunes: catalog?.configuredTunes ?? new Map(),
+      configuredAllowMissingThinking: catalog?.configuredAllowMissingThinking ?? new Set(),
       modelErrors: catalog?.modelErrors ?? new Map(),
       ...piProvider === undefined ? {} : { piProvider },
       ...catalogError === undefined ? {} : { catalogError },

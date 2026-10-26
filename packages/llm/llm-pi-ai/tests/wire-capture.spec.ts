@@ -37,6 +37,24 @@ async function harness(baseURL: string): Promise<Context> {
   return ctx
 }
 
+/** A route whose shipped compat requires reasoning content on replayed assistant messages. */
+async function digitalOceanHarness(baseURL: string): Promise<Context> {
+  vi.stubEnv('PI_TEST_KEY', 'test-key')
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(LlmPiAi, {
+    providers: {
+      digitalocean: {
+        apiKeyEnv: 'PI_TEST_KEY',
+        baseURL,
+        models: [{ id: 'reflection-beam', allowMissingThinking: true }],
+      },
+    },
+  })
+  return ctx
+}
+
 function prompt(): ReturnType<typeof createUserMessage> {
   return createUserMessage({
     content: [{ type: 'text', text: 'hi' }],
@@ -109,6 +127,65 @@ describe('request/wire capture', () => {
     const captured = session.snapshotEvents().filter(event => event.type === 'request/wire')
     expect(captured).toHaveLength(1)
     expect(JSON.parse(captured[0]?.data.payload ?? '')).toEqual(body)
+  })
+
+  it('waives missing reasoning on a route that requires reasoning content', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await digitalOceanHarness(server.url)
+    const session = ctx.sessions.create(SessionId('piai-wire-missing-thinking'))
+
+    await assemble(ctx, {
+      provider: 'digitalocean',
+      model: 'reflection-beam',
+      messages: [prompt()],
+      sessionId: session.id,
+    })
+
+    // The endpoint's template admits an assistant turn whose reasoning the
+    // adapter could not replay only when the waiver is set.
+    const body = server.requests[0] as Record<string, unknown>
+    expect(body.chat_template_kwargs).toEqual({ allow_missing_thinking: true })
+    const captured = session.snapshotEvents().filter(event => event.type === 'request/wire')
+    expect(JSON.parse(captured[0]?.data.payload ?? '')).toEqual(body)
+  })
+
+  it('merges the waiver into chat-template kwargs instead of replacing them', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    vi.stubEnv('PI_TEST_KEY', 'test-key')
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: {
+        digitalocean: {
+          apiKeyEnv: 'PI_TEST_KEY',
+          baseURL: server.url,
+          models: [{
+            id: 'beam-template',
+            allowMissingThinking: true,
+            compat: { thinkingFormat: 'chat-template', chatTemplateKwargs: { enable_thinking: true } },
+          }],
+        },
+      },
+    })
+
+    await assemble(ctx, {
+      provider: 'digitalocean',
+      model: 'beam-template',
+      messages: [prompt()],
+    })
+
+    const body = server.requests[0] as Record<string, unknown>
+    expect(body.chat_template_kwargs).toEqual({ enable_thinking: true, allow_missing_thinking: true })
+  })
+
+  it('sends no chat-template waiver on a route without the reasoning requirement', async () => {
+    const server = await mockServer([{ events: textEvents }])
+    const ctx = await harness(server.url)
+
+    await assemble(ctx, { model: 'deepseek-v4-flash', messages: [prompt()] })
+
+    expect(server.requests[0]).not.toHaveProperty('chat_template_kwargs')
   })
 
   it('streams without capturing when no addressed Session resolves', async () => {

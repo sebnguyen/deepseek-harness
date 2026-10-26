@@ -134,7 +134,7 @@ export function BootHero({ line, spinning = false }: { readonly line: string; re
   return (
     <div style={HERO_STYLE}>
       {spinning
-        ? <PixelLoader mode="twinkle" grid={16} size={128} />
+        ? <PixelLoader mode="twinkle" size={128} />
         : <DigitalOceanLogo size={64} />}
       <div style={WORDMARK_STYLE}>DigitalOcean Harness</div>
       <output style={DETAIL_STYLE}>{line}</output>

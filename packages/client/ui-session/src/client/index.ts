@@ -417,6 +417,10 @@ export class UiSession extends Service {
     const value: ScopedStandardSourceBinding = {
       key: binding.sessionId,
       ctx: binding.ctx,
+      // The Session outliving this scope (still on the host list) makes the
+      // disposal a memory eviction, not a death: keep the per-session persisted
+      // state so a half-typed prompt returns when the session is reopened.
+      durable: () => this.sessions.list.getSnapshot().byId[binding.sessionId] !== undefined,
       hooks,
       keyedHooks,
       props,

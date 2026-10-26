@@ -85,6 +85,7 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `requestImagePixelBudget` | `4,194,304` | Total-pixel budget for each deterministic request image |
 | `requestImageMaxBytes` | `1 MiB` | Encoded-byte target for each request image before base64 expansion |
 | `maxRequestImageBytes` | `20 MiB` | Aggregate base64 image-payload bound with oldest-first offload |
+| `firstTokenTimeoutMs` | `5,000` | Maximum time before the first streamed chunk arrives; later reads use the five-minute `streamIdleTimeoutMs` default |
 | `retryPolicy` | normal, 5 retries | Provider-owned retry policy executed by `dsh-llm-retry` |
 
 `clientCert` and `clientKey` present a PEM pair on TLS for that route's model requests and its model listing. A profile that sets only one is refused when it resolves, and a file that cannot be read fails the request with `INVALID_CONFIG`. The public `digitalocean` route does not set them; its endpoint remains `https://inference.do-ai.run/v1`.
@@ -103,7 +104,7 @@ A profile's `models` list replaces the route's installed catalog rather than ext
 
 `reasoningEfforts` declares a model's selectable thinking levels: each key is a level selectors offer, its value the spelling dispatch sends on the wire, so `max: ultra` renames a level for a gateway with its own vocabulary. Omitting the field keeps the installed catalog entry's capability; `false` declares a non-reasoning model. `compat` switches reshape the request for endpoints pi-ai cannot recognize — which role carries the system prompt, which field caps output, how a thinking level travels — configurable per route and per model. A model neither the entry nor the installed catalog sizes takes the route's `defaultContextWindow` and `defaultMaxTokens` fallbacks.
 
-For self-hosted Chat Completions endpoints, `thinkingTokenBudgetField` selects the reasoning-budget parameter, and `vllmPriority` sets an integer scheduler priority when the server enables priority scheduling. Template arguments accept `$var: thinking.budget`. `openai-responses` gateways can set `supportsMaxOutputTokens: false` to omit `max_output_tokens`; Azure and Codex transports ignore this shared compatibility field. These controls are opt-in; catalog-owned Anthropic effort and fallback capabilities are not configurable switches.
+For self-hosted Chat Completions endpoints, `thinkingTokenBudgetField` selects the reasoning-budget parameter, and `vllmPriority` sets an integer scheduler priority when the server enables priority scheduling. Template arguments accept `$var: thinking.budget`. `allowMissingThinking` marks a model whose chat template accepts the `allow_missing_thinking` waiver: another model's thinking is downgraded to text during replay, so an endpoint that requires `reasoning_content` on every assistant turn would otherwise reject a history that crosses models. The waiver is `openai-completions` only and opt-in per model. `openai-responses` gateways can set `supportsMaxOutputTokens: false` to omit `max_output_tokens`; Azure and Codex transports ignore this shared compatibility field. These controls are opt-in; catalog-owned Anthropic effort and fallback capabilities are not configurable switches.
 
 ### Change configuration at runtime
 

@@ -38,7 +38,7 @@ function CompletedGlyph() {
 
 /** In-progress: the DigitalOcean pixel loader in business blue. */
 function ProgressGlyph() {
-  return <PixelLoader grid={16} size={14} className={css.glyphProgress} />
+  return <PixelLoader size={14} className={css.glyphProgress} />
 }
 
 /** Pending: dashed unstarted ring (figma dash 2.4 2.4). */

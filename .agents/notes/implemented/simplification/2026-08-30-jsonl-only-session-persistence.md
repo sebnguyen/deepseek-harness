@@ -1,4 +1,4 @@
-# Agent Note: JSONL-only first-party Session persistence
+ixKepeep YKeeion # Agent Note: JSONL-only first-party Session persistence
 
 Status: implemented
 

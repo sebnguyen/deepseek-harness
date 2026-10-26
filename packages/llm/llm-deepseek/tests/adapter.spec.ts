@@ -1638,7 +1638,7 @@ describe('DeepSeekAdapter against a mock server', () => {
     }
   })
 
-  it('aborts the underlying body when the stream stays idle past its watchdog', async () => {
+  it('aborts the underlying body when no first token arrives within its deadline', async () => {
     vi.useFakeTimers()
     let stopped = false
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
@@ -1655,13 +1655,55 @@ describe('DeepSeekAdapter against a mock server', () => {
     })
     const adapter = adapterOf({
       baseURL: 'https://example.invalid',
+      streamIdleTimeoutMs: 10_000,
+      firstTokenTimeoutMs: 100,
+    })
+    try {
+      const drain = (async () => {
+        for await (const _chunk of adapter.stream({ provider: 'deepseek-official', model: 'm', messages: [] })) { /* drain */ }
+      })()
+      const rejected = expect(drain).rejects.toMatchObject({
+        code: 'TIMEOUT',
+        message: 'DeepSeek stream produced no first token within 100ms',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      await vi.advanceTimersByTimeAsync(100)
+      await rejected
+      expect(stopped).toBe(true)
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  it('aborts the underlying body when a started stream stays idle past its watchdog', async () => {
+    vi.useFakeTimers()
+    const encoder = new TextEncoder()
+    let stopped = false
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((_input, init) => {
+      const signal = init?.signal
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(encoder.encode(`data: ${textEvents[1]}\n\n`))
+          signal?.addEventListener('abort', () => {
+            stopped = true
+            controller.error(signal.reason)
+          }, { once: true })
+        },
+      })
+      return Promise.resolve(new Response(body, { status: 200 }))
+    })
+    const adapter = adapterOf({
+      baseURL: 'https://example.invalid',
       streamIdleTimeoutMs: 100,
     })
     try {
       const drain = (async () => {
         for await (const _chunk of adapter.stream({ provider: 'deepseek-official', model: 'm', messages: [] })) { /* drain */ }
       })()
-      const rejected = expect(drain).rejects.toMatchObject({ code: 'TIMEOUT' })
+      const rejected = expect(drain).rejects.toMatchObject({
+        code: 'TIMEOUT',
+        message: 'DeepSeek stream idle timeout after 100ms',
+      })
       await vi.advanceTimersByTimeAsync(0)
       await vi.advanceTimersByTimeAsync(100)
       await rejected
@@ -2359,6 +2401,26 @@ describe('plugin registration and config', () => {
       baseURL: 'http://127.0.0.1:1',
       streamIdleTimeoutMs: MAX_TIMER_DELAY_MS + 1,
     })).rejects.toThrow(/streamIdleTimeoutMs/)
+  })
+
+  it('resolves a five-second first-token deadline by default and rejects invalid bounds', async () => {
+    expect(resolveAdapterOptions({})).toMatchObject({ firstTokenTimeoutMs: 5_000 })
+    expect(resolveAdapterOptions({ firstTokenTimeoutMs: 250 })).toMatchObject({ firstTokenTimeoutMs: 250 })
+    expect(() => resolveAdapterOptions({ firstTokenTimeoutMs: Number.POSITIVE_INFINITY }))
+      .toThrow(/firstTokenTimeoutMs.*positive finite/)
+    expect(() => resolveAdapterOptions({ firstTokenTimeoutMs: MAX_TIMER_DELAY_MS + 1 }))
+      .toThrow(/firstTokenTimeoutMs.*no greater/)
+
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    await expect(ctx.plugin(LlmDeepSeek, {
+      baseURL: 'http://127.0.0.1:1',
+      firstTokenTimeoutMs: 0,
+    })).rejects.toThrow(/firstTokenTimeoutMs/)
+    await expect(ctx.plugin(LlmDeepSeek, {
+      baseURL: 'http://127.0.0.1:1',
+      firstTokenTimeoutMs: MAX_TIMER_DELAY_MS + 1,
+    })).rejects.toThrow(/firstTokenTimeoutMs/)
   })
 
   it('validates Files API timeout bounds independently of the stream idle deadline', async () => {

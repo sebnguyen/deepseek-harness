@@ -96,8 +96,18 @@ export const Config: z<Config> = z.object({
 interface IdeTwin {
   readonly handle: SubprocessHandle
   readonly url: string
-  /** The spawn token: twin identity on the bearer boundary. */
+  /**
+   * The REH connection token. One token serves every twin this host spawns:
+   * browsers scope `vscode-tkn` by host, not port, so per-twin tokens would
+   * overwrite each other's cookie and 403 a sibling's cookie-only requests.
+   */
   readonly tkn: string
+  /**
+   * This twin's private identity on the `ideBridge` bearer boundary. Staged
+   * into `bridge.json` for the bridge extension only; it never reaches an
+   * iframe URL and is unrelated to the REH connection token.
+   */
+  readonly seatToken: string
 }
 
 /** Downlink queue backlog held for an unconnected seat (oldest frames drop past it). */
@@ -106,8 +116,9 @@ const DOWNLINK_QUEUE_CAP = 256
 /**
  * One twin's bridge state: what it told us about itself, the frames headed
  * its way, and the one active downlink publisher. The seat is keyed by the
- * twin's spawn token, which is the bearer-token identity the connection
- * package checks — the twin knows nothing of sessions or workspace keys.
+ * twin's bridge seat token (staged in `bridge.json`), which is the
+ * bearer-token identity the connection package checks — the twin knows
+ * nothing of sessions or workspace keys.
  */
 interface SeatState {
   /** The connect-time `hello` metadata, or null until the seat reports in. */
@@ -227,27 +238,31 @@ async function adoptLegacyPin(legacyRoot: string, stateDir: string, name: string
  * dispose when the host context ends.
  * @param ctx - host plugin context carrying the subprocess service.
  * @param config - deployment config (`dist` plus tuning).
+ * @param connectionToken - the one REH connection token shared by every twin
+ *   this host spawns; sibling twins must present the same secret because the
+ *   browser's `vscode-tkn` cookie is scoped by host, not by port.
  * @returns the spawn manager.
  */
 function createTwinManager(
   ctx: Context,
   config: Config,
+  connectionToken: string,
   onTokenDropped: (token: string) => void,
   dshOrigin: () => string,
 ): IdeTwinManager {
   const twins = new Map<string, Promise<IdeTwin>>()
-  const tokenToWorkspace = new Map<string, string>()
-  const twinByToken = new Map<string, IdeTwin>()
+  const seatTokenToWorkspace = new Map<string, string>()
+  const twinBySeatToken = new Map<string, IdeTwin>()
   // One stable-port band serves every dist on the machine, so two concurrent
   // spawns must not probe the band in parallel: both would see the same port
   // free, write the same pin, and whichever child bound second would fight
   // the loser until its tokens 403 against the survivor's origin checks.
   let spawnRound: Promise<unknown> = Promise.resolve()
   const forgetToken = (token: string): void => {
-    const workspaceKey = tokenToWorkspace.get(token)
+    const workspaceKey = seatTokenToWorkspace.get(token)
     if (workspaceKey === undefined) return
-    tokenToWorkspace.delete(token)
-    twinByToken.delete(token)
+    seatTokenToWorkspace.delete(token)
+    twinBySeatToken.delete(token)
     onTokenDropped(token)
   }
   return {
@@ -256,10 +271,10 @@ function createTwinManager(
         void pending.then((twin) => { twin.handle.terminate() }, () => undefined)
       }
       twins.clear()
-      tokenToWorkspace.clear()
-      twinByToken.clear()
+      seatTokenToWorkspace.clear()
+      twinBySeatToken.clear()
     },
-    twinOfToken: token => twinByToken.get(token),
+    twinOfToken: token => twinBySeatToken.get(token),
     ensure(workspaceKey: string, sessionId: string): Promise<IdeTwin> {
       const live = twins.get(workspaceKey)
       if (live !== undefined) return live
@@ -280,15 +295,17 @@ function createTwinManager(
         await mkdir(join(stateDir, 'exts'), { recursive: true })
         // Layout migration: pre-slot spawns pinned the port at the shared
         // `.dsh` root; adopt that pin into the slot so parked iframes keep
-        // their origins across this change. The token is no longer pinned:
-        // each spawn mints a fresh secret so an orphaned twin (left over
-        // from a dead host) presenting a stale token is rejected 403.
+        // their origins across this change. The REH connection token is not
+        // pinned: one token per host process serves every twin (see the
+        // constructor), and it rotates with the host, so an orphaned twin
+        // from a dead host presenting a stale token is still rejected 403.
         const legacyRoot = join(config.dist, '.dsh')
         await adoptLegacyPin(legacyRoot, stateDir, TWIN_PORT_PIN_BASENAME)
-        // Per-spawn secret: a fresh token every time, so an orphaned twin
-        // (left over from a dead host) presenting a stale token is rejected
-        // 403 and its bridge backs off forever instead of winning the seat.
-        const token = randomBytes(24).toString('base64url')
+        // The bridge seat's private identity, minted per spawn so a respawned
+        // twin reconnects its own downlink and an orphan cannot claim the
+        // seat. This is NOT the REH connection token: the browser never sees
+        // it, and it is never written into an iframe URL.
+        const seatToken = randomBytes(24).toString('base64url')
         // A stable port keeps the iframe origin stable, which is what makes
         // the browser-side IndexedDB user settings survive a harness restart.
         const port = await pickStablePort(stateDir, config.dist) ?? await freePort()
@@ -306,7 +323,7 @@ function createTwinManager(
         // host origin, this spawn's token, and the twin key it belongs to.
         await stageVscodeBridgeIdentity(stateDir, {
           dshOrigin: dshOrigin(),
-          token,
+          token: seatToken,
           workspaceKey,
           sessionId,
         })
@@ -322,7 +339,7 @@ function createTwinManager(
               join(config.dist, 'out', 'server-main.js'),
               '--host', '127.0.0.1',
               '--port', String(port),
-              '--connection-token', token,
+              '--connection-token', connectionToken,
               '--accept-server-license-terms',
               '--disable-workspace-trust',
               '--disable-telemetry',
@@ -343,17 +360,18 @@ function createTwinManager(
           const twin: IdeTwin = {
             handle,
             url: `http://127.0.0.1:${port}`,
-            tkn: token,
+            tkn: connectionToken,
+            seatToken,
           }
-          tokenToWorkspace.set(token, workspaceKey)
-          twinByToken.set(token, twin)
+          seatTokenToWorkspace.set(seatToken, workspaceKey)
+          twinBySeatToken.set(seatToken, twin)
           void handle.done.then((outcome) => {
             // The child fell over before or during readiness: drop the full
             // collected stderr into the rejection so the client detail line
             // carries substance instead of a bare "spawn failed".
             console.warn('[ide] twin exited; dropping twin entry', { workspaceKey, exitCode: outcome.exitCode })
             if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
-            forgetToken(token)
+            forgetToken(seatToken)
             setup.abort()
             const stderr = handle.collected.stderr?.readFrom(0).text.trim() ?? ''
             reject(new Error(
@@ -370,7 +388,7 @@ function createTwinManager(
               // binds a different port, and the forgotten entry then chains
               // freshly dead children into an endless unready-respawn loop.
               if (twins.get(workspaceKey) === pending) twins.delete(workspaceKey)
-              forgetToken(token)
+              forgetToken(seatToken)
               console.warn('[ide] twin never became ready', { workspaceKey })
               reject(error instanceof Error ? error : new Error(String(error)))
             })
@@ -412,9 +430,19 @@ export class Ide extends TypertRemoteService {
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'ideBridge')
     this.dist = resolveTwinDist(config.dist)
+    // One REH connection token for every twin this host spawns. The browser
+    // stores it in `vscode-tkn`, a cookie scoped by host and blind to ports:
+    // per-twin secrets overwrote each other whenever two workspace twins were
+    // open, and the loser's cookie-only requests — each preview webview's
+    // `pre/index.html`, lazy product assets — answered 403 `Forbidden.` as
+    // soon as the user switched session tabs. One host secret keeps every
+    // twin's cookie valid at every twin's port; the per-twin seat token still
+    // separates the ideBridge downlink/report identities.
+    const connectionToken = randomBytes(24).toString('base64url')
     this.twins = createTwinManager(
       ctx,
       Object.assign({}, config, { dist: this.dist }),
+      connectionToken,
       (token) => { this.seats.delete(token) },
       () => this.dshOrigin,
     )
@@ -429,18 +457,30 @@ export class Ide extends TypertRemoteService {
       }
       return () => { this.scope = undefined }
     })
-    // The twin-token bearer branch: strictly scoped to the namespace's two
-    // twin-facing endpoints; the browser-cookie path for every other endpoint
-    // is byte-identical. Absent `connection` (non-web profiles) the bridge
-    // simply has no absorb point, which matches the twin lane being web-only.
+    // The twin-token bearer branch: strictly scoped to the namespace's twin
+    // wire, the gateway's forwarded-event result RPC, and the read/write
+    // remotes the twin's planes consume; the browser-cookie path for every
+    // other endpoint is byte-identical. Absent `connection` (non-web profiles)
+    // the bridge simply has no absorb point, which matches the twin lane being
+    // web-only.
     ctx.inject(['connection'], (scope) => {
       const withdraw = scope.connection.registerBearerRule({
-        // The twin token reaches its own bridge wire plus the read/write
+        // `$events/result` (REMOTE_EVENT_RESULT_ENDPOINT in
+        // `packages/api/gateway/src/stream-protocol.ts`) is load-bearing for
+        // the seat's Connection generation: the host replays every still-
+        // pending approval/user-question waterfall into each new event
+        // stream, and a cookie-less twin must return its `next` outcome over
+        // this RPC. Without admission that call answers 401, the rejected
+        // result ends the generation, the pending waterfall replays into the
+        // next one, and the seat reconnects forever.
+        //
+        // The twin token also reaches its own bridge wire plus the read/write
         // remotes its planes consume: checkpoint slot timelines and blobs
         // (the twin Timeline view), and the lineNotes projection (note
         // inlay hints plus the add-note uplink). Every other endpoint keeps
         // browser-cookie-only admission.
         endpoints: [
+          '$events/result',
           'ideBridge/downlink',
           'ideBridge/report',
           'checkpoint/slots',
@@ -487,7 +527,17 @@ export class Ide extends TypertRemoteService {
     const idle = { url: null, tkn: null, workspaceRoot: null }
     if (this.dist === '') return { ...idle, enabled: false, ready: false, detail: 'no twin dist configured or discovered' }
     try {
-      return { enabled: true, ...(await this.ready(sessionId, signal)), detail: null }
+      const ready = await this.ready(sessionId, signal)
+      // `seatToken` is the twin's private bridge identity; the browser tab
+      // only needs the connection token it rides in `?tkn=`.
+      return {
+        enabled: true,
+        ready: ready.ready,
+        url: ready.url,
+        tkn: ready.tkn,
+        workspaceRoot: ready.workspaceRoot,
+        detail: null,
+      }
     } catch (error: unknown) {
       return {
         ...idle,
@@ -512,9 +562,9 @@ export class Ide extends TypertRemoteService {
   @Remote
   async open(sessionId: string, request: IdeBridgeOpenRequest, signal: AbortSignal): Promise<void> {
     assertOpenRequest(request)
-    const { tkn } = await this.ready(sessionId, signal)
-    console.debug('[ide] open', { sessionId, path: request.path, line: request.line ?? null, t6: tkn.slice(-6) })
-    this.queueFrame(tkn, { type: 'ideBridge/open', path: request.path, ...(request.line === undefined ? {} : { line: request.line }) })
+    const { seatToken } = await this.ready(sessionId, signal)
+    console.debug('[ide] open', { sessionId, path: request.path, line: request.line ?? null, t6: seatToken.slice(-6) })
+    this.queueFrame(seatToken, { type: 'ideBridge/open', path: request.path, ...(request.line === undefined ? {} : { line: request.line }) })
   }
 
   /**
@@ -529,19 +579,19 @@ export class Ide extends TypertRemoteService {
    */
   @Remote
   async activate(sessionId: string, signal: AbortSignal): Promise<void> {
-    const { tkn } = await this.ready(sessionId, signal)
-    console.debug('[ide] activate', { sessionId, t6: tkn.slice(-6) })
-    this.queueFrame(tkn, { type: 'ideBridge/activate', sessionId })
+    const { seatToken } = await this.ready(sessionId, signal)
+    console.debug('[ide] activate', { sessionId, t6: seatToken.slice(-6) })
+    this.queueFrame(seatToken, { type: 'ideBridge/activate', sessionId })
   }
 
   /**
-   * The twin's private frame stream: attach by spawn token and follow frames.
+   * The twin's private frame stream: attach by bridge seat token and follow frames.
    *
    * Re-attaching (a reconnecting client) supersedes the stale publisher; a
    * modest backlog replays at attach. The token is validated again here —
    * the bearer gate admits by rule shape, but identity resolution happens
    * per call so a revoked twin is answered within one frame.
-   * @param request - the twin's spawn token.
+   * @param request - the twin's bridge seat token (staged in `bridge.json`).
    * @param signal - stream lifetime (gate aborts on disconnect).
    * @returns the twin's private frame stream.
    */
@@ -572,7 +622,7 @@ export class Ide extends TypertRemoteService {
    * Projection events (save, active editor, diagnostics) left with the
    * vscode-events plane; a non-hello verb is a protocol mismatch and fails
    * loudly rather than being logged and dropped.
-   * @param request - the twin token plus the event.
+   * @param request - the twin's bridge seat token plus the event.
    * @param signal - caller cancellation.
    */
   @Remote
@@ -599,21 +649,21 @@ export class Ide extends TypertRemoteService {
    */
   private async ready(sessionId: string, signal: AbortSignal): Promise<WireReady> {
     // The root must resolve before ensure: it IS the twin's key, so a session
-    // switch onto the same workspace lands on the same URL + token pair and
-    // the frame it feeds needs no reload at all.
+    // switch onto the same workspace lands on the same URL + connection token
+    // pair and the frame it feeds needs no reload at all.
     const root = await this.workspaceRootOf(sessionId)
     const twin = await this.twins.ensure(this.workspaceKey(sessionId, root), sessionId)
     // Freshly-spawned children need their readiness window; an existing twin
     // is already up and re-probing costs one cheap round trip at worst.
     await waitReady(twin.url, this.config.readinessTimeoutMs, this.config.readinessPollMs, signal)
-    return { ready: true, url: twin.url, tkn: twin.tkn, workspaceRoot: root }
+    return { ready: true, url: twin.url, tkn: twin.tkn, seatToken: twin.seatToken, workspaceRoot: root }
   }
 
   /**
-   * Resolve a live seat by spawn token, creating its state on first sight.
+   * Resolve a live seat by bridge seat token, creating its state on first sight.
    * An unknown token names a dead or revoked twin — a stable failure over a
    * parallel rejection channel, so the caller surfaces it as a Remote error.
-   * @param token - the twin spawn token.
+   * @param token - the twin's bridge seat token (staged in `bridge.json`).
    * @returns the seat owning this twin's queue and projections.
    */
   private seatOf(token: string): SeatState {
@@ -709,6 +759,8 @@ interface WireReady {
   readonly ready: true
   readonly url: string
   readonly tkn: string
+  /** The twin's private bridge seat identity; stripped before `status` ships. */
+  readonly seatToken: string
   readonly workspaceRoot: string | null
 }
 

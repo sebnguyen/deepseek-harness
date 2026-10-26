@@ -1,8 +1,8 @@
 /**
  * Model-facing UTF-8 read. Each element performs one provider stat for type,
  * routing, and observed version, streams large or size-unknown files, renders a
- * bounded window, then emits the observation. The shipped face is the `files`
- * batch: every element settles into its own `[i/N] <path>` frame, earlier
+ * bounded window, then emits the observation. The shipped face is the
+ * `read_array` batch: every element settles into its own `[i/N] <path>` frame, earlier
  * failures included, so several reads ride one tool call. Config `legacyFaces`
  * re-registers the pre-batch singular call for recorded-session replay, whose
  * committed model behavior never batches.
@@ -11,7 +11,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { adviceLine } from '@deepseek-ai/dsh-system-prompt'
-import { defineTool, wrapSingletonArgs } from '@deepseek-ai/dsh-tools'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView, ReadResultView, ToolExecution, ToolResult } from '@deepseek-ai/dsh-tools'
 import type { } from '@deepseek-ai/dsh-fs'
 import { buildWindow, formatReadOutput, langFromPath, readMetaFromMeta } from './read-render.ts'
@@ -46,9 +46,9 @@ interface ReadElementInput {
   limit: number
 }
 
-/** One schema-validated `files` array element. */
+/** One schema-validated `read_array` array element. */
 interface RawReadElement {
-  file_path?: unknown
+  path?: unknown
   offset?: unknown
   limit?: unknown
 }
@@ -104,32 +104,32 @@ interface ReadInput {
 }
 
 /**
- * Validate one `files` element with the same caps the singular face applies.
- * `file_path` must be a non-blank string; `offset`/`limit` are positive integers
+ * Validate one `read_array` element with the same caps the singular face applies.
+ * `path` must be a non-blank string; `offset`/`limit` are positive integers
  * when given, `limit` additionally bounded by the deployment cap.
  * @param raw - one schema-validated array element.
  * @param maxLimit - the configured line cap.
  * @returns the validated element with defaults applied.
  */
 export function parseReadElement(raw: RawReadElement, maxLimit: number): ReadElementInput {
-  if ((raw.file_path as string).trim().length === 0) {
-    throw new Error('file_path must be a non-empty string')
+  if ((raw.path as string).trim().length === 0) {
+    throw new Error('path must be a non-empty string')
   }
   const offset = raw.offset === undefined ? 1 : parsePositiveInteger(raw.offset as number, 'offset')
   const limit = raw.limit === undefined ? maxLimit : parsePositiveInteger(raw.limit as number, 'limit')
   if (limit > maxLimit) throw new Error(`limit must be less than or equal to ${maxLimit}`)
-  return { filePath: raw.file_path as string, offset, limit }
+  return { filePath: raw.path as string, offset, limit }
 }
 
 /**
  * Validate the batch envelope the schema DSL can't express: at least one
  * element, no upper cap.
- * @param files - the schema-validated `files` array.
+ * @param elements - the schema-validated `read_array` array.
  * @returns the element list, re-typed after the length guard.
  */
-export function parseReadBatch(files: RawReadElement[]): RawReadElement[] {
-  if (files.length === 0) throw new Error('files must contain at least one element')
-  return files
+export function parseReadBatch(elements: RawReadElement[]): RawReadElement[] {
+  if (elements.length === 0) throw new Error('read_array must contain at least one element')
+  return elements
 }
 
 /**
@@ -257,7 +257,7 @@ async function executeReadElement(
 }
 /**
  * Register the `read` tool and its scope-aware system-prompt guidance. The
- * shipped face is the `files` batch; `legacy` re-registers the pre-batch
+ * shipped face is the `read_array` batch; `legacy` re-registers the pre-batch
  * singular call for recorded-session replay compositions.
  * @param ctx - the plugin context; registrations are effects scoped to it, and execution uses its `fs` service.
  * @param caps - the deployment's resolved read caps (plugin config after defaulting).
@@ -273,18 +273,14 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
     order: ctx.systemPrompt.getSectionOrder('TOOL_READ'),
     text: ({ scope }) => ctx.tools.get('multi_read', scope) === undefined
       ? ''
-      : adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot; pass every file the next step needs as one `files` element — each with its own offset and limit — and every element settles into its own labeled frame, a missing file reported in-frame instead of failing the call. Example: read the handler and its test as two elements before editing the error branch.'),
+      : adviceLine('Read gives UTF-8 contents with line numbers that bash cat and sed cannot; pass every file the next step needs as one `read_array` element — each with its own offset and limit — and every element settles into its own labeled frame, a missing file reported in-frame instead of failing the call. Example: read the handler and its test as two elements before editing the error branch.'),
   })
 
   ctx.tools.register(defineTool({
     name: 'multi_read',
-    // Shape tolerance, not type tolerance: a model remembering the pre-batch
-    // singleton `{file_path, offset?, limit?}` root receives one wrapped
-    // element; string containers and other non-conforming payloads fail.
-    normalizeArgs: args => wrapSingletonArgs(args, 'files', 'file_path'),
-    description: 'Read UTF-8 text files and return line-numbered content; each element of `files` runs and settles into its own labeled frame, in written order, earlier failures included.',
+    description: 'Read UTF-8 text files and return line-numbered content; each element of `read_array` runs and settles into its own labeled frame, in written order, earlier failures included.',
     parameters: {
-      files: {
+      read_array: {
         type: 'array',
         required: true,
         description: 'The files to read, in written order; 1 or more elements, with no upper cap. Independent reads of one thought belong in one call.',
@@ -292,7 +288,7 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
           type: 'object',
           additionalProperties: false,
           properties: {
-            file_path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
+            path: { type: 'string', required: true, description: 'Path to read, resolved by the filesystem backend.' },
             offset: { type: 'number', description: '1-based first line to return for this file. Defaults to 1.' },
             limit: { type: 'number', description: `Maximum number of lines to return for this file. Defaults to ${caps.limit}.` },
           },
@@ -358,10 +354,10 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
     // Observation races fail closed because guarded mutations re-check the version in-lock.
     isConcurrencySafe: () => true,
     async execute(args, exec) {
-      const files = parseReadBatch(args.files as RawReadElement[])
+      const elements = parseReadBatch(args.read_array as RawReadElement[])
       const frames: ReadFrameRecord[] = []
-      for (const [index, element] of files.entries()) {
-        const label = element.file_path as string
+      for (const [index, element] of elements.entries()) {
+        const label = element.path as string
         if (exec.signal.aborted) {
           frames.push({ index, file_path: label, kind: 'not-run', reason: 'call aborted' })
           continue
@@ -373,17 +369,17 @@ export function applyReadTool(ctx: Context, caps: ReadToolCaps, legacy = false):
     // Pure display: a generic card titled by the first file; one line pill
     // cannot represent several frames.
     presentCall(args): GenericCallView {
-      const files = (args.files ?? []) as RawReadElement[]
+      const elements = (args.read_array ?? []) as RawReadElement[]
       /* v8 ignore next -- replay of obsolete singular args cannot name a batched first element; the soft validator declines first. */
-      const first = typeof files[0]?.file_path === 'string' ? files[0].file_path : '<invalid>'
+      const first = typeof elements[0]?.path === 'string' ? elements[0].path : '<invalid>'
       return {
         card: 'generic',
-        title: files.length <= 1 ? `Read ${first}` : `${files.length} reads: ${first}`,
+        title: elements.length <= 1 ? `Read ${first}` : `${elements.length} reads: ${first}`,
         kind: 'read',
         /* v8 ignore next -- schema-validated batches carry string paths; the filter guards replay of foreign args. */
-        locations: files
-          .filter(file => typeof file.file_path === 'string')
-          .map(file => ({ path: file.file_path as string, line: typeof file.offset === 'number' ? file.offset : 1 })),
+        locations: elements
+          .filter(element => typeof element.path === 'string')
+          .map(element => ({ path: element.path as string, line: typeof element.offset === 'number' ? element.offset : 1 })),
       }
     },
   }))

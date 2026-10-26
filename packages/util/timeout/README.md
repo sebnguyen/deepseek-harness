@@ -7,7 +7,7 @@ kind: "package-library"
 
 ## Summary
 
-`dsh-timeout` lets callers apply bounded deadlines to work, distinguish local timeout from upstream cancellation, and monitor streamed reads for inactivity. `clampTimeout` fills a missing hint from a backend default, caps it at the allowed maximum, and rejects invalid values before work starts. `deadline` combines the chosen timeout with upstream cancellation in one signal, while the caller remains responsible for actually stopping its process, socket, or task. `idleWatchdog` counts only time spent waiting for provider reads, and zero remains reserved for backend-owned untimed work rather than public configuration.
+`dsh-timeout` lets callers apply bounded deadlines to work, distinguish local timeout from upstream cancellation, and monitor streamed reads for inactivity. `clampTimeout` fills a missing hint from a backend default, caps it at the allowed maximum, and rejects invalid values before work starts. `deadline` combines the chosen timeout with upstream cancellation in one signal, while the caller remains responsible for actually stopping its process, socket, or task. `idleWatchdog` counts only time spent waiting for provider reads and can give the first read its own shorter deadline, and zero remains reserved for backend-owned untimed work rather than public configuration.
 
 ## Table of Contents
 
@@ -69,7 +69,7 @@ using watchdog = idleWatchdog(upstream, idleMs, 'LLM_STREAM_IDLE_TIMEOUT')
 const next = await watchdog.next(providerIterator)    // timer runs only while this read is outstanding
 ```
 
-The timer is armed only while an iterator `next()` is outstanding and rearms on `pulse()` for transport activity that yields no value, so consumer think time between reads never counts as idle. The interval must be positive, finite, and no greater than `MAX_TIMER_DELAY_MS`.
+The timer is armed only while an iterator `next()` is outstanding and rearms on `pulse()` for transport activity that yields no value, so consumer think time between reads never counts as idle. The optional fourth argument gives the first demand a shorter interval and its own code; the first value switches later demands to the idle interval, and `pulse()` does not extend a pending first-demand deadline. The interval must be positive, finite, and no greater than `MAX_TIMER_DELAY_MS`.
 
 ### What does not get a timeout
 
@@ -102,7 +102,7 @@ The library is built on one boundary: share the timing and classification, keep 
 
 ### Why an idle watchdog rearms
 
-`idleWatchdog` keeps one stable fused signal and arms the timer only while `next()` is outstanding; resolution disarms, later demand or `pulse()` rearms, disposal clears, and concurrent demand rejects. Only the transport observes the signal, so the provider's real read must listen to it — the DeepSeek and pi-ai adapters close their response body or SDK request on abort.
+`idleWatchdog` keeps one stable fused signal and arms the timer only while `next()` is outstanding; resolution disarms, later demand or `pulse()` rearms, disposal clears, and concurrent demand rejects. A configured first-demand interval arms the first `next()` and gives way to the idle interval once a value arrives; a pending first demand ignores `pulse()`, so transport activity alone cannot extend it. Only the transport observes the signal, so the provider's real read must listen to it — the DeepSeek and pi-ai adapters close their response body or SDK request on abort.
 
 </details>
 
@@ -139,7 +139,7 @@ These limits define what the library deliberately does not do. They are current 
 - **Notification only** — a deadline cannot stop work that ignores its signal; every capability still needs its own socket, process, or task termination path.
 - **`timeoutMs <= 0` is internal vocabulary** — it disables the local timer only after an owning backend has resolved policy, never as a public model- or plugin-facing knob.
 - **The first abort reason wins classification** — when an upstream cancellation beats the local timer, this layer cannot later report that its own timeout would also have elapsed.
-- **An idle watchdog is not a total deadline** — it rearms per outstanding iterator demand and deliberately excludes consumer think time.
+- **An idle watchdog is not a total deadline** — it rearms per outstanding iterator demand and deliberately excludes consumer think time; the optional first-demand interval bounds only the wait for the first value.
 
 <a id="dev-note"></a>
 ### Dev Note

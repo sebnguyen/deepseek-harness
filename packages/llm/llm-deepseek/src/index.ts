@@ -31,6 +31,7 @@ import {
   DEFAULT_FILE_QUOTA_CLEANUP_BATCH,
   DEFAULT_FILE_REFRESH_MARGIN_SECONDS,
   DEFAULT_FILES_API_TIMEOUT_MS,
+  DEFAULT_FIRST_TOKEN_TIMEOUT_MS,
   DEFAULT_IMAGE_OFFLOAD_BYTE_QUANTUM,
   DEFAULT_IMAGE_OFFLOAD_COUNT_QUANTUM,
   DEFAULT_INLINE_IMAGE_OFFLOAD_BYTE_QUANTUM,
@@ -54,6 +55,7 @@ export {
   DEFAULT_FILE_QUOTA_CLEANUP_BATCH,
   DEFAULT_FILE_REFRESH_MARGIN_SECONDS,
   DEFAULT_FILES_API_TIMEOUT_MS,
+  DEFAULT_FIRST_TOKEN_TIMEOUT_MS,
   DEFAULT_IMAGE_OFFLOAD_BYTE_QUANTUM,
   DEFAULT_IMAGE_OFFLOAD_COUNT_QUANTUM,
   DEFAULT_INLINE_IMAGE_OFFLOAD_BYTE_QUANTUM,
@@ -158,6 +160,8 @@ export interface Config {
   models?: DeepSeekCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding (default five minutes). */
   streamIdleTimeoutMs?: number
+  /** Maximum time before the first streamed chunk arrives (default five seconds). */
+  firstTokenTimeoutMs?: number
   /** Maximum accumulated file-referenced image bytes per chat request (default 128 MiB). */
   maxRequestFilesBytes?: number
   /** Maximum accumulated base64 image payload after Files API fallback (default 20 MiB). */
@@ -203,6 +207,7 @@ export const Config: z<Config> = z.object({
   defaultContextWindow: z.number().step(1).min(1).default(DEFAULT_CONTEXT_WINDOW),
   models: z.array(catalogModel).default(DEFAULT_MODELS),
   streamIdleTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_STREAM_IDLE_TIMEOUT_MS),
+  firstTokenTimeoutMs: z.number().min(Number.MIN_VALUE).max(MAX_TIMER_DELAY_MS).default(DEFAULT_FIRST_TOKEN_TIMEOUT_MS),
   maxRequestFilesBytes: z.number().step(1).min(1).default(DEFAULT_MAX_REQUEST_FILES_BYTES),
   maxInlineRequestImageBytes: z.number().step(1).min(1).default(DEFAULT_MAX_INLINE_REQUEST_IMAGE_BYTES),
   maxImagesPerRequest: z.number().step(1).min(1).default(DEFAULT_MAX_IMAGES_PER_REQUEST),
@@ -339,6 +344,14 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
       `llm-deepseek: streamIdleTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
     )
   }
+  const firstTokenTimeoutMs = config.firstTokenTimeoutMs ?? DEFAULT_FIRST_TOKEN_TIMEOUT_MS
+  if (!Number.isFinite(firstTokenTimeoutMs)
+    || firstTokenTimeoutMs <= 0
+    || firstTokenTimeoutMs > MAX_TIMER_DELAY_MS) {
+    throw new Error(
+      `llm-deepseek: firstTokenTimeoutMs must be a positive finite number no greater than ${MAX_TIMER_DELAY_MS}`,
+    )
+  }
   const maxRequestFilesBytes = config.maxRequestFilesBytes ?? DEFAULT_MAX_REQUEST_FILES_BYTES
   if (!Number.isSafeInteger(maxRequestFilesBytes) || maxRequestFilesBytes <= 0) {
     throw new Error('llm-deepseek: maxRequestFilesBytes must be a positive safe integer')
@@ -412,6 +425,7 @@ export function resolveAdapterOptions(config: Config, environment?: LaunchEnviro
     defaultContextWindow: config.defaultContextWindow ?? DEFAULT_CONTEXT_WINDOW,
     models: resolveModels(config.models),
     streamIdleTimeoutMs,
+    firstTokenTimeoutMs,
     maxRequestFilesBytes,
     maxInlineRequestImageBytes,
     maxImagesPerRequest,

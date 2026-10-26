@@ -285,7 +285,7 @@ describe('ReadRow keyed toolview', () => {
 })
 
 describe('readCardModel batched files', () => {
-  const BATCH_ARGS = '{"files":[{"file_path":"src/a.ts"},{"file_path":"src/b.ts","offset":12}]}'
+  const BATCH_ARGS = '{"read_array":[{"path":"src/a.ts"},{"path":"src/b.ts","offset":12}]}'
   const READ_SECTION_A = '<path>src/a.ts</path>\n<type>file</type>\n<content>\nexport const a = 1\n</content>'
   const READ_SECTION_B = '<path>src/b.ts</path>\n<type>file</type>\n<content>\nconst b = 2\n</content>'
   const BATCH_TEXT = `[1/2] src/a.ts\n${READ_SECTION_A}\n[2/2] src/b.ts\n${READ_SECTION_B}`
@@ -312,14 +312,14 @@ describe('readCardModel batched files', () => {
   it('readCallLine follows the displayed element once settled, first element while running', () => {
     expect(readCallLine(settledBatch({ meta: { frames: [frameB] } }))).toBe(12)
     expect(readCallLine(running({ argsRaw: BATCH_ARGS }))).toBeUndefined()
-    expect(readCallLine(running({ argsRaw: '{"files":[{"file_path":"src/a.ts","offset":3}]}' }))).toBe(3)
+    expect(readCallLine(running({ argsRaw: '{"read_array":[{"path":"src/a.ts","offset":3}]}' }))).toBe(3)
   })
 
   it('keeps malformed batches and mismatched texts generic', () => {
     expect(readCardModel(settledBatch({ meta: undefined }))).toBeNull()
     expect(readCardModel(settledBatch({ meta: { frames: [] } }))).toBeNull()
-    expect(readCardModel(settledBatch({ call: { name: 'read', argsRaw: '{"files":[]}' } }))).toBeNull()
-    expect(readCardModel(settledBatch({ call: { name: 'read', argsRaw: '{"files":[{"file_path":" "}]}' } }))).toBeNull()
+    expect(readCardModel(settledBatch({ call: { name: 'read', argsRaw: '{"read_array":[]}' } }))).toBeNull()
+    expect(readCardModel(settledBatch({ call: { name: 'read', argsRaw: '{"read_array":[{"path":" "}]}' } }))).toBeNull()
     expect(readCardModel(settledBatch({ meta: { frames: [{ ...frameA, index: 5 }] } }))).toBeNull()
     expect(readCardModel(settledBatch({ content: [{ type: 'text', text: READ_SECTION_A }] }))).toBeNull()
     expect(readCardModel(settledBatch({ isError: true }))).toBeNull()
@@ -333,7 +333,7 @@ describe('ReadRow batched files', () => {
     t,
   } as unknown as Parameters<typeof ReadRow>[0])
 
-  const BATCH_ARGS = '{"files":[{"file_path":"src/a.ts"},{"file_path":"src/b.ts","offset":12},{"file_path":"src/none.ts"}]}'
+  const BATCH_ARGS = '{"read_array":[{"path":"src/a.ts"},{"path":"src/b.ts","offset":12},{"path":"src/none.ts"}]}'
   const FRAME_A = { index: 0, file_path: 'src/a.ts', kind: 'read', path: 'src/a.ts', offset: 1, lines: [{ number: 1, text: 'export const a = 1' }], totalLines: 1, lang: 'ts' }
   const FRAME_B = { index: 1, file_path: 'src/b.ts', kind: 'read', path: 'src/b.ts', offset: 12, lines: [{ number: 12, text: 'const b = 2' }], totalLines: 40, lang: 'ts' }
   const FRAME_E = { index: 2, file_path: 'src/none.ts', kind: 'error', message: 'not found' }
@@ -385,7 +385,7 @@ describe('ReadRow batched frame outcomes', () => {
     t,
   } as unknown as Parameters<typeof ReadRow>[0])
 
-  const ARGS = '{"files":[{"file_path":"src/a.ts"},{"file_path":"src/skip.ts"}]}'
+  const ARGS = '{"read_array":[{"path":"src/a.ts"},{"path":"src/skip.ts"}]}'
   const FRAME_A = { index: 0, file_path: 'src/a.ts', path: 'src/a.ts', offset: 1, lines: [{ number: 1, text: 'const a' }], totalLines: 1 }
   const FRAME_S = { index: 1, file_path: 'src/skip.ts', kind: 'not-run', reason: 'call aborted' }
 

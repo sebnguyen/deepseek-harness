@@ -272,7 +272,7 @@
         maxDepth: 1
         backgroundMode: one-shot
         childSandboxMode: read-only
-        maxSteps: 24
+        maxSteps: 240
         outputSchema:
           type: object
           additionalProperties: false
@@ -307,7 +307,7 @@
           answer in `handoff`.
         agentOptions:
           provider: digitalocean
-          model: reflection-beam
+          model: glm-5.3-flash
           reasoningEffort: off
 
     # Production dsh does not install these optional providers. Install the

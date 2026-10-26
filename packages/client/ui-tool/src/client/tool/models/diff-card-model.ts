@@ -59,11 +59,11 @@ type IntendedDiff = { tool: 'write' | 'edit' | 'str_replace_editor'; diff: DiffH
 /**
  * The intended hunks of one batched `write` element: one diff per `content`,
  * one per `edits` entry. A pathless or content-less element yields null.
- * @param element - one schema-validated `files` element of a batched write call.
+ * @param element - one schema-validated `write_array` element of a batched write call.
  * @returns the element's intended hunks, or null when it draws nothing.
  */
 export function batchElementDiffs(element: Record<string, unknown>): DiffHunk[] | null {
-  const { file_path: path, content, edits } = element
+  const { path, content, edits } = element
   if (typeof path !== 'string' || path.trim() === '') return null
   const diffs: DiffHunk[] = []
   if (typeof content === 'string') diffs.push({ path, oldText: null, newText: content })
@@ -88,10 +88,10 @@ export function batchElementDiffs(element: Record<string, unknown>): DiffHunk[] 
 }
 
 function batchWriteDiffs(args: Record<string, unknown>): DiffHunk[] | null {
-  const { files } = args
-  if (!Array.isArray(files) || files.length === 0) return null
+  const { write_array } = args
+  if (!Array.isArray(write_array) || write_array.length === 0) return null
   const diffs: DiffHunk[] = []
-  for (const element of files) {
+  for (const element of write_array) {
     if (typeof element !== 'object' || element === null || Array.isArray(element)) return null
     const perElement = batchElementDiffs(element as Record<string, unknown>)
     if (perElement === null) return null
@@ -258,7 +258,7 @@ function appliedDiffs(meta: unknown): DiffHunk[] | 'empty' | null {
 export function diffCardModel(block: ToolCallBlock): DiffCardModel | null {
   if (block.parentCallId !== undefined) return null
   const parsed = parsedToolCall(block)
-  if (parsed !== null && (parsed.name === 'write' || parsed.name === 'multi_write') && Array.isArray(parsed.args.files)) {
+  if (parsed !== null && (parsed.name === 'write' || parsed.name === 'multi_write') && Array.isArray(parsed.args.write_array)) {
     if (!validEscalationFields(parsed.args)) return null
     const intended = batchWriteDiffs(parsed.args)
     if (intended === null) return null

@@ -41,9 +41,9 @@ The tool-owned gate ships inside this package: content writes over unread existi
 
 | Tool | Arguments | Behavior |
 |---|---|---|
-| `read` | `files[]` of `{ file_path, offset?, limit? }` | Every element settles into its own labeled frame `[i/N] <path>`: line-numbered UTF-8 content with a pagination footer (`offset` 1-based, `limit` defaulting to and capped by the configured `readLimit`), missing and refused files reported in-frame instead of failing the call |
+| `read` | `read_array[]` of `{ path, offset?, limit? }` | Every element settles into its own labeled frame `[i/N] <path>`: line-numbered UTF-8 content with a pagination footer (`offset` 1-based, `limit` defaulting to and capped by the configured `readLimit`), missing and refused files reported in-frame instead of failing the call |
 | `read_image` | `file_path` | Reads and persists a PNG/JPEG/WebP/GIF source; an extension-less path (normalized attachment object paths included) is identified from its file signature; normalization can downscale it before the next model request, so the model need not create a thumbnail first |
-| `write` | `files[]` of `{ file_path, content?, edits?, overwrite?, dry_run? }`, plus call-level `sandbox_permissions`/`justification` under a confining backend | Elements commit atomically and dispatch in written order; `edits` entries (literal, regex, line-range, insert) apply sequentially over `content` or the disk text; unread whole-file overwrites need `overwrite: true` on that element; `dry_run` previews one element; a failing element settles into its frame while later elements still run |
+| `write` | `write_array[]` of `{ path, content?, edits?, overwrite?, dry_run? }`, plus call-level `sandbox_permissions`/`justification` under a confining backend | Elements commit atomically and dispatch in written order; `edits` entries (literal, regex, line-range, insert) apply sequentially over `content` or the disk text; unread whole-file overwrites need `overwrite: true` on that element; `dry_run` previews one element; a failing element settles into its frame while later elements still run |
 
 Field names are snake_case to match Claude Code and existing harness tool schemas. Successes return compact envelopes per frame — a read window, an image reference, or a `Created file`/`Updated file` confirmation — and `write` derives replayable diff-card metadata per committed frame for UI presentation. The singular `config.legacyFaces: true` registration restores the pre-batch single-file parameter face (one `file_path` per call) for deployments whose recorded session corpus replays committed singular calls; every shipped composition keeps it on for test-lane boots until that corpus is re-recorded, and live runtime sessions always run the batch face.
 
@@ -57,7 +57,7 @@ All keys are optional; the defaults are the shipped read caps.
 | `readMaxLineLength` | `2000` | Characters kept per line before truncation |
 | `readMaxBytes` | `51200` | Byte cap on one `read` call's selected lines; overflow ends the window with a capped footer |
 | `readStreamMinSize` | `10485760` | Files at or above this size (or of unknown size) stream instead of loading whole into memory |
-| `maxFilesPerCall` | `8` | Maximum `files` elements one batched `read`/`write` call accepts |
+| `maxFilesPerCall` | `8` | Maximum `read_array`/`write_array` elements one batched call accepts |
 | `legacyFaces` | `false` | Registers the pre-batch singular `read`/`write` parameter face instead of the batch face |
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-fs) is the exhaustive source for every accepted field and its JSDoc.
@@ -70,7 +70,7 @@ The guard rides the single `fs/write-intent` slot: the tool-owned gate decides b
 
 ### Failures and recovery
 
-Failures are normalized as `Error: <message>` with a structured code preserved for callers. Stable messages include `file_path must be a non-empty string`, `limit must be less than or equal to <max>`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, and the image-route refusal `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`. `FS_NOT_OBSERVED` is normalized to `cannot modify "<path>": file has not been read — read the file, then retry` under the strict policy; the default gate's `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` retains the provider's reason and appends `— re-read the file, then retry`. After the reread confirms absence, programs report `FS_NOT_FOUND` instead of repeating a stale remedy, while content writes use guarded creation.
+Failures are normalized as `Error: <message>` with a structured code preserved for callers. Stable messages include `path must be a non-empty string` (batch face; the legacy singular face still reports `file_path`), `limit must be less than or equal to <max>`, `cannot read "<path>": not found`, `cannot read "<path>": not a regular file`, and the image-route refusal `cannot read "<path>" as an image: model "<model>" does not declare image input; switch to an image-capable model to read images`. `FS_NOT_OBSERVED` is normalized to `cannot modify "<path>": file has not been read — read the file, then retry` under the strict policy; the default gate's `FS_OVERWRITE_DENIED` is normalized to `cannot overwrite "<path>": not read this session — read it first, or pass overwrite: true`; `FS_STALE_VERSION` retains the provider's reason and appends `— re-read the file, then retry`. After the reread confirms absence, programs report `FS_NOT_FOUND` instead of repeating a stale remedy, while content writes use guarded creation.
 
 -----
 

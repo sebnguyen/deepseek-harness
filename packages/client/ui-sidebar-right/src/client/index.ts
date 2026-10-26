@@ -1,13 +1,13 @@
 /**
- * Browser half: fill the frame's right column with the panel, put the expand
- * button in the conversation header, and own the seats a tab type registers
+ * Browser half: fill the frame's right column with the panel, put the sidebar
+ * toggle in the conversation header, and own the seats a tab type registers
  * into.
  *
  * Two seats share one session-scoped store, which the slot runtime allows
  * because both are session-scoped (a handle may not span scopes). The panel seat
  * in the frame draws the surface normally or fullscreen, retaining the track
- * on wide viewports; the header's corner seat draws the way back in
- * while the panel is hidden. The store is the layout's only source of truth; the docking
+ * on wide viewports; the header's corner seat draws the toggle in both
+ * directions. The store is the layout's only source of truth; the docking
  * kit's pure planners compute every change and the store records them, one
  * history entry per intent.
  *
@@ -31,11 +31,12 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from './contract/slots.ts'
 import { GuideBody, type GuideInjected } from './tabs/guide/GuideBody.tsx'
 import { GuideTitle } from './tabs/guide/GuideTitle.tsx'
-import { ExpandButton } from './shell/ExpandButton.tsx'
+import { SidebarToggle } from './shell/SidebarToggle.tsx'
 import { RightbarSeat, type SidebarRightInjected } from './shell/SidebarRight.tsx'
 import { RightbarRoot } from './shell/RightbarRoot.tsx'
 import { createSidebarRightController, type SidebarRightController } from './service.ts'
 import { SidebarRightTabRegistry } from './tab-registry.ts'
+import { createSidebarRightChoiceStore } from './choice.ts'
 import { createSidebarRightStore } from './stores.ts'
 import { en, zh } from './locales.ts'
 import { GUIDE_ID, guideDefinition } from './tabs/guide/definition.ts'
@@ -45,7 +46,7 @@ import { defaultSeed } from './contract/seed.ts'
 
 export type { RightbarSeatProps, SidebarRightInjected, SidebarRightPresentation } from './shell/SidebarRight.tsx'
 export type { GuideBodyProps, GuideInjected } from './tabs/guide/GuideBody.tsx'
-export type { ExpandButtonProps } from './shell/ExpandButton.tsx'
+export type { SidebarToggleProps } from './shell/SidebarToggle.tsx'
 export type { SidebarRightState, SurfaceState } from './stores.ts'
 export type {
   ISidebarRight, SidebarRightBinding, SidebarRightOpenResourceOptions, SidebarRightOpenTabOptions,
@@ -122,6 +123,11 @@ export function apply(ctx: ClientContext): void {
 
   ctx.effect(() => {
     const handle = createSidebarRightStore(() => defaultSeed(tabs))
+    // The remembered open/closed choice is root-scoped: one instance serves
+    // every session, and each session's bit is a field in its state. It is
+    // separate from the surface store because the choice outlives a reload
+    // while the surface does not.
+    const remembered = createSidebarRightChoiceStore().create()
     // The runtime mints one instance of this handle per session (the scope key
     // is the session id) and caches it per key. Each is adopted as it is minted,
     // so a tab's own action reaches its session's store while another session
@@ -131,12 +137,18 @@ export function apply(ctx: ClientContext): void {
       ...handle,
       create: (scopeKey) => {
         const instance = handle.create(scopeKey)
-        if (scopeKey !== undefined) adoptions.push(adopt(scopeKey as SessionId, instance))
+        if (scopeKey !== undefined) {
+          const sessionId = scopeKey as SessionId
+          adoptions.push(adopt(sessionId, instance, remembered.getSnapshot().bySession[sessionId] ?? true))
+        }
         return instance
       },
     }
     const layout: ILayout = ctx.layout
-    const injected: Omit<SidebarRightInjected, 'keyedHooks' | 'occurrence'> = {
+    const injected: Omit<
+      SidebarRightInjected,
+      'keyedHooks' | 'occurrence' | 'readExpandedChoice' | 'writeExpandedChoice'
+    > = {
       syncPresentation({ shown, track, fullscreen }) {
         if (shown) layout.openRightbar(track, fullscreen)
         else layout.closeRightbar()
@@ -167,18 +179,20 @@ export function apply(ctx: ClientContext): void {
           ...injected,
           keyedHooks: { tabNavigation: key => controller.tabDomain.occurrence(sessionId, { id: key as TabId }).navigation },
           occurrence: tab => controller.tabDomain.occurrence(sessionId, tab),
+          readExpandedChoice: () => remembered.getSnapshot().bySession[sessionId] ?? true,
+          writeExpandedChoice: (expanded) => { remembered.actions.set(sessionId, expanded) },
         }),
       }, RightbarSeat)
     })
-    // The expand button shares the panel's store: it only needs to know whether
-    // the panel is expanded, and to ask for it to be. The header's corner seat
-    // is its own place, past the utilities, so showing and hiding it moves
-    // nothing else in the row.
-    const disposeExpand = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
+    // The toggle shares the panel's store: it only needs to know whether the
+    // panel is expanded, and to flip it. The header's corner seat is its own
+    // place, past the utilities, so the button keeps one footprint in both
+    // states and moves nothing else in the row.
+    const disposeToggle = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
       name: 'conversation.session.header.corner',
       locale: NS,
       store,
-    }, ExpandButton))
+    }, SidebarToggle))
     // Stage two for the guide: it declares the chain child it hosts and reads
     // the registry's entry boxes, which an ordinary type has no reason to do.
     const guideInjected: GuideInjected = {
@@ -201,7 +215,7 @@ export function apply(ctx: ClientContext): void {
     return () => {
       disposeGuideTitle()
       disposeGuide()
-      disposeExpand()
+      disposeToggle()
       disposeSeat()
       for (const dispose of disposeTypes.reverse()) dispose()
       for (const release of adoptions) release()

@@ -100,7 +100,7 @@ describe('bash tool through the agent loop', () => {
     vi.stubEnv('DSH_STALE_PARENT', 'stale')
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'multi_bash', {
-        commands: [{
+        bash_array: [{
           command: 'printf \'%s\\n%s\\n%s\\n%s\\n\' "$DSH_HOME" "$DSH_SHELL" "$DSH_SESSION_ID" "${DSH_STALE_PARENT-unset}"',
         }],
         description: 'inspect the session DSH_* environment',
@@ -124,7 +124,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: model calls bash, sees the result, replies', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'echo integration-ok' }], description: 'run echo integration-ok' }, 'Running it.'),
+      toolCallResponse('call-1', 'multi_bash', { bash_array: [{ command: 'echo integration-ok' }], description: 'run echo integration-ok' }, 'Running it.'),
       textResponse('The command printed integration-ok.'),
     ])
     const ctx = await harness(adapter)
@@ -156,7 +156,7 @@ describe('bash tool through the agent loop', () => {
 
   it('foreground: non-zero exit is reported in the result text, not as isError', async () => {
     const adapter = new MockAdapter([
-      toolCallResponse('call-1', 'multi_bash', { commands: [{ command: 'exit 9' }], description: 'exit nonzero to see the exit-code marker' }),
+      toolCallResponse('call-1', 'multi_bash', { bash_array: [{ command: 'exit 9' }], description: 'exit nonzero to see the exit-code marker' }),
       textResponse('It failed with code 9.'),
     ])
     const ctx = await harness(adapter)
@@ -184,7 +184,7 @@ describe('bash tool through the agent loop', () => {
     // so the script can name `bash-1` without threading a generated id.
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'multi_bash', {
-        commands: [{
+        bash_array: [{
           command: `while [ ! -f ${JSON.stringify(sentinel)} ]; do sleep 0.02; done; echo bg-ok`,
           run_in_background: true,
         }],

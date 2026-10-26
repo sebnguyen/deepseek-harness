@@ -98,6 +98,8 @@ export interface DeepSeekConnectionOptions {
   models: readonly DeepSeekCatalogModel[]
   /** Maximum provider idle time while one stream read is outstanding. */
   streamIdleTimeoutMs: number
+  /** Maximum time before the first streamed chunk arrives. */
+  firstTokenTimeoutMs: number
   /** Maximum accumulated file-referenced image bytes in one request. */
   maxRequestFilesBytes: number
   /** Maximum accumulated base64 image payload after Files API fallback. */
@@ -165,6 +167,8 @@ export interface DeepSeekAdapterOptions {
 
 /** Default maximum idle interval while an adapter stream read is outstanding. */
 export const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000
+/** Default bound on the first streamed chunk before the transport reports `TIMEOUT`. */
+export const DEFAULT_FIRST_TOKEN_TIMEOUT_MS = 5_000
 /** Default combined request/response context capacity. */
 export const DEFAULT_CONTEXT_WINDOW = 1_000_000
 /** Default per-request output-token cap. */
@@ -186,6 +190,7 @@ export const DEFAULT_FILE_QUOTA_CLEANUP_BATCH = 100
 /** Default deadline for resolving one request image through the Files API. */
 export const DEFAULT_FILES_API_TIMEOUT_MS = 60_000
 const STREAM_IDLE_TIMEOUT_CODE = 'LLM_STREAM_IDLE_TIMEOUT'
+const FIRST_TOKEN_TIMEOUT_CODE = 'LLM_FIRST_TOKEN_TIMEOUT'
 const FILES_API_TIMEOUT_CODE = 'DEEPSEEK_FILES_API_TIMEOUT'
 const OFF_REASONING_EFFORT = ReasoningEffortId('off')
 const LOW_REASONING_EFFORT = ReasoningEffortId('low')
@@ -509,7 +514,12 @@ export class DeepSeekAdapter extends LlmAdapter {
     const upstream = options.signal === undefined
       ? consumer.signal
       : AbortSignal.any([options.signal, consumer.signal])
-    using watchdog = idleWatchdog(upstream, connection.streamIdleTimeoutMs, STREAM_IDLE_TIMEOUT_CODE)
+    using watchdog = idleWatchdog(
+      upstream,
+      connection.streamIdleTimeoutMs,
+      STREAM_IDLE_TIMEOUT_CODE,
+      { timeoutMs: connection.firstTokenTimeoutMs, code: FIRST_TOKEN_TIMEOUT_CODE },
+    )
     const iterator = this.request(
       options,
       watchdog.signal,
@@ -530,6 +540,13 @@ export class DeepSeekAdapter extends LlmAdapter {
         yield result.value
       }
     } catch (error: unknown) {
+      if (timeoutOf(watchdog.signal, FIRST_TOKEN_TIMEOUT_CODE) !== undefined) {
+        throw new LlmError(
+          `DeepSeek stream produced no first token within ${connection.firstTokenTimeoutMs}ms`,
+          'TIMEOUT',
+          { cause: error },
+        )
+      }
       if (timeoutOf(watchdog.signal, STREAM_IDLE_TIMEOUT_CODE) !== undefined) {
         throw new LlmError(
           `DeepSeek stream idle timeout after ${connection.streamIdleTimeoutMs}ms`,

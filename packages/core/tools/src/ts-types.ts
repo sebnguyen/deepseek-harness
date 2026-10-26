@@ -283,18 +283,18 @@ function renderBashExample(schemas: ToolSdkSchema[]): string {
   const parameters = bash.parameters as JsonSchemaNode
   if (parameters.type !== 'object') return ''
   const required = parameters.required ?? []
-  if (required.some(name => name !== 'command' && name !== 'commands' && name !== 'description')) return ''
+  if (required.some(name => name !== 'command' && name !== 'bash_array' && name !== 'description')) return ''
   const singular = acceptsExampleString(parameters.properties?.command, 'pwd')
     && required.every(name => name === 'command' || name === 'description')
-  const batch = acceptsExampleCommands(parameters.properties?.commands)
-    && required.every(name => name === 'commands' || name === 'description')
+  const batch = acceptsExampleCommands(parameters.properties?.bash_array)
+    && required.every(name => name === 'bash_array' || name === 'description')
   if (!singular && !batch) return ''
   const needsDescription = required.includes('description')
   if (needsDescription && !acceptsExampleString(parameters.properties?.description, 'Show current directory')) return ''
   const description = needsDescription ? ", description: 'Show current directory'" : ''
   const call = singular
     ? `{ command: 'pwd'${description} }`
-    : `{ commands: [{ command: 'pwd' }]${description} }`
+    : `{ bash_array: [{ command: 'pwd' }]${description} }`
   return ` When no separate \`${bash.name}\` schema is supplied, invoke a declared \`${bash.name}\` binding inside \`run_code\`:\n\n\`run_code({ code: "return await tools.${bash.name}(${call})", description: "Show current directory" })\``
 }
 

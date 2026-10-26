@@ -387,7 +387,7 @@ describe('web e2e: navigation & panes over a rich seeded session', () => {
     const column = page.locator('[data-rightbar-col]')
     await expect.poll(() => column.locator('[data-dockkit-tab-title]').allTextContents(), { timeout: 5_000 }).toEqual(['nav-a.md'])
     // Put the column back so later cases start from the default frame.
-    await column.locator('[data-sidebar-right-toggle]').click()
+    await page.locator('[data-sidebar-right-header-toggle]').click()
     await expect.poll(() => frame.getAttribute('data-rightbar-collapsed'), { timeout: 5_000 }).toBe('true')
   }, 60_000)
 

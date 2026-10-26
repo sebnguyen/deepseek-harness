@@ -84,6 +84,12 @@ export interface StandardSourceBinding {
 export interface ScopedStandardSourceBinding extends StandardSourceBinding {
   readonly key: string
   readonly ctx: Context
+  /**
+   * Whether the scope identity still exists durably (still listed/addressable)
+   * at death time. `true` marks a memory eviction: scoped store instances are
+   * dropped but their persisted values are kept for the reopen. Absent clears.
+   */
+  readonly durable?: () => boolean
 }
 
 /** One installed source of bindings for a non-root Slot scope. */

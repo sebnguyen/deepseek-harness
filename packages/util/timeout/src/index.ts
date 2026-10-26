@@ -62,6 +62,18 @@ export interface Deadline {
   [Symbol.dispose](): void
 }
 
+/**
+ * Optional shorter deadline for the first demand of an {@link IdleWatchdog}, so
+ * a transport that never produces its first value fails before the ordinary
+ * idle interval elapses.
+ */
+export interface FirstDemandTimeout {
+  /** Positive finite interval allowed for the first demand, in milliseconds. */
+  readonly timeoutMs: number
+  /** Capability-owned code stamped onto the first demand's timeout reason. */
+  readonly code: string
+}
+
 /** Rearmable timeout around one outstanding async-iterator demand. */
 export interface IdleWatchdog {
   /** Stable signal aborted by upstream cancellation or this watchdog's timeout. */
@@ -72,7 +84,10 @@ export interface IdleWatchdog {
    * @returns the iterator's next result.
    */
   next<T>(iterator: AsyncIterator<T>): Promise<IteratorResult<T>>
-  /** Rearm an outstanding demand after transport activity that yields no iterator value; otherwise a no-op. */
+  /**
+   * Rearm an outstanding demand after transport activity that yields no
+   * iterator value; a pending first-demand deadline is not extended.
+   */
   pulse(): void
   /** Clear an armed timer; safe to call once at the owning stream's exit. */
   [Symbol.dispose](): void
@@ -121,14 +136,18 @@ export function deadline(
  * @param upstream - caller cancellation fused into the stable signal.
  * @param timeoutMs - positive finite idle interval in milliseconds.
  * @param code - capability-owned code carried by the timeout reason.
+ * @param firstDemand - optional shorter deadline for the first demand, with its
+ *   own code; once the first value arrives, later demands use `timeoutMs`.
  * @returns a stable signal, guarded next operation, and timer disposer.
  */
 export function idleWatchdog(
   upstream: AbortSignal | undefined,
   timeoutMs: number,
   code: string,
+  firstDemand?: FirstDemandTimeout,
 ): IdleWatchdog {
   assertTimerDelay(timeoutMs, 'idleWatchdog timeoutMs')
+  if (firstDemand !== undefined) assertTimerDelay(firstDemand.timeoutMs, 'idleWatchdog firstDemand.timeoutMs')
   const timeout = new AbortController()
   const signal = upstream === undefined
     ? timeout.signal
@@ -136,12 +155,15 @@ export function idleWatchdog(
   let timer: ReturnType<typeof setTimeout> | undefined
   let outstanding = false
   let disposed = false
+  let firstDemandPending = firstDemand !== undefined
 
   const arm = (): void => {
     if (timer !== undefined) clearTimeout(timer)
+    const interval = firstDemandPending && firstDemand !== undefined ? firstDemand.timeoutMs : timeoutMs
+    const reasonCode = firstDemandPending && firstDemand !== undefined ? firstDemand.code : code
     timer = setTimeout(() => {
-      timeout.abort(new TimeoutReason(code, timeoutMs))
-    }, timeoutMs)
+      timeout.abort(new TimeoutReason(reasonCode, interval))
+    }, interval)
   }
 
   return {
@@ -152,7 +174,9 @@ export function idleWatchdog(
       outstanding = true
       arm()
       try {
-        return await iterator.next()
+        const result = await iterator.next()
+        firstDemandPending = false
+        return result
       } finally {
         clearTimeout(timer)
         timer = undefined
@@ -160,7 +184,7 @@ export function idleWatchdog(
       }
     },
     pulse(): void {
-      if (disposed || !outstanding) return
+      if (disposed || !outstanding || firstDemandPending) return
       arm()
     },
     [Symbol.dispose](): void {

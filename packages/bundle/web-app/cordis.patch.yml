@@ -656,12 +656,17 @@
 
     # The vscode planes: declared host-side so the vscode-modules roster scan
     # sees their `dsh.vscode` blocks; their host faces are inert by design.
+    # Both planes are broken and parked: `disabled: true` keeps their rows here
+    # for a one-line re-enable, while vscode-modules skips disabled entries and
+    # therefore ships neither plane in the seat manifest.
 
     - id: vscode-timeline
       name: '@deepseek-ai/dsh-vscode-timeline'
+      disabled: true
 
     - id: vscode-line-notes
       name: '@deepseek-ai/dsh-vscode-line-notes'
+      disabled: true
 
     # The right Sidebar's workspace file tree tab type.
     - id: ui-sidebar-files

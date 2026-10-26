@@ -64,6 +64,8 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
 import { toStreamChunks } from './stream.ts'
 
+const FIRST_TOKEN_TIMEOUT_CODE = 'LLM_FIRST_TOKEN_TIMEOUT'
+
 /** One resolution's frozen view: the profiles and the collection built from them. */
 interface PiAiSnapshot {
   /** The resolved profiles this collection was built from, used as its identity. */
@@ -267,6 +269,42 @@ function grammarOptions(options: GenerateOptions): Partial<SimpleStreamOptions> 
   }
 }
 
+/**
+ * Whether this request must carry the `allow_missing_thinking` template waiver.
+ *
+ * pi-ai replays a historical turn's thinking natively only when that turn came
+ * from the exact model the request addresses; every other assistant turn is
+ * downgraded to plain text and reaches the wire with an empty
+ * `reasoning_content`. An OpenAI-compatible server whose chat template requires
+ * reasoning on every replayed assistant message rejects that turn with a 400;
+ * its template admits it when `allow_missing_thinking` is set. The capability
+ * belongs to the endpoint, which no protocol field states, so the profile
+ * declares it per model.
+ * @param profile - resolved route profile owning the model.
+ * @param model - resolved model the request addresses.
+ * @returns whether the payload needs the waiver.
+ */
+function waivesMissingThinking(profile: ResolvedPiAiProviderProfile, model: Model<Api>): boolean {
+  return model.api === 'openai-completions' && (profile.configuredAllowMissingThinking.has(model.id) || profile.allowMissingThinking === true)
+}
+
+/**
+ * Add the missing-reasoning waiver to one provider payload. A `chat-template`
+ * thinking format may already have built `chat_template_kwargs`, so the waiver
+ * joins that object instead of replacing it.
+ * @param payload - provider payload pi-ai is about to send.
+ * @returns the payload carrying the waiver, or the original when it has no body to amend.
+ */
+function withMissingThinkingWaiver(payload: unknown): unknown {
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return payload
+  const body = payload as Record<string, unknown>
+  const existing = body['chat_template_kwargs']
+  const kwargs = typeof existing === 'object' && existing !== null && !Array.isArray(existing)
+    ? existing as Record<string, unknown>
+    : {}
+  return { ...body, chat_template_kwargs: { ...kwargs, allow_missing_thinking: true } }
+}
+
 /** Merge deployment headers while removing case-insensitive attribution collisions. */
 function requestHeaders(headers: Readonly<Record<string, string>> | undefined): Record<string, string> {
   const attribution = attributionHeaders()
@@ -449,7 +487,11 @@ export class PiAiAdapter extends LlmAdapter {
       ? consumer.signal
       : AbortSignal.any([options.signal, consumer.signal])
     const streamIdleTimeoutMs = profile.streamIdleTimeoutMs
-    using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT')
+    const firstTokenTimeoutMs = profile.firstTokenTimeoutMs
+    using watchdog = idleWatchdog(upstream, streamIdleTimeoutMs, 'LLM_STREAM_IDLE_TIMEOUT', {
+      timeoutMs: firstTokenTimeoutMs,
+      code: FIRST_TOKEN_TIMEOUT_CODE,
+    })
 
     try {
       const containsImage = options.messages.some(message => contentHasImage(message.content))
@@ -474,26 +516,36 @@ export class PiAiAdapter extends LlmAdapter {
             maxBytes: profile.requestImageMaxBytes,
           },
         }, onReplayDegrade)
+      // The waiver rides pi-ai's payload hook rather than a sampling parameter:
+      // a chat-template thinking format may already have built
+      // `chat_template_kwargs`, and the waiver must join that object instead of
+      // replacing it. The capture observes the payload after the waiver, so the
+      // recorded body stays what the endpoint receives.
+      const onWireRequest = this.config.onWireRequest
+      const waiveMissingThinking = waivesMissingThinking(profile, model)
+      // Observe the payload pi-ai is about to send, amending it when the waiver applies.
+      const observePayload = (payload: unknown): unknown => {
+        const sent = waiveMissingThinking ? withMissingThinkingWaiver(payload) : payload
+        if (onWireRequest !== undefined) {
+          onWireRequest({
+            provider: options.provider,
+            model: options.model,
+            ...options.purpose === undefined ? {} : { purpose: options.purpose },
+            payload: JSON.stringify(sent),
+            ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
+          })
+        }
+        // Returning nothing keeps pi-ai's payload unchanged.
+        return sent === payload ? undefined : sent
+      }
+      const onPayload = onWireRequest === undefined && !waiveMissingThinking ? undefined : observePayload
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
         ...options.maxTokens === undefined ? {} : { maxTokens: options.maxTokens },
         ...grammarOptions(options),
         ...options.sessionId === undefined ? {} : { sessionId: String(options.sessionId) },
-        ...this.config.onWireRequest === undefined ? {} : {
-          onPayload: (payload: unknown) => {
-            const serialized = JSON.stringify(payload)
-            this.config.onWireRequest?.({
-              provider: options.provider,
-              model: options.model,
-              ...options.purpose === undefined ? {} : { purpose: options.purpose },
-              payload: serialized,
-              ...options.sessionId === undefined ? {} : { sessionId: options.sessionId },
-            })
-            // Returning nothing keeps pi-ai's payload unchanged.
-            return undefined
-          },
-        },
+        ...onPayload === undefined ? {} : { onPayload },
         signal: watchdog.signal,
         // Profile headers are deployment-owned; attribution names are
         // Harness-owned and therefore win collisions.
@@ -504,6 +556,8 @@ export class PiAiAdapter extends LlmAdapter {
       try {
         while (true) {
           const result = await watchdog.next(iterator)
+          const firstTokenTimeout = timeoutOf(watchdog.signal, FIRST_TOKEN_TIMEOUT_CODE)
+          if (firstTokenTimeout !== undefined) throw firstTokenTimeout
           const timeout = timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT')
           if (timeout !== undefined) throw timeout
           if (result.done) {
@@ -523,6 +577,13 @@ export class PiAiAdapter extends LlmAdapter {
         }
       }
     } catch (error: unknown) {
+      if (timeoutOf(watchdog.signal, FIRST_TOKEN_TIMEOUT_CODE) !== undefined) {
+        throw new LlmError(
+          `pi-ai stream produced no first token within ${firstTokenTimeoutMs}ms`,
+          'TIMEOUT',
+          { cause: error },
+        )
+      }
       if (timeoutOf(watchdog.signal, 'LLM_STREAM_IDLE_TIMEOUT') !== undefined) {
         throw new LlmError(`pi-ai stream idle timeout after ${streamIdleTimeoutMs}ms`, 'TIMEOUT', { cause: error })
       }

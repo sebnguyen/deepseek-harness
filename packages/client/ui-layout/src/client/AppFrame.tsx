@@ -24,7 +24,6 @@ import { computeColumns, rightbarDefaultWidth, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DE
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
-import { OceanScene } from './OceanScene.tsx'
 
 /* Frame card geometry mirrored from AppFrame.module.css: the outer inset and
    the inter-card gap. Drag handles center on a gap, so a handle's left gains
@@ -250,9 +249,6 @@ export function AppFrame({
       data-rightbar-instant={layoutInfo.rightbarInstant || undefined}
       data-dragging={dragging || undefined}
     >
-      {/* The ambient DO ocean scene: the app's global background, painted
-          behind the floating cards as static layers. */}
-      <OceanScene dense={false} />
       <DocumentTitle
         productTitle={productTitle}
         useSessions={useSessions}

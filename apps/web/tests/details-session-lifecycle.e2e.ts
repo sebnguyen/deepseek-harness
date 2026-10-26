@@ -226,10 +226,10 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
       await page.getByText(reply, { exact: true }).waitFor({ timeout: 15_000 })
     }
     const open = async (): Promise<void> => {
-      // The panel starts expanded per session; the way in exists only after
-      // an explicit or capacity collapse.
-      if (await page.locator('[data-sidebar-right-expand]').count() > 0) {
-        await page.locator('[data-sidebar-right-expand]').click()
+      // The panel starts expanded per session; the header toggle is the way in
+      // after an explicit or capacity collapse.
+      if (await column.locator('[data-sidebar-right-open]').count() === 0) {
+        await page.locator('[data-sidebar-right-header-toggle]').click()
       }
       await expect.poll(() => column.locator('[data-sidebar-right-open]').count()).toBe(1)
       await expect.poll(() => columns(page)).toEqual(normalColumns)
@@ -238,7 +238,7 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
         .toBe('none')
     }
     const close = async (): Promise<void> => {
-      await column.locator('[data-sidebar-right-toggle]').click()
+      await page.locator('[data-sidebar-right-header-toggle]').click()
       await expect.poll(() => column.locator('[data-sidebar-right-open]').count()).toBe(0)
       // Closing publishes state before the frame's grid transition finishes.
       await appFrame(page).evaluate(async (frame) => {
@@ -337,7 +337,7 @@ describe('web e2e: details panel follows the current Session lifecycle', () => {
       expect(await column.locator('[data-sidebar-right-open]').count()).toBe(0)
       await checkpoint('A widened: remains closed')
 
-      await page.locator('[data-sidebar-right-expand]').click()
+      await page.locator('[data-sidebar-right-header-toggle]').click()
       await expect.poll(() => columns(page)).toEqual([420, viewport.width - 420 - normalWidth, normalWidth])
       await page.setViewportSize({ width: 767, height: viewport.height })
       await expect.poll(() => panel.boundingBox()).toEqual({ x: 0, y: 0, width: 767, height: viewport.height })

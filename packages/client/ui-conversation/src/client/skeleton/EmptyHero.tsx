@@ -81,7 +81,7 @@ export function HeroShell({ t, children }: HeroShellProps) {
         {/* The large pixel logo from the loader mockup, idling as a random
             dot pop & fade instead of the clockwise sweep. */}
         <div className={css.brandMark} data-dsh-hero-mark="">
-          <PixelLoader mode="twinkle" grid={16} size={128} />
+          <PixelLoader mode="twinkle" size={128} />
         </div>
         <div className={css.headline}>
           <span className={css.titleGroup}>

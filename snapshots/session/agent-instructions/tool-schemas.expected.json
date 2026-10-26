@@ -166,11 +166,11 @@
     },
     {
       "name": "multi_bash",
-      "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.",
+      "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `bash_array` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.",
       "parameters": {
         "type": "object",
         "properties": {
-          "commands": {
+          "bash_array": {
             "type": "array",
             "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
             "items": {
@@ -181,7 +181,7 @@
                   "type": "string",
                   "description": "The bash command this element runs in its own fresh shell."
                 },
-                "workdir": {
+                "path": {
                   "type": "string",
                   "description": "Working directory for this element; defaults to the session workspace, and a relative path is resolved against it."
                 },
@@ -205,7 +205,7 @@
           }
         },
         "required": [
-          "commands",
+          "bash_array",
           "description"
         ]
       }
@@ -1034,11 +1034,11 @@
       },
       {
         "name": "multi_bash",
-        "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `commands` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.",
+        "description": "Execute bash commands (`bash -c`) and return their stdout/stderr. Pass a `bash_array` array: elements run in a fresh shell each, in written order, and every element runs even if an earlier one fails; keep steps that read an earlier output in separate calls, so the step that needs a result sees it. Each element settles on its own under a `[i/N] $ command` header (its own exit code, timeout, or sandbox marker). Current harness environment facts are exposed through managed `$DSH_*` variables; inspect them when needed. Commands may run under a file sandbox; a blocked file operation is reported as `[sandbox: file access denied under <mode> mode]` — a policy denial, not a bug in the command; do not retry another way. Long output is truncated to its tail; the full output is saved to a file whose path is reported when available. Set `run_in_background: true` on an element to start it as a background job: its frame carries the job id; read its output with `job_output` and stop it with `job_kill`.",
         "parameters": {
           "type": "object",
           "properties": {
-            "commands": {
+            "bash_array": {
               "type": "array",
               "description": "The batch of independent shell jobs, in written order and a fresh shell each. Only steps that do not need each other's output belong in one call; a step that reads an earlier result goes in a later call. Every element settles into its own labeled frame with its exit code, timeout, sandbox marker, or background job id, and every element runs even if an earlier one fails.",
               "items": {
@@ -1049,7 +1049,7 @@
                     "type": "string",
                     "description": "The bash command this element runs in its own fresh shell."
                   },
-                  "workdir": {
+                  "path": {
                     "type": "string",
                     "description": "Working directory for this element; defaults to the session workspace, and a relative path is resolved against it."
                   },
@@ -1073,7 +1073,7 @@
             }
           },
           "required": [
-            "commands",
+            "bash_array",
             "description"
           ]
         }

@@ -293,7 +293,7 @@ describe('the shipped Web composition', () => {
       // The batch face is what this preset's shell is for; its verbatim
       // description is pinned by the minimal-preset snapshot.
       const minimalBash = assembly.tools.find(tool => tool.name === 'bash')
-      expect(minimalBash?.description).toContain('commands')
+      expect(minimalBash?.description).toContain('bash_array')
       expect(minimalBash?.description).toContain('job_output')
       expect(ctx.commands.find(handle.agent, 'goal')).toBeUndefined()
       // serviceFor reports preset-owned providers; unisolated consumers inherit the host fs.

@@ -538,12 +538,15 @@ describe('SidebarRightController — a tab\'s own actions', () => {
   it('adoption syncs the Tab domain on each commit of that store: the seeded guide is pinned, a closed tab aborted', () => {
     const { controller, adopt, instance, pin } = harness()
     const first = adopt(SESSION, instance)
-    // Nothing is synced at adoption, and a commit that materializes another
-    // session leaves this session's occurrences alone.
-    instance.actions.open(OTHER)
-    expect(pin).not.toHaveBeenCalled()
-    instance.actions.setExpanded(SESSION, true)
+    // Adoption seeds the surface expanded, so its guide is pinned immediately.
     expect(pin).toHaveBeenCalledWith('sidebar://guide', expect.any(AbortSignal))
+    const seeded = pin.mock.calls.length
+    // A commit that materializes another session leaves this session's occurrences alone.
+    instance.actions.open(OTHER)
+    expect(pin).toHaveBeenCalledTimes(seeded)
+    // The seed is already expanded; an explicit setExpanded is a no-op.
+    instance.actions.setExpanded(SESSION, true)
+    expect(pin).toHaveBeenCalledTimes(seeded)
     instance.actions.openContent(SESSION, { kind: 'text', contentId: A_TXT, title: 'a' }, () => {})
     const surface = instance.getSnapshot().bySession[SESSION]
     const tab = Object.values(surface?.layout.tabs ?? {}).find(record => record.contentId === A_TXT)
@@ -565,11 +568,13 @@ describe('SidebarRightController — a tab\'s own actions', () => {
     // subscription with its routing: the old store's commits sync nothing, the
     // new store's commits reconcile the session against its own layout.
     const replacement = createSidebarRightStore(() => ({ kind: 'guide', title: 'seed' })).create()
+    // The replacement's adoption seed reconciles against its own layout at once,
+    // so the old store's occurrence is already aborted.
     const third = adopt(SESSION, replacement)
+    expect(held.signal.aborted).toBe(true)
     const pins = pin.mock.calls.length
     instance.actions.openContent(SESSION, { kind: 'text', contentId: 'dsh-resource://file/session/s-test/c.txt', title: 'c' }, () => {})
     expect(pin.mock.calls.length).toBe(pins)
-    expect(held.signal.aborted).toBe(false)
     replacement.actions.open(SESSION)
     expect(held.signal.aborted).toBe(true)
     second()

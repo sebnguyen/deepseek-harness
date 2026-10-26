@@ -12,13 +12,15 @@
  * the panel. A fullscreen opening reserves its underlying track only after
  * the panel covers the frame, without animating those hidden columns.
  *
- * The panel has no header of its own: its two controls — presentation switch
- * and collapse — ride the docking kit's chrome seat at the end of the top-right
- * pane's tab strip, so the strip is the panel's whole top edge. The way back in
- * while collapsed is not here either: it is one button in the conversation
- * header (`ExpandButton.tsx`), because it exists only while this panel is
- * hidden. Floating panels portal out because they must cross the column and the
- * conversation, and the kit already positions them in viewport coordinates.
+ * The panel has no header of its own: the presentation switch rides the docking
+ * kit's chrome seat at the end of the top-right pane's tab strip, so the strip
+ * is the panel's whole top edge. The close control is not here in normal
+ * presentation: it is one always-present toggle in the conversation header
+ * (`SidebarToggle.tsx`), which stays reachable while a surface (the VS Code
+ * workbench) owns the column and the strip is unmounted. In fullscreen the panel
+ * covers the conversation, so the panel draws its own collapse control beside
+ * the switch. Floating panels portal out because they must cross the column and
+ * the conversation, and the kit already positions them in viewport coordinates.
  *
  * Tab bodies do not live here. Each one is a registration under its type's kind,
  * dispatched through the keyed `sidebar.right.pane.tab` seat (and a live chip
@@ -111,6 +113,17 @@ export interface SidebarRightInjected {
   }
   /** Read a committed record's lifetime; never creates an occurrence. */
   readonly occurrence: (tab: Pick<TabRecord, 'id'>) => TabOccurrence
+  /**
+   * Whether this session's column should start open, as last remembered in the
+   * browser; `true` before the user has ever closed it.
+   */
+  readonly readExpandedChoice: () => boolean
+  /**
+   * Remember whether this session's column should start open. The surface is
+   * memory-only, so this is the one presentation fact that survives a reload.
+   * @param expanded - the choice to remember.
+   */
+  readonly writeExpandedChoice: (expanded: boolean) => void
 }
 
 /** The column seat's props: session scope, so the session arrives as a standard prop. */
@@ -255,7 +268,11 @@ function ExitFullscreenGlyph(): ReactNode {
   )
 }
 
-/** The panel's two controls, placed by the kit at the top-right pane's strip end. */
+/**
+ * The panel's presentation switch, placed by the kit at the top-right pane's
+ * strip end. In fullscreen it draws the collapse control beside the switch: the
+ * panel covers the conversation then, so the header's toggle is out of reach.
+ */
 function PanelChrome({ sessionId, fullscreen, autoFullscreen, actions, t }: Pick<PanelProps, 'sessionId' | 'actions' | 't' | 'fullscreen' | 'autoFullscreen'>): ReactNode {
   const next: DockMode = fullscreen ? 'push' : 'fullscreen'
   const modeLabel = fullscreen ? t('chrome.exitFullscreen') : t('chrome.toFullscreen')
@@ -275,24 +292,27 @@ function PanelChrome({ sessionId, fullscreen, autoFullscreen, actions, t }: Pick
           {fullscreen ? <ExitFullscreenGlyph /> : <FullscreenGlyph />}
         </button>
       </Tooltip>
-      <Tooltip label={t('chrome.collapse')} side="bottom" delayMs={500}>
-        <button
-          type="button"
-          className={css.iconButton}
-          aria-label={t('chrome.collapseAria')}
-          data-sidebar-right-toggle
-          onClick={() => { actions.toggleExpanded(sessionId) }}
-        >
-          <IconPanelLeftOutline16 className={css.collapseGlyph} />
-        </button>
-      </Tooltip>
+      {fullscreen && (
+        <Tooltip label={t('chrome.collapse')} side="bottom" delayMs={500}>
+          <button
+            type="button"
+            className={css.iconButton}
+            aria-label={t('chrome.collapseAria')}
+            data-sidebar-right-toggle
+            onClick={() => { actions.toggleExpanded(sessionId) }}
+          >
+            <IconPanelLeftOutline16 className={css.collapseGlyph} />
+          </button>
+        </Tooltip>
+      )}
     </>
   )
 }
 
 /**
- * The panel: the docked surface with the two controls in its top-right strip,
- * anchored to the frame's right edge and slid off it while collapsed.
+ * The panel: the docked surface with the presentation switch in its top-right
+ * strip (plus the collapse control in fullscreen), anchored to the frame's
+ * right edge and slid off it while collapsed.
  */
 function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<HTMLDivElement> }): ReactNode {
   const {
@@ -396,7 +416,7 @@ function Floats(panel: PanelProps): ReactNode {
  */
 export function RightbarSeat({
   sessionId, width, viewportWidth, canShow, useStore, actions, t, renderSlot, renderSlotChain, syncPresentation,
-  bindService, openTab, useTabTypes, useTabNavigation, occurrence,
+  bindService, openTab, useTabTypes, useTabNavigation, occurrence, readExpandedChoice, writeExpandedChoice,
 }: RightbarSeatProps): ReactNode {
   // One store instance per session, so this map holds this session's surface.
   // The binding published below serves the public face's commands on the
@@ -404,6 +424,7 @@ export function RightbarSeat({
   // adopted stores instead.
   const surfaces = useStore(state => state.bySession)
   const surface = surfaces[sessionId]
+  const materialized = surface !== undefined
   const shown = surface !== undefined && surface.layout.expanded
   const autoFullscreen = viewportWidth < 768
   const fullscreen = autoFullscreen || surface?.layout.mode === 'fullscreen'
@@ -415,8 +436,16 @@ export function RightbarSeat({
   const track = shown && !autoFullscreen
 
   useEffect(() => {
-    if (surface === undefined) actions.open(sessionId)
-  }, [actions, sessionId, surface])
+    if (!materialized) actions.open(sessionId, readExpandedChoice())
+  }, [actions, sessionId, materialized, readExpandedChoice])
+
+  // The layout is memory-only; the open/closed choice is the one fact worth
+  // carrying across a reload. This also records the capacity collapse and the
+  // close of the last docked tab, so the remembered choice matches the last
+  // state the user saw rather than only a click on the header toggle.
+  useEffect(() => {
+    if (materialized) writeExpandedChoice(shown)
+  }, [materialized, shown, writeExpandedChoice])
 
   useLayoutEffect(() => {
     if (shown && !fullscreen && !canShow) actions.setExpanded(sessionId, false)

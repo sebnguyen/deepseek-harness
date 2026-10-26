@@ -14,7 +14,7 @@ function stateOf(outcome: CommandRowOwnerProps['node']['outcome']): CommandRowSt
 
 function leadingFor(state: CommandRowState): ReactNode {
   if (state === 'error') return <StateDot state="error" />
-  if (state === 'running') return <PixelLoader grid={16} size={14} />
+  if (state === 'running') return <PixelLoader size={14} />
   return <IconApiOutline14 size={14} />
 }
 

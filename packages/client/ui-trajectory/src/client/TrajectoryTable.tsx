@@ -2676,7 +2676,7 @@ export function TrajectoryTable({
         {showInitialLoading && (
           <div className={css.historyLoading} role="status" aria-live="polite">
             <span className={css.historyLoadingBar}>
-              <PixelLoader grid={16} size={12} className={css.historyLoadingSpinner} />
+              <PixelLoader size={12} className={css.historyLoadingSpinner} />
               {t('history.loadingTrajectory')}
             </span>
           </div>
@@ -2711,7 +2711,7 @@ export function TrajectoryTable({
                     }}
                   >
                     {olderBusy && (
-                      <PixelLoader grid={16} size={12} className={css.historyLoadingSpinner} />
+                      <PixelLoader size={12} className={css.historyLoadingSpinner} />
                     )}
                     <span aria-hidden="true">
                       {olderBusy ? t('history.loadingEarlier') : t('history.loadEarlier')}

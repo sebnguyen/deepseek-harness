@@ -77,7 +77,7 @@ function leadingFor(state: SkillRowState): ReactNode {
   switch (state) {
     case 'error': return <StateDot state="error" />
     case 'stopped': return <StateDot state="warning" />
-    case 'running': return <PixelLoader grid={16} size={14} />
+    case 'running': return <PixelLoader size={14} />
     default: return <IconSkillOutline16 size={14} />
   }
 }

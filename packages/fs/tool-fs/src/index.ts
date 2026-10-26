@@ -1,7 +1,7 @@
 /**
  * Model-facing read, read_image, and the unified write tool over `ctx.fs`. This package owns schemas, validation,
  * read windows, formatting, and observation events, never a concrete provider. The shipped
- * read/write faces are `files` batches whose elements settle into labeled frames;
+ * read/write faces are `read_array`/`write_array` batches whose elements settle into labeled frames;
  * config `legacyFaces` re-registers the pre-batch singular calls for recorded-session
  * replay, whose committed model behavior never batches. The tool-owned
  * gate supplies default write decisions from observed state (explicit overwrite flag for unread
@@ -37,8 +37,8 @@ export interface Config {
   /** Files at or above this size stream instead of loading whole into memory. */
   readStreamMinSize?: number
   /**
-   * Register the pre-batch singular `read`/`write` calls instead of the `files`
-   * batch faces. Reserved for recorded-session replay compositions whose
+   * Register the pre-batch singular `read`/`write` calls instead of the
+   * `read_array`/`write_array` batch faces. Reserved for recorded-session replay compositions whose
    * committed fixtures drive singular calls; shipped deployments keep the
    * default false.
    */

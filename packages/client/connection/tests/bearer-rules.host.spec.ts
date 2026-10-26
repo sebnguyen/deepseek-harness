@@ -54,6 +54,21 @@ describe('connection bearer rules', () => {
     void revoke
   })
 
+  it('admits a slash-bearing gateway endpoint such as $events/result', async () => {
+    const { connection, dispose } = await mounted()
+    const revoke = connection.registerBearerRule({ endpoints: ['$events/result'], validate: token => token === 'twin-1' })
+    expect(connection.requestRejection(fakeRequest({
+      host: '127.0.0.1:3080',
+      authorization: 'Bearer twin-1',
+    }, `${API_PATH}/$events/result`))).toBeUndefined()
+    expect(connection.requestRejection(fakeRequest({
+      host: '127.0.0.1:3080',
+      authorization: 'Bearer twin-2',
+    }, `${API_PATH}/$events/result`))).toBe(401)
+    await dispose()
+    void revoke
+  })
+
   it('refuses the same token on an endpoint outside the rule, and a wrong token on a named endpoint', async () => {
     const { connection, dispose } = await mounted()
     connection.registerBearerRule({ endpoints: [...IDE_ENDPOINTS], validate: token => token === 'twin-1' })
