@@ -264,7 +264,7 @@ describe('ToolRow', () => {
 
   it('renders leading icon, title and summary while collapsed', () => {
     const view = render(<ToolRow {...rowProps} />)
-    expect(view.queryByTestId('tool-icon')).not.toBeNull()
+    expect(view.container.querySelector('.pce-mark svg[data-glyph="bash"]')).not.toBeNull()
     expect(view.getByText('Bash')).toBeTruthy()
     expect(view.getByText('List files')).toBeTruthy()
     expect(view.container.querySelector('[aria-expanded]')?.getAttribute('aria-expanded')).toBe('false')
@@ -273,13 +273,13 @@ describe('ToolRow', () => {
   it('row click expands: chevron leading, summary kept inline, body in the scrolling card', () => {
     const view = render(<ToolRow {...rowProps} />)
     fireEvent.click(view.getByRole('button'))
-    expect(view.queryByTestId('tool-icon')).toBeNull()
-    expect(view.container.querySelector('svg')).not.toBeNull()
+    expect(view.container.querySelector('.pce-mark svg[data-glyph="bash"]')).not.toBeNull()
+    expect(view.container.querySelector('.pce-head')?.getAttribute('aria-expanded')).toBe('true')
     expect(view.getByText('List files')).toBeTruthy()
     expect(view.getByText(/"a": 1/)).toBeTruthy()
     expect(view.container.querySelector('[class*="ioCard"]')).not.toBeNull()
     fireEvent.click(view.getByRole('button'))
-    expect(view.queryByTestId('tool-icon')).not.toBeNull()
+    expect(view.container.querySelector('.pce-mark svg[data-glyph="bash"]')).not.toBeNull()
     expect(view.getByText('List files')).toBeTruthy()
   })
 
@@ -307,20 +307,18 @@ describe('ToolRow', () => {
 
   it('running keeps the icon (row sweep carries the signal); error swaps in a StateDot', () => {
     const runningView = render(<ToolRow {...rowProps} state="running" />)
-    expect(runningView.queryByTestId('tool-icon')).not.toBeNull()
+    expect(runningView.container.querySelector('.pce-mark')).not.toBeNull()
     expect(runningView.container.querySelector('[data-state="running"]')).not.toBeNull()
     const errorView = render(<ToolRow {...rowProps} state="error" />)
-    expect(errorView.container.querySelector('[data-testid="tool-icon"]')).toBeNull()
-    // The dot rides the idle slot, so an expandable error row keeps the
-    // icon→chevron hover preview instead of losing it with the icon.
-    expect(errorView.container.querySelector('[class*="chevronHover"]')).not.toBeNull()
+    expect(errorView.container.querySelector('.pce-head-state')).not.toBeNull()
+    expect(errorView.container.querySelector('[data-state="error"]')).not.toBeNull()
   })
 
   it('non-expandable rows render a passive leading slot and no row button', () => {
     const view = render(<ToolRow {...rowProps} bodyRaw={null} />)
     expect(view.queryByRole('button')).toBeNull()
     expect(view.container.querySelector('[aria-expanded]')).toBeNull()
-    expect(view.queryByTestId('tool-icon')).not.toBeNull()
+    expect(view.container.querySelector('.pce-mark')).not.toBeNull()
   })
 
   it('the row toggles from Enter and Space, ignoring other keys', () => {

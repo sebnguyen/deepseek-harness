@@ -973,15 +973,15 @@ describe('TrajectoryTable', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Context' }))
 
     // Closed until a component is chosen.
-    expect(screen.queryByText('You are a coding agent.')).toBeNull()
+    expect(screen.getByText('You are a coding agent.').closest('div')?.className ?? '').toContain('hidden')
 
     const row = screen.getByText('System').closest('button')!
     fireEvent.click(row)
-    expect(screen.getByText('You are a coding agent.')).toBeTruthy()
+    expect(screen.getByText('You are a coding agent.').closest('div')?.className ?? '').not.toContain('hidden')
 
     // The dropdown sits inline under its own row and collapses on re-click.
     fireEvent.click(row)
-    expect(screen.queryByText('You are a coding agent.')).toBeNull()
+    expect(screen.getByText('You are a coding agent.').closest('div')?.className ?? '').toContain('hidden')
   })
 
   it('shows the advertised context-window capacity on the Context tab', () => {

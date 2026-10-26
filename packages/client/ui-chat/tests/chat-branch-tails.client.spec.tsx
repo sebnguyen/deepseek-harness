@@ -890,10 +890,10 @@ describe('MessageItem arms', () => {
         }}
       />,
     )
-    const details = view.container.querySelector('details')
-    const summary = view.container.querySelector('summary')
-    expect(details?.open).toBe(false)
-    expect(details?.dataset.active).toBe('true')
+    const row = view.container.querySelector('[data-pce="retry"]')
+    const head = view.container.querySelector('[data-pce="retry"] .pce-head')
+    expect(head?.getAttribute('aria-expanded')).toBe('false')
+    expect(row?.getAttribute('data-state')).toBe('running')
     expect(view.getByRole('status').textContent).toBe('正在重试模型请求（1/2） · 3s')
     expect(view.getByText('重试延迟：').parentElement?.textContent).toBe('重试延迟：2500毫秒')
     expect(view.getByText('失败原因：').parentElement?.textContent).toBe('失败原因：连接被重置')
@@ -926,9 +926,10 @@ describe('MessageItem arms', () => {
     )
     expect(view.getByRole('status').textContent).toBe('正在重试模型请求（2/2） · 4s')
 
-    if (summary === null) throw new Error('retry summary missing')
-    fireEvent.click(summary)
-    expect(details?.open).toBe(true)
+    const openHead = view.container.querySelector('[data-pce="retry"] .pce-head')
+    if (openHead === null) throw new Error('retry head missing')
+    fireEvent.click(openHead)
+    expect(openHead.getAttribute('aria-expanded')).toBe('true')
 
     view.rerender(
       <MessageItem t={t} node={{
@@ -949,7 +950,7 @@ describe('MessageItem arms', () => {
       }}
       />,
     )
-    expect(details?.dataset.active).toBeUndefined()
+    expect(view.container.querySelector('[data-pce="retry"]')?.getAttribute('data-state')).toBe('ok')
     expect(view.getByRole('status').textContent).toBe('已重试模型请求（2/2） · 4s')
 
     view.rerender(
@@ -1047,7 +1048,7 @@ describe('useCalendarDay boundary refresh', () => {
 })
 
 describe('small branch tails', () => {
-  it('AssistantMarkdown single-line reasoning shows finished status until expanded', () => {
+  it('AssistantMarkdown single-line reasoning shows the check mark until expanded', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -1056,7 +1057,7 @@ describe('small branch tails', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('已完成')).toBeTruthy()
+    expect(view.container.querySelector('[data-glyph="check"]')).not.toBeNull()
     fireEvent.click(view.getByText('思考'))
     expect(view.getByText('one-liner')).toBeTruthy()
   })

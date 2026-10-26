@@ -70,7 +70,7 @@ import { authContextFrom, credentialStoreFrom } from './auth.ts'
 import { catalogProviderIds, shippedRoute } from './catalog.ts'
 import { profileClientFetch } from './client-cert-fetch.ts'
 import { assertServiceable, Config, resolveProfiles } from './config.ts'
-import type { PiAiModelProfile, ResolvedPiAiProviderProfile } from './config.ts'
+import type { PiAiModelOverride, PiAiModelProfile, ResolvedPiAiProviderProfile } from './config.ts'
 import { discoverModels } from './discovery.ts'
 import type { StoredModelDiscoveryProfile } from './discovery.ts'
 import { registerPiAiFlows } from './login.ts'
@@ -173,6 +173,20 @@ function directoryEntries(
   return [...entries.values()]
 }
 
+/**
+ * One override's fields, without the id the feed owns. A value smuggling its
+ * own `id` past the schema would otherwise rename the fetched model it means
+ * to customize; the catalog resolver refuses that shape while a profile is
+ * still raw, and a live route stops being raw once its feed lands.
+ * @param override - the configured per-model override.
+ * @returns the same fields as a plain model fragment.
+ */
+function overrideFields(override: PiAiModelOverride): PiAiModelOverride {
+  const fields = { ...override } as PiAiModelOverride & { id?: unknown }
+  delete fields.id
+  return fields
+}
+
 /** Register one generic pi-ai adapter for all configured provider routes. */
 export function apply(ctx: Context, config: Config): void {
   let current: () => Config = () => config
@@ -196,15 +210,28 @@ export function apply(ctx: Context, config: Config): void {
     if (raw === lastRaw && lastLiveVersion === liveVersion && memoized !== undefined) return memoized
     // A live route's stored profile carries no models; the fetched feed is
     // merged in here so resolution, registration, and the adapter all see
-    // the endpoint's catalog without anything landing in settings.
+    // the endpoint's catalog without anything landing in settings. Per-model
+    // overrides ride on top of the feed: a listing reports ids and capacities
+    // but never modalities, so `input` is declared once per model while the
+    // endpoint's catalog keeps refreshing underneath.
     const providers = liveModels.size === 0
       ? raw.providers
       : Object.fromEntries(Object.entries(raw.providers ?? {}).map(([route, profile]) => {
         const feed = liveModels.get(route)
         const stored = profile.models?.length ?? 0
+        if (feed === undefined || stored > 0) return [route, profile]
         // A fresh array: `PiAiModelProfile.models` is mutable by schema, and
         // sharing the feed's would alias resolution's own copy.
-        return [route, feed === undefined || stored > 0 ? profile : { ...profile, models: [...feed] }]
+        const overrides = profile.modelOverrides ?? {}
+        const models = feed.map((entry) => {
+          const override = overrides[entry.id]
+          return override === undefined ? entry : { ...entry, ...overrideFields(override) }
+        })
+        // Folded in above, so the injected profile must not say both: an
+        // override beside a models list is refused as a contradiction.
+        const injected = { ...profile, models }
+        delete injected.modelOverrides
+        return [route, injected]
       }))
     const next = resolveProfiles(providers, 'deferred')
     lastRaw = raw

@@ -38,7 +38,7 @@ viewport, headless Chromium through `probe/twin-shot.mjs`.
   (`workbench.startupEditor: none`), no Restricted Mode banner (the harness
   sandbox owns trust), menu bar stays hidden (web default), telemetry
   off, update prompts off, experiments off, the `Code - OSS` tail off the
-  window title, minimap off, editor at the harness 13px code-font stack.
+  window title, minimap off, editor at the harness 13px JetBrains Mono stack.
 - **Delivery**: extension `configurationDefaults` + a first-class theme
   contribution staged on every spawn into `dist/.dsh/exts/` — the vscode-
   native product-default channel, so the twin's own Settings UI can still
@@ -58,11 +58,19 @@ TWIN_URL='http://127.0.0.1:47777/?tkn=T&folder=<ws>' OUT=before.png node probe/t
 node -e "import('<repo>/packages/api/ide/lib/index.js').then(m => m.stageTwinTheme('<exts>'))"
 ```
 
+## Typography standard
+
+Inter is the UI face and JetBrains Mono the code face on both sides. The
+vscode fork bundles both and leads every workbench UI stack with `Inter`
+(`src/vs/workbench/browser/media/style.css`); the twin extension sets the
+editor and terminal to `JetBrains Mono` (`packages/api/ide/src/twin-theme.ts`).
+The workbench CSS is compiled into the twin dist, so the twin side lands in a
+rebuild; the harness shell loads the same files from
+`apps/web/public/fonts/`.
+
 ## Known follow-ups
 
-- The workbench **UI sans font** is compile-time-baked in vscode's
-  `fonts.ts` (`system-ui` family); matching the harness sans stack exactly
-  needs a patch in the vscode fork plus a twin rebuild — palette, syntax,
-  and chrome are already DO.
+- Editor font size is still fixed at 13px and does not follow the harness
+  content font-size setting (`design/THEME_AUDIT.md`).
 - File-open-into-twin bridging (code opening in the twin editor when you
   click a tree row) is the next bridge layer, tracked separately.

@@ -4,7 +4,7 @@
    Craft rules taken from mistral.ai rather than its palette: a near-white
    ground, hairlines doing all the structural work, one content column that
    every surface aligns to, one accent used sparingly, and a fine static
-   grain. Nothing floats, nothing glows, nothing is rounded beyond 4px.
+   grain. Nothing floats, nothing glows, nothing is rounded.
 
 The sea stays: sea-salt paper, petrol ink, foam rules. The grid is what
    was missing — the shell now reads as a technical drawing, not a stack of
@@ -22,17 +22,17 @@ The sea stays: sea-salt paper, petrol ink, foam rules. The grid is what
    ========================================================================== */
 
 @font-face {
-  font-family: 'Inter DSH';
-  src: url('./fonts/inter-latin-300-700.woff2') format('woff2');
-  font-weight: 300 700;
+  font-family: 'Inter';
+  src: url('./fonts/InterVariable.woff2') format('woff2');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'Plex Mono DSH';
-  src: url('./fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
-  font-weight: 400;
+  font-family: 'JetBrains Mono';
+  src: url('./fonts/JetBrainsMonoVariable.woff2') format('woff2');
+  font-weight: 100 800;
   font-style: normal;
   font-display: swap;
 }
@@ -41,32 +41,32 @@ The sea stays: sea-salt paper, petrol ink, foam rules. The grid is what
    1. Tokens
    -------------------------------------------------------------------------- */
 html {
-  --a-ui: 'Inter DSH', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-  --a-mono: 'Plex Mono DSH', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --a-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --a-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --a-measure: 640px;
   --a-inset: max(28px, calc(50% - (var(--a-measure) / 2)));
   --a-gutter: 28px;
   --a-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --a-dur: 240ms;
-  --a-pixels: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='12' height='12' fill='%230069FF'/%3E%3Crect x='24' width='12' height='12' fill='%230069FF'/%3E%3Crect y='24' width='12' height='12' fill='%230069FF'/%3E%3Crect x='12' y='12' width='12' height='12' fill='%230069FF' opacity='0.32'/%3E%3C/svg%3E");
+  --a-pixels: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Crect width='12' height='12' fill='%237BB4BC'/%3E%3Crect x='24' width='12' height='12' fill='%230069FF'/%3E%3Crect y='24' width='12' height='12' fill='%230069FF'/%3E%3Crect x='12' y='12' width='12' height='12' fill='%230069FF' opacity='0.32'/%3E%3C/svg%3E");
 
-  --a-paper: #010E1A;
-  --a-panel: #04121D;
-  --a-panel-2: #0A1D2B;
-  --a-ink: #E8F1F8;
-  --a-ink-2: #A3B9CB;
-  --a-ink-3: #6F8899;
-  --a-signal: #0069FF;
-  --a-signal-2: #3D8BFF;
-  --a-foam: #7FD1FF;
-  --a-deep: #0E4A7A;
-  --a-rule: rgba(232, 241, 248, 0.11);
-  --a-rule-2: rgba(232, 241, 248, 0.2);
-  --a-err: #FF7A66;
-  --a-ok: #4FD1A5;
-  --a-r: 2px;
-  --a-r-sm: 1px;
+  /* DigitalOcean Walrus dark (digitalocean/walrus src/tokens/themes/dark-theme.ts):
+     color-app-bg, color-surface, white-alpha hairlines, and the dark primary
+     teal. Hex is the sRGB composite of the shipped oklch/alpha tokens. */
+  --a-paper: #121618;
+  --a-panel: #171C1E;
+  --a-panel-2: #252A2B;
+  --a-ink: #F7F8F8;
+  --a-ink-2: #A2A4A5;
+  --a-ink-3: #87898A;
+  --a-signal: #7BB4BC;
+  --a-signal-2: #94C6CC;
+  --a-foam: #94C6CC;
+  --a-rule: rgba(255, 255, 255, 0.08);
+  --a-rule-2: rgba(255, 255, 255, 0.18);
+  --a-err: #FCA5A5;
+  --a-ok: #86EFAC;
   --a-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.1' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='32' height='32' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
 }
 
@@ -132,7 +132,11 @@ html body[data-ds-dark-theme] {
   --dsw-alias-state-error-primary: var(--a-err);
   --dsw-alias-state-error-secondary: var(--a-err);
   --dsw-alias-state-error-bg: color-mix(in oklab, var(--a-err) 8%, transparent);
+  --dsw-alias-state-business-primary: var(--a-signal);
+  --dsw-alias-state-business-secondary: var(--a-signal-2);
+  --dsw-alias-state-business-tertiary: color-mix(in oklab, var(--a-signal) 16%, transparent);
   --dsw-alias-state-success-primary: var(--a-ok);
+  --dsw-alias-state-success-tertiary: color-mix(in oklab, var(--a-ok) 16%, transparent);
   --dsw-alias-state-success-bg: color-mix(in oklab, var(--a-ok) 10%, transparent);
   --dsw-alias-state-warn-primary: var(--a-ink-2);
   --dsw-alias-state-warn-label: var(--a-ink-2);
@@ -160,15 +164,18 @@ html body {
 html body [data-dsh-shell] {
   background: var(--a-paper);
   color: var(--a-ink);
+  /* The frame floats every column 8px off the window and 8px apart. Regions are
+     separated by rules here, not by ground, so both insets go: the chat panel
+     runs edge to edge inside its column. */
+  padding: 0;
+  gap: 0;
 }
 
 html body [data-dsh-shell] [class*='_frameslot'] {
   background: transparent;
-  border-radius: 0;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  --dsh-frame-card-radius: 0px;
 }
 
 html body [data-dsh-shell] [class*='_sidebarCol'] {
@@ -183,17 +190,17 @@ html body [data-dsh-shell] [data-rightbar-col] {
    4. Rail
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-dsh-sidebar] {
-  border-right: 1px solid var(--a-rule);
-  padding: 0;
   background: var(--a-panel);
   color: var(--a-ink);
   font-family: var(--a-ui);
 }
 
+/* The collapsed rail is a 56px strip of 36px control boxes; the component owns
+   that geometry now (the panel floats, it is not an in-flow column). Do not
+   re-pad, re-centre, or re-height the header row here: the theme's job is the
+   paint (border, ink, type), and any geometry override makes the logo jump
+   between the collapsed and expanded states. */
 html body [data-dsh-shell] [data-dsh-sidebar] [class*='_logoRow'] {
-  height: 49px;
-  padding: 0 18px;
-  gap: 9px;
   border-bottom: 1px solid var(--a-rule);
 }
 
@@ -220,7 +227,6 @@ html body [data-dsh-shell] [data-dsh-sidebar] button[class*='_newSession'] {
   padding: 0 10px;
   gap: 7px;
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   color: var(--a-ink-2);
   font: 500 12.5px/1 var(--a-ui);
@@ -242,7 +248,6 @@ html body [data-dsh-shell] [data-dsh-sidebar] [class*='_panelRow'] {
   height: 26px;
   padding: 0 10px;
   gap: 8px;
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-2);
   font: 500 11px/1 var(--a-ui);
   letter-spacing: 0.08em;
@@ -291,7 +296,6 @@ html body [data-dsh-shell] [data-dsh-sidebar] [class*='_searchInput'] {
   padding: 0 2px;
   border: 0;
   border-bottom: 1px solid var(--a-rule);
-  border-radius: 0;
   background: transparent;
   color: var(--a-ink);
   font: 400 12.5px/1 var(--a-ui);
@@ -318,7 +322,6 @@ html body [data-dsh-shell] [data-dsh-sidebar] [class*='_sessionRow'] {
   min-height: 29px;
   margin: 0 8px;
   padding: 0 8px;
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-2);
   font-size: 12.5px;
   line-height: 29px;
@@ -386,7 +389,6 @@ html body [data-dsh-shell] [data-dsh-sidebar] [class*='_footArea'] {
 html body [data-dsh-shell] [data-dsh-sidebar] [class*='_iconButton'] {
   width: 26px;
   height: 26px;
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-3);
 }
 
@@ -399,7 +401,9 @@ html body [data-dsh-shell] [data-dsh-sidebar] [class*='_iconButton']:hover {
    5. Header — one rule under a small line of type
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-dsh-header] {
-  height: 49px;
+  display: flex;
+  flex-direction: column;
+  height: 64px;
   min-height: 49px;
   padding: 0 var(--a-gutter);
   border: 0;
@@ -434,13 +438,20 @@ html body [data-dsh-shell] [data-dsh-header] [class*='_crumbSep'] {
   opacity: 1;
 }
 
+/* The module strip kept margin-top:10px and padding-left:8px, so its labels and
+   underline started 8px right of the crumb axis and overflowed the bar. */
 html body [data-dsh-shell] [data-dsh-header] [class*='_tabs'] {
   gap: 16px;
+  margin-top: auto;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 0;
+  width: 100%;
+  max-width: calc(var(--a-measure) + 2 * var(--a-gutter));
 }
 
 html body [data-dsh-shell] [data-dsh-header] button[class*='_tab'] {
   padding: 0 0 3px;
-  border-radius: 0;
   background: transparent;
   color: var(--a-ink-3);
   font: 500 10px/1 var(--a-ui);
@@ -453,8 +464,12 @@ html body [data-dsh-shell] [data-dsh-header] [class*='_tabActive'] {
   box-shadow: inset 0 -2px 0 var(--a-signal);
 }
 
+/* The module's own 2px bar sat at bottom:-1px, a pixel outside the button. */
+html body [data-dsh-shell] [data-dsh-header] [class*='_tabActive']::after {
+  content: none;
+}
+
 html body [data-dsh-shell] [data-dsh-header] button {
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-3);
 }
 
@@ -475,15 +490,22 @@ html body [data-dsh-shell] [data-dsh-hero] [data-dsh-hero-mark] {
   display: none;
 }
 
-html body [data-dsh-shell] [data-dsh-hero] [class*='_stack']::before {
-  content: '';
-  display: block;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 26px;
-  background-image: var(--a-pixels);
-  background-size: 48px 48px;
-  background-repeat: no-repeat;
+/* A symbol is never enclosed in a box: in the collapsed rail every control is
+   a bare glyph on the panel surface, its hit target carried by the element's
+   own box rather than by a drawn border. */
+html body [data-dsh-shell] [data-dsh-sidebar][data-collapsed] button[class*='_newSession'],
+html body [data-dsh-shell] [data-dsh-sidebar][data-collapsed] button[class*='_brand'],
+html body [data-dsh-shell] [data-dsh-sidebar][data-collapsed] button[class*='_iconButton'] {
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* The line over the hero was the composer seat's 2px top border; the empty
+   state has no divider there, only the entrance mark and the headline. */
+html body [data-dsh-shell] [class*='_composerSeat']:has([data-dsh-hero]) {
+  border-top-width: 0 !important;
+  border-top-style: none !important;
 }
 
 html body [data-dsh-shell] [data-dsh-hero] [class*='_stack'] {
@@ -526,7 +548,6 @@ html body [data-dsh-shell] [data-dsh-hero] button[class*='_workspace'] {
   padding: 0 10px;
   gap: 7px;
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   color: var(--a-ink-2);
   font: 500 12.5px/1 var(--a-ui);
@@ -553,6 +574,15 @@ html body [data-dsh-shell] [data-chat-flow] {
 
 html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind] {
   position: relative;
+  padding-left: var(--a-inset);
+  padding-right: var(--a-inset);
+}
+
+/* Pending bubbles, the older-history bar, hints and the turn status are direct
+   children of the flow with no kind, so they painted at the raw column edge
+   while every durable row started at the measure. */
+html body [data-dsh-shell] [data-chat-flow] > :not([data-chat-flow-kind]) {
+  box-sizing: border-box;
   padding-left: var(--a-inset);
   padding-right: var(--a-inset);
 }
@@ -604,7 +634,6 @@ html body [data-dsh-shell] [data-dsh-bubble] {
   padding: 12px 14px 12px 16px;
   border: 0;
   border-left: 2px solid var(--a-signal);
-  border-radius: 0 var(--a-r) var(--a-r) 0;
   background: var(--a-panel);
   box-shadow: none;
   font-family: var(--a-ui);
@@ -630,7 +659,6 @@ html body [data-dsh-shell] [data-dsh-bubble] :is(code, pre) {
   font-size: 13px;
   background: var(--a-panel-2);
   padding: 1px 4px;
-  border-radius: var(--a-r-sm);
 }
 
 html body [data-dsh-shell] [data-dsh-attachments] {
@@ -639,7 +667,6 @@ html body [data-dsh-shell] [data-dsh-attachments] {
 
 html body [data-dsh-shell] [class*='_fileCard'] {
   border: 1px solid var(--a-rule);
-  border-radius: var(--a-r-sm);
   background: var(--a-panel);
 }
 
@@ -655,8 +682,8 @@ html body [data-dsh-shell] [class*='_fileMeta'] {
 
 /* Answers. */
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] {
-  padding-top: 18px;
-  padding-bottom: 12px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'],
@@ -713,24 +740,24 @@ html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] .body strong 
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'] :not(pre) > code,
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] .body :not(pre) > code {
   padding: 1px 4px;
-  border-radius: var(--a-r-sm);
   background: var(--a-panel);
   font-family: var(--a-mono);
   font-size: 13px;
   color: var(--a-signal);
 }
 
-html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'] pre,
-html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] .body pre {
+html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_block'] {
   margin: 1.1em 0;
-  padding: 12px 14px;
   border: 1px solid var(--a-rule);
-  border-radius: var(--a-r);
   background: var(--a-panel);
-  font-family: var(--a-mono);
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: var(--a-ink-2);
+}
+
+
+/* A fence renders through CodeBlock — a card with a sticky banner — so
+   the pre's own 1px border sat inside that card and the two
+   frames never met. The card owns the frame; the pre is only its body. */
+html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_block'] pre {
+  border: 0;
 }
 
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'] blockquote,
@@ -795,7 +822,6 @@ html body [data-dsh-shell] [data-work-group] {
   padding: 0;
   border-top: 1px solid var(--a-rule-2);
   border-bottom: 1px solid var(--a-rule-2);
-  border-radius: 0;
   background: transparent;
 }
 
@@ -854,15 +880,24 @@ html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] .inspec
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] [class*='_bodyWrap'] {
   margin-top: 8px;
   border: 1px solid var(--a-rule);
-  border-radius: var(--a-r);
   background: var(--a-panel);
 }
 
+/* Every expanded body kept the module's 4px left margin and its own 0.5px card,
+   so the wrapper showed a sliver of fill on one side only. */
+html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] [class*='_bodyWrap'] :is([class*='_codeBody'], [class*='_terminalBody'], [class*='_diffBody'], [class*='_readBody'], [class*='_imageBody'], [class*='_searchBody'], [class*='_webBody'], [class*='_ioCard'], [class*='_detached'], [class*='_searchRecovery']) {
+  margin: 4px 0;
+  border: 0;
+  background: transparent;
+}
+
+/* The retry summary is width:fit-content in the module, so its ledger hairline
+   spanned only the text instead of the measure. */
 html body [data-dsh-shell] [class*='_compactionButton'],
 html body [data-dsh-shell] [class*='_retrySummary'] {
+  width: 100%;
   border: 0;
   border-bottom: 1px solid var(--a-rule);
-  border-radius: 0;
   background: transparent;
   font: 400 12px/1.5 var(--a-ui);
   color: var(--a-ink-2);
@@ -872,7 +907,6 @@ html body [data-dsh-shell] [class*='_turnErrorRow'] {
   padding: 10px 12px;
   border: 0;
   border-left: 2px solid var(--a-err);
-  border-radius: 0;
   background: color-mix(in oklab, var(--a-err) 6%, transparent);
 }
 
@@ -896,7 +930,6 @@ html body [data-dsh-shell] [class*='_turnStatusSpinner'] {
 html body [data-dsh-shell] [class*='_turnRailButton'] {
   width: 18px;
   height: 16px;
-  border-radius: 0;
 }
 
 html body [data-dsh-shell] [class*='_turnRailNumber'] {
@@ -915,7 +948,6 @@ html body [data-dsh-shell] [class*='_turnRailButton'][data-active] [class*='_tur
 
 html body [data-dsh-shell] [class*='_older'] button {
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   padding: 5px 11px;
   font: 500 10px/1 var(--a-ui);
@@ -929,7 +961,6 @@ html body [data-dsh-shell] button[class*='_toBottom'] {
   height: 32px;
   margin-top: -32px;
   border: 1px solid var(--a-rule-2);
-  border-radius: 50%;
   background: var(--a-paper);
   box-shadow: none;
   color: var(--a-ink-2);
@@ -940,13 +971,27 @@ html body [data-dsh-shell] [class*='_hint'] {
   color: var(--a-ink-3);
 }
 
+/* The trajectory ledger inherits two platform tokens the dark sheet resolves to
+   transparent, so its sticky header row and its chips painted nothing and their
+   hairlines floated over the rows scrolling underneath. */
+html body [data-dsh-shell] [data-conversation-composer-overlay] {
+  --dsw-specific-sidebar-fill: var(--a-paper);
+  --dsw-alias-bg-module-platform: var(--a-panel-2);
+}
+
 /* --------------------------------------------------------------------------
    8. Composer — ruled off, on the same axis
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-composer-seat] {
   border-top: 2px solid var(--a-signal);
-  background: var(--a-paper);
   padding-top: 12px;
+}
+
+/* The module paints a phase gradient on the seat (.root[data-phase='active']
+   .composerSeat) whose top band is transparent, so the transcript showed through
+   the strip under the rule. Doubling the attribute outranks that rule. */
+html body [data-dsh-shell] [data-composer-seat][data-composer-seat] {
+  background: var(--a-paper);
 }
 
 html body [data-dsh-shell] [class*='_composerStack'] {
@@ -965,7 +1010,6 @@ html body [data-dsh-shell] [class*='_composerStack'] [class*='_root'] {
 html body [data-dsh-shell] [data-composer-card] {
   width: 100%;
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   box-shadow: none;
   transition: border-color 120ms ease;
@@ -976,30 +1020,40 @@ html body [data-dsh-shell] [data-composer-card]:focus-within {
 }
 
 html body [data-dsh-shell] [data-input-scroll] {
-  padding: 2px 14px 0;
+  margin-right: 0;
+  padding: 0 14px;
 }
 
+/* Top-anchored, not centred: text and caret start on the placeholder line. */
 html body [data-dsh-shell] [data-composer-input] {
   min-height: 28px;
-  padding: 12px 0;
+  padding: 4px 0 12px;
   font-family: var(--a-ui);
   font-size: 15px;
   line-height: 1.6;
   color: var(--a-ink);
   caret-color: var(--a-signal);
+  outline: none;
+}
+
+/* A contenteditable always matches :focus-visible; the card border is the signal. */
+html body [data-dsh-shell] [data-composer-input]:focus-visible,
+html body [data-dsh-shell] [data-composer-input] :focus-visible {
+  outline: none;
 }
 
 html body [data-dsh-shell] [data-composer-placeholder] {
+  top: 4px;
+  left: 0;
   font: 400 15px/1.6 var(--a-ui);
   color: var(--a-ink-3);
 }
 
 html body [data-dsh-shell] [data-composer-card] [class*='_row'] {
   min-height: 38px;
-  margin: 0 12px;
-  padding: 0 0 6px;
+  margin: 0;
+  padding: 0 14px 6px;
   gap: 4px;
-  border-top: 1px solid var(--a-rule);
 }
 
 html body [data-dsh-shell] [data-composer-card] [class*='_tools'],
@@ -1011,7 +1065,6 @@ html body [data-dsh-shell] [data-composer-card] [class*='_trailing'] {
 html body [data-dsh-shell] [data-composer-card] [class*='_add'] {
   width: 26px;
   height: 26px;
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-2);
 }
 
@@ -1023,7 +1076,6 @@ html body [data-dsh-shell] [data-composer-card] [class*='_add']:hover {
 html body [data-dsh-shell] [data-composer-card] [class*='_primary'] {
   width: 30px;
   height: 30px;
-  border-radius: var(--a-r-sm);
   background: var(--a-signal);
   color: var(--a-paper);
   box-shadow: none;
@@ -1050,7 +1102,6 @@ html body [data-dsh-shell] [data-composer-card] [class*='_label'] {
 
 html body [data-dsh-shell] [data-composer-card] [class*='_popover'] {
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   box-shadow: none;
 }
@@ -1060,7 +1111,6 @@ html body [data-dsh-shell] [data-composer-card] [class*='_popover'] {
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-testid='todo-panel'] {
   border: 1px solid var(--a-rule);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   box-shadow: none;
 }
@@ -1104,7 +1154,6 @@ html body [data-dsh-shell] [data-testid='todo-panel'] [class*='_glyph'] {
 html body [data-dsh-shell] [data-approval-key] [class*='_card'] {
   border: 1px solid var(--a-rule-2);
   border-left: 2px solid var(--a-err);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   box-shadow: none;
 }
@@ -1135,7 +1184,6 @@ html body [data-dsh-shell] [data-approval-key] [class*='_headline'] {
 html body [data-dsh-shell] [data-approval-key] [class*='_command'] {
   padding: 9px 11px;
   border: 1px solid var(--a-rule);
-  border-radius: var(--a-r-sm);
   background: var(--a-panel);
   font: 400 12px/1.6 var(--a-mono);
   color: var(--a-ink-2);
@@ -1147,7 +1195,6 @@ html body [data-dsh-shell] [data-approval-key] [class*='_actionRow'] {
 }
 
 html body [data-dsh-shell] [data-approval-key] [class*='_actionRow'] button {
-  border-radius: var(--a-r);
   font: 500 10px/1 var(--a-ui);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1155,7 +1202,6 @@ html body [data-dsh-shell] [data-approval-key] [class*='_actionRow'] button {
 
 html body [data-dsh-shell] [data-question-key] section > [class*='_card'] {
   border: 1px solid var(--a-rule-2);
-  border-radius: var(--a-r);
   background: var(--a-paper);
   box-shadow: none;
 }
@@ -1193,7 +1239,6 @@ html body [data-dsh-shell] [data-dsh-question-option] {
   padding: 12px 2px;
   border: 0;
   border-top: 1px solid var(--a-rule);
-  border-radius: 0;
   background: transparent;
   box-shadow: none;
   transition: none;
@@ -1236,7 +1281,6 @@ html body [data-dsh-shell] [data-question-key] section > [class*='_footer'] {
 }
 
 html body [data-dsh-shell] [data-question-key] [class*='_footer'] button {
-  border-radius: var(--a-r);
   font: 500 10px/1 var(--a-ui);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1257,7 +1301,6 @@ html body [data-dsh-shell] [data-sidebar-right-panel] [class*='_dockArea'] {
 }
 
 html body [data-dsh-shell] [data-sidebar-right-panel] button {
-  border-radius: var(--a-r-sm);
   color: var(--a-ink-3);
 }
 
@@ -1285,7 +1328,6 @@ html body ::-webkit-scrollbar-track {
 
 html body ::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
-  border-radius: 0;
   background: var(--a-rule-2);
   background-clip: content-box;
 }
@@ -1296,7 +1338,6 @@ html body ::selection {
 }
 
 html body [data-dsh-shell] [role='dialog'] {
-  border-radius: var(--a-r);
   background: var(--a-paper);
 }
 
@@ -1358,8 +1399,10 @@ html body::after {
                Settled calls get a 480ms colour ease back to rest.
 
    Nothing is animated on mount for the transcript at large: no entrance on
-   prompts, no entrance on tool rows, no page-wide blend layer. At rest
-   document.getAnimations() is empty, which is the check that matters.
+   prompts, no entrance on tool rows, no entrance on old rows scrolling into view.
+   A streaming reply's markdown blocks surface as they freeze, character by
+   character; at rest document.getAnimations() is empty, which is the check that
+   matters.
 
    Geometry never changes: opacity, transform and colour only. A row is the
    same height mid-animation as after it, so the scroll ledger in ChatView
@@ -1424,7 +1467,6 @@ html body [data-dsh-shell] [data-dsh-header] button {
   color: var(--a-ink-3);
   background: transparent;
   border: 0;
-  border-radius: 0;
   padding: 6px 2px;
   transition: color 120ms var(--a-ease);
 }
@@ -1454,7 +1496,6 @@ html body [data-dsh-shell] [data-composer-seat] :is([class*='_primary'], button[
   background: var(--a-signal);
   color: #FFFFFF;
   border: 0;
-  border-radius: var(--a-r);
   transition: background-color 120ms var(--a-ease), transform 120ms var(--a-ease);
 }
 
@@ -1526,15 +1567,37 @@ html body [data-dsh-shell] [data-streaming] [class*='_body'] > *:last-child::aft
   width: 6px;
   height: 1em;
   margin-left: 5px;
-  border-radius: 1px;
   background: var(--a-foam);
   vertical-align: text-bottom;
   animation: tide-caret 1.6s ease-in-out infinite;
 }
 
-/* The newest row rises in; older rows never re-animate. */
-html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind]:last-child {
-  animation: surf-up 320ms var(--a-ease) both;
+/* The turn tail (copy, thumbs, branch, usage, clock) waits for the reveal: while a
+   reply is still sweeping its markdown root carries data-revealing, so the tail is
+   out of sight and its entrance is held at frame zero. `visibility` rather than
+   `display` so the box still holds the scroll position, and `animation-play-state`
+   rather than a delay because only the renderer knows how long the sweep has left.
+   When the last character lands the gate lifts and the row raises in from just
+   below, fading up through foam to its own colour, in place. */
+@keyframes tail-raise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    color: var(--a-foam);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='turn-tail'] {
+  animation: tail-raise var(--a-dur) var(--a-ease);
+}
+
+html body [data-dsh-shell] [data-chat-flow]:has([data-revealing='true']) > [data-chat-flow-kind='turn-tail'] {
+  visibility: hidden;
+  animation-play-state: paused;
 }
 
 /* The swimming mark: stock motion is left intact — only its box is corrected,

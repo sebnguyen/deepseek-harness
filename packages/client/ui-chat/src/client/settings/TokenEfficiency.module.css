@@ -14,8 +14,6 @@
   padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
-  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -37,8 +35,6 @@
   justify-content: center;
   gap: 0;
   padding: 0;
-  border-radius: 50%;
-  corner-shape: round;
 }
 
 /* Icon-only entry: the wide label bows out; the button's aria-label keeps
@@ -73,7 +69,6 @@
   overflow: auto;
   padding: 20px 24px;
   border: 0;
-  border-radius: 32px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-elevation-prominent);
   /* Elevated surface: scrollbar thumb rebinding matches the settings panel. */
@@ -101,7 +96,6 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -125,7 +119,6 @@
   flex-direction: column;
   gap: 2px;
   padding: 8px 12px;
-  border-radius: 12px;
   background: var(--dsw-alias-bg-module-platform);
 }
 
@@ -197,7 +190,6 @@
 .mix {
   display: flex;
   height: 6px;
-  border-radius: 3px;
   overflow: hidden;
   background: var(--dsw-alias-bg-module-platform);
   cursor: help;
@@ -211,7 +203,6 @@
 .trackEmpty {
   display: block;
   height: 6px;
-  border-radius: 3px;
   background: var(--dsw-alias-bg-module-platform);
 }
 
@@ -248,7 +239,6 @@
   display: inline-block;
   min-width: 40px;
   padding: 0 7px;
-  border-radius: 9px;
   line-height: 18px;
   text-align: center;
   cursor: help;
@@ -285,7 +275,6 @@
   height: 18px;
   margin-right: 4px;
   border: none;
-  border-radius: 5px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -317,7 +306,6 @@
   display: inline-block;
   width: 8px;
   height: 8px;
-  border-radius: 2px;
   margin-right: 5px;
 }
 
@@ -329,7 +317,6 @@
   margin-top: 16px;
   padding: 28px;
   border: 1px dashed var(--dsw-alias-border-l2);
-  border-radius: 12px;
   text-align: center;
   color: var(--dsw-alias-label-tertiary);
 }

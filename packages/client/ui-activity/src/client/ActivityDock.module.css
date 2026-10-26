@@ -22,7 +22,6 @@
   min-height: 28px;
   padding: 3px 2px;
   border: 0;
-  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
@@ -112,7 +111,6 @@
   width: 100%;
   padding: 8px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
   background: var(--dsw-specific-menu);
 }
 
@@ -208,7 +206,6 @@
   min-height: 28px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -235,7 +232,6 @@
 .side {
   flex: none;
   padding: 0 6px;
-  border-radius: 5px;
   background: var(--dsw-alias-fill-l2);
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;
@@ -281,7 +277,6 @@
   min-height: 24px;
   padding: 2px 8px;
   border: 0;
-  border-radius: 6px;
   background: var(--dsw-alias-fill-l2);
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -308,7 +303,6 @@
   min-height: 0;
   overflow: auto;
   padding: 6px 8px;
-  border-radius: 8px;
   background: var(--dsw-alias-fill-l2);
   color: var(--dsw-alias-label-secondary);
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);

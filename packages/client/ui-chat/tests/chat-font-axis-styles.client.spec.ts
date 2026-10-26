@@ -74,16 +74,14 @@ describe('chat flow font-size axis', () => {
     ]))
   })
 
-  it('expanded bodies indent by 22px + delta so content stays under the shifted title start', () => {
-    // The DisclosureRow title starts at leading (16 + delta) + gap 6; a fixed
-    // 22px indent would misalign at every non-default size.
-    const indent = 'calc(22px + var(--dsh-content-font-delta, 0px))'
+  it('expanded bodies stay flat with the head so content reads as one column', () => {
+    // The body is flush with the row: no indent under the mark, at any size.
     expect(declarationsFrom(read('ReasoningRow.module.css'), '.thinkBody'))
-      .toEqual(expect.arrayContaining([`padding: 4px 0 4px ${indent}`]))
+      .toEqual(expect.arrayContaining(['padding: 4px 0']))
     expect(declarationsFrom(read('MessageItem.module.css'), '.compactionBody'))
-      .toEqual(expect.arrayContaining([`padding: 4px 0 4px ${indent}`]))
+      .toEqual(expect.arrayContaining(['padding: 4px 0']))
     expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.body'))
-      .toEqual(expect.arrayContaining([`margin: 4px 0 0 ${indent}`]))
+      .toEqual(expect.arrayContaining(['margin: 4px 0 0']))
   })
 
   it('the usage-details trigger reads the secondary tier like its clock label', () => {

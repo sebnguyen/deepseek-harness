@@ -5,7 +5,7 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import {
   IconCheckOutline16, IconChevronDownOutline14, IconChevronUpOutline14, IconCloseOutline16,
-  FileTypeIcon, fileSizeText, IconEditOutline16, IconQueueOutline14, IconSendOutline14,
+  FileTypeIcon, fileSizeText, IconEditOutline16, PixelGlyph, IconSendOutline14,
   IconTrashOutline16, projectUserText, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { QueueAction, QueueItemId, QueueRow } from '../contract/queue.ts'
@@ -154,7 +154,7 @@ export function QueueDock({ useSession, updateQueue, notify, loadImage, t }: Que
             disabled={interactionActive}
             onClick={() => { setCollapsed(value => !value) }}
           >
-            <span className={css.lead} aria-hidden><IconQueueOutline14 /></span>
+            <span className={css.lead} aria-hidden><PixelGlyph name="folder-open" size={16} /></span>
             <span className={css.count}>{t('queue.count', { n: rowCount })}</span>
             {!listVisible && pendingQueue.length > 0 && (
               <span className={css.status} role="status">{t('queue.sending')}</span>
@@ -170,7 +170,7 @@ export function QueueDock({ useSession, updateQueue, notify, loadImage, t }: Que
             return (
               <li key={row.id} className={css.row}>
                 {/* Single-item strip has no count header, so the row itself carries the queue glyph. */}
-                {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutline14 /></span>}
+                {rowCount === 1 && <span className={css.lead} aria-hidden><PixelGlyph name="folder-open" size={16} /></span>}
                 {editing?.id === row.id
                   ? (
                     <input
@@ -306,7 +306,7 @@ export function QueueDock({ useSession, updateQueue, notify, loadImage, t }: Que
           {listVisible && pendingQueue.map((submission) => {
             return (
               <li key={submission.requestId} className={`${css.row} ${css.pendingRow}`} data-submission-echo="">
-                {rowCount === 1 && <span className={css.lead} aria-hidden><IconQueueOutline14 /></span>}
+                {rowCount === 1 && <span className={css.lead} aria-hidden><PixelGlyph name="folder-open" size={16} /></span>}
                 {submission.attachments.length > 0 && (
                   <span className={css.attachments}>
                     {submission.attachments.map((attachment, index) => attachment.type === 'image'

@@ -16,16 +16,12 @@
   width: 420px;
   padding: 4px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
   cursor: default;
 }
 
 /* One accordion section. */
-.section {
-  border-radius: 6px;
-}
 
 .section + .section {
   margin-top: 2px;
@@ -38,7 +34,6 @@
   width: 100%;
   padding: 4px 6px;
   border: 0;
-  border-radius: 6px;
   background: none;
   cursor: pointer;
   text-align: left;
@@ -83,7 +78,6 @@
   max-height: 160px;
   overflow: auto;
   padding: 6px 8px;
-  border-radius: 6px;
   background: var(--dsw-alias-bg-layer-3);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
@@ -122,7 +116,6 @@
   gap: 5px;
   padding: 4px 8px;
   border: 0;
-  border-radius: 8px;
   background: none;
   cursor: pointer;
   font: inherit;
@@ -153,16 +146,12 @@
   overflow: auto;
   padding: 4px;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
   background: var(--dsw-alias-bg-layer-2);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
 }
 
-.menuItem {
-  border-radius: 8px;
-}
 
 .menuRow {
   display: flex;
@@ -171,7 +160,6 @@
   width: 100%;
   padding: 6px 8px;
   border: 0;
-  border-radius: 8px;
   background: none;
   cursor: pointer;
   text-align: left;

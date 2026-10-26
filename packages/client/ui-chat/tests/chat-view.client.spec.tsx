@@ -445,6 +445,30 @@ function installScrollMetrics(element: HTMLElement, initialHeight: number, clien
   }
 }
 
+/** jsdom has no compositor: queue animation frames and drain them on demand, so
+ *  an eased follow is asserted at the position it settles on, not on a timer. */
+function frameClock() {
+  const frames = new Map<number, FrameRequestCallback>()
+  let next = 0
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    next += 1
+    frames.set(next, callback)
+    return next
+  })
+  vi.stubGlobal('cancelAnimationFrame', (id: number) => { frames.delete(id) })
+  return {
+    /** Deliver frames until the follower stops scheduling more. */
+    settle: (): void => {
+      for (let pass = 0; pass < 240 && frames.size > 0; pass += 1) {
+        const pending = [...frames.values()]
+        frames.clear()
+        for (const callback of pending) callback(pass * (1_000 / 60))
+      }
+      expect(frames.size).toBe(0)
+    },
+  }
+}
+
 describe('Chat node rendering', () => {
 
   it('threads the injected file-mention vocabulary into the closing prose only', () => {
@@ -994,15 +1018,15 @@ describe('ChatView', () => {
     } as const satisfies ConversationNode
     const h = makeHarness({ nodes: [user(1, 'try'), retryNode] }, { running: true })
     const view = render(<h.ChatView {...h.props} />)
-    const disclosure = view.container.querySelector('details') as HTMLDetailsElement
-    expect(disclosure.dataset.active).toBe('true')
+    const disclosure = view.container.querySelector('[data-pce="retry"]') as HTMLElement
+    expect(disclosure.getAttribute('data-state')).toBe('running')
     expect(within(disclosure).getByRole('status').textContent).toBe('正在重试模型请求（1/2） · 1s')
 
     act(() => {
       h.setChat({ nodes: [user(1, 'try'), nextRetry] })
     })
     expect(within(disclosure).getAllByRole('status')).toHaveLength(1)
-    expect(view.container.querySelector('details')).toBe(disclosure)
+    expect(view.container.querySelector('[data-pce="retry"]')).toBe(disclosure)
     expect(within(disclosure).getByRole('status').textContent).toBe('正在重试模型请求（2/2） · 1s')
 
     act(() => {
@@ -1023,8 +1047,8 @@ describe('ChatView', () => {
       h.setChat({ nodes: [user(1, 'try'), { ...retry(6), retryState: 'cancelled' }] })
       h.setSession({ running: true })
     })
-    const cancelledDisclosure = view.container.querySelector('details') as HTMLDetailsElement
-    expect(cancelledDisclosure.dataset.active).toBeUndefined()
+    const cancelledDisclosure = view.container.querySelector('[data-pce="retry"]') as HTMLElement
+    expect(cancelledDisclosure.getAttribute('data-state')).toBe('ok')
     expect(within(cancelledDisclosure).getByRole('status').textContent).toContain('重试已取消')
   })
 
@@ -1116,7 +1140,7 @@ describe('ChatView', () => {
     })
     const view = render(<h.ChatView {...h.props} />)
     // The exact turn/end includes trailing tool activity after the final text.
-    expect(view.container.querySelector('[data-turn-tail="1"]')?.textContent).toContain('用时 19秒')
+    expect(view.container.querySelector('[data-turn-tail="1"]')?.textContent).toContain('19秒')
   })
 
   it('the actions-owning assistant footer shows an hour-scale run time', () => {
@@ -1132,7 +1156,7 @@ describe('ChatView', () => {
     })
     const view = render(<h.ChatView {...h.props} />)
     expect(view.container.querySelector('[data-turn-tail="1"]')?.textContent)
-      .toContain('用时 1小时05分03秒')
+      .toContain('1小时05分03秒')
   })
 
   it('the settled footer exposes ttft, decode throughput, and usage as the details trigger', () => {
@@ -1159,8 +1183,8 @@ describe('ChatView', () => {
     })
     const view = render(<h.ChatView {...h.props} />)
     // The usage pill carries the compact total; cache hit stays dialog-only.
-    const trigger = view.getByRole('button', { name: /用量 10\.1K tok/ })
-    expect(trigger.textContent).toBe('用量 10.1K tok')
+    const trigger = view.getByRole('button', { name: /10\.1K tok/ })
+    expect(trigger.textContent).toBe('10.1K tok')
     expect(view.queryByRole('dialog')).toBeNull()
     fireEvent.click(trigger)
     const dialog = view.getByRole('dialog')
@@ -1172,7 +1196,7 @@ describe('ChatView', () => {
     // The time pill carries the run time; first-step ttft (1.2s) and 100
     // tokens over 5s of decode move into its dialog.
     const timeTrigger = view.getByRole('button', { name: /用时 19秒/ })
-    expect(timeTrigger.textContent).toBe('用时 19秒')
+    expect(timeTrigger.textContent).toBe('19秒')
     expect(view.queryByText(/速度 20 tok\/s|首 token/)).toBeNull()
     fireEvent.click(timeTrigger)
     const timeDialog = view.getByRole('dialog')
@@ -1197,7 +1221,7 @@ describe('ChatView', () => {
     // Timing facts keep their pill, but with no usage in the window there is
     // no usage pill to click.
     expect(view.getByRole('button', { name: /用时/ })).toBeTruthy()
-    expect(view.queryByRole('button', { name: /用量/ })).toBeNull()
+    expect(view.queryByRole('button', { name: /tok$/ })).toBeNull()
   })
 
   it('withholds ttft and throughput while the turn is still running', () => {
@@ -1313,6 +1337,12 @@ describe('ChatView', () => {
     act(() => {
       h.setChat({ partial: { turn: 2, step: 1, blocks: [{ kind: 'text', text: markdown }] } })
     })
+    // A fresh partial starts with the whole buffer unstable, so nothing is frozen
+    // yet and only the history message has a heading.
+    expect(view.container.querySelectorAll('h1')).toHaveLength(1)
+    act(() => {
+      h.setChat({ partial: { turn: 2, step: 1, blocks: [{ kind: 'text', text: `${markdown}\n\nmore prose` }] } })
+    })
     expect(view.container.querySelectorAll('h1')).toHaveLength(2)
     expect(view.container.querySelector('[data-streaming="true"] h1')?.textContent).toBe('Rendered')
 
@@ -1352,10 +1382,21 @@ describe('ChatView', () => {
       h.setChat({ partial: { turn: 2, step: 1, blocks: [{ kind: 'text', text: 'streaming… more' }] } })
     })
     // getByText only joins an element's own text nodes, and the fade suffix
-    // is a nested [data-tail] span: assert the block's full textContent.
+    // is a nested [data-tail] span: assert the body's full textContent.
     const streamingBody = view.container.querySelector('[data-streaming="true"]')
-    expect(streamingBody?.textContent).toBe('streaming… more')
-    expect(streamingBody?.querySelector('[data-tail]')?.textContent).toBe(' more')
+    // Only frozen blocks render while streaming: a lone growing paragraph is the
+    // parser's unstable tail, so the body stays empty until the prose contains a
+    // second block.
+    expect(streamingBody?.textContent).toBe('')
+    act(() => {
+      h.setChat({
+        partial: { turn: 2, step: 1, blocks: [{ kind: 'text', text: 'streaming… more\n\nand a second paragraph' }] },
+      })
+    })
+    // Frozen now: it mounts behind the veil, and the replay sweeps it in on its
+    // own clock rather than following the chunk boundary.
+    expect(view.container.querySelector('[data-veil]')?.textContent).toBe('streaming… more')
+    expect(view.container.querySelector('[data-tail]')).toBeNull()
     expect(view.getByTestId('tool-seat-a')).toBe(tool)
     expect(tool.innerHTML).toBe(beforeHtml)
   })
@@ -1560,6 +1601,7 @@ describe('ChatView', () => {
     )
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const clock = frameClock()
     // jsdom has no layout: fake the metrics the anchor math reads.
     Object.defineProperty(scroller, 'scrollHeight', { value: 1000, writable: true })
     Object.defineProperty(scroller, 'clientHeight', { value: 400, writable: true })
@@ -1583,6 +1625,7 @@ describe('ChatView', () => {
         nodes: [user(1, 'old'), assistant(2, 'b'), user(5, 'later'), assistant(6, 'a'), user(9, 'mine')],
       })
     })
+    clock.settle()
     expect(scroller.scrollTop).toBe(1600)
   })
 
@@ -1590,6 +1633,7 @@ describe('ChatView', () => {
     const h = makeHarness({ nodes: [user(9, 'late')] }, { hasMore: true })
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const clock = frameClock()
     Object.defineProperty(scroller, 'scrollHeight', { value: 800, writable: true })
     Object.defineProperty(scroller, 'clientHeight', { value: 200, writable: true })
     readerScroll(scroller, 50)
@@ -1597,6 +1641,7 @@ describe('ChatView', () => {
     fireEvent.click(view.getByLabelText('回到底部'))
     Object.defineProperty(scroller, 'scrollHeight', { value: 1_300, writable: true })
     act(() => { h.setChat({ nodes: [assistant(2, 'older'), user(9, 'late')] }) })
+    clock.settle()
     expect(scroller.scrollTop).toBe(1_300)
     expect(h.chatScroll.read()).toBeNull()
   })
@@ -1607,6 +1652,7 @@ describe('ChatView', () => {
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     Object.defineProperty(scroller, 'scrollHeight', { value: 1000, writable: true })
     Object.defineProperty(scroller, 'clientHeight', { value: 300, writable: true })
+    const clock = frameClock()
     readerScroll(scroller, 100) // far from bottom
     const backButton = view.getByLabelText('回到底部')
     expect(backButton).toBeTruthy()
@@ -1616,6 +1662,7 @@ describe('ChatView', () => {
     })
     expect(scroller.scrollTop).toBe(100)
     fireEvent.click(backButton)
+    clock.settle()
     expect(scroller.scrollTop).toBe(1000)
     // At the bottom again: follow re-arms and the button unmounts.
     expect(view.queryByLabelText('回到底部')).toBeNull()
@@ -1626,6 +1673,7 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     const metrics = installScrollMetrics(scroller, 1_000, 300)
+    const clock = frameClock()
     scroller.scrollTop = 700
     fireEvent.scroll(scroller)
 
@@ -1641,6 +1689,7 @@ describe('ChatView', () => {
 
     metrics.setHeight(1_200)
     act(() => { h.setSession({ running: true }) })
+    clock.settle()
     expect(scroller.scrollTop).toBe(900)
   })
 
@@ -1649,6 +1698,7 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     const metrics = installScrollMetrics(scroller, 1_000, 300)
+    const clock = frameClock()
     scroller.scrollTop = 700
     fireEvent.scroll(scroller)
     fireEvent(scroller, new Event('scrollend'))
@@ -1659,6 +1709,7 @@ describe('ChatView', () => {
     act(() => { h.setSession({ running: true }) })
     fireEvent(scroller, new Event('scrollend'))
 
+    clock.settle()
     expect(scroller.scrollTop).toBe(662)
     expect(view.queryByLabelText('回到底部')).toBeNull()
     expect(h.chatScroll.read()).toBeNull()
@@ -1678,6 +1729,7 @@ describe('ChatView', () => {
     const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const clock = frameClock()
     const metrics = installScrollMetrics(scroller, 9_931, 300)
     expect(notify).toBeDefined()
     scroller.scrollTop = 9_631
@@ -1690,10 +1742,12 @@ describe('ChatView', () => {
       fireEvent.scroll(scroller)
       metrics.setHeight(10_013)
       act(() => { notify?.() })
+      clock.settle()
       expect(scroller.scrollTop).toBe(9_713)
       fireEvent.scroll(scroller)
       metrics.setHeight(10_093)
       act(() => { notify?.() })
+      clock.settle()
       expect(scroller.scrollTop).toBe(9_793)
       expect(rect).not.toHaveBeenCalled()
       expect(h.chatScroll.read()).toBeNull()
@@ -1746,11 +1800,13 @@ describe('ChatView', () => {
     fireEvent.scroll(scroller)
     fireEvent(scroller, new Event('scrollend'))
     scroller.scrollTop = 400
+    const clock = frameClock()
     fireEvent.scroll(scroller)
     fireEvent.click(view.getByLabelText('回到底部'))
     fireEvent.scroll(scroller)
     metrics.setHeight(1_200)
     act(() => { h.setSession({ running: true }) })
+    clock.settle()
     expect(scroller.scrollTop).toBe(900)
     expect(h.chatScroll.read()).toBeNull()
   })
@@ -1832,6 +1888,7 @@ describe('ChatView', () => {
     const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const clock = frameClock()
     Object.defineProperty(scroller, 'scrollHeight', { value: 1_000, writable: true })
     Object.defineProperty(scroller, 'clientHeight', { value: 300, writable: true })
     scroller.scrollTop = 700
@@ -1839,6 +1896,7 @@ describe('ChatView', () => {
     fireEvent(scroller, new Event('scrollend'))
     Object.defineProperty(scroller, 'scrollHeight', { value: 1_200, writable: true })
     act(() => { notify?.() })
+    clock.settle()
     expect(scroller.scrollTop).toBe(1_200)
     readerScroll(scroller, 200)
     Object.defineProperty(scroller, 'scrollHeight', { value: 1_400, writable: true })
@@ -1849,14 +1907,7 @@ describe('ChatView', () => {
 
   it('pinned dynamic-height updates stay on the floor without reading row geometry', () => {
     let notify: (() => void) | undefined
-    let nextFrame = 0
-    const frames = new Map<number, FrameRequestCallback>()
-    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      nextFrame += 1
-      frames.set(nextFrame, callback)
-      return nextFrame
-    })
-    vi.stubGlobal('cancelAnimationFrame', (id: number) => { frames.delete(id) })
+    const clock = frameClock()
     class ResizeObserverStub {
       constructor(callback: ResizeObserverCallback) {
         notify = () => { callback([], this as unknown as ResizeObserver) }
@@ -1879,20 +1930,11 @@ describe('ChatView', () => {
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     const metrics = installScrollMetrics(scroller, 1_000, 300)
     scroller.scrollTop = 700
-    act(() => {
-      const pending = [...frames.values()]
-      frames.clear()
-      for (const callback of pending) callback(0)
-    })
     rect.mockClear()
 
     metrics.setHeight(1_200)
     act(() => { notify?.() })
-    act(() => {
-      const pending = [...frames.values()]
-      frames.clear()
-      for (const callback of pending) callback(0)
-    })
+    clock.settle()
 
     expect(scroller.scrollTop).toBe(900)
     expect(rect).not.toHaveBeenCalled()
@@ -1921,11 +1963,13 @@ describe('ChatView', () => {
     try {
       const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
       const view = render(<h.ChatView {...h.props} />, { container: host })
-      // Open jump uses the host, not the local .scroll node.
+      // The open jump is a restore, not a carry: it lands before the first frame.
       expect(host.scrollTop).toBe(2000)
+      const clock = frameClock()
       readerScroll(host, 100)
       expect(view.getByLabelText('回到底部')).toBeTruthy()
       fireEvent.click(view.getByLabelText('回到底部'))
+      clock.settle()
       expect(host.scrollTop).toBe(2000)
     } finally {
       host.remove()
@@ -2079,7 +2123,7 @@ describe('ChatView', () => {
       nodes: [command({ seq: 8, commandId: 'cmd-4' as CommandNode['commandId'], name: null, args: null, outcome: { kind: 'success' } })],
     })
     const ov = render(<orphan.ChatView {...orphan.props} />)
-    expect(ov.getByText('指令')).toBeTruthy()
+    expect(ov.getAllByText('指令').length).toBeGreaterThan(0)
     expect(ov.getByText('已完成')).toBeTruthy()
   })
 

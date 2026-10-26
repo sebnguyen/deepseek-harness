@@ -73,6 +73,8 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
   )
   const view = render(root())
   return {
+    container: view.container,
+    unmount: view.unmount,
     startSession,
     toggleSidebar,
     regionOwner: () => {
@@ -94,8 +96,18 @@ function mountShell({ collapsed = false, width = 300 }: { collapsed?: boolean; w
   }
 }
 
+type SlideStub = {
+  playState: AnimationPlayState
+  cancel: ReturnType<typeof vi.fn>
+}
+
+/** One fake WAAPI animation the width slide can hold on to. */
+function slideStub(playState: AnimationPlayState = 'running'): SlideStub {
+  return { playState, cancel: vi.fn() }
+}
+
 describe('SidebarRoot shell', () => {
-  it('routes New Session (capsule + wordmark) and the column toggle', () => {
+  it('routes New Session (capsule + wordmark)', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
     expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
@@ -104,8 +116,6 @@ describe('SidebarRoot shell', () => {
     expect(starters).toHaveLength(2)
     for (const button of starters) fireEvent.click(button)
     expect(b.startSession).toHaveBeenCalledTimes(2)
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
-    expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
 
   it('renders generic brand fallbacks when no package fills the slots', () => {
@@ -185,10 +195,118 @@ describe('SidebarRoot shell', () => {
     b.regionOwner().expandSidebar()
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
+})
 
-  it('renders statically collapsed on a cold start (no crossfade classes)', () => {
-    const b = mountShell({ collapsed: true })
-    expect(b.regionOwner().wide).toBe(false)
-    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+describe('SidebarRoot width slide', () => {
+  const restoreAnimate: (() => void)[] = []
+
+  afterEach(() => {
+    while (restoreAnimate.length > 0) restoreAnimate.pop()?.()
+    vi.unstubAllGlobals()
+  })
+
+  /** Install a WAAPI stub on the jsdom Element prototype; jsdom has none. */
+  function installAnimate(next: () => SlideStub): ReturnType<typeof vi.fn> {
+    const animate = vi.fn(() => next() as unknown as Animation)
+    const descriptor = Object.getOwnPropertyDescriptor(Element.prototype, 'animate')
+    Object.defineProperty(Element.prototype, 'animate', {
+      configurable: true,
+      writable: true,
+      value: animate,
+    })
+    restoreAnimate.push(() => {
+      if (descriptor === undefined) delete (Element.prototype as { animate?: unknown }).animate
+      else Object.defineProperty(Element.prototype, 'animate', descriptor)
+    })
+    return animate
+  }
+
+  it('slides the rail open and shut on the ease-in-out curve', () => {
+    const slide = slideStub()
+    const animate = installAnimate(() => slide)
+    const shell = mountShell({ collapsed: true, width: 56 })
+
+    // A cold mount renders the rail statically: nothing slides on first paint.
+    expect(animate).not.toHaveBeenCalled()
+
+    shell.rerender({ collapsed: false, width: 300 })
+    expect(animate).toHaveBeenCalledWith(
+      [{ width: '56px' }, { width: '300px' }],
+      { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+    )
+
+    slide.playState = 'finished'
+    shell.rerender({ collapsed: true })
+    expect(animate).toHaveBeenLastCalledWith(
+      [{ width: '300px' }, { width: '56px' }],
+      { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+    )
+  })
+
+  it('swaps the fold instantly under reduced motion', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
+    const animate = installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+
+    shell.rerender({ collapsed: false, width: 300 })
+    expect(animate).not.toHaveBeenCalled()
+  })
+
+  it('keeps the slide when reduced motion is off', () => {
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+    const animate = installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+
+    shell.rerender({ collapsed: false, width: 300 })
+    expect(animate).toHaveBeenCalledOnce()
+  })
+
+  it('reverses from the rendered edge while a slide is running', () => {
+    const slide = slideStub()
+    const animate = installAnimate(() => slide)
+    const shell = mountShell({ collapsed: false, width: 300 })
+
+    shell.rerender({ collapsed: true })
+    expect(animate).toHaveBeenCalledOnce()
+
+    vi.spyOn(shell.container.firstElementChild as Element, 'getBoundingClientRect')
+      .mockReturnValue({ width: 140 } as DOMRect)
+    shell.rerender({ collapsed: false })
+    expect(slide.cancel).toHaveBeenCalled()
+    expect(animate).toHaveBeenLastCalledWith(
+      [{ width: '140px' }, { width: '300px' }],
+      { duration: 300, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' },
+    )
+  })
+
+  it('leaves a pointer drag direct while the fold state holds', () => {
+    const animate = installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: false, width: 300 })
+
+    shell.rerender({ width: 340 })
+    expect(animate).not.toHaveBeenCalled()
+  })
+
+  it('does not restart a slide pinned at its hover preview width', () => {
+    const slide = slideStub('finished')
+    const animate = installAnimate(() => slide)
+    const shell = mountShell({ collapsed: true, width: 264 })
+
+    fireEvent.pointerEnter(shell.container.firstElementChild as Element)
+    expect(animate).toHaveBeenCalledOnce()
+
+    shell.rerender({ collapsed: false })
+    expect(animate).toHaveBeenCalledOnce()
+  })
+
+  it('cancels a running slide when the shell unmounts', () => {
+    const slide = slideStub()
+    const animate = installAnimate(() => slide)
+    const shell = mountShell({ collapsed: false, width: 300 })
+
+    shell.rerender({ collapsed: true })
+    expect(animate).toHaveBeenCalledOnce()
+    shell.unmount()
+    expect(slide.cancel).toHaveBeenCalled()
   })
 })

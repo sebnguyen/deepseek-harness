@@ -1337,12 +1337,16 @@ export interface PiAiProviderProfile {
    */
   models?: PiAiModelProfile[]
   /**
-   * Installed-catalog customizations by model id: each entry reshapes that
-   * one model with the same fields a {@link models} entry takes, while the
-   * rest of the catalog keeps serving untouched. Only meaningful on a catalog
-   * route with no `models` list — `models` already replaces the catalog, so
-   * an override beside it, on a route the catalog does not ship, or naming a
-   * model the catalog does not describe is refused rather than skipped.
+   * Per-model customizations by id: each entry reshapes that one model with
+   * the same fields a `models` entry takes, while the rest of the route
+   * keeps serving untouched. Only meaningful where the models come from
+   * somewhere other than this document — the installed catalog, or a live
+   * endpoint feed whose listing reports ids and capacities but never
+   * modalities — so an override is refused beside a `models` list, which
+   * already spells every model out, and on a declared route with neither a
+   * catalog nor a feed. On a live route it lands on the fetched entry of the
+   * same id, which is how a vision model on a gateway becomes usable without
+   * freezing that gateway's catalog.
    */
   modelOverrides?: Record<string, PiAiModelOverride>
   /**
@@ -1480,11 +1484,12 @@ export interface PiAiModelProfile {
 }
 
 /**
- * Customization of one installed catalog model, keyed by its id in the
- * route's `modelOverrides` dict — the same fields a `models` entry may set,
- * with the id living in the key. Unlike a `models` list, overrides leave the
- * rest of the catalog serving untouched, which is what makes "correct one
- * model, keep the other thirty-seven" a three-line edit.
+ * Customization of one model, keyed by its id in the route's `modelOverrides`
+ * dict — the same fields a `models` entry may set, with the id living in the
+ * key. Unlike a `models` list, overrides leave the rest of the route serving
+ * untouched, which is what makes "correct one model, keep the other
+ * thirty-seven" a three-line edit. A live route applies them to the fetched
+ * entry of the same id.
  */
 export type PiAiModelOverride = Omit<PiAiModelProfile, 'id'>
 

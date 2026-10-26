@@ -18,7 +18,6 @@
   min-height: 28px;
   padding: 3px 2px;
   border: 0;
-  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
@@ -103,7 +102,6 @@
   max-height: min(560px, calc(100vh - 140px));
   padding: 4px;
   overflow: auto;
-  border-radius: 20px;
   background: var(--dsw-specific-menu);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
@@ -129,7 +127,6 @@
   min-height: 50px;
   padding: 7px 8px 7px 11px;
   border: 0;
-  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font-size: 13px;
@@ -154,7 +151,6 @@
   min-width: 0;
   margin: -7px -8px -7px;
   padding: 7px 8px;
-  border-radius: 8px;
 }
 
 .row > :global([data-state]),
@@ -316,7 +312,6 @@
   gap: 4px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 6px;
   background: transparent;
   color: inherit;
   cursor: pointer;

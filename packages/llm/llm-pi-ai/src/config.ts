@@ -125,12 +125,16 @@ export interface PiAiProviderProfile {
    */
   models?: PiAiModelProfile[]
   /**
-   * Installed-catalog customizations by model id: each entry reshapes that
-   * one model with the same fields a {@link models} entry takes, while the
-   * rest of the catalog keeps serving untouched. Only meaningful on a catalog
-   * route with no `models` list — `models` already replaces the catalog, so
-   * an override beside it, on a route the catalog does not ship, or naming a
-   * model the catalog does not describe is refused rather than skipped.
+   * Per-model customizations by id: each entry reshapes that one model with
+   * the same fields a {@link models} entry takes, while the rest of the route
+   * keeps serving untouched. Only meaningful where the models come from
+   * somewhere other than this document — the installed catalog, or a live
+   * endpoint feed whose listing reports ids and capacities but never
+   * modalities — so an override is refused beside a `models` list, which
+   * already spells every model out, and on a declared route with neither a
+   * catalog nor a feed. On a live route it lands on the fetched entry of the
+   * same id, which is how a vision model on a gateway becomes usable without
+   * freezing that gateway's catalog.
    */
   modelOverrides?: Record<string, PiAiModelOverride>
   /**

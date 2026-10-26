@@ -23,8 +23,6 @@
   padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
-  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -44,7 +42,6 @@
   justify-content: center;
   gap: 0;
   padding: 0;
-  border-radius: 50%;
 }
 
 /* ---------- overlay + mask ---------- */
@@ -114,7 +111,6 @@
   max-height: min(720px, calc(100vh - 48px));
   overflow: hidden auto;
   border: 1px solid var(--guide-line);
-  border-radius: 24px;
   background: var(--guide-paper);
   color: var(--guide-ink);
   box-shadow:
@@ -184,7 +180,6 @@
   text-transform: uppercase;
   color: #fff;
   background: var(--guide-accent-deep);
-  border-radius: 999px;
   padding: 6px 10px;
 }
 
@@ -283,7 +278,6 @@
   justify-content: center;
   width: 30px;
   height: 30px;
-  border-radius: 9px;
   color: var(--guide-accent);
   background: var(--guide-chip);
 }
@@ -343,7 +337,6 @@
   font-size: 10px;
   border: 0.5px solid var(--guide-line-2);
   border-bottom-width: 1.5px;
-  border-radius: 4px;
   padding: 2px 5px;
   color: var(--guide-ink-2);
 }
@@ -355,7 +348,6 @@
   inset: 0;
   z-index: 5;
   border: 1px solid var(--guide-line-2);
-  border-radius: 24px;
   overflow: hidden;
   background: var(--guide-paper);
   color: var(--guide-ink);
@@ -380,7 +372,6 @@
   z-index: 6;
   width: 36px;
   height: 36px;
-  border-radius: 50%;
   border: 1px solid var(--guide-line-2);
   background: color-mix(in srgb, var(--guide-paper) 80%, transparent);
   color: var(--guide-ink-2);
@@ -434,7 +425,6 @@
   height: 132%;
   background: linear-gradient(180deg,
     rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.18) 45%, transparent 78%);
-  border-radius: 999px;
   filter: blur(6px);
   transform: rotate(var(--drift, 0deg));
   transform-origin: 50% -20%;
@@ -473,7 +463,6 @@
 .ring {
   position: absolute;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 50%;
   animation: pulse 4.5s ease-in-out infinite;
 }
 
@@ -489,7 +478,6 @@
   position: absolute;
   width: 130px;
   height: 130px;
-  border-radius: 50%;
   background: rgba(255, 255, 255, 0.1);
   filter: blur(42px);
   animation: drift 9s ease-in-out infinite alternate;
@@ -509,7 +497,6 @@
   width: 64px;
   height: 64px;
   border: 1px solid rgba(255, 255, 255, 0.38);
-  border-radius: 50%;
   background: rgba(255, 255, 255, 0.14);
   backdrop-filter: blur(4px);
   display: grid;
@@ -536,7 +523,6 @@
   background: rgba(0, 0, 0, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 6px 10px;
-  border-radius: 999px;
 }
 
 .vidProgress {
@@ -617,7 +603,6 @@
   font-weight: 500;
   letter-spacing: 0.05em;
   padding: 6px 9px;
-  border-radius: 999px;
   border: 1px solid var(--guide-line-2);
   color: var(--guide-ink-2);
 }
@@ -631,7 +616,6 @@
 
 .btn {
   border: 1px solid var(--guide-line-2);
-  border-radius: 10px;
   background: transparent;
   color: var(--guide-ink);
   font: inherit;

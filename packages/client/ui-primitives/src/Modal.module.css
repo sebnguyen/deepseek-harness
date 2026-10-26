@@ -29,7 +29,6 @@
   padding: 0 0 24px;
   overflow: hidden;
   border: 0;
-  border-radius: 24px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-elevation-prominent);
 }
@@ -66,7 +65,6 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 8px;
   background: transparent;
   cursor: pointer;
   color: var(--dsw-alias-label-secondary);

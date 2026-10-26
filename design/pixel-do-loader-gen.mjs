@@ -23,7 +23,7 @@
 //   ../.vscode-twin/dist/out/... same four files, when the staged dist exists
 //
 // Stable scale is the whole point: one 16x16 grid is sampled once through the
-// 16x16 kernel, and the gap is a fraction of the viewBox unit (0.2 of a cell).
+// 16x16 kernel, and the gap is a fraction of the viewBox unit (0.32 of a cell).
 // Every rendered size therefore holds the same 16x16 pixelation and the same
 // proportions. There is no per-size grid switch and no sub-pixel gap tuning.
 // The web sweep is a CSS animation: each 22.5-degree bucket of pixels is one
@@ -54,10 +54,11 @@ const F = 16
 const PERIOD = 1.2
 const DIM = 0.22
 const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM]
-// Per-cell inset at the 20% gap (a 0.8 cell in a 1-unit pitch): every face
+// Per-cell inset at the 32% gap (a 0.68 cell in a 1-unit pitch): every face
 // renders the fattest legible pixels at every output size, never a size-tuned
 // gap. This is the value the mock's gap slider settles on.
-const INSET = 0.1
+const INSET = 0.16
+const RX = Math.min(0.18, round2((1 - 2 * INSET) * 0.257))
 
 // Twinkle recipe (idle brand mark, starting chat / boot / editor letterpress):
 // every pixel runs its own pop-and-fade cycle — duration and negative delay
@@ -156,7 +157,7 @@ function stableSweepSvg(cells, { width, fill = 'currentColor' }) {
 <style>
 ${styleBlock()}
 </style>
-${innerCss(cells, INSET, 0.18)}
+${innerCss(cells, INSET, RX)}
 </svg>
 `
 }
@@ -166,7 +167,7 @@ function stableTwinkleSvg(flat, schedule, { width, fill = 'currentColor' }) {
 <style>
 ${twinkleStyleBlock()}
 </style>
-${innerTwinkle(flat, schedule, INSET, 0.18)}
+${innerTwinkle(flat, schedule, INSET, RX)}
 </svg>
 `
 }
@@ -238,7 +239,7 @@ export const PIXEL_LOADER_TWINKLE_16 = PIXEL_LOADER_TWINKLE
 // SMIL svg rides inside a div because the CSP (style-src 'self') forbids
 // inline style elements/attributes.
 writeFileSync(DESKTOP_OUT, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 ${GRID} ${GRID}" fill="currentColor" aria-hidden="true">
-${innerTwinkleSmil(flat, schedule, INSET, 0.18)}
+${innerTwinkleSmil(flat, schedule, INSET, RX)}
 </svg></div>
 `)
 
@@ -247,7 +248,7 @@ ${innerTwinkleSmil(flat, schedule, INSET, 0.18)}
 const STARTUP_OUT = join(ROOT, 'apps/desktop/renderer/startup.html')
 const startup = readFileSync(STARTUP_OUT, 'utf8')
 writeFileSync(STARTUP_OUT, startup.replace(/<div id="spinner" aria-hidden="true">[\s\S]*?<\/svg><\/div>/, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 ${GRID} ${GRID}" fill="currentColor" aria-hidden="true">
-${innerTwinkleSmil(flat, schedule, INSET, 0.18)}
+${innerTwinkleSmil(flat, schedule, INSET, RX)}
 </svg></div>`))
 
 // The vscode twin's empty-editor letterpress is the stable 16-grid twinkle
@@ -260,7 +261,7 @@ function letterpress(fill) {
 <style>
 ${TW_CSS}
 </style>
-${innerTwinkle(flat, schedule, INSET, 0.18)}
+${innerTwinkle(flat, schedule, INSET, RX)}
 </svg>
 `
 }
@@ -370,7 +371,7 @@ const mock = `<!doctype html>
   <p class="note">
     One 16x16 grid is derived through the 16x16 coverage window and every face
     prints it, so the pixel scale is identical at 12px and 168px. Rects are
-    inset 0.1 per cell (20% gaps) in viewBox units — no per-size gap widening.
+    inset 0.16 per cell (32% gaps) in viewBox units — no per-size gap widening.
     Each of the 16 bucket groups carries its own clockwise stagger on the shared
     step-end ladder (1.2s), so the light runs around the mark starting at 12
     o'clock. <code>fill="currentColor"</code> themes light/dark from CSS color.

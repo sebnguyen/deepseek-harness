@@ -43,7 +43,7 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* The bar IS the editor's box in both modes: it carries the rounded outline
+/* The bar IS the editor's box in both modes: it carries the outline
  * and the inner padding, the crumbs and the input sit inside it, and hovering
  * the edit zone lights the whole row rather than the remainder right of the
  * crumbs. The negative left margin pays back the border and padding, so the
@@ -57,7 +57,6 @@
   margin-left: -9px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 8px;
 }
 
 /* Lit by the affordance the row belongs to, never by a crumb: a crumb's hover
@@ -166,7 +165,7 @@
   color: var(--dsw-alias-label-caption);
 }
 
-/* Chrome-free: the bar around it draws the box (border, radius, padding). */
+/* Chrome-free: the bar around it draws the box (border, padding). */
 .pathInput {
   box-sizing: border-box;
   flex: 1 1 0;
@@ -233,7 +232,6 @@
   flex: none;
   padding: 4px;
   border: none;
-  border-radius: 6px;
   background: transparent;
   text-align: left;
   cursor: pointer;
@@ -401,7 +399,6 @@
   height: 44px;
   padding: 7px 14px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 22px;
   outline: none;
   background: transparent;
   font-size: 14px;

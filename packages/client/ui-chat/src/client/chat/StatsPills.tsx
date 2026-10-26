@@ -28,6 +28,7 @@ import { formatTokensPerSecond } from './message-chrome.ts'
 import { assistantStepReading } from '../contract/turn-metrics.ts'
 import { perMillionMicros, sortedSpendEntries, spendTokens } from '../contract/cost-metrics.ts'
 import { formatCacheHitPercent, formatExactTokens, formatTokens, formatUsdMicros } from '../contract/token-format.ts'
+import { useNumberTween } from './use-number-tween.ts'
 import { MEASURE_STYLE, useStatDialog, type StatDialogSeat } from './stat-dialog.ts'
 import css from './StatsPills.module.css'
 import dialogCss from './stat-dialog.module.css'
@@ -281,6 +282,15 @@ function TimePill({ stats, lastTps, t, dialog }: {
     ? formatTokensPerSecond(stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000))
     : null
   const hasRows = stats.llmMs > 0 || stats.toolMs > 0 || stats.ttftSteps > 0 || stats.decodeMs > 0
+  // The pill figures roll to a settled step's reading; the dialog and the
+  // spoken segments keep the exact value.
+  const shownTurns = Math.round(useNumberTween(stats.turns))
+  const shownSteps = Math.round(useNumberTween(stats.steps))
+  const countsShown = t('stats.counts', { turns: shownTurns, steps: shownSteps })
+  const tpsReading = lastTps ?? (stats.recent5DecodeMs > 0
+    ? stats.recent5DecodeTokens / (stats.recent5DecodeMs / 1_000)
+    : null)
+  const tpsShown = useNumberTween(tpsReading ?? 0)
   // A window without one timed figure has no dialog rows to show, so the pill
   // stays a plain counts reading instead of a button opening an empty dialog.
   if (!hasRows) {
@@ -288,7 +298,7 @@ function TimePill({ stats, lastTps, t, dialog }: {
       <span className={css.anchor}>
         <span className={css.pill}>
           <IconGaugeOutline16 />
-          <span className={css.fig}>{counts}</span>
+          <span className={css.fig}>{countsShown}</span>
         </span>
       </span>
     )
@@ -297,6 +307,7 @@ function TimePill({ stats, lastTps, t, dialog }: {
   // headlines itself when no per-request reading is available). A projection
   // that serves times without sampled speeds falls back to the counts figure.
   const headTps = lastTps !== null ? formatTokensPerSecond(lastTps) : recent5Tps
+  const headTpsShown = tpsReading === null ? null : formatTokensPerSecond(tpsShown)
   const speedText = headTps === null ? null : t('message.tokensPerSecond', { tps: headTps })
   const qualifier = lastTps !== null && recent5Tps !== null
     ? t('stats.qline.recentAvg', { tps: recent5Tps })
@@ -308,10 +319,10 @@ function TimePill({ stats, lastTps, t, dialog }: {
     <span ref={seat.rootRef} className={css.anchor}>
       <StatPillButton seat={seat} segments={segments} icon={<IconGaugeOutline16 />}>
         {speedText === null
-          ? <span className={css.fig}>{counts}</span>
+          ? <span className={css.fig}>{countsShown}</span>
           : (
             <>
-              <span className={css.fig}>{headTps}<small>tok/s</small></span>
+              <span className={css.fig}>{headTpsShown}<small>tok/s</small></span>
               {qualifier !== null && <span className={css.what}>{qualifier}</span>}
             </>
           )}
@@ -381,6 +392,14 @@ function UsagePill({ usage, t, dialog }: {
   const total = billedInputTokens(usage) + usage.outputTokens
   const totalText = formatTokens(total, t)
   const cacheHit = cacheHitPercent(usage)
+  // Figures roll to their settled reading at the precision the formatter uses.
+  const totalShownText = formatTokens(Math.round(useNumberTween(total)), t)
+  // The share arrives as a display string; roll its numeric reading and keep
+  // the same precision so the pill still reads '99.5%', never '99.50%'.
+  const hitReading = cacheHit === null ? null : Number(cacheHit)
+  const hitDecimals = cacheHit === null ? 0 : (cacheHit.split('.')[1]?.length ?? 0)
+  const hitTween = useNumberTween(hitReading ?? 0)
+  const hitShown = hitReading === null ? null : hitTween.toFixed(hitDecimals)
   // Headline: the cache-hit share — the reading the buckets exist to explain —
   // qualified by the whole-log total. Output-only activity (nothing billed on
   // the input side) has no share, so the total headlines alone; the dialog
@@ -395,11 +414,11 @@ function UsagePill({ usage, t, dialog }: {
         {withHit
           ? (
             <>
-              <span className={css.fig}>{cacheHit}<small>%</small></span>
+              <span className={css.fig}>{hitShown}<small>%</small></span>
               <span className={css.what}>{qualifier}</span>
             </>
           )
-          : <span className={css.fig}>{totalText}<small>tok</small></span>}
+          : <span className={css.fig}>{totalShownText}<small>tok</small></span>}
       </StatPillButton>
       <StatDialogPanel
         seat={seat}
@@ -531,6 +550,7 @@ function CostPill({ cost, rollup, t, dialog }: {
   const rate = perMillionMicros(cost.costMicros, spendTokens(cost))
   // Headline: the spend amount; the blended rate qualifies it.
   const costText = formatUsdMicros(cost.costMicros, t)
+  const costShownText = formatUsdMicros(Math.round(useNumberTween(cost.costMicros)), t)
   const rateText = rate !== null
     ? t('stats.costPerMillion', { amount: formatUsdMicros(rate, t) })
     : null
@@ -544,7 +564,7 @@ function CostPill({ cost, rollup, t, dialog }: {
   return (
     <span ref={seat.rootRef} className={css.anchor}>
       <StatPillButton seat={seat} segments={segments} icon={<IconDataOutline16 />}>
-        <span className={css.fig}>{costText}</span>
+        <span className={css.fig}>{costShownText}</span>
         {rateText !== null && <span className={css.what}>{rateText}</span>}
       </StatPillButton>
       <StatDialogPanel

@@ -1,4 +1,3 @@
-import { IconQuestionOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -183,7 +182,8 @@ export function AskQuestionRow({ toolName, block, inspect, t }: AskQuestionRowPr
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconQuestionOutline14 />}
+      pceKind="ask"
+      glyph="ask"
       title={t('ask.rowTitle')}
       summary={summary}
       bodyRaw={transcript === null ? model.bodyRaw : null}

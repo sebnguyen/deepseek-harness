@@ -249,6 +249,22 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  it('folds every committed element of a multi_write batch and skips previews', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'batch', 'multi_write', {
+        write_array: [
+          { path: 'fixtures/a.txt', content: 'alpha\nbeta\n' },
+          { path: 'src/handler.ts', edits: [{ old_string: '401', new_string: '402' }] },
+          { path: 'preview.txt', content: 'x', dry_run: true },
+          { content: 'no path' },
+        ],
+      }),
+      result(3, 'batch'),
+    ])
+    expect(producedForClosing(deliverablesOf(value))).toEqual(['fixtures/a.txt', 'src/handler.ts'])
+  })
+
   it.each([
     { caseName: 'write omits content', name: 'write', args: { file_path: 'write.txt' } },
     { caseName: 'write has non-string content', name: 'write', args: { file_path: 'write.txt', content: 1 } },

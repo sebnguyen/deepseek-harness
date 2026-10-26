@@ -9,6 +9,7 @@ import type { ChatSnapshot, RunningToolCall } from '../contract/snapshot.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import css from './ChatView.module.css'
+import { followScrollport, type FollowHandle } from './follow-scroll.ts'
 
 const FOLLOW_THRESHOLD = 24
 const SCROLL_SAMPLE_INTERVAL_MS = 500
@@ -307,6 +308,8 @@ export function ChatView({
    *  scroll-driven at-bottom chrome re-render (which would snap inertial
    *  scrolls the rest of the way to the floor). */
   const followSigRef = useRef<string | null>(null)
+  /** Eased floor-follow in flight; null while no frame is carrying the port. */
+  const followHandleRef = useRef<FollowHandle | null>(null)
 
   const firstKey = order[0]
   const firstSeq = firstKey === undefined ? null : nodeStore.get(firstKey)?.anchorSeq ?? null
@@ -316,10 +319,40 @@ export function ChatView({
   const lastSubmissionId = visibleSubmissions[visibleSubmissions.length - 1]?.requestId ?? null
   const followSig = `${openState}:${firstSeq}:${lastKey}:${order.length}:${running ? 1 : 0}:${lastSteeringId ?? ''}:${lastSubmissionId ?? ''}`
 
-  const toBottom = (el: HTMLElement): void => {
+  const stopFollow = (): void => {
+    followHandleRef.current?.stop()
+    followHandleRef.current = null
+  }
+
+  /** Carry the scrollport to its floor. A follow already in flight keeps
+   *  chasing — it re-reads the floor every frame, so restarting would only
+   *  cancel and reschedule the same frame. */
+  const followFloor = (el: HTMLElement): void => {
+    if (followHandleRef.current !== null) return
+    const slot: { settled: boolean; handle: FollowHandle | null } = { settled: false, handle: null }
+    slot.handle = followScrollport(
+      el,
+      (top) => { observedTopRef.current = top },
+      () => {
+        slot.settled = true
+        if (followHandleRef.current === slot.handle) followHandleRef.current = null
+      },
+    )
+    // A runtime that settles inside the call (reduced motion, no frames) has
+    // already finished, so it must not keep the slot occupied.
+    followHandleRef.current = slot.settled ? null : slot.handle
+  }
+
+  /** `immediate` is for restores — the reader's own place, not a follow. */
+  const toBottom = (el: HTMLElement, immediate = false): void => {
     anchorRef.current = null
-    el.scrollTop = el.scrollHeight
-    observedTopRef.current = el.scrollTop
+    if (immediate) {
+      stopFollow()
+      el.scrollTop = el.scrollHeight
+      observedTopRef.current = el.scrollTop
+    } else {
+      followFloor(el)
+    }
     atBottomRef.current = true
     setAtBottom(true)
     chatScroll.save(null)
@@ -339,8 +372,10 @@ export function ChatView({
       openedRef.current = true
       const saved = chatScroll.read()
       if (saved === null) {
-        toBottom(el)
+        // Nothing to glide from: the transcript opens already at its floor.
+        toBottom(el, true)
       } else {
+        stopFollow()
         el.scrollTop = saved.scrollTop
         const row = anchorElement(local, saved.anchorKey)
         if (row !== null) el.scrollTop += flowTop(row, el) - saved.anchorTop
@@ -365,6 +400,7 @@ export function ChatView({
     if (anchorRef.current !== null && firstSeq !== null && firstSeqRef.current !== null && firstSeq < firstSeqRef.current) {
       const anchor = anchorRef.current
       anchorRef.current = null
+      stopFollow()
       const row = anchorElement(local, anchor.key)
       if (row !== null) el.scrollTop += flowTop(row, el) - anchor.top
       observedTopRef.current = el.scrollTop
@@ -413,11 +449,15 @@ export function ChatView({
     // the current ownership state.
     const floor = Math.max(0, el.scrollHeight - el.clientHeight)
     const movedByReader = readerMovedScroll(el.scrollTop, floor, observedTopRef.current)
+    // The reader owns the position again from the first frame they move it.
+    if (movedByReader) stopFollow()
     const isAtBottom = movedByReader
       ? floor - el.scrollTop <= FOLLOW_THRESHOLD + 1
       : atBottomRef.current
     if (!movedByReader && isAtBottom) {
-      toBottom(el)
+      // A follow in flight already owns the floor; re-pinning here would only
+      // re-save the same position on every animated frame.
+      if (followHandleRef.current === null) toBottom(el)
       return
     }
     atBottomRef.current = isAtBottom
@@ -456,6 +496,10 @@ export function ChatView({
     const onScroll = (): void => {
       scrollSamplePendingRef.current = true
       if (atBottomRef.current) {
+        // A follow in flight records every write it makes into the ledger, so a
+        // position that still matches it is ours. Measuring the floor here would
+        // force a synchronous layout on every animated frame of a stream.
+        if (followHandleRef.current !== null && el.scrollTop === observedTopRef.current) return
         const floor = Math.max(0, el.scrollHeight - el.clientHeight)
         if (!readerMovedScroll(el.scrollTop, floor, observedTopRef.current)) {
           sample()
@@ -469,6 +513,7 @@ export function ChatView({
     return () => {
       el.removeEventListener('scroll', onScroll)
       el.removeEventListener('scrollend', sample)
+      stopFollow()
       if (sampleTimer !== undefined) window.clearTimeout(sampleTimer)
       scrollSamplePendingRef.current = false
     }
@@ -476,14 +521,12 @@ export function ChatView({
 
   // The ref starts null and is assigned every render, so the placeholder
   // initializer a function initial value would need never exists.
-  const followRef = useRef<(() => void) | null>(null)
-  followRef.current = () => {
+  const observerFollowRef = useRef<(() => void) | null>(null)
+  observerFollowRef.current = () => {
     if (scrollSamplePendingRef.current) return
     const local = listRef.current
     if (local !== null && atBottomRef.current) {
-      const el = scrollerOf(local)
-      el.scrollTop = el.scrollHeight
-      observedTopRef.current = el.scrollTop
+      followFloor(scrollerOf(local))
       chatScroll.save(null)
     }
   }
@@ -499,7 +542,7 @@ export function ChatView({
     // Flow-height changes (image loads, tool disclosures) move rows across the
     // reading line without a scroll event, so the active mark resyncs here too.
     const observer = new ResizeObserver(() => {
-      followRef.current?.()
+      observerFollowRef.current?.()
     })
     observer.observe(column)
     if (composer !== null) observer.observe(composer)
@@ -531,6 +574,7 @@ export function ChatView({
       // pinned follow snaps the reader to the latest message and the new
       // page's rows never wake.
       atBottomRef.current = false
+      stopFollow()
       setAtBottom(false)
     }
     loadOlder()

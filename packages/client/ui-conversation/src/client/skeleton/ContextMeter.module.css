@@ -14,8 +14,6 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 999px;
-  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -47,7 +45,6 @@
   width: 264px;
   padding: 12px;
   border: 0;
-  border-radius: 12px;
   background: var(--dsw-specific-menu);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-elevation-prominent);
@@ -90,8 +87,6 @@
   gap: 1px;
   margin: 10px 0 12px;
   height: 4px;
-  border-radius: 999px;
-  corner-shape: round;
   background: var(--dsw-alias-interactive-bg-hover);
   overflow: hidden;
 }
@@ -100,7 +95,6 @@
   flex: none;
   min-width: 2px;
   height: 100%;
-  border-radius: 1px;
   background: var(--meter-tint, var(--dsw-alias-label-tertiary));
 }
 
@@ -109,7 +103,6 @@
   margin-right: 6px;
   width: 8px;
   height: 8px;
-  border-radius: 2px;
   background: var(--meter-tint);
   vertical-align: baseline;
 }

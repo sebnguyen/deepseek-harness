@@ -1,28 +1,12 @@
-/* Solid states: same-color halo via a 0.10-opacity outer layer (::before)
- * with a 6/10-scale solid core. Layer color rides currentColor set per state. */
-.dot {
-  position: relative;
-  display: inline-block;
+/* Solid states are pixel marks, not dots: the glyph rides currentColor set
+ * per state, so the mark reads in the status colour. */.dot {
+  display: inline-grid;
+  place-items: center;
   flex: none;
 }
 
-.dot::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  corner-shape: round;
-  background: currentColor;
-  opacity: 0.1;
-}
-
-.dot::after {
-  content: '';
-  position: absolute;
-  inset: 20%;
-  border-radius: 50%;
-  corner-shape: round;
-  background: currentColor;
+.dot > svg {
+  display: block;
 }
 
 .dot[data-state='done'] {

@@ -77,7 +77,7 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `clientCert` | absent | PEM client-certificate path for TLS; `~` is the home directory; set with `clientKey` |
 | `clientKey` | absent | PEM private-key path paired with `clientCert` |
 | `models` | installed catalog | Replaces the route's catalog wholesale; each entry defaults from the installed model |
-| `modelOverrides` | none | Reshapes individual installed-catalog models without replacing the rest |
+| `modelOverrides` | none | Reshapes individual catalog or endpoint-fetched models without replacing the rest |
 | `compat` | catalog detection | Wire-compatibility switches for unrecognized endpoints |
 | `defaultContextWindow` | `262,144` | Capacity fallback for undescribed models |
 | `maxContextWindow` | absent | Caps every model's resolved context after catalog merge |
@@ -98,7 +98,7 @@ A provider pi-ai ships a login for can be signed into through the harness author
 
 ### Resolve the model catalog
 
-A profile's `models` list replaces the route's installed catalog rather than extending it; each entry defaults its unset fields from the installed model of the same id, so narrowing a route to two models, correcting one capacity, or adding a model newer than the installed catalog are one-line edits. `modelOverrides` reshapes individual installed-catalog models without that cost — correct one model, keep the other thirty-seven — and is refused when set beside a `models` list, on a hand-declared route, or naming a model the catalog does not describe, because a silently unchanged model would be a typo someone hunts for later.
+A profile's `models` list replaces the route's installed catalog rather than extending it; each entry defaults its unset fields from the installed model of the same id, so narrowing a route to two models, correcting one capacity, or adding a model newer than the installed catalog are one-line edits. `modelOverrides` reshapes individual models without that cost — correct one model, keep the other thirty-seven — and is refused when set beside a `models` list, because a silently unchanged model would be a typo someone hunts for later. On a catalog route an override must name a model the catalog describes. On a live route it may name any model the endpoint serves: the feed carries ids and capacities but no modalities, and the override is folded onto the fetched entry of the same id, so `input: [text, image]` makes a gateway's vision model readable without freezing that gateway's catalog. An override naming a model the endpoint does not list is inert until it appears — the listing, not the document, is the authority for what a live route serves.
 
 ### Run with reasoning and wire compatibility
 

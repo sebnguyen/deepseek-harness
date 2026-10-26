@@ -98,7 +98,6 @@
   overflow: hidden;
   padding: 4px 8px;
   border: none;
-  border-radius: 12px;
   background: transparent;
   font-size: 14px;
   line-height: 20px;
@@ -191,7 +190,6 @@
   bottom: -1px;
   left: 0;
   height: 2px;
-  border-radius: 2px;
   background: transparent;
 }
 
@@ -260,7 +258,6 @@
   top: 0;
   bottom: 0;
   width: 3px;
-  border-radius: 3px;
   background: linear-gradient(
     to bottom,
     transparent calc(var(--dsh-width-handle-pointer-y, 50%) - 52px),

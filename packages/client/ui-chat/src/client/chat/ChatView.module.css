@@ -83,9 +83,6 @@
   display: none;
 }
 
-.callRow {
-  border-radius: 6px;
-}
 
 /* Selection still sets data-selected for details linkage; no outline —
    tool rows match Think chrome (no selected ring). */
@@ -166,7 +163,6 @@
 
 .older button {
   border: none;
-  border-radius: 14px;
   padding: 4px 12px;
   font-size: 12px;
   color: var(--dsw-alias-label-secondary);
@@ -215,8 +211,6 @@
   padding: 0;
   border: 0;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l3);
-  border-radius: 100px;
-  corner-shape: round;
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-button-floating-fill);
   box-shadow: var(--dsw-elevation-panel);

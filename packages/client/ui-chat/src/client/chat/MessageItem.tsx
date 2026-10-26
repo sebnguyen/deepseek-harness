@@ -2,7 +2,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, PceRow, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -99,25 +99,33 @@ function ModelRetryItem({ node, active, t }: {
         ? t('message.retry.started')
         : t('message.retry.scheduled')
   const seconds = active ? remainingSeconds : scheduledSeconds
+  const status = t('message.retry.status', { label, retry: node.retry, maximum, seconds })
 
   return (
-    <details className={css.retryRow} data-active={active || undefined}>
-      <summary className={css.retrySummary}>
-        <span className={css.retryText} role="status">
-          {t('message.retry.status', { label, retry: node.retry, maximum, seconds })}
-        </span>
-      </summary>
-      <div className={css.retryDetails}>
-        <div>
-          <span className={css.retryDetailLabel}>{t('message.retry.delay')}</span>
-          {t('duration.milliseconds', { milliseconds: Math.round(node.delayMs) })}
-        </div>
-        <div>
-          <span className={css.retryDetailLabel}>{t('message.retry.failure')}</span>
-          {failureMessage(node.failure.message, node.failure.code, t)}
-        </div>
-      </div>
-    </details>
+    <div className={css.retryRow} data-active={active || undefined}>
+      <PceRow
+        kind="retry"
+        glyph="reload"
+        title={label}
+        summary={status}
+        state={active ? 'running' : 'ok'}
+        stateLabel={active ? t('message.retry.active') : null}
+        summaryRole="status"
+        keepMounted
+        body={(
+          <div className={css.retryDetails}>
+            <div>
+              <span className={css.retryDetailLabel}>{t('message.retry.delay')}</span>
+              {t('duration.milliseconds', { milliseconds: Math.round(node.delayMs) })}
+            </div>
+            <div>
+              <span className={css.retryDetailLabel}>{t('message.retry.failure')}</span>
+              {failureMessage(node.failure.message, node.failure.code, t)}
+            </div>
+          </div>
+        )}
+      />
+    </div>
   )
 }
 
@@ -127,14 +135,24 @@ function TurnErrorItem({ node, t }: {
   t: ChatViewSlotProps['t']
 }) {
   return (
-    <div className={css.turnErrorRow} role="status">
-      <StateDot state="error" className={css.turnErrorDot} />
-      <div className={css.turnErrorCopy}>
-        <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
-        <span className={css.turnErrorMessage}>{failureMessage(node.message, node.code, t)}</span>
-      </div>
-      {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
-    </div>
+    <PceRow
+      kind="turn-error"
+      glyph="error"
+      title={t('message.turnError')}
+      summary={failureMessage(node.message, node.code, t)}
+      state="error"
+      collapsible={false}
+      body={(
+        <div className={css.turnErrorRow} role="status">
+          <StateDot state="error" className={css.turnErrorDot} />
+          <div className={css.turnErrorCopy}>
+            <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
+            <span className={css.turnErrorMessage}>{failureMessage(node.message, node.code, t)}</span>
+          </div>
+          {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
+        </div>
+      )}
+    />
   )
 }
 
@@ -143,13 +161,23 @@ function TurnMaxTokensItem({ t }: {
   t: ChatViewSlotProps['t']
 }) {
   return (
-    <div className={css.turnErrorRow} role="status">
-      <StateDot state="warning" className={css.turnErrorDot} />
-      <div className={css.turnErrorCopy}>
-        <span className={css.maxTokensTitle}>{t('message.maxTokens')}</span>
-        <span className={css.turnErrorMessage}>{t('message.maxTokens.hint')}</span>
-      </div>
-    </div>
+    <PceRow
+      kind="max-tokens"
+      glyph="token"
+      title={t('message.maxTokens')}
+      summary={t('message.maxTokens.hint')}
+      state="stopped"
+      collapsible={false}
+      body={(
+        <div className={css.turnErrorRow} role="status">
+          <StateDot state="warning" className={css.turnErrorDot} />
+          <div className={css.turnErrorCopy}>
+            <span className={css.maxTokensTitle}>{t('message.maxTokens')}</span>
+            <span className={css.turnErrorMessage}>{t('message.maxTokens.hint')}</span>
+          </div>
+        </div>
+      )}
+    />
   )
 }
 
@@ -353,7 +381,16 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
 
 /** Automatic compaction keyed Chat renderer. */
 export const CompactionNodeView = memo(function CompactionNodeView({ node, t }: ChatNodeViewProps<'compaction'>) {
-  return <CompactionItem node={node.data} t={t} />
+  return (
+    <PceRow
+      kind="compaction"
+      glyph="folder-close"
+      title={t('message.compaction')}
+      state="ok"
+      collapsible={false}
+      body={<CompactionItem node={node.data} t={t} />}
+    />
+  )
 })
 
 /** Correlated retry-chain keyed Chat renderer. */
@@ -376,12 +413,21 @@ export const TurnMaxTokensNodeView = memo(function TurnMaxTokensNodeView({ t }: 
 export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNodeViewProps<'unknown'>) {
   const data = node.data
   return (
-    <div className={css.contextRow}>
-      <JsonBlock
-        label={t('message.unknownSurface', { type: data.type })}
-        payload={data.data}
-        truncatedLabel={total => t('json.truncated', { total })}
-      />
-    </div>
+    <PceRow
+      kind="unknown"
+      glyph="add"
+      title={t('message.unknownBlock')}
+      state="stopped"
+      keepMounted
+      body={(
+        <div className={css.contextRow}>
+          <JsonBlock
+            label={t('message.unknownSurface', { type: data.type })}
+            payload={data.data}
+            truncatedLabel={total => t('json.truncated', { total })}
+          />
+        </div>
+      )}
+    />
   )
 })

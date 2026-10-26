@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render } from '@testing-library/react'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import { makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { TurnTimePanel, TurnUsagePanel } from '../src/client/chat/TurnUsagePanel.tsx'
@@ -26,7 +26,7 @@ describe('TurnUsagePanel', () => {
     const view = render(<TurnUsagePanel usage={usage} t={t} />)
 
     const trigger = view.getByRole('button')
-    expect(trigger.textContent).toBe('Usage 15.8K tok')
+    expect(trigger.textContent).toBe('15.8K tok')
     expect(trigger.querySelector('svg')).not.toBeNull()
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog')
     expect(trigger.getAttribute('aria-expanded')).toBe('false')
@@ -59,7 +59,7 @@ describe('TurnUsagePanel', () => {
     const view = render(<TurnUsagePanel usage={usage} t={t} />)
 
     const trigger = view.getByRole('button')
-    expect(trigger.textContent).toBe('Usage 150 tok')
+    expect(trigger.textContent).toBe('150 tok')
     fireEvent.click(trigger)
     expect(view.queryByText('Provider / model')).toBeNull()
     expect(view.queryByText('Cache hit')).toBeNull()
@@ -79,7 +79,7 @@ describe('TurnUsagePanel', () => {
     const trigger = view.getByRole('button')
     // The pill carries the compact total; cache-hit rate and exact token
     // counts stay in the dialog.
-    expect(trigger.textContent).toBe('Usage 1.1K tok')
+    expect(trigger.textContent).toBe('1.1K tok')
 
     fireEvent.click(trigger)
     const dialog = view.getByRole('dialog')
@@ -103,7 +103,9 @@ describe('TurnTimePanel', () => {
       <TurnTimePanel runMs={19_000} tokensPerSecond={20} ttftMs={1_200} t={t} />,
     )
     const trigger = view.getByRole('button')
-    expect(trigger.textContent).toBe('Ran for 19s')
+    expect(trigger.textContent).toBe('19s')
+    // The clock icon carries the meaning; the sentence survives for screen readers.
+    expect(trigger.getAttribute('aria-label')).toBe('Ran for 19s')
     expect(trigger.querySelector('svg')).not.toBeNull()
     expect(trigger.getAttribute('aria-haspopup')).toBe('dialog')
     expect(view.queryByRole('dialog')).toBeNull()
@@ -129,5 +131,69 @@ describe('TurnTimePanel', () => {
     expect(dialog.textContent).toContain('Total run time3s')
     expect(dialog.textContent).not.toContain('Tokens per second')
     expect(dialog.textContent).not.toContain('Time to first token')
+  })
+})
+
+describe('tail count-up', () => {
+  it('holds both numbers until the tail is visible, then rolls them in', () => {
+    const realMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia')
+    const realRaf = window.requestAnimationFrame
+    const realCancel = window.cancelAnimationFrame
+    const frames: FrameRequestCallback[] = []
+    let clock = performance.now()
+    window.matchMedia = ((media: string) => ({
+      matches: false,
+      media,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia
+    window.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      frames.push(cb)
+      return frames.length
+    }) as typeof window.requestAnimationFrame
+    window.cancelAnimationFrame = (() => {}) as typeof window.cancelAnimationFrame
+    const tick = (delta: number): void => {
+      clock += delta
+      act(() => {
+        for (const cb of frames.splice(0)) cb(clock)
+      })
+    }
+    try {
+      const usage: TurnTokenUsage = {
+        uncachedInputTokens: 0,
+        outputTokens: 15_800,
+        totalTokens: 15_800,
+      }
+      const view = render(<TurnUsagePanel usage={usage} t={t} active={false} />)
+      // Behind the reveal gate: nothing has rolled, so nothing is spent unseen.
+      expect(view.getByRole('button').textContent).toBe('0 tok')
+
+      view.rerender(<TurnUsagePanel usage={usage} t={t} active />)
+      clock = performance.now()
+      tick(120)
+      const midway = view.getByRole('button').textContent ?? ''
+      expect(midway).not.toBe('0 tok')
+      expect(midway).not.toBe('15.8K tok')
+      tick(900)
+      expect(view.getByRole('button').textContent).toBe('15.8K tok')
+      view.unmount()
+      frames.length = 0
+
+      const time = render(<TurnTimePanel runMs={6_000} t={t} active={false} />)
+      expect(time.getByRole('button').textContent).toBe('0s')
+      time.rerender(<TurnTimePanel runMs={6_000} t={t} active />)
+      clock = performance.now()
+      tick(900)
+      expect(time.getByRole('button').textContent).toBe('6s')
+    } finally {
+      window.requestAnimationFrame = realRaf
+      window.cancelAnimationFrame = realCancel
+      if (realMatchMedia === undefined) Reflect.deleteProperty(window, 'matchMedia')
+      else Object.defineProperty(window, 'matchMedia', realMatchMedia)
+    }
   })
 })

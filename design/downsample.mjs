@@ -65,12 +65,15 @@ export function arcCubics(x1, y1, rx, ry, phi, fa, fs, x2, y2) {
   return cubics
 }
 
-/** Flatten an SVG path string (M/L/H/V/C/A/Z, abs+rel) into closed polylines over the 24x24 viewBox. */
+/** Flatten an SVG path string (M/L/H/V/C/S/Q/T/A/Z, abs+rel) into closed polylines over the 24x24 viewBox. */
 export function flattenPath(src) {
   const rd = makeReader(src)
   const polys = []
   let seg = []
   let x = 0, y = 0, sx = 0, sy = 0
+  let prev = ''
+  let cubicCtrl = [0, 0]
+  let quadCtrl = [0, 0]
   const push = (nx, ny) => { seg.push([nx, ny]); x = nx; y = ny }
   const cubicTo = (bx, by, c1x, c1y, c2x, c2y, ex, ey) => {
     for (let s = 1; s <= 24; s++) {
@@ -81,9 +84,16 @@ export function flattenPath(src) {
       )
     }
   }
+  const quadTo = (bx, by, cx, cy, ex, ey) => {
+    for (let s = 1; s <= 24; s++) {
+      const t = s / 24, u = 1 - t
+      push(u * u * bx + 2 * u * t * cx + t * t * ex, u * u * by + 2 * u * t * cy + t * t * ey)
+    }
+  }
   const close = () => { if (seg.length) { push(sx, sy); polys.push(seg); seg = [] } }
   let cmd = rd.command()
   while (cmd !== null) {
+    const thisCmd = cmd
     switch (cmd) {
       case 'M': close(); sx = rd.number(); sy = rd.number(); seg = [[sx, sy]]; x = sx; y = sy; cmd = 'L'; break
       case 'm': close(); sx = x + rd.number(); sy = y + rd.number(); seg = [[sx, sy]]; x = sx; y = sy; cmd = 'l'; break
@@ -95,12 +105,57 @@ export function flattenPath(src) {
       case 'v': push(x, y + rd.number()); break
       case 'c': {
         const a = [rd.number(), rd.number(), rd.number(), rd.number(), rd.number(), rd.number()]
-        cubicTo(x, y, x + a[0], y + a[1], x + a[2], y + a[3], x + a[4], y + a[5])
+        const c2 = [x + a[2], y + a[3]]
+        cubicTo(x, y, x + a[0], y + a[1], c2[0], c2[1], x + a[4], y + a[5])
+        cubicCtrl = c2
         break
       }
       case 'C': {
         const a = [rd.number(), rd.number(), rd.number(), rd.number(), rd.number(), rd.number()]
         cubicTo(x, y, a[0], a[1], a[2], a[3], a[4], a[5])
+        cubicCtrl = [a[2], a[3]]
+        break
+      }
+      case 's': {
+        const a = [rd.number(), rd.number(), rd.number(), rd.number()]
+        const c1 = ['C', 'c', 'S', 's'].includes(prev) ? [2 * x - cubicCtrl[0], 2 * y - cubicCtrl[1]] : [x, y]
+        const c2 = [x + a[0], y + a[1]]
+        cubicTo(x, y, c1[0], c1[1], c2[0], c2[1], x + a[2], y + a[3])
+        cubicCtrl = c2
+        break
+      }
+      case 'S': {
+        const a = [rd.number(), rd.number(), rd.number(), rd.number()]
+        const c1 = ['C', 'c', 'S', 's'].includes(prev) ? [2 * x - cubicCtrl[0], 2 * y - cubicCtrl[1]] : [x, y]
+        cubicTo(x, y, c1[0], c1[1], a[0], a[1], a[2], a[3])
+        cubicCtrl = [a[0], a[1]]
+        break
+      }
+      case 'q': {
+        const a = [rd.number(), rd.number(), rd.number(), rd.number()]
+        const c = [x + a[0], y + a[1]]
+        quadTo(x, y, c[0], c[1], x + a[2], y + a[3])
+        quadCtrl = c
+        break
+      }
+      case 'Q': {
+        const a = [rd.number(), rd.number(), rd.number(), rd.number()]
+        quadTo(x, y, a[0], a[1], a[2], a[3])
+        quadCtrl = [a[0], a[1]]
+        break
+      }
+      case 't': {
+        const ex = rd.number(), ey = rd.number()
+        const c = ['Q', 'q', 'T', 't'].includes(prev) ? [2 * x - quadCtrl[0], 2 * y - quadCtrl[1]] : [x, y]
+        quadTo(x, y, c[0], c[1], x + ex, y + ey)
+        quadCtrl = c
+        break
+      }
+      case 'T': {
+        const ex = rd.number(), ey = rd.number()
+        const c = ['Q', 'q', 'T', 't'].includes(prev) ? [2 * x - quadCtrl[0], 2 * y - quadCtrl[1]] : [x, y]
+        quadTo(x, y, c[0], c[1], ex, ey)
+        quadCtrl = c
         break
       }
       case 'A': case 'a': {
@@ -113,6 +168,7 @@ export function flattenPath(src) {
       case 'Z': case 'z': close(); x = sx; y = sy; break
       default: throw new Error('unsupported path command ' + cmd)
     }
+    prev = thisCmd
     // implicit repetition: a bare number keeps the current command going
     if (rd.peekNumber()) {
       if (cmd === 'M') cmd = 'L'

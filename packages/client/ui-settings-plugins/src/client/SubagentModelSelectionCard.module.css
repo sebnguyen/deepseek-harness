@@ -69,7 +69,6 @@
   padding: 10px;
   overflow: auto;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 8px;
 }
 
 .models legend {
@@ -103,7 +102,6 @@
   gap: 8px;
   min-width: 0;
   padding: 6px;
-  border-radius: 6px;
   cursor: pointer;
 }
 

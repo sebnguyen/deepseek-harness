@@ -22,8 +22,6 @@
   width: 20px;
   height: 20px;
   border: none;
-  border-radius: 50%;
-  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -46,7 +44,6 @@
   padding: 0 2px 0 6px;
   margin-bottom: 2px;
   box-sizing: border-box;
-  border-radius: 6px;
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
 }
@@ -138,13 +135,14 @@
   align-items: center;
   gap: 0;
   width: 100%;
-  height: 20px;
+  /* The rail's search is a 36px control like every other rail button, centred
+     in the 56px column — not a 20px chip pinned to the left edge. */
+  height: 36px;
   margin: 0;
   padding: 0;
+  justify-content: center;
   box-sizing: border-box;
   border: none;
-  border-radius: 50%;
-  corner-shape: round;
   background: transparent;
   cursor: text;
   color: var(--dsw-alias-label-secondary);
@@ -164,9 +162,13 @@
   margin-inline: -2px;
   padding: 0 4px 0 0;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-caption);
+}
+
+.search .searchButton {
+  width: 36px;
+  height: 36px;
 }
 
 .searchButton {
@@ -177,8 +179,6 @@
   width: 20px;
   height: 20px;
   border: none;
-  border-radius: 50%;
-  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -231,8 +231,6 @@
   width: 18px;
   height: 18px;
   border: none;
-  border-radius: 50%;
-  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -457,7 +455,6 @@
   width: 100%;
   height: 22px;
   border: none;
-  border-radius: 6px;
   padding: 0 6px 0 26px;
   background: transparent;
   cursor: pointer;
@@ -498,7 +495,6 @@
   height: 44px;
   padding: 7px 14px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 22px;
   outline: none;
   background: transparent;
   font-size: 14px;

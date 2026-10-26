@@ -48,13 +48,13 @@ describe('PixelLoader', () => {
     expect(pixelLoaderTwinkleInner()).toBe(pixelLoaderTwinkleInner())
   })
 
-  it('keeps one pixel scale and one 20% gap at every rendered size', () => {
-    // 12px and 24px render the same 16-grid geometry: 0.8-unit squares, never
+  it('keeps one pixel scale and one 32% gap at every rendered size', () => {
+    // 12px and 24px render the same 16-grid geometry: 0.68-unit squares, never
     // a sub-pixel gap retune.
     const small = pixelLoaderInner()
     const large = pixelLoaderInner()
     expect(small).toBe(large)
-    expect(small).toContain('width="0.8"')
+    expect(small).toContain('width="0.68"')
     expect(small).not.toContain('width="0.5"')
     // Buckets keep their clockwise staggered delays.
     expect(small).toContain('animation-delay: calc(0.08s')

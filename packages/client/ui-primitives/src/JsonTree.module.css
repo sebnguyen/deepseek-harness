@@ -168,7 +168,6 @@
   margin: 0;
   padding: 0;
   border: 0;
-  border-radius: 3px;
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: -5px 0 5px var(--dsw-alias-bg-layer-1);

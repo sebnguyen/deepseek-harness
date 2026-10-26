@@ -75,36 +75,66 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 
 interface DeliverablesState extends DeliverablesTurnData {
   readonly turn: number
-  readonly calls: ReadonlyMap<string, string | null>
+  readonly calls: ReadonlyMap<string, readonly string[]>
   readonly observed: readonly ProducedPath[]
 }
 
 /**
- * Extract the path from a supported first-party mutation call. Session
+ * Extract the paths a supported first-party mutation call produces. Session
  * `tool/call` events are root calls; Code Dispatch children do not enter this
- * Definition independently.
+ * Definition independently. The shipped faces batch (`write_array`), so one
+ * call may name several files; the legacy singular faces stay supported for
+ * recorded-session replay.
  * @param name - wire tool name.
  * @param argsRaw - model-produced JSON arguments.
- * @returns the mutation path, or null when the call is not a supported mutation.
+ * @returns the mutation paths in written order; empty when the call mutates nothing.
  */
-function mutationPath(name: string, argsRaw: string): string | null {
+function mutationPaths(name: string, argsRaw: string): readonly string[] {
   let args: unknown
   try {
     args = JSON.parse(argsRaw) as unknown
   } catch {
-    return null
+    return []
   }
-  if (!isRecord(args)) return null
+  if (!isRecord(args)) return []
   switch (name) {
-    case 'write':
-      return typeof args.content === 'string' ? pathValue(args.file_path) : null
-    case 'edit':
-      return validEditArgs(args) ? pathValue(args.file_path) : null
-    case 'str_replace_editor':
-      return editorMutationPath(args)
+    case 'write': {
+      const path = typeof args.content === 'string' ? pathValue(args.file_path) : null
+      return path === null ? [] : [path]
+    }
+    case 'edit': {
+      const path = validEditArgs(args) ? pathValue(args.file_path) : null
+      return path === null ? [] : [path]
+    }
+    case 'multi_write':
+      return batchWritePaths(args.write_array)
+    case 'str_replace_editor': {
+      const path = editorMutationPath(args)
+      return path === null ? [] : [path]
+    }
     default:
-      return null
+      return []
   }
+}
+
+/**
+ * Paths one `write_array` batch commits: every element naming a path and either
+ * content or edits, in written order. A `dry_run` element previews only, so it
+ * produces nothing.
+ * @param value - the call's raw `write_array` argument.
+ * @returns the committed paths; empty for a malformed or preview-only batch.
+ */
+function batchWritePaths(value: unknown): readonly string[] {
+  if (!Array.isArray(value)) return []
+  const paths: string[] = []
+  for (const element of value) {
+    if (!isRecord(element) || element.dry_run === true) continue
+    const path = pathValue(element.path)
+    if (path === null) continue
+    if (typeof element.content !== 'string' && !Array.isArray(element.edits)) continue
+    paths.push(path)
+  }
+  return paths
 }
 
 /** Validate the fields that an `edit` execution requires. */
@@ -154,8 +184,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 /**
  * Files produced by one Turn data value.
  *
- * The source is the arguments of successful `write`, `edit`, and mutating
- * `str_replace_editor` calls, not the closing prose: a produced file must be
+ * The source is the arguments of successful `multi_write`, `write`, `edit`, and
+ * mutating `str_replace_editor` calls, not the closing prose: a produced file must be
  * listed whether or not the model remembered to name it. Reads, unsupported
  * tools, malformed calls, and failed results contribute nothing. Paths keep
  * first-seen order and appear once, so a file written and then edited in the
@@ -245,7 +275,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       const calls = new Map(context.state.calls)
       calls.set(
         String(match.event.data.callId),
-        mutationPath(match.event.data.name, match.event.data.arguments),
+        mutationPaths(match.event.data.name, match.event.data.arguments),
       )
       return { ...context.state, calls }
     }
@@ -262,10 +292,10 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
         ...observedPaths.map(observedPath => ({ seq: match.event.seq, path: observedPath })),
       ]
     const callId = String(match.event.data.message.source.callId)
-    const path = context.state.calls.get(callId)
-    const produced = path === null || path === undefined
+    const paths = context.state.calls.get(callId) ?? []
+    const produced = paths.length === 0
       ? context.state.produced
-      : [...context.state.produced, { seq: match.event.seq, path }]
+      : [...context.state.produced, ...paths.map(path => ({ seq: match.event.seq, path }))]
     return produced === context.state.produced && observed === context.state.observed
       ? context.state
       : { ...context.state, produced, observed }

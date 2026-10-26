@@ -91,6 +91,19 @@ llm-pi-ai:
           input: [text]
 ```
 
+A route whose models come from a live endpoint listing declares the same corrections. That listing reports ids and capacities but never modalities, so an override names a model the endpoint serves and lands on the fetched entry of that id — the rest of the catalog keeps refreshing underneath:
+
+```yaml
+llm-pi-ai:
+  providers:
+    digitalocean:
+      modelOverrides:
+        deepseek-v4.1-flash-1017:
+          input: [text, image]
+```
+
+An override naming a model the endpoint does not serve has no effect; the listing is what decides which models a live route offers.
+
 Every list must name at least one modality except a model's own, where an empty list means the same as omitting it. An unknown modality is refused wherever it is written.
 
 Both fields state a claim about your endpoint rather than checking it. A model that declares images its endpoint does not serve is not caught here; the provider rejects the request instead.

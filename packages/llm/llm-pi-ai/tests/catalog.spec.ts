@@ -848,6 +848,22 @@ describe('modelOverrides', () => {
       deepseek: { modelOverrides: { [deepseekModel().id]: smuggled } },
     })).toThrow(/sets "id", which is the dict key/)
   })
+
+  it('accepts an override on a live route, where the endpoint names the models', () => {
+    const resolved = resolveProfiles({
+      'live-gateway': {
+        api: 'openai-completions',
+        baseURL: 'https://live.test/v1',
+        // A listing cannot report modalities, so the deployment declares one
+        // on the model it knows the endpoint serves.
+        modelOverrides: { 'fetched-model': { input: ['text', 'image'] } },
+      },
+    })
+    // Nothing serves until the feed arrives, but the declaration itself is
+    // not a misconfiguration: the route is live, and the model is the
+    // endpoint's to name. The plugin folds it onto the fetched entry.
+    expect(resolved.get('live-gateway')?.piProvider?.getModels()).toEqual([])
+  })
 })
 
 describe('compat switches', () => {

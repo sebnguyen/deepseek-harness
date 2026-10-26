@@ -1,15 +1,13 @@
 /**
- * Keyed `bash` conversation row: a settled or pending `commands` batch renders
- * one terminal block per element (each with its own exit pill, copy control,
- * and persisted elapsed time) plus detach rows for backgrounded or skipped
- * elements, while non-batch shell calls keep the single-exit terminal card.
+ * Keyed `bash` conversation row: the proposed chat element head (pixel mark,
+ * identity, state, toggle) over one pce terminal block per batched element or
+ * the single-exit block. Detach rows keep their own line for backgrounded and
+ * skipped elements, and the generic input/output card remains the fallback for
+ * failures, persistent shells, and spilled output.
  */
-import { useMemo, useState, type KeyboardEvent } from 'react'
+import { useMemo } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import clsx from 'clsx'
-import {
-  IconApiOutline14, IconChevronDownOutline14, IconDetachOutline12, IconInspectOutline12, StateDot, TerminalBlock,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { PceRow, PceToolMaster, PixelLoader, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -18,11 +16,11 @@ import {
   isSettledPersistentShellCall,
   isSpilledShellCall,
   localizeTerminalCardModel,
-  terminalBlockLabels,
   terminalCardModel,
   terminalFailed,
 } from '../models/terminal-card-model.ts'
 import { formatToolBody, toolRowModel, type ToolRowState } from '../models/tool-call-model.ts'
+import { pceStateLabel } from '../components/pce-label.ts'
 import { CONVERSATION_NS as NS } from '../../locale.ts'
 import css from './bash-row.module.css'
 
@@ -48,25 +46,6 @@ export function durationText(ms: number, t: TranslateNS<'conversation'>): string
   return t('bash.duration.hours', { value: String(Math.round(minutes / 60)) })
 }
 
-function leadingFor(state: ToolRowState) {
-  switch (state) {
-    case 'error': return <StateDot state="error" />
-    case 'stopped': return <StateDot state="warning" />
-    // Running keeps the icon — the row sweep carries the in-flight signal.
-    default: return <IconApiOutline14 size={14} />
-  }
-}
-
-/** Visually hidden status — StateDot is aria-hidden; AT needs a text label. */
-function stateStatus(state: ToolRowState, t: TranslateNS<'conversation'>): string | null {
-  switch (state) {
-    case 'running': return t('bash.running')
-    case 'error': return t('bash.failed')
-    case 'stopped': return t('bash.stopped')
-    default: return null
-  }
-}
-
 /** An element workdir as the prompt label wants it: absolute stays, relative joins the session workspace. */
 function frameCwd(workdir: string | undefined, sessionCwd: string | undefined): string | undefined {
   if (workdir === undefined) return sessionCwd
@@ -74,220 +53,274 @@ function frameCwd(workdir: string | undefined, sessionCwd: string | undefined): 
   return resolveWorkspacePath(sessionCwd, workdir)
 }
 
-/** One settled foreground frame as its own terminal block. */
-function FrameTerminal(props: {
-  frame: FramesCard & { kind: 'foreground' }
-  cwd: string | undefined
-  labels: ReturnType<typeof terminalBlockLabels>
+/** The last path segment, as the terminal banner's working-directory label. */
+function cwdLabel(path: string | undefined): string | undefined {
+  if (path === undefined || path === '') return undefined
+  const trimmed = path.replace(/[/\\]+$/, '')
+  return trimmed.split(/[/\\]/).pop() ?? trimmed
+}
+
+/** One rendered terminal line of a pce block. */
+interface TerminalLine {
+  text: string
+  tone?: 'command' | 'error' | undefined
+  /** Prompt marker for a command row (`$` or `[i/N] $`). */
+  gutter?: string | undefined
+  /** Wire acknowledgement kind; renders as a detach line. */
+  detached?: 'job' | 'not-run' | undefined
+}
+
+/** Split a command into one prompt row per line, as the terminal prints it. */
+function commandLines(command: string, gutter: string): TerminalLine[] {
+  const body = command.endsWith('\n') ? command.slice(0, -1) : command
+  return body.split('\n').map(text => ({ tone: 'command', gutter, text }))
+}
+
+/** Split captured output into rendered lines (a final terminator is not a blank line). */
+function outputLines(output: string | undefined): TerminalLine[] {
+  if (output === undefined || output === '') return []
+  const body = output.endsWith('\n') ? output.slice(0, -1) : output
+  return body.split('\n').map(text => ({ text }))
+}
+
+/** Non-clean settle copy for a terminal block; absent for a clean exit. */
+function exitLine(exitCode: number | undefined, signal: string | undefined, t: TranslateNS<'conversation'>): TerminalLine | null {
+  if (signal !== undefined) return { tone: 'error', text: t('terminal.signal', { signal }) }
+  if (exitCode !== undefined && exitCode !== 0) return { tone: 'error', text: t('terminal.exitCode', { code: exitCode }) }
+  return null
+}
+
+/** One pce terminal block: a mono banner plus pre-wrap command/output lines. */
+function PceTerminal(props: {
+  lines: readonly TerminalLine[]
+  running: boolean
+  state: ToolRowState
+  cwd?: string | undefined
+  meta?: string | null | undefined
+  inspect?: (() => void) | undefined
   t: TranslateNS<'conversation'>
 }) {
-  const { frame, cwd, labels, t } = props
+  const { lines, running, state, cwd, meta, inspect, t } = props
+  const dot = state === 'running' ? 'ongoing' : state === 'error' ? 'error' : state === 'stopped' ? 'warning' : 'done'
   return (
-    <TerminalBlock
-      command={frame.command}
-      cwd={frameCwd(frame.workdir, cwd)}
-      output={frame.output}
-      exitCode={frame.exitCode}
-      signal={frame.signal}
-      maxLines={Infinity}
-      labels={labels}
-      className={css.terminal}
-      accessory={frame.durationMs !== undefined ? durationText(frame.durationMs, t) : undefined}
-    />
+    <div className="pce-terminal" data-terminal="" data-running={running ? '' : undefined}>
+      <div className="pce-terminal-head">
+        <span>terminal</span>
+        <StateDot state={dot} />
+        <span className={css.visuallyHidden}>
+          {state === 'ok' ? t('terminal.done') : state === 'error' ? t('terminal.failed') : t('terminal.running')}
+        </span>
+        {running && (
+          <span className="pce-running"><PixelLoader size={10} mode="sweep" />{t('terminal.running')}</span>
+        )}
+        {cwd !== undefined && <span className="pce-terminal-cwd">{cwd}</span>}
+        {meta !== undefined && meta !== null && <span className="pce-terminal-meta">{meta}</span>}
+        {inspect !== undefined && (
+          <button type="button" className="pce-action" onClick={inspect}>{t('row.inspect')}</button>
+        )}
+      </div>
+      {lines.map((line, index) => (
+        <div
+          key={`${index}:${line.text}`}
+          className={[
+            'pce-line',
+            line.tone === 'command' ? 'is-command' : '',
+            line.tone === 'error' ? 'is-error' : '',
+          ].filter(Boolean).join(' ')}
+          data-detached={line.detached}
+        >
+          {line.gutter !== undefined && <span className="pce-gutter" aria-hidden="true">{line.gutter}</span>}
+          <span className="pce-line-text">{line.text}</span>
+        </div>
+      ))}
+    </div>
   )
 }
 
-/** One live terminal card per element while the batch is still running. */
+/** One live terminal block per element while a batch is still running. */
 function PendingFrames(props: {
   frames: Extract<BashFramesModel, { kind: 'pending' }>
   cwd: string | undefined
-  labels: ReturnType<typeof terminalBlockLabels>
+  t: TranslateNS<'conversation'>
 }) {
-  const { frames, cwd, labels } = props
-  return frames.commands.map((element, index) => (
-    <PendingTerminal key={`${index}:${element.command}`} element={element} cwd={cwd} labels={labels} />
+  const { frames, cwd, t } = props
+  return frames.commands.map((element: FramesCommand, index) => (
+    <PceTerminal
+      key={`${index}:${element.command}`}
+      running
+      state="running"
+      cwd={cwdLabel(frameCwd(element.workdir, cwd))}
+      lines={commandLines(element.command, '$')}
+      t={t}
+    />
   ))
 }
 
-/** Settled batch cards: a terminal per foreground frame, a detach line each for
- *  backgrounded and skipped elements. */
+/** One settled block per foreground frame, plus a detach line for the others. */
 function SettledFrames(props: {
   frames: Extract<BashFramesModel, { kind: 'settled' }>
   cwd: string | undefined
-  labels: ReturnType<typeof terminalBlockLabels>
+  inspect: (() => void) | undefined
   t: TranslateNS<'conversation'>
 }) {
-  const { frames, cwd, labels, t } = props
-  return frames.frames.map((frame, index) => {
+  const { frames, cwd, inspect, t } = props
+  const total = frames.frames.length
+  const blocks = frames.frames.map((frame: FramesCard, index) => {
+    const gutter = `[${index + 1}/${total}] $`
+    const meta = frame.kind === 'foreground' && frame.durationMs !== undefined
+      ? durationText(frame.durationMs, t)
+      : null
     if (frame.kind === 'foreground') {
-      return <FrameTerminal key={`${index}:${frame.command}`} frame={frame} cwd={cwd} labels={labels} t={t} />
+      const exit = exitLine(frame.exitCode, frame.signal, t)
+      return (
+        <PceTerminal
+          key={`${index}:${frame.command}`}
+          running={false}
+          state={exit === null ? 'ok' : 'error'}
+          cwd={cwdLabel(frameCwd(frame.workdir, cwd))}
+          meta={meta}
+          inspect={index === 0 ? inspect : undefined}
+          lines={[...commandLines(frame.command, gutter), ...outputLines(frame.output), ...exit === null ? [] : [exit]]}
+          t={t}
+        />
+      )
+    }
+    const detached: TerminalLine = {
+      text: frame.kind === 'job'
+        ? t('bash.backgrounded', { jobId: frame.jobId ?? '' })
+        : t('bash.notRun', { reason: frame.reason ?? '' }),
+      detached: frame.kind,
     }
     return (
-      <div key={`${index}:${frame.command}`} className={css.detached} data-detached={frame.kind}>
-        {frame.kind === 'job'
-          ? <IconDetachOutline12 className={css.detachedIcon} />
-          : <StateDot state="warning" className={css.detachedDot} />}
-        <div className={css.detachedBody}>
-          <span className={css.detachedCommand}>{frame.command}</span>
-          <span className={css.detachedLine}>
-            {frame.kind === 'job'
-              ? t('bash.backgrounded', { jobId: frame.jobId ?? '' })
-              : t('bash.notRun', { reason: frame.reason ?? '' })}
-          </span>
-        </div>
-      </div>
+      <PceTerminal
+        key={`${index}:${frame.command}`}
+        running={false}
+        state={frame.kind === 'job' ? 'ok' : 'stopped'}
+        inspect={index === 0 ? inspect : undefined}
+        lines={[...commandLines(frame.command, gutter), detached]}
+        t={t}
+      />
     )
   })
-}
-
-/** One pending frame: a live terminal card until its element settles. */
-function PendingTerminal(props: {
-  element: FramesCommand
-  cwd: string | undefined
-  labels: ReturnType<typeof terminalBlockLabels>
-}) {
-  const { element, cwd, labels } = props
+  if (total <= 1) return blocks
   return (
-    <TerminalBlock
-      command={element.command}
-      cwd={frameCwd(element.workdir, cwd)}
-      running
-      maxLines={Infinity}
-      labels={labels}
-      className={css.terminal}
+    <PceToolMaster
+      column="COMMAND"
+      previewKind="Terminal"
+      closeLabel={t('pce.closePreview')}
+      previewLabel={t('pce.preview')}
+      rows={frames.frames.map((frame, index) => {
+        const foreground = frame.kind === 'foreground'
+        const failed = foreground && (frame.exitCode !== undefined || frame.signal !== undefined)
+        return {
+          tone: failed ? 'error' : frame.kind === 'not-run' ? 'stopped' : 'ok',
+          state: failed ? t('terminal.failed') : frame.kind === 'not-run' ? t('row.stopped') : t('terminal.done'),
+          primary: frame.command,
+          detail: foreground
+            ? [
+              frame.durationMs === undefined ? null : durationText(frame.durationMs, t),
+              failed ? exitLine(frame.exitCode, frame.signal, t)?.text ?? null : null,
+            ].filter((part): part is string => part !== null).join(' · ')
+            : frame.kind === 'job'
+              ? t('bash.backgrounded', { jobId: frame.jobId ?? '' })
+              : t('bash.notRun', { reason: frame.reason ?? '' }),
+          body: blocks[index],
+        }
+      })}
     />
   )
 }
 
-/** Renders Bash output: batched frames one card each, else the single-exit card. */
+/** The single-exit terminal block for a non-batch shell call. */
+function SingleTerminal(props: {
+  localized: ReturnType<typeof localizeTerminalCardModel>
+  state: ToolRowState
+  inspect: (() => void) | undefined
+  t: TranslateNS<'conversation'>
+}) {
+  const { localized, state, inspect, t } = props
+  const { card } = localized
+  const running = card.running === true
+  const exit = exitLine(card.exitCode, card.signal, t)
+  const lines = running
+    ? commandLines(card.command, '$')
+    : [...commandLines(card.command, '$'), ...outputLines(card.output), ...exit === null ? [] : [exit]]
+  return (
+    <PceTerminal
+      running={running}
+      state={state}
+      cwd={cwdLabel(card.cwd)}
+      inspect={inspect}
+      lines={lines}
+      t={t}
+    />
+  )
+}
+
+/** Renders Bash output: pce terminal blocks over the proposed chat element head. */
 export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }: BashRowProps) {
   const model = toolRowModel(toolName, block)
   // An omitted shell workdir is the session workspace; relative values resolve
-  // against it before reaching the terminal primitive.
+  // against it before reaching the terminal block.
   const cwd = useSessions(list => list.byId[sessionId]?.cwd)
   const frames = useMemo(() => bashFramesModel(block), [block])
   const running = !('kind' in block)
-  const labels = useMemo(() => terminalBlockLabels(t), [t])
   const terminalModel = frames === null ? terminalCardModel(block, cwd) : null
   const terminal = terminalModel === null ? null : localizeTerminalCardModel(terminalModel, t)
   const failedFrames = frames?.kind === 'settled' && frames.failed
   const state: ToolRowState = model.state === 'ok' && (failedFrames || (terminalModel !== null && terminalFailed(terminalModel)))
     ? 'error'
     : model.state
-  const status = stateStatus(state, t)
-  const [expanded, setExpanded] = useState(false)
-  // Failures, persistent-shell results, and spill previews use a generic body;
-  // background acknowledgements and malformed calls remain collapsed.
+  // Failures, persistent-shell results, and spill previews use the generic
+  // input/output body; background acknowledgements stay on the result body.
   const genericBody = frames === null && terminal === null
     && (model.state === 'error' || isSettledPersistentShellCall(block) || isSpilledShellCall(block))
     && (model.bodyRaw !== null || model.output !== null)
-  const expandable = frames !== null || terminal !== null || genericBody
-  const open = expanded && expandable
-  const body = useMemo(
-    () => open && genericBody && model.bodyRaw !== null
-      ? formatToolBody(model.variant, model.bodyRaw)
-      : null,
-    [genericBody, model.bodyRaw, model.variant, open],
-  )
-  const failureLine = model.state === 'error' ? model.errorSummary : null
-  const settledFor = 'kind' in block ? block.time - (block.callTime ?? block.time) : null
-  // No live tick: a mount-anchored clock restarts on every remount, so the
-  // row shows a duration only once the call's recorded total settles.
-  const suffix = frames !== null && !running ? durationText(settledFor ?? 0, t) : null
-  const toggleExpand = () => {
-    setExpanded(v => !v)
-  }
-  const toggleFromKeyboard = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) return
-    event.preventDefault()
-    toggleExpand()
-  }
-  const leading = open
-    ? <IconChevronDownOutline14 className={css.chevron} />
-    : expandable
-      ? (
-        <>
-          <span className={css.iconIdle}>{leadingFor(state)}</span>
-          <IconChevronDownOutline14 className={clsx(css.chevron, css.chevronHover)} />
-        </>
-      )
-      : leadingFor(state)
-  return (
-    <div className={css.card}>
-      <div
-        className={css.root}
-        data-sample="bash"
-        data-variant="bash"
-        data-state={state}
-        data-expandable={expandable || undefined}
-        role={expandable ? 'button' : undefined}
-        tabIndex={expandable ? 0 : undefined}
-        aria-expanded={expandable ? open : undefined}
-        onClick={expandable ? toggleExpand : undefined}
-        onKeyDown={expandable ? toggleFromKeyboard : undefined}
-      >
-        <span className={css.leading}>{leading}</span>
-        {status !== null && <span className={css.visuallyHidden}>{status}</span>}
-        <span className={css.title}>{t(model.titleKey)}</span>
-        <span className={css.sep} aria-hidden />
-        <span className={clsx(css.summary, failureLine !== null && css.errorSummary)}>
-          {failureLine ?? terminal?.description ?? model.summary}
-        </span>
-        {suffix !== null && <span className={css.suffix}>{suffix}</span>}
-        {inspect !== undefined && (
-          <button
-            type="button"
-            className={css.inspectChip}
-            onClick={(event) => {
-              event.stopPropagation()
-              inspect()
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
-            }}
-          >
-            <IconInspectOutline12 />
-            {t('row.inspect')}
-          </button>
-        )}
-      </div>
-      {open && (
-        <div className={css.bodyWrap}>
-          {frames !== null && (frames.kind === 'pending'
-            ? <PendingFrames frames={frames} cwd={cwd} labels={labels} />
-            : <SettledFrames frames={frames} cwd={cwd} labels={labels} t={t} />)}
-          {frames === null && terminal !== null && (
-            <TerminalBlock
-              {...terminal.card}
-              maxLines={Infinity}
-              labels={labels}
-              className={css.terminal}
-            />
+  const body = useMemo(() => {
+    if (frames !== null) {
+      return frames.kind === 'pending'
+        ? <PendingFrames frames={frames} cwd={cwd} t={t} />
+        : <SettledFrames frames={frames} cwd={cwd} inspect={inspect} t={t} />
+    }
+    if (!genericBody && terminal !== null && terminalModel !== null) {
+      return <SingleTerminal localized={terminal} state={state} inspect={inspect} t={t} />
+    }
+    if (genericBody) {
+      const input = model.bodyRaw === null ? null : formatToolBody(model.variant, model.bodyRaw)
+      return (
+        <div className={css.ioCard}>
+          {input !== null && (
+            <div className={css.ioSection}>
+              <span className={css.ioLabel}>{t('row.input')}</span>
+              <span className={css.ioText}>{input}</span>
+            </div>
           )}
-          {frames === null && terminal === null && (
-            <div className={css.ioCard}>
-              {body !== null && (
-                <div className={css.ioSection}>
-                  <span className={css.ioLabel}>{t('row.input')}</span>
-                  <span className={css.ioText}>{body}</span>
-                </div>
-              )}
-              {body !== null && model.output !== null && (
-                <span className={css.ioDivider} aria-hidden />
-              )}
-              {model.output !== null && (
-                <div className={css.ioSection}>
-                  <span className={css.ioLabel}>{t('row.output')}</span>
-                  <span className={css.ioText} data-error={state === 'error' || undefined}>
-                    {model.output}
-                  </span>
-                </div>
-              )}
+          {input !== null && model.output !== null && <span className={css.ioDivider} aria-hidden />}
+          {model.output !== null && (
+            <div className={css.ioSection}>
+              <span className={css.ioLabel}>{t('row.output')}</span>
+              <span className={css.ioText} data-error={state === 'error' || undefined}>{model.output}</span>
             </div>
           )}
         </div>
-      )}
-    </div>
+      )
+    }
+    return <div className="pce-result">{model.output ?? model.summary}</div>
+  }, [cwd, frames, genericBody, inspect, model.bodyRaw, model.output, model.summary, model.variant, state, t, terminal, terminalModel])
+  const failureLine = model.state === 'error' ? model.errorSummary : null
+  const settledFor = 'kind' in block ? block.time - (block.callTime ?? block.time) : null
+  const suffix = frames !== null && !running ? durationText(settledFor ?? 0, t) : null
+  return (
+    <PceRow
+      kind="bash"
+      glyph="bash"
+      title={t(model.titleKey)}
+      summary={failureLine ?? terminal?.description ?? model.summary}
+      detail={suffix}
+      state={state}
+      stateLabel={pceStateLabel(state, t)}
+      body={body}
+    />
   )
 }
 

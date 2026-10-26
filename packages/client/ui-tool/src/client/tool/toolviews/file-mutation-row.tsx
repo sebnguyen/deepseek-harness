@@ -1,5 +1,4 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { IconEditOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { diffCardModel } from '../models/diff-card-model.ts'
@@ -26,7 +25,8 @@ export function FileMutationRow({ toolName, block, cwd, home, openFile, inspect,
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconEditOutline16 size={14} />}
+      pceKind="file-mutation"
+      glyph="write"
       title={t(model.titleKey)}
       summary={frames === null
         ? model.summary

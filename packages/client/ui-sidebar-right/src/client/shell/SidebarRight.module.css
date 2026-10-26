@@ -31,14 +31,11 @@
   flex-direction: column;
   min-width: 0;
   /* The frame's right-hand floating card: the same ground as the
-     conversation, wrapped in the frame's published card radius and ui-theme's
-     elevation pair (hairline stroke + soft shadow) instead of the old 0.5px
-     left rule. The fallback matches ui-layout's --dsh-frame-card-radius when
-     the panel renders away from the frame. Content corners are clipped to the
-     card; dockkit menus portal out, so nothing clips that must escape. */
+     conversation, wrapped in ui-theme's elevation pair (hairline stroke + soft
+     shadow) instead of the old 0.5px left rule. Content is clipped to the panel
+     box; dockkit menus portal out, so nothing clips that must escape. */
   background: var(--dsw-alias-bg-base);
   overflow: hidden;
-  border-radius: var(--dsh-frame-card-radius, 14px);
   box-shadow: var(--dsw-elevation-panel);
   backdrop-filter: var(--dsh-glass-blur);
   -webkit-backdrop-filter: var(--dsh-glass-blur);
@@ -55,11 +52,10 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-/* A surface owns the column's whole card, and the workbench layer (ui-layout's
-   `shell.ide` seat) shows its glass frame over this one: the card's own surface
-   would sit behind the transparent workbench as a second, flat fill with square
-   corners, so while a surface owns the column the panel drops its chrome and the
-   ocean reads straight through. */
+/* A surface owns the column's whole card: its body mounts the workbench frame
+   here, and the card's own surface would sit behind the transparent workbench
+   as a second, flat fill with square corners. While a surface owns the column
+   the panel drops its chrome, so the workbench paints its own page. */
 .panel[data-surface-owned] {
   background: transparent;
   box-shadow: none;
@@ -72,7 +68,6 @@
   inset: 0;
   z-index: var(--dsh-z-panel-fullscreen);
   border: none;
-  border-radius: 0;
   box-shadow: none;
 }
 
@@ -113,7 +108,6 @@
   line-height: 1;
   background: transparent;
   border: none;
-  border-radius: 28px;
   cursor: pointer;
 }
 
@@ -173,7 +167,6 @@
   display: flex;
   gap: 4px;
   padding: 2px;
-  border-radius: 8px;
   background: var(--dsw-alias-bg-opaque-translucent-l1, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base)));
 }
 

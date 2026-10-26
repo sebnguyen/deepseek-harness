@@ -3,7 +3,6 @@
 .card {
   list-style: none;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 16px;
   background: var(--dsw-alias-bg-layer-3);
   transition: border-color .16s, background .16s;
 }
@@ -31,7 +30,6 @@
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  border-radius: 12px;
 }
 
 .header:focus-visible {
@@ -86,7 +84,7 @@
 }
 
 /* Carried on the header so a collapsed card still says it holds edits. */
-/* Placement only: the capsule geometry and palette come from `Tag`. */
+/* Placement only: the box geometry and palette come from `Tag`. */
 .pending {
   flex: none;
 }
@@ -113,7 +111,6 @@
 .save {
   appearance: none;
   border: 1px solid transparent;
-  border-radius: 8px;
   padding: 5px 14px;
   font: inherit;
   font-size: 13px;

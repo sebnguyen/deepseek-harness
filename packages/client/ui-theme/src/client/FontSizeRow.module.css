@@ -49,7 +49,6 @@
   justify-content: center;
   min-width: 72px;
   height: 36px;
-  border-radius: 18px;
   background: var(--dsw-alias-bg-module-platform);
 }
 
@@ -97,7 +96,6 @@
   height: 12px;
   padding: 0;
   border: none;
-  border-radius: 3px;
   background: color-mix(in srgb, var(--dsw-alias-bg-layer-1) 75%, transparent);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;

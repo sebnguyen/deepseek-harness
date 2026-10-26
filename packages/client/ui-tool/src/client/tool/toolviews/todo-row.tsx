@@ -1,4 +1,3 @@
-import { IconChecklistOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Context } from '@deepseek-ai/cordis'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -23,7 +22,7 @@ interface RowSummary {
   extra: number
 }
 
-function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
+function parseTodos(argsRaw: string): PlanItemLike[] | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(argsRaw)
@@ -36,6 +35,12 @@ function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
   if (typeof parsed !== 'object' || parsed === null) return null
   const todos = (parsed as { todos?: unknown }).todos
   if (!Array.isArray(todos) || !todos.every(isItem)) return null
+  return todos
+}
+
+function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
+  const todos = parseTodos(argsRaw)
+  if (todos === null) return null
   const { done, total, activeContent, activeExtra } = planSummary(todos)
   const head = t('todo.completed', { done, total })
   return {
@@ -44,21 +49,32 @@ function summarize(argsRaw: string, t: TodoRowProps['t']): RowSummary | null {
   }
 }
 
+function todoItems(argsRaw: string): { content: string; status: string }[] | null {
+  const todos = parseTodos(argsRaw)
+  if (todos === null) return null
+  return todos.flatMap(todo => typeof todo.content === 'string'
+    ? [{ content: todo.content, status: typeof todo.status === 'string' ? todo.status : 'pending' }]
+    : [])
+}
+
 /** Summarizes a plan update without presenting a cancelled call as completed. */
 export function TodoRow({ toolName, block, inspect, t }: TodoRowProps) {
   const model = toolRowModel(toolName, block)
   const argsRaw = ('kind' in block ? block.call?.argsRaw : block.argsRaw) ?? ''
   const summary = summarize(argsRaw, t) ?? { text: model.summary, extra: 0 }
+  const todos = todoItems(argsRaw)
   return (
     <ToolRow
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconChecklistOutline14 />}
+      pceKind="todo"
+      glyph="todo"
       title={t('todo.rowTitle')}
       summary={summary.text}
       summarySuffix={summary.extra > 0 ? `+${summary.extra}` : null}
-      bodyRaw={model.bodyRaw}
+      bodyRaw={todos === null ? model.bodyRaw : null}
+      todos={todos}
       output={model.output}
       errorSummary={model.errorSummary}
       state={model.state}

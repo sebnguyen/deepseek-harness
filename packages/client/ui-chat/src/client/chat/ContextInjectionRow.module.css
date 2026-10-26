@@ -20,7 +20,6 @@
   width: 2px;
   height: 2px;
   margin: 0 8px;
-  border-radius: 1px;
   background: var(--dsw-alias-label-caption);
 }
 
@@ -49,14 +48,13 @@
 
 .body {
   box-sizing: border-box;
-  /* Indent under the title, which starts at leading (16 + delta) + gap 6. */
-  width: calc(100% - 22px - var(--dsh-content-font-delta, 0px));
+  /* Flat with the head: no indent under the mark. */
+  width: 100%;
   max-height: 141px;
-  margin: 4px 0 0 calc(22px + var(--dsh-content-font-delta, 0px));
+  margin: 4px 0 0;
   overflow: auto;
   padding: 10px 16px 12px 12px;
   border: none;
-  border-radius: 8px;
   background: var(--dsw-alias-markdown-code-block);
   color: var(--dsw-alias-label-tertiary);
   /* Figma 10:2482 code text: the form bodies inherit it from the scrollport. */

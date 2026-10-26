@@ -378,7 +378,7 @@ describe('web e2e: seeded history renders through cold resume', () => {
     })
     expect(style).toEqual({
       backgroundColor: 'rgb(249, 250, 251)',
-      borderRadius: '8px',
+      borderRadius: '0px',
       color: 'rgb(129, 133, 140)',
       fontSize: '11px',
       lineHeight: '16px',

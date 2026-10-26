@@ -8,12 +8,12 @@ beforeEach(() => { vi.stubGlobal('innerWidth', 1920) })
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('createLayoutStore', () => {
-  it('starts with the default sidebar and no right panel preference', () => {
+  it('starts collapsed at its rail with no right panel preference', () => {
     const { store } = createLayoutStore().create()
     expect(store.getSnapshot()).toEqual({
       panelInfo: { activePanelId: null },
       layoutInfo: {
-        sidebar: 280,
+        sidebar: 0,
         viewportWidth: 1920,
         narrowExpanded: false,
         rightbar: null,
@@ -32,7 +32,7 @@ describe('createLayoutStore', () => {
     const b = createLayoutStore().create()
     a.actions.setSidebar(400)
     a.actions.openRightbar(true, false)
-    expect(b.store.getSnapshot().layoutInfo.sidebar).toBe(280)
+    expect(b.store.getSnapshot().layoutInfo.sidebar).toBe(0)
     expect(b.store.getSnapshot().layoutInfo.rightbar).toBeNull()
     expect(write).not.toHaveBeenCalled()
   })

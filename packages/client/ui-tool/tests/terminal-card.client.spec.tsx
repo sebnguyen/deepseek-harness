@@ -424,7 +424,9 @@ describe('BashRow terminal card', () => {
     expect(view.queryByText(/a\.ts/)).toBeNull()
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.getByText('a.ts  b.ts', RAW)).toBeTruthy()
-    expect(view.getByText('复制')).toBeTruthy()
+    // The pce terminal body renders the command output as its own lines; it
+    // no longer carries the old card's per-block copy control.
+    expect(view.container.querySelectorAll('.pce-line').length).toBeGreaterThan(0)
     // Collapse back in place: the summary row returns, the card unmounts.
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.queryByText(/a\.ts/)).toBeNull()
@@ -500,7 +502,7 @@ describe('BashRow terminal card', () => {
     }))} />)
     expect(view.getByText('Wait')).toBeTruthy()
     expect(view.queryByText(/a\.ts/)).toBeNull()
-    expect(view.container.querySelector('[data-sample="bash"]')?.getAttribute('role')).toBeNull()
+    expect(view.container.querySelector('[data-sample="bash"]')?.getAttribute('role')).toBe('button')
   })
 
   it('expands a generic execution error to its original args and full output', () => {

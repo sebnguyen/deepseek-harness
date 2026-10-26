@@ -251,7 +251,8 @@ describe('FileMutationRow diff card', () => {
     expect(view.getByText('+1 -0')).toBeTruthy()
     // The footer counts live inside the collapsed diff card.
     toggleRow(view)
-    expect(view.getByText('└ +1 -0 · 1 个文件')).toBeTruthy()
+    expect(view.container.textContent).toContain('hello fixture')
+    expect(view.container.textContent).toContain('+1 -0')
   })
 
   it('reflects the run state on its leading slot', () => {
@@ -313,8 +314,8 @@ describe('FileMutationRow diff card', () => {
     const view = render(<FileMutationRow {...rowProps(settled({
       call: { name: 'edit', argsRaw: '' }, meta: undefined,
     }))} />)
-    expect(view.container.querySelector('[class*="_fileLink_"]')).toBeNull()
-    expect(view.container.querySelector('[class*="_summary_"]')).not.toBeNull()
+    expect(view.container.querySelector('[data-file-link]')).toBeNull()
+    expect(view.container.querySelector('[data-pce-summary]')).not.toBeNull()
   })
 
   it('a settled write link opens the resolved path even when args are empty', () => {
@@ -324,7 +325,7 @@ describe('FileMutationRow diff card', () => {
     const view = render(<FileMutationRow {...{ ...rowProps(settled({
       call: { name: 'write', argsRaw: '' },
     })), openFile }} />)
-    const link = view.container.querySelector('[class*="_fileLink_"]')
+    const link = view.container.querySelector('[data-file-link]')
     expect(link).not.toBeNull()
     fireEvent.click(link!)
     expect(openFile).toHaveBeenCalledWith('notes/demo.txt')
@@ -443,19 +444,24 @@ describe('FileMutationRow batched write', () => {
     expect(view.container.textContent).toContain('+3 -1')
     expect(view.container.querySelectorAll('[data-diff]').length).toBe(0)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
-    expect(view.container.querySelectorAll('[data-diff]').length).toBe(2)
-    // Settled hunks win over argument intent; outcomes feed the accessory.
+    // One FILE row per element; settled outcomes ride the detail cells.
+    const rows = view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)')
+    expect(rows.length).toBe(3)
     expect(view.container.textContent).toContain('已创建文件')
     expect(view.container.textContent).toContain('1 处编辑已应用（1 处匹配）')
-    // The refused element renders the frames error verbatim on a detach line.
+    // The refused element still reports its error in the table.
     expect(view.container.textContent).toContain('[错误：not read this session]')
-    expect(view.container.querySelectorAll('[data-detached]').length).toBe(1)
+    // Only the selected element's card draws, stacked under the table.
+    fireEvent.click(rows[0]!.querySelector('.pce-row-hit')!)
+    expect(view.container.querySelectorAll('[data-diff]').length).toBe(1)
   })
 
   it('diff card path headers open the element at the row line', () => {
     const openFile = vi.fn()
     const view = render(<FileMutationRow {...{ ...rowProps(batchSettled()), openFile }} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    const rows = view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)')
+    fireEvent.click(rows[1]!.querySelector('.pce-row-hit')!)
     const headers = Array.from(view.container.querySelectorAll('[data-diff] button')).filter(button => button.textContent === 'src/handler.ts')
     expect(headers.length).toBe(1)
     fireEvent.click(headers[0]!)
@@ -487,12 +493,16 @@ describe('FileMutationRow batched write outcomes', () => {
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.container.textContent).toContain('试运行 — 未提交')
     expect(view.container.textContent).toContain('[未运行：call aborted]')
+    const rows = view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)')
+    expect(rows.length).toBe(2)
+    fireEvent.click(rows[0]!.querySelector('.pce-row-hit')!)
     expect(view.container.querySelectorAll('[data-diff]').length).toBe(1)
   })
 
   it('written preview hunks draw without an open callback', () => {
     const view = render(<FileMutationRow {...rowProps(settled(), undefined)} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    fireEvent.click(view.container.querySelector('.pce-tool-table .pce-row-hit')!)
     expect(view.container.querySelectorAll('[data-diff]').length).toBe(1)
     // Only the card's copy control remains: the path header is a plain row.
     const pathHeaders = Array.from(view.container.querySelectorAll('[data-diff] button')).filter(button => button.textContent === 'pre.txt')

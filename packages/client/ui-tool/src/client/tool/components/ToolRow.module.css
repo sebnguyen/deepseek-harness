@@ -73,7 +73,6 @@
   flex: none;
   width: 2px;
   height: 2px;
-  border-radius: 1px;
   margin: 0 8px;
   background: var(--dsw-alias-label-caption);
 }
@@ -173,8 +172,6 @@
   margin-left: 8px;
   padding: 2px 8px;
   border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 999px;
-  corner-shape: round;
   /* Base background, not bg-overlay: the overlay token is a raised dark
      surface and reads too heavy for a quiet in-flow affordance. */
   background: var(--dsw-alias-bg-base);
@@ -199,7 +196,6 @@
   margin: 4px 0 4px 4px;
   padding: 7px 12px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 10px;
   background: var(--dsw-alias-markdown-code-block);
   font: var(--dsw-font-markdown-code-block-small);
 }
@@ -254,14 +250,14 @@ button.detachedPath:hover {
 
 /* Expanded-body scroll wrapper for the run_code CodeBlock; the IN/OUT card
    and the terminal card scroll INSIDE their own surface instead, so the
-   scrollbar sits within the rounded card. */
+   scrollbar sits within the card. */
 .bodyScroll {
   max-height: 260px;
   overflow-y: auto;
 }
 
 /* Expanded input/output card (figma 1249:35657): the code-block surface and
-   radius from the TerminalBlock/CodeBlock family. The card itself is a plain
+   border from the TerminalBlock/CodeBlock family. The card itself is a plain
    column — the padding and the IN/OUT gutter-label grid live on each section
    so the divider spans the full card width and each section scrolls alone. */
 .ioCard {
@@ -269,7 +265,6 @@ button.detachedPath:hover {
   flex-direction: column;
   margin: 4px 0 4px 4px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
   background: var(--dsw-alias-markdown-code-block);
   font: var(--dsw-font-markdown-code-block-small);
 }
@@ -287,15 +282,14 @@ button.detachedPath:hover {
 }
 
 /* Card-internal scrollbar: a 2px transparent border clips the thumb inward so
-   it floats off the rounded card edge instead of hugging it (the terminal
+   it floats off the card edge instead of hugging it (the terminal
    card's own output scroller carries the same treatment in TerminalBlock). */
 .ioSection::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 6px;
 }
 
-/* Track end-margins keep the thumb's travel out of the rounded corners. */
+/* Track end-margins keep the thumb's travel off the card edges. */
 .ioSection::-webkit-scrollbar-track {
   margin: 6px 0;
 }

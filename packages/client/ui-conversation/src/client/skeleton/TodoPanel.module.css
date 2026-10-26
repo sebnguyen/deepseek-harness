@@ -20,7 +20,6 @@
     var(--dsh-composer-dock-inset)
   );
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
   background: var(--dsw-specific-tip);
   /* Elevated surface: `--dsw-specific-tip` is the same dark rung as the menu
      surface, and `.list` scrolls inside this card, so the thumb takes the l2

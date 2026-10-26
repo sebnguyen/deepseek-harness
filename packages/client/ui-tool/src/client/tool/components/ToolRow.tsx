@@ -1,8 +1,9 @@
-import { useMemo, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
+/** Shared pce row chrome for the non-terminal tool views. */
+import { useMemo, type ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  CodeBlock, DiffBlock, DisclosureRow, IconBrowseOutline16, IconInspectOutline12, ReadBlock, SearchBlock, StateDot,
-  TerminalBlock, WebBlock,
+  CodeBlock, DiffBlock, PceRow, PceToolMaster, ReadBlock, StateDot, TerminalBlock,
+  type PceKind, type PceToolRow, type PixelSymbolName,
   diffTotals,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -10,21 +11,18 @@ import type { OpenFileOptions } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { MessageImageLoader } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { CHAT_DIFF_MAX_LINES, type DiffCardModel } from '../models/diff-card-model.ts'
 import { CHAT_READ_MAX_LINES, type ReadCardModel } from '../models/read-card-model.ts'
-import type { FramesRowDiffAccessory, FramesRowModel } from '../models/frames-row-model.ts'
+import type { FramesRowDiffAccessory, FramesRowItem, FramesRowModel } from '../models/frames-row-model.ts'
 import type { ImageCardModel } from '../models/image-card-model.ts'
-import { CHAT_SEARCH_MAX_LINES, type SearchCardModel } from '../models/search-card-model.ts'
+import type { SearchCardModel } from '../models/search-card-model.ts'
 import {
   localizeTerminalCardModel, terminalBlockLabels, type TerminalCardModel,
 } from '../models/terminal-card-model.ts'
-import {
-  diffBlockLabels, readBlockLabels, searchBlockLabels, webBlockLabels,
-} from '../models/primitive-labels.ts'
+import { diffBlockLabels, readBlockLabels } from '../models/primitive-labels.ts'
 import type { AskQuestionCardModel } from '../models/ask-question-card-model.ts'
-import {
-  formatToolBody, type ToolRowState, type ToolRowVariant,
-} from '../models/tool-call-model.ts'
+import { formatToolBody, type ToolRowState, type ToolRowVariant } from '../models/tool-call-model.ts'
 import type { WebCardModelProps } from '../models/web-card-model.ts'
-import { AskQuestionCard } from './AskQuestionCard.tsx'
+import { pceStateLabel } from './pce-label.ts'
+import { PceAskBody, PceDiffBody, PceSearchBody, PceTodosBody, PceWebBody, type PceTodoItem } from './pce-bodies.tsx'
 import css from './ToolRow.module.css'
 
 export interface ToolRowProps {
@@ -32,75 +30,61 @@ export interface ToolRowProps {
   variant: ToolRowVariant
   /** Wire tool name for tool-owned styling layered over the generic variant. */
   toolName?: string | undefined
-  icon: ReactNode
+  /** Kept for call-site compatibility; the pce head draws the catalog glyph. */
+  icon?: ReactNode
+  /** pce element kind; defaults from the variant. */
+  pceKind?: PceKind | undefined
+  /** Catalog glyph; defaults from the kind. */
+  glyph?: PixelSymbolName | undefined
   title: string
   summary: string
-  /**
-   * Trailing summary fragment rendered outside the ellipsized summary text, so
-   * a narrow row clips the summary before this. For a fragment whose whole
-   * value is surviving that clip — the todo row's parallel-active count.
-   * null/absent = the summary is the whole collapsed content. Dropped on an
-   * error row, whose collapsed summary is the failure line instead.
-   */
   summarySuffix?: string | null | undefined
-  /** Original argument JSON formatted only while the row is expanded. */
   bodyRaw?: string | null | undefined
-  /** Flattened result text for the expanded Output section; null/absent = no output section. */
   output?: string | null | undefined
-  /** Ask-user transcript card; card fields are mutually exclusive and replace text sections. */
   askQuestion?: AskQuestionCardModel | null | undefined
-  /** Error first line shown as the collapsed summary on an error row; null/absent = keep `summary`. */
   errorSummary?: string | null | undefined
-  /** Terminal card; card fields are mutually exclusive and replace text sections. */
   terminal?: TerminalCardModel | null | undefined
   diff?: DiffCardModel | null | undefined
   read?: ReadCardModel | null | undefined
-  /**
-   * Image-card material for a call whose result is an image (derived by
-   * `imageCardModel`). Rendered through the `tool.call.images` slot, so the
-   * tool layer never imports an attachment implementation nor handles URL
-   * authorization.
-   */
   image?: ImageCardModel | null | undefined
-  /**
-   * Dispatch the image gallery through the tool-owned `tool.call.images`
-   * slot, supplied by the toolview that owns this row together with the
-   * session-authorized loader.
-   */
   renderSlot?: PropsRenderSlots<'tool.call.images'>['renderSlot'] | undefined
-  /** Session-authorized image URL loader for the gallery slot. */
   loadImage?: MessageImageLoader | undefined
   search?: SearchCardModel | null | undefined
   web?: WebCardModelProps | null | undefined
+  /** Parsed plan items for the todo body. */
+  todos?: readonly PceTodoItem[] | null | undefined
   state: ToolRowState
-  /**
-   * Filesystem path from tool args; when set with onOpenFile, the summary
-   * renders as a hover-underline link that opens the host default app.
-   */
   filePath?: string | undefined
-  /** 1-based line the call was about; absent = open the file at its beginning. */
   filePathLine?: number | undefined
-  /** Open the path (already cwd-resolved), landing on `filePathLine` when given. */
   onOpenFile?: ((path: string, options?: OpenFileOptions) => void) | undefined
-  /**
-   * Jump to this call in the trajectory view: a labeled chip riding the
-   * collapsed summary line beside the suffix, present in both expansion
-   * states. Absent = no affordance.
-   */
   inspect?: (() => void) | undefined
-  /**
-   * `open`: the chip is the explorer reveal of the row's file (labeled Open),
-   * not the trajectory inspect. Ignored without `inspect`.
-   */
-  inspectKind?: 'open' | undefined
-  /**
-   * Stacked per-frame body of a batched `read`/`write` call; mutually
-   * exclusive with the single-card props, which win when both are set.
-   */
+  inspectKind?: string | undefined
   frames?: FramesRowModel | undefined
 }
 
-/** The settled outcome note one stacked diff card prints beside its copy. */
+const KIND_BY_VARIANT: Record<ToolRowVariant, PceKind> = {
+  bash: 'bash',
+  read: 'read',
+  write: 'file-mutation',
+  edit: 'file-mutation',
+  search: 'search',
+  code: 'tool-generic',
+  others: 'tool-generic',
+}
+
+const GLYPH_BY_KIND: Partial<Record<PceKind, PixelSymbolName>> = {
+  bash: 'bash',
+  read: 'read',
+  'file-mutation': 'write',
+  search: 'internet',
+  web: 'internet',
+  'tool-generic': 'generic',
+  todo: 'todo',
+  ask: 'ask',
+  'read-image': 'image-read',
+}
+
+/** One settled outcome note beside a stacked diff card. */
 function accessoryText(accessory: FramesRowDiffAccessory | undefined, t: TranslateNS<'conversation'>): string | undefined {
   if (accessory === undefined) return undefined
   switch (accessory.kind) {
@@ -110,8 +94,7 @@ function accessoryText(accessory: FramesRowDiffAccessory | undefined, t: Transla
   }
 }
 
-/** Stacked per-frame body of a batched read/write row: one openable card per
- *  successful element, one detach line per failed or skipped element. */
+/** Stacked per-frame body of a batched read/write row. */
 function FramesStack(props: {
   frames: FramesRowModel
   readLabels: ReturnType<typeof readBlockLabels>
@@ -120,155 +103,125 @@ function FramesStack(props: {
   t: TranslateNS<'conversation'>
 }) {
   const { frames, readLabels, diffLabels, onOpenFile, t } = props
-  return (
-    <>
-      {frames.items.map((item, index) => {
-        if (item.kind === 'read') {
-          const { read } = item
-          return (
-            <ReadBlock
-              key={index}
-              {...read.card}
-              labels={readLabels}
-              maxLines={CHAT_READ_MAX_LINES}
-              className={css.readBody}
-              onLabelClick={onOpenFile === undefined
-                ? undefined
-                : () => onOpenFile(read.filePath, read.line === undefined ? undefined : { line: read.line })}
-            />
-          )
-        }
-        if (item.kind === 'diff') {
-          const { diff } = item
-          return (
-            <DiffBlock
-              key={index}
-              diffs={diff.diffs}
-              labels={diffLabels}
-              maxLines={CHAT_DIFF_MAX_LINES}
-              className={css.diffBody}
-              accessory={accessoryText(diff.accessory, t)}
-              onPathClick={onOpenFile === undefined ? undefined : () => onOpenFile(diff.filePath)}
-            />
-          )
-        }
-        const { failure } = item
-        return (
-          <div key={index} className={css.detached} data-detached={failure.kind}>
-            <StateDot state={failure.kind === 'error' ? 'error' : 'warning'} className={css.detachedDot} />
-            <div className={css.detachedBody}>
-              {onOpenFile === undefined
-                ? <span className={css.detachedCommand}>{failure.filePath}</span>
-                : (
-                  <button
-                    type="button"
-                    className={clsx(css.detachedCommand, css.detachedPath)}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      // A detached line has no window, so the open carries no
-                      // line option when none was authored.
-                      if (failure.line === undefined) onOpenFile(failure.filePath)
-                      else onOpenFile(failure.filePath, { line: failure.line })
-                    }}
-                  >
-                    {failure.filePath}
-                  </button>
-                )}
-              <span className={clsx(css.detachedLine, failure.kind === 'error' && css.detachedError)}>
-                {failure.kind === 'error'
-                  ? t('row.frameError', { message: failure.message })
-                  : t('row.frameNotRun', { reason: failure.message })}
-              </span>
-            </div>
-          </div>
-        )
-      })}
-    </>
-  )
-}
-
-function leadingFor(state: ToolRowState, icon: ReactNode): ReactNode {
-  switch (state) {
-    case 'error': return <StateDot state="error" />
-    case 'stopped': return <StateDot state="warning" />
-    default: return icon
+  const node = (item: FramesRowItem, key: number): ReactNode => {
+    if (item.kind === 'read') {
+      const { read } = item
+      return (
+        <ReadBlock
+          key={key}
+          {...read.card}
+          labels={readLabels}
+          maxLines={CHAT_READ_MAX_LINES}
+          className={css.readBody}
+          onLabelClick={onOpenFile === undefined
+            ? undefined
+            : () => onOpenFile(read.filePath, read.line === undefined ? undefined : { line: read.line })}
+        />
+      )
+    }
+    if (item.kind === 'diff') {
+      const { diff } = item
+      return (
+        <DiffBlock
+          key={key}
+          diffs={diff.diffs}
+          labels={diffLabels}
+          maxLines={CHAT_DIFF_MAX_LINES}
+          className={css.diffBody}
+          accessory={accessoryText(diff.accessory, t)}
+          onPathClick={onOpenFile === undefined ? undefined : () => onOpenFile(diff.filePath)}
+        />
+      )
+    }
+    const { failure } = item
+    return (
+      <div key={key} className="pce-detached" data-detached={failure.kind}>
+        <StateDot state={failure.kind === 'error' ? 'error' : 'warning'} className={css.detachedDot} />
+        <div className={css.detachedBody}>
+          {onOpenFile === undefined
+            ? <span className={css.detachedCommand}>{failure.filePath}</span>
+            : (
+              <button
+                type="button"
+                className={clsx('pce-detached-path')}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  if (failure.line === undefined) onOpenFile(failure.filePath)
+                  else onOpenFile(failure.filePath, { line: failure.line })
+                }}
+              >
+                {failure.filePath}
+              </button>
+            )}
+          <span className={clsx('pce-detached-line', failure.kind === 'error' && 'is-error')}>
+            {failure.kind === 'error'
+              ? t('row.frameError', { message: failure.message })
+              : t('row.frameNotRun', { reason: failure.message })}
+          </span>
+        </div>
+      </div>
+    )
   }
-}
-
-/** Visually hidden run-state label: the StateDot and the CSS sweep are both
- *  aria-hidden / colour-only, so assistive technology needs this text to know a
- *  row is running, failed, or interrupted. null in the ok state (the icon and
- *  summary already describe a settled row). */
-function stateStatus(state: ToolRowState, t: TranslateNS<'conversation'>): string | null {
-  switch (state) {
-    case 'running': return t('row.running')
-    case 'error': return t('row.failed')
-    case 'stopped': return t('row.stopped')
-    default: return null
+  // A batched read/write is innately a multi-element tool: give it bash's
+  // master/detail table, with the selected element stacked underneath.
+  const rows: PceToolRow[] = frames.items.map((item, index) => {
+    const tone = item.kind === 'failure'
+      ? (item.failure.kind === 'error' ? 'error' as const : 'stopped' as const)
+      : 'ok' as const
+    const primary = item.kind === 'read'
+      ? item.read.card.label ?? item.read.filePath
+      : item.kind === 'diff' ? item.diff.filePath : item.failure.filePath
+    const detail = item.kind === 'read'
+      ? (item.read.card.lines.length < item.read.card.totalLines
+        ? t('read.window', { shown: item.read.card.lines.length, total: item.read.card.totalLines })
+        : item.read.card.lang)
+      : item.kind === 'diff'
+        ? accessoryText(item.diff.accessory, t)
+        : t(item.failure.kind === 'error' ? 'row.frameError' : 'row.frameNotRun',
+          item.failure.kind === 'error' ? { message: item.failure.message } : { reason: item.failure.message })
+    return { tone, state: pceStateLabel(tone, t), primary, detail, body: node(item, index) }
+  })
+  if (rows.length > 1) {
+    return (
+      <PceToolMaster
+        rows={rows}
+        column="FILE"
+        previewKind="Diff"
+        closeLabel={t('pce.closePreview')}
+        previewLabel={t('pce.preview')}
+      />
+    )
   }
+  return <>{frames.items.map((item, index) => node(item, index))}</>
 }
 
+/**
+ * Render one tool call in the pce head/body shape.
+ * @param props - model-derived row content and host callbacks.
+ * @returns the pce article in a testable wrapper.
+ */
 export function ToolRow({
-  t,
-  variant,
-  toolName,
-  icon,
-  title,
-  summary,
-  summarySuffix,
-  bodyRaw,
-  output,
-  askQuestion,
-  errorSummary,
-  terminal,
-  diff,
-  read,
-  image,
-  renderSlot,
-  loadImage,
-  search,
-  web,
-  state,
-  filePath,
-  filePathLine,
-  onOpenFile,
-  inspect,
-  inspectKind,
-  frames,
+  t, variant, toolName, title, summary, summarySuffix, bodyRaw, output, askQuestion,
+  errorSummary, terminal, diff, read, image, renderSlot, loadImage, search, web, todos,
+  state, filePath, filePathLine, onOpenFile, inspect, inspectKind, frames,
+  pceKind, glyph,
 }: ToolRowProps) {
-  const [expanded, setExpanded] = useState(false)
   const terminalLabels = useMemo(() => terminalBlockLabels(t), [t])
   const diffLabels = useMemo(() => diffBlockLabels(t), [t])
   const readLabels = useMemo(() => readBlockLabels(t), [t])
-  const searchLabels = useMemo(() => searchBlockLabels(t), [t])
-  const webLabels = useMemo(() => webBlockLabels(t), [t])
-  const terminalBody = terminal === undefined || terminal === null
-    ? null
-    : localizeTerminalCardModel(terminal, t)
+  const terminalBody = terminal === undefined || terminal === null ? null : localizeTerminalCardModel(terminal, t)
   const diffBody = diff ?? null
   const readBody = read ?? null
-  const imageBody = image !== undefined && image !== null && renderSlot !== undefined && loadImage !== undefined
-    ? image
-    : null
+  const imageBody = image !== undefined && image !== null && renderSlot !== undefined && loadImage !== undefined ? image : null
   const searchBody = search ?? null
   const webBody = web ?? null
   const askQuestionBody = askQuestion ?? null
+  const todoBody = todos !== undefined && todos !== null && todos.length > 0 ? todos : null
   const outputText = output ?? null
   const card = askQuestionBody ?? terminalBody ?? diffBody ?? readBody ?? imageBody ?? searchBody ?? webBody
   const framesBody = card === null && frames !== undefined && frames.items.length > 0 ? frames : null
-  const expandable = bodyRaw != null || outputText !== null || card !== null || framesBody !== null
-  const open = expanded && expandable
-  const bodyText = useMemo(
-    () => open && card === null && bodyRaw != null ? formatToolBody(variant, bodyRaw) : null,
-    [bodyRaw, card, open, variant],
-  )
-  const status = stateStatus(state, t)
-  // A failure must replace, not supplement, the normal summary.
   const failureLine = state === 'error' ? errorSummary ?? null : null
   const summaryText = failureLine ?? terminalBody?.description ?? summary
-  // A diff row's collapsed line carries the card's +/- totals (the same
-  // numbers the expanded footer prints) so the change size reads without
-  // expanding; an explicit summarySuffix (none today on diff rows) wins.
   const diffStat = useMemo(() => {
     if (diffBody === null) return null
     const { added, removed } = diffTotals(diffBody.card.diffs)
@@ -276,187 +229,111 @@ export function ToolRow({
   }, [diffBody])
   const suffix = failureLine === null ? summarySuffix ?? diffStat : null
   const fileLink = filePath !== undefined && onOpenFile !== undefined && failureLine === null
-  const toggleExpand = () => {
-    setExpanded(v => !v)
+  const resolvedKind = pceKind ?? KIND_BY_VARIANT[variant]
+  const resolvedGlyph = glyph ?? GLYPH_BY_KIND[resolvedKind] ?? 'generic'
+  const openPath = (path: string) => {
+    if (onOpenFile === undefined) return
+    if (filePathLine === undefined) onOpenFile(path)
+    else onOpenFile(path, { line: filePathLine })
   }
-  const openFile = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    if (filePath === undefined || onOpenFile === undefined) return
-    if (filePathLine === undefined) onOpenFile(filePath)
-    else onOpenFile(filePath, { line: filePathLine })
-  }
-  // Keep Enter/Space on the focused path link from bubbling to the row's
-  // keydown handler, which would preventDefault() the key and toggle expand
-  // instead of activating the link — the keyboard analogue of openFile's
-  // stopPropagation. The native button still fires its own onClick from the key.
-  const fileLinkKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
-  }
-  // The chip rides the row line, whose own click toggles the accordion: stop
-  // the mouse click here, and the same two keys on the keyboard path.
-  const inspectFromChip = (event: MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    inspect?.()
-  }
-  const chipKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') event.stopPropagation()
-  }
-  // The code variant's program renders through CodeBlock (shiki), so only its
-  // output joins the IN/OUT card; every other variant's input does too.
-  const cardBody = variant === 'code' ? null : bodyText
-  return (
-    <div className={css.root} data-variant={variant} data-tool={toolName} data-state={state}>
-      {status !== null && <span className={css.visuallyHidden}>{status}</span>}
-      <DisclosureRow
-        rowClassName={css.row}
-        leadingClassName={css.leading}
-        titleClassName={css.title}
-        chevronClassName={css.chevron}
-        icon={leadingFor(state, icon)}
-        title={title}
-        open={open}
-        expandable={expandable}
-
-        expandOnRowClick
-        keepContentWhenOpen
-        onToggle={toggleExpand}
-        collapsedContent={summaryText !== '' && (
-          /* An empty summary drops the separator with it (a row that is only
-             its title shows no trailing dot). */
+  const hasBody = framesBody !== null || askQuestionBody !== null || terminalBody !== null
+    || diffBody !== null || readBody !== null || imageBody !== null || searchBody !== null
+    || webBody !== null || todoBody !== null || bodyRaw != null || outputText !== null
+  const body: (() => ReactNode) | null = !hasBody
+    ? null
+    : () => {
+      if (framesBody !== null) {
+        return <FramesStack frames={framesBody} readLabels={readLabels} diffLabels={diffLabels} onOpenFile={onOpenFile} t={t} />
+      }
+      if (askQuestionBody !== null) return <PceAskBody card={askQuestionBody} />
+      if (terminalBody !== null) {
+        return (
+          <TerminalBlock
+            {...terminalBody.card}
+            maxLines={Infinity}
+            labels={terminalLabels}
+            className="pce-terminal"
+          />
+        )
+      }
+      if (diffBody !== null) {
+        return (
+          <PceDiffBody
+            diffs={diffBody.card.diffs}
+            onOpenPath={onOpenFile === undefined ? undefined : openPath}
+            copyLabel={t('copy')}
+          />
+        )
+      }
+      if (readBody !== null) {
+        return <ReadBlock {...readBody} labels={readLabels} maxLines={CHAT_READ_MAX_LINES} className="pce-code" />
+      }
+      if (imageBody !== null) {
+        return (
+          <div className={css.imageBody}>
+            <div className={css.imageLabel}>{imageBody.label}</div>
+            {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
+              images: imageBody.images,
+              loadImage,
+              align: 'start',
+            })}
+            <div className={css.imageMeta}>{imageBody.text}</div>
+          </div>
+        )
+      }
+      if (searchBody !== null) {
+        return (
           <>
-            <span className={css.sep} aria-hidden />
-            {fileLink ? (
-              <button
-                type="button"
-                className={css.fileLink}
-                title={summaryText}
-                onClick={openFile}
-                onKeyDown={fileLinkKeyDown}
-              >
-                {summaryText}
-              </button>
-            ) : (
-              <span
-                className={clsx(css.summary, failureLine !== null && css.errorSummary)}
-                title={summaryText}
-              >
-                {summaryText}
-              </span>
-            )}
-            {suffix !== null && (
-              <span className={clsx(css.summarySuffix, suffix === diffStat && css.diffStat)}>{suffix}</span>
-            )}
-            {inspect !== undefined && (
-              <button
-                type="button"
-                className={css.inspectChip}
-                data-inspect-kind={inspectKind ?? 'inspect'}
-                onClick={inspectFromChip}
-                onKeyDown={chipKeyDown}
-              >
-                {inspectKind === 'open' ? <IconBrowseOutline16 size={12} /> : <IconInspectOutline12 />}
-                {t(inspectKind === 'open' ? 'row.open' : 'row.inspect')}
-              </button>
+            <PceSearchBody search={searchBody} copyLabel={t('copy')} />
+            {searchBody.recovery !== undefined && (
+              <div className="pce-notice">{searchBody.recovery}</div>
             )}
           </>
-        )}
-      >
-        <div className={css.bodyWrap}>
-          {framesBody !== null
-            ? (
-              <FramesStack
-                frames={framesBody}
-                readLabels={readLabels}
-                diffLabels={diffLabels}
-                onOpenFile={onOpenFile}
-                t={t}
-              />
-            )
-            : askQuestionBody !== null
-              ? <AskQuestionCard card={askQuestionBody} />
-              : terminalBody !== null
-                ? (
-                  <TerminalBlock
-                    {...terminalBody.card}
-                    maxLines={Infinity}
-                    labels={terminalLabels}
-                    className={css.terminalBody}
-                  />
-                )
-                : diffBody !== null
-                  ? <DiffBlock {...diffBody.card} labels={diffLabels} maxLines={CHAT_DIFF_MAX_LINES} className={css.diffBody} />
-                  : readBody !== null
-                    ? <ReadBlock {...readBody} labels={readLabels} maxLines={CHAT_READ_MAX_LINES} className={css.readBody} />
-                    : imageBody !== null
-                      ? (
-                      /* Label, gallery, then the result's OWN envelope text. The text
-                         comes from the image card model (which reads the result's text
-                         block), never from the row's flattened output: an image read's
-                         content is [text envelope, image block] and flattening
-                         JSON.stringifies the image block, printing the raw attachment
-                         object under the picture. It is not redundant either — the
-                         attachment slot can render nothing, and then this line is the
-                         only evidence an image was returned. */
-                        <div className={css.imageBody}>
-                          <div className={css.imageLabel}>{imageBody.label}</div>
-                          {renderSlot !== undefined && loadImage !== undefined && renderSlot('tool.call.images', {
-                            images: imageBody.images,
-                            loadImage,
-                            align: 'start',
-                          })}
-                          <div className={css.imageMeta}>{imageBody.text}</div>
-                        </div>
-                      )
-                      : searchBody !== null
-                        ? (
-                          <>
-                            <SearchBlock
-                              {...searchBody.card}
-                              labels={searchLabels}
-                              maxLines={CHAT_SEARCH_MAX_LINES}
-                              className={css.searchBody}
-                            />
-                            {/* A capped search's recovery locator lives only in the result
-                          text; show it below the card so the dropped rows survive. */}
-                            {searchBody.recovery !== undefined && (
-                              <div className={css.searchRecovery}>{searchBody.recovery}</div>
-                            )}
-                          </>
-                        )
-                        : webBody !== null
-                          ? <WebBlock {...webBody} labels={webLabels} className={css.webBody} />
-                          : (
-                            <>
-                              {variant === 'code' && bodyText !== null && (
-                                <div className={css.bodyScroll}>
-                                  <CodeBlock code={bodyText} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} className={css.codeBody} />
-                                </div>
-                              )}
-                              {(cardBody !== null || outputText !== null) && (
-                                <div className={css.ioCard}>
-                                  {cardBody !== null && (
-                                    <div className={css.ioSection}>
-                                      <span className={css.ioLabel}>{t('row.input')}</span>
-                                      <span className={css.ioText}>{cardBody}</span>
-                                    </div>
-                                  )}
-                                  {cardBody !== null && outputText !== null && (
-                                    <span className={css.ioDivider} aria-hidden />
-                                  )}
-                                  {outputText !== null && (
-                                    <div className={css.ioSection}>
-                                      <span className={css.ioLabel}>{t('row.output')}</span>
-                                      <span className={css.ioText} data-error={state === 'error' || undefined}>
-                                        {outputText}
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </>
-                          )}
+        )
+      }
+      if (webBody !== null) return <PceWebBody web={webBody} />
+      if (todoBody !== null) return <PceTodosBody todos={todoBody} />
+      const bodyText = bodyRaw != null ? formatToolBody(variant, bodyRaw) : null
+      if (variant === 'code') {
+        return bodyText === null ? null : (
+          <CodeBlock code={bodyText} lang="typescript" copyLabel={t('copy')} copiedLabel={t('copied')} />
+        )
+      }
+      return (
+        <div className={clsx(css.ioCard, 'pce-result')}>
+          {bodyText !== null && (
+            <div className={css.ioSection}>
+              <span className={css.ioLabel}>{t('row.input')}</span>
+              <span className={css.ioText}>{bodyText}</span>
+            </div>
+          )}
+          {outputText !== null && (
+            <div className={css.ioSection}>
+              <span className={css.ioLabel}>{t('row.output')}</span>
+              <span className={css.ioText} data-error={state === 'error' ? '' : undefined}>{outputText}</span>
+            </div>
+          )}
         </div>
-      </DisclosureRow>
+      )
+    }
+  return (
+    <div className={css.root} data-variant={variant} data-tool={toolName} data-state={state}>
+      <PceRow
+        kind={resolvedKind}
+        glyph={resolvedGlyph}
+        title={title}
+        summary={summaryText}
+        suffix={suffix}
+        state={state}
+        stateLabel={pceStateLabel(state, t)}
+        onOpenSummary={fileLink ? () => openPath(filePath) : undefined}
+        action={inspect === undefined ? null : {
+          label: t(inspectKind === 'open' ? 'row.open' : 'row.inspect'),
+          onClick: inspect,
+          kind: inspectKind === 'open' ? 'open' : undefined,
+        }}
+        body={body}
+      />
     </div>
   )
 }

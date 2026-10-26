@@ -1,9 +1,8 @@
 .frame {
   position: relative;
-  /* Isolation stacks the ocean scene (z -1) above the frame's opaque base
-     fill but below every content child — the global background layer behind
-     the floating cards. It also anchors the drag handles. */
-  isolation: isolate;
+  /* Deliberately NOT a stacking context: the floating sidebar is portaled-free
+     `position: fixed` and must outrank the shell's body-level portals, which is
+     impossible for a child of an isolated context. */
   display: grid;
   grid-template-rows: 100%;
   height: 100%;
@@ -11,13 +10,9 @@
   box-sizing: border-box;
   /* Floating-window treatment: the three columns are cards floating on the
      frame's base fill — an 8px outer inset and an 8px gap leave the ground
-     visible around every region. The card radius is published for window
-     cards outside this package (ui-sidebar-right's panel consumes it). */
+     visible around every region. */
   padding: 8px;
   gap: 8px;
-  --dsh-frame-card-radius: 14px;
-  /* The scene paints over this fill; it stays as the base the rays, dot grid
-     and veil shade against, and as the corners' seam under the cards. */
   background: var(--dsw-alias-bg-base);
   /* Collapse/expand animates the tracks on the deepsuite sider curve
      (--ds-ease-in-out / --ds-transition-duration-slow, ui-theme base.css). */
@@ -31,32 +26,55 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .frame,
-  .ideLayer {
+  .frame {
     transition: none;
   }
 }
 
 /* The registered-slot surface: one shared transparent-glazed outline card
    composed onto every slot that registers onto the .frame grid (sidebar,
-   chat, IDE mount). The frame below keeps rendering the ocean view; the
+   chat). The frame below keeps rendering the ocean view; the
    frameslot frosts it uniformly and only draws the elevation outline, so
    the slots themselves stay completely transparent and unstyled. The
    rightbar panel keeps the paired copy in ui-sidebar-right. */
 .frameslot {
   background: transparent;
-  border-radius: var(--dsh-frame-card-radius);
   box-shadow: var(--dsw-elevation-panel);
   backdrop-filter: var(--dsh-glass-blur);
   -webkit-backdrop-filter: var(--dsh-glass-blur);
 }
 
-.sidebarCol {
+.sidebarRail {
+  grid-column: 1;
+  grid-row: 1;
   min-width: 0;
   overflow: hidden;
 }
 
+/* The sidebar's seat shares the rail's 56px cell so the panel's inline width
+   overhangs the centre instead of consuming a track. The slot renders
+   `display: contents`, so without this seat its child auto-places into the
+   centre column, pushing the right column (and the IDE layer) into an implicit
+   second row; that zero-height row blanks the shell once the right column
+   collapses to 0px. The seat rides the sidebar band so the wide panel floats
+   over the conversation and its composer instead of reflowing or being
+   painted behind them. */
+.sidebarSeat {
+  position: relative;
+  z-index: var(--dsh-z-sidebar);
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  min-width: 0;
+  height: 100%;
+}
+
 .centerCol {
+  /* Placed, never auto-placed: a stray in-flow grid item (a remounted slot
+     host, a portal anchor) would otherwise take column 2 and slide the
+     conversation into the right column. */
+  grid-column: 2;
+  grid-row: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -88,54 +106,6 @@
   transition: none;
 }
 
-/* The singleton IDE layer: it rides the right column's coordinate system
-   beside the right panel — same edge anchor, same slide, same fullscreen
-   presentation — so the layout's own geometry places it and nothing tracks a
-   rect in JS. It renders above the panel surface (document order, shared
-   --dsh-z-panel/--dsh-z-ide band) but below the chrome band (drag handles,
-   the panel's corner floats), and pointer events stay off unless the
-   occupant fills it: an empty layer must never swallow a hit. */
-.ideLayer {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--dsh-z-ide);
-  visibility: hidden;
-  transform: translateX(100%);
-  overflow: hidden;
-  pointer-events: none;
-  transition:
-    transform var(--ds-transition-duration-slow) var(--ds-ease-in-out),
-    visibility 0s linear var(--ds-transition-duration-slow);
-}
-
-.frame[data-rightbar-shown] .ideLayer {
-  visibility: visible;
-  transform: none;
-  transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
-}
-
-.frame[data-rightbar-swapped] .ideLayer {
-  right: auto;
-  left: 0;
-}
-
-.frame[data-rightbar-swapped]:not([data-rightbar-shown]) .ideLayer {
-  transform: translateX(-100%);
-}
-
-.frame[data-rightbar-fullscreen] .ideLayer {
-  position: fixed;
-  inset: 0;
-  z-index: var(--dsh-z-fullscreen-ide);
-}
-
-.frame[data-dragging] .ideLayer {
-  transition: none;
-}
-
-
 /* Fullscreen covers the frame while its underlying columns enter or exit. */
 .frame[data-rightbar-fullscreen],
 .frame[data-rightbar-fullscreen] .handle,
@@ -159,8 +129,20 @@
  */
 .rightbarCol {
   position: relative;
+  grid-column: 3;
+  grid-row: 1;
   min-width: 0;
   overflow: visible;
+}
+
+/* Swapped, the panel takes the middle track and the conversation the last one,
+   matching the inline template order in AppFrame.tsx. */
+.frame[data-rightbar-swapped] .centerCol {
+  grid-column: 3;
+}
+
+.frame[data-rightbar-swapped] .rightbarCol {
+  grid-column: 2;
 }
 
 .overlayLayer {

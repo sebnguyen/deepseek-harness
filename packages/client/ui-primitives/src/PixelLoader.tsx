@@ -17,11 +17,11 @@ export interface PixelLoaderProps extends IconProps {
 function round2(n: number): number { return Math.round(n * 100) / 100 }
 
 /**
- * Stable pixel inset: 0.1 on each side leaves the 20% gap at every rendered
+ * Stable pixel inset: 0.16 on each side leaves the 32% gap at every rendered
  * size. The gap is in viewBox units, so it scales with the mark instead of
  * being retuned per size; no 16/24 grid switch remains.
  */
-const INSET = 0.1
+const INSET = 0.16
 
 /**
  * Build the sweep markup for one loader: one `<g class="dsh-pl">` per arc
@@ -94,7 +94,7 @@ export function installPixelLoaderStyles(): void {
  * idles the mark with random dot pop & fade.
  * @returns the animated loader svg (aria-hidden; pair with a status label).
  */
-export function PixelLoader({ size = 24, className, mode = 'sweep' }: PixelLoaderProps) {
+export function PixelLoader({ size = 32, className, mode = 'sweep' }: PixelLoaderProps) {
   installPixelLoaderStyles()
   return (
     <svg

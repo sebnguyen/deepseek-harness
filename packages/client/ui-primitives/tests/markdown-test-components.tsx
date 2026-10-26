@@ -15,12 +15,13 @@ type MarkdownTextProps = Omit<ComponentProps<typeof LocalizedMarkdownText>, 'lab
 export function MarkdownText({
   labels,
   codeLabels,
+  reveal = 'immediate',
   ...props
 }: MarkdownTextProps) {
   const resolved = labels ?? (codeLabels === undefined
     ? defaultMarkdownLabels
     : { ...defaultMarkdownLabels, code: codeLabels })
-  return <LocalizedMarkdownText {...props} labels={resolved} />
+  return <LocalizedMarkdownText {...props} reveal={reveal} labels={resolved} />
 }
 
 type JsonBlockProps = Omit<ComponentProps<typeof LocalizedJsonBlock>, 'truncatedLabel'> & {

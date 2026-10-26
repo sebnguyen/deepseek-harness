@@ -1,6 +1,6 @@
 /**
- * The vscode tab's body: poll the session twin's state; the ready answer
- * publishes the singleton frame's src intent.
+ * The vscode tab's body: poll the session twin's state and render its
+ * workspace frame in the column.
  *
  * The component never touches process state directly — it polls the host's
  * `ideBridge.status` on a modest interval, and each ready answer forms
@@ -8,10 +8,8 @@
  * While the host answers not-ready the body shows its progress line; a
  * disabled namespace shows the unavailable line, which is also the state
  * the design note relies on for "no viable twin, no mount" deployments.
- * The iframe element itself outlives this body: `twin.tsx` hosts the
- * singleton frame in ui-layout's positional `shell.ide` seat, so a session
- * switch on the same workspace re-shows the live workbench instead of
- * reloading it; this body only publishes the ready src on its intent store.
+ * Once ready the body renders the frame itself: the column's content is this
+ * body, so the workbench's document lives and dies with the tab.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
@@ -19,7 +17,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
-import { BootHero, useTwinIntent } from './twin.tsx'
+import { BootHero, TwinFrame } from './twin.tsx'
 import { useVscodeAddressForward, type VscodeForwardRequest } from './forward.ts'
 import { vscodeDebug, vscodeWarn } from './log.ts'
 import type { IdeBridgeStatus, IdeOpenRequest } from './rpc.ts'
@@ -54,7 +52,7 @@ export type VscodeBodyProps =
 /**
  * The vscode type's body, registered under `sidebar.right.pane.tab`.
  * @param props - composed slot props.
- * @returns the state line standing in for the twin, or nothing once ready.
+ * @returns the twin's state line while it warms, then the workspace frame.
  */
 export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forwardFile, activate, t }: VscodeBodyProps): ReactNode {
   const { tab } = useTabInfo()
@@ -112,14 +110,12 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
     }
   }, [sessionId, status])
 
-  // The singleton frame's src, published for as long as this body is mounted:
-  // the release clears only this body's own publication.
-  // dshGlass: the twin runs in glass-frame mode, composited transparent over
-  // the harness page behind its iframe (the chat-window look).
+  // The body-owned frame's source, one document for as long as this body is
+  // mounted. The shell is one opaque sheet now, so the twin paints its own
+  // background instead of compositing over the harness page.
   const src = state !== undefined && state.ready && state.url !== null && state.tkn !== null
-    ? `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}&dshGlass=1`
+    ? `${state.url}/?tkn=${state.tkn}${(state.workspaceRoot === null ? '' : `&folder=${encodeURIComponent(state.workspaceRoot)}`)}`
     : null
-  useTwinIntent(src)
 
   // File forwarding: the tab's current file address arrives at the twin's
   // editor while the twin is ready. State misses (not-ready, no root) are
@@ -147,7 +143,7 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
 
   if (state === undefined) return <BootHero line={t('state.opening')} spinning />
   if (!state.enabled) return <BootHero line={t('state.unavailable')} />
-  if (!state.ready || state.url === null || state.tkn === null) {
+  if (!state.ready || state.url === null || state.tkn === null || src === null) {
     return (
       <BootHero
         line={t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}
@@ -155,7 +151,6 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
       />
     )
   }
-  // Ready: the singleton in the positional seat shows the workspace frame;
-  // this body owns nothing visible past publication.
-  return null
+  // Ready: the column is this body's own box, so the frame renders here.
+  return <TwinFrame src={src} t={t} />
 }

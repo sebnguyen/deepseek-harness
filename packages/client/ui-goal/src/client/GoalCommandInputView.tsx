@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { projectUserText } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PceRow, projectUserText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { GOAL_COMMAND, type GoalCommandInputData } from './goal-command-input.ts'
 import css from './GoalCommandInputView.module.css'
@@ -30,12 +30,21 @@ export const GoalCommandInputView = memo(function GoalCommandInputView({
       role="group"
       aria-label={t('commandInput.aria')}
     >
-      <div className={css.stack}>
-        <div className={css.bubble}>
-          {projectUserText(head, [], [GOAL_COMMAND], 'command')}
-          {rest !== '' && projectUserText(rest, [])}
-        </div>
-      </div>
+      <PceRow
+        kind="goal-input"
+        glyph="send"
+        title={t('commandInput.aria')}
+        state="ok"
+        collapsible={false}
+        body={(
+          <div className={css.stack}>
+            <div className={css.bubble}>
+              {projectUserText(head, [], [GOAL_COMMAND], 'command')}
+              {rest !== '' && projectUserText(rest, [])}
+            </div>
+          </div>
+        )}
+      />
     </div>
   )
 })

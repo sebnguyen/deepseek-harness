@@ -16,10 +16,10 @@ afterEach(cleanup)
  * A many-block document exercising every freeze-sensitive construct. The
  * prefix-equivalence property below holds only while no reference or
  * footnote definition lands on the far side of a freeze boundary from its
- * use: a fresh mount parses everything in one tree while the live stream's
- * frozen blocks are already baked (the fingerprint test demonstrates the
- * documented deviation). Keep definitions adjacent to their references when
- * extending this corpus.
+ * use: the tail is re-parsed on its own, so a reference whose definition is
+ * already in the frozen prefix has no target in that parse and renders
+ * literally until the settled pass heals it. The fingerprint test below
+ * demonstrates that deviation; this corpus therefore keeps no footnote pair.
  */
 const STREAM_DOC = [
   '# Title',
@@ -46,10 +46,6 @@ const STREAM_DOC = [
   '',
   '> quote with lazy',
   'continuation line',
-  '',
-  'Uses a footnote[^n] twice[^n].',
-  '',
-  '[^n]: The footnote body.',
   '',
   'Closing paragraph after enough blocks to freeze everything above.',
   '',
@@ -486,24 +482,24 @@ describe('streaming composition across freezes', () => {
 })
 
 describe('IncrementalMarkdownParser', () => {
-  it('freezes all but the trailing two blocks and keeps freezing as blocks appear', () => {
+  it('freezes all but the trailing block and keeps freezing as blocks appear', () => {
     const parser = new IncrementalMarkdownParser(parseGfm)
     const first = parser.update('a\n\nb\n\nc\n\nd\n\ne')
-    expect(first.frozen.map(b => b.node.type)).toEqual(['paragraph', 'paragraph', 'paragraph'])
-    expect(first.tail).toHaveLength(2)
+    expect(first.frozen.map(b => b.node.type)).toEqual(['paragraph', 'paragraph', 'paragraph', 'paragraph'])
+    expect(first.tail).toHaveLength(1)
     const second = parser.update('a\n\nb\n\nc\n\nd\n\ne\n\nf\n\ng')
-    expect(second.frozen).toHaveLength(5)
-    expect(second.tail).toHaveLength(2)
+    expect(second.frozen).toHaveLength(6)
+    expect(second.tail).toHaveLength(1)
     // Previously returned frozen entries keep their identity and keys.
-    expect(second.frozen.slice(0, 3)).toEqual(first.frozen)
+    expect(second.frozen.slice(0, 4)).toEqual(first.frozen)
     expect(second.generation).toBe(first.generation)
   })
 
-  it('holds every block in the tail until more than two exist', () => {
+  it('holds every block in the tail until a later block exists', () => {
     const parser = new IncrementalMarkdownParser(parseGfm)
     const result = parser.update('only\n\ntwo blocks')
-    expect(result.frozen).toHaveLength(0)
-    expect(result.tail).toHaveLength(2)
+    expect(result.frozen).toHaveLength(1)
+    expect(result.tail).toHaveLength(1)
   })
 
   it('returns the cached result for identical input', () => {
@@ -548,5 +544,65 @@ describe('IncrementalMarkdownParser', () => {
     expect(result.tail).toHaveLength(5)
     // Fallback keys stay unique per sibling.
     expect(new Set(result.tail.map(b => b.key)).size).toBe(5)
+  })
+})
+
+describe('tail-mark-aware freezing', () => {
+  /** Last source offset a block owns, translated from its parse slice to the full document. */
+  function absoluteEnd(block: { readonly node: RootContent; readonly key: number }): number | undefined {
+    const start = block.node.position?.start.offset
+    const end = block.node.position?.end.offset
+    return start === undefined || end === undefined ? undefined : block.key - start + end
+  }
+
+  it('never freezes a block that reaches past tailFrom', () => {
+    const parser = new IncrementalMarkdownParser(parseGfm)
+    const paragraphs = Array.from({ length: 8 }, (_, index) => `Paragraph ${index} with some words here.`)
+    const doc = paragraphs.join('\n\n')
+    let previous = ''
+    let frozenCount = 0
+    for (let end = 50; end <= doc.length; end += 50) {
+      const text = doc.slice(0, end)
+      const result = parser.update(text, previous.length)
+      // Every cached block ends at or before the delta boundary, so no frozen
+      // element can hold a character that needs the tail mark.
+      for (const block of result.frozen) {
+        expect(absoluteEnd(block) ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(previous.length)
+      }
+      // The unstable range always covers the whole appended run; its first
+      // block may start inside the inter-block gap before tailFrom.
+      const live = result.tail.filter(block => (absoluteEnd(block) ?? Number.POSITIVE_INFINITY) > previous.length)
+      expect(live.length).toBeGreaterThan(0)
+      expect(live.at(-1)).toBe(result.tail.at(-1))
+      // The cache only grows: blocks that froze stay frozen and cached.
+      expect(result.frozen.length).toBeGreaterThanOrEqual(frozenCount)
+      frozenCount = result.frozen.length
+      previous = text
+    }
+    expect(frozenCount).toBeGreaterThan(3)
+  })
+
+  it('still hands the grammar only the unstable tail when a mark is active', () => {
+    const calls: string[] = []
+    const parser = new IncrementalMarkdownParser((text: string): Root => {
+      calls.push(text)
+      return parseGfm(text)
+    })
+    const paragraphs = Array.from({ length: 12 }, (_, index) => `Paragraph number ${index} with words.`)
+    const doc = paragraphs.join('\n\n')
+    let previous = ''
+    let steadyFrom = -1
+    for (let end = 7; end <= doc.length; end += 7) {
+      const text = doc.slice(0, end)
+      const result = parser.update(text, previous.length)
+      if (steadyFrom < 0 && result.frozen.length > 0) steadyFrom = calls.length
+      previous = text
+    }
+    // Warm-up aside, no parse call ever sees the frozen prefix again: the
+    // mark narrows the freeze boundary but does not disable the cache.
+    const steady = calls.slice(steadyFrom)
+    expect(steady.length).toBeGreaterThan(5)
+    expect(steady.every(call => !call.includes('Paragraph number 0 '))).toBe(true)
+    expect(Math.max(...steady.map(call => call.length))).toBeLessThan(250)
   })
 })

@@ -2,7 +2,7 @@
 
 import type { SessionCostProjection } from '@deepseek-ai/dsh-session-stats/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
 import type {
   AssistantMessageNode, ChatSnapshot, LegacyConversationSlice, ToolResultNode,
@@ -20,6 +20,12 @@ import { chatSnapshotFixture } from './chat-snapshot-fixture.client.ts'
 
 const t: StatsPillsProps['t'] = makeTranslate(zh, commonZh)
 const tEn: StatsPillsProps['t'] = makeTranslate(en, commonEn)
+
+// These cases pin the settled figures: declare reduced motion so a chip lands on
+// its new reading instead of rolling to it (StatsPills useNumberTween).
+beforeEach(() => {
+  vi.stubGlobal('matchMedia', () => ({ matches: true }))
+})
 
 afterEach(() => {
   cleanup()

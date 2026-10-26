@@ -95,15 +95,6 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * `id` is added beside the shipped entries instead of replacing them.
      */
     'shell.overlay': { kind: 'list'; scope: 'root' }
-    /**
-     * The singleton IDE seat: a positional layer occupying the right column's
-     * coordinates — the frame mirrors the right panel's anchor, slide, and
-     * fullscreen presentation so the occupant's geometry is the layout's own
-     * (no rect tracking, no document-level portal). OCCUPIED by ui-vscode's
-     * singleton workbench frame; without an occupant the layer renders
-     * nothing and never swallows a hit.
-     */
-    'shell.ide': { kind: 'single'; scope: 'root' }
   }
 }
 
@@ -174,7 +165,6 @@ export function apply(ctx: ClientContext): void {
         'sidebar': { kind: 'single', scope: 'root' },
         'main': { kind: 'keyed', scope: 'root' },
         'rightbar': { kind: 'single', scope: 'root' },
-        'shell.ide': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
       },
       store,

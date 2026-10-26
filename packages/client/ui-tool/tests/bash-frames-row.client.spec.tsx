@@ -164,15 +164,18 @@ describe('BashRow frames card', () => {
       meta: { frames: [{ index: 0, durationMs: 300 }, { index: 1, durationMs: 3_600 }] },
     }))} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
-    await waitFor(() => expect(view.container.querySelectorAll('[data-terminal]')).toHaveLength(2))
+    await waitFor(() => expect(view.container.querySelectorAll('.pce-tool-table .pce-tr')).toHaveLength(3))
     // The failing frame turns the whole row red and reads its exit pill.
     expect(view.container.querySelector('[data-sample="bash"]')!.getAttribute('data-state')).toBe('error')
     expect(view.container.textContent).toContain('exit code 1')
-    // Per-card accessories carry the localized durations.
+    // Per-row details carry the localized durations.
     expect(view.container.textContent).toContain('0.3s')
     expect(view.container.textContent).toContain('3.6s')
     // The row suffix carries the call's total: 4.2s.
     expect(view.container.textContent).toContain('4.2s')
+    // Selecting a row reveals that frame's terminal in the preview pane.
+    fireEvent.click(view.container.querySelectorAll('.pce-row-hit')[0]!)
+    await waitFor(() => expect(view.container.querySelectorAll('[data-terminal]')).toHaveLength(1))
   })
 
   it('renders job frames with the detach glyph and not-run frames with the warning dot', async () => {
@@ -185,7 +188,7 @@ describe('BashRow frames card', () => {
       }],
     }))} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
-    await waitFor(() => expect(view.container.querySelectorAll('[data-detached]')).toHaveLength(2))
+    await waitFor(() => expect(view.container.querySelectorAll('.pce-tool-table .pce-tr')).toHaveLength(3))
     expect(view.container.textContent).toContain('backgrounded · bash-7')
     expect(view.container.textContent).toContain('skipped · call aborted')
     expect(view.container.textContent).not.toContain('started background job')
@@ -205,11 +208,11 @@ describe('BashRow frames card', () => {
   it('expands on click and Enter, collapsing again', async () => {
     const view = render(<BashRow {...props(settled())} />)
     const head = view.container.querySelector('[data-expandable]')!
-    expect(view.container.querySelector('[data-terminal]')).toBeNull()
+    expect(view.container.querySelector('.pce-tool-master')).toBeNull()
     fireEvent.click(head)
-    await waitFor(() => expect(view.container.querySelector('[data-terminal]')).not.toBeNull())
+    await waitFor(() => expect(view.container.querySelector('.pce-tool-master')).not.toBeNull())
     fireEvent.keyDown(head, { key: 'Enter' })
-    await waitFor(() => expect(view.container.querySelector('[data-terminal]')).toBeNull())
+    await waitFor(() => expect(view.container.querySelector('.pce-tool-master')).toBeNull())
   })
 
   it('keeps the bounded IN/OUT card for an errored batch and the terminal card for single-exit calls', async () => {

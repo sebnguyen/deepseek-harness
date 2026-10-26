@@ -1,4 +1,4 @@
-import { DigitalOceanLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar/client'
 
 /**
@@ -7,5 +7,5 @@ import type { SidebarBrandMarkOwnerProps } from '@deepseek-ai/dsh-client-ui-side
  * @returns the official DigitalOcean mark.
  */
 export function OfficialBrandMark({ size }: SidebarBrandMarkOwnerProps) {
-  return <DigitalOceanLogo size={size} />
+  return <PixelMark size={size} />
 }

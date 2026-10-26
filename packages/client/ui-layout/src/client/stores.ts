@@ -90,7 +90,7 @@ export function createLayoutStore(): EngineStoreHandle<LayoutState, LayoutAction
     init: (): LayoutState => ({
       panelInfo: { activePanelId: null },
       layoutInfo: {
-        sidebar: SIDEBAR_DEFAULT,
+        sidebar: 0,
         viewportWidth: window.innerWidth,
         narrowExpanded: false,
         rightbar: null,

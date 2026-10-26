@@ -17,7 +17,6 @@
      strip and the decision row stay reachable on a long plan. */
   max-height: min(60vh, 520px);
   border: 1px solid var(--dsw-alias-state-warn-secondary);
-  border-radius: 20px;
   background: var(--dsw-specific-input-major);
   box-shadow: var(--dsw-shadow-lv2);
   color: var(--dsw-alias-label-primary);
@@ -49,8 +48,6 @@
 .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
   background: var(--dsw-alias-state-warn-primary);
 }
 
@@ -101,9 +98,6 @@
 }
 
 @media (max-width: 720px) {
-  .card {
-    border-radius: 16px;
-  }
 
   .body {
     padding: 10px 12px 4px;

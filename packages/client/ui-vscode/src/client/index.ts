@@ -1,16 +1,15 @@
 /**
- * Browser half: register `vscode` as a right-Sidebar tab type, plus the
- * workspace frame cache that occupies ui-layout's positional `shell.ide`
- * seat.
+ * Browser half: register `vscode` as a right-Sidebar tab type and give it a
+ * body.
  *
  * The type reaches the Sidebar through its public path only: the definition
  * into `ctx.sidebarRightTabs`, the body into the keyed
- * `sidebar.right.pane.tab` seat under the definition's `id`. The frame cache
- * rides the root-scoped `shell.ide` seat, so it mounts once per app and
- * session switches never touch the frame elements; the session bodies only
- * publish the active workspace's ready src through the intent store. The
- * host face contributes nothing; status reads run straight through the
- * injected `ideBridge` remote namespace.
+ * `sidebar.right.pane.tab` seat under the definition's `id`. Because the type
+ * declares itself a surface, the seat renders that body as the column's
+ * content — the body owns the workspace frame, so the frame's document follows
+ * the tab instead of surviving above the layout. The host face contributes
+ * nothing; status reads run straight through the injected `ideBridge` remote
+ * namespace.
  */
 import type { ReactNode } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
@@ -21,7 +20,6 @@ import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { RightbarSurfaceOwnerProps } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { VscodeBody, type VscodeInjected } from './VscodeBody.tsx'
-import { TwinFrame } from './twin.tsx'
 import { vscodeInfo, vscodeWarn } from './log.ts'
 import { VSCODE_ID, VSCODE_KIND, vscodeDefinition } from './definition.ts'
 import { en, zh } from './locales.ts'
@@ -113,17 +111,6 @@ export function apply(ctx: ClientContext): void {
     },
     SurfaceColumn,
   )), 'ui-vscode: column surface election')
-
-  // The frame cache lives one scope above the session-bound bodies: the
-  // root-scoped positional seat mounts once per app, so a session switch only
-  // changes which record shows — it can never remount an element.
-  ctx.effect(() => ctx.slots.inject('shell.ide', () => ctx.slots.register(
-    {
-      name: 'shell.ide',
-      locale: 'vscode',
-    },
-    TwinFrame,
-  )), 'ui-vscode: twin frame cache')
 
   // The twin is the harness's editor: mount it as soon as a session surface
   // exists rather than waiting for a file-row click. The session-scoped path

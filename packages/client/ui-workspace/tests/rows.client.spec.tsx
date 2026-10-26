@@ -57,7 +57,7 @@ function fireDrag(row: HTMLElement, kind: 'dragOver' | 'drop', clientY: number):
 }
 
 describe('workspace browser rows', () => {
-  it('omits only an empty leading status slot in the hierarchy-free flat list', () => {
+  it('reserves the leading status slot in the hierarchy-free flat list', () => {
     const idle: SessionNode = {
       id: sid('flat'), title: 'Flat Session', blank: false, running: false,
       runningSubagentCount: 0, completed: false, hasActiveSchedule: false, updatedAt: 0,
@@ -65,11 +65,18 @@ describe('workspace browser rows', () => {
     const view = render(<SessionNodeItem node={idle} currentId={undefined} now={0} onOpen={vi.fn()}
       onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} flat t={t} />)
     const title = screen.getByText('Flat Session')
-    expect(title.previousElementSibling).toBeNull()
+    // Mounted, not omitted: the reserved box keeps every flat title on the same
+    // x, and the empty variant is hidden rather than removed from the DOM.
+    const slot = title.previousElementSibling as HTMLElement
+    expect(slot).not.toBeNull()
+    expect(slot.className).toMatch(/slotEmpty/)
+    expect(slot.querySelector('[data-state]')).toBeNull()
 
     view.rerender(<SessionNodeItem node={{ ...idle, running: true }} currentId={undefined} now={0}
       onOpen={vi.fn()} onRename={vi.fn()} onFork={vi.fn()} onArchive={vi.fn()} flat t={t} />)
-    expect(screen.getByText('Flat Session').previousElementSibling?.querySelector('[data-state="ongoing"]')).toBeTruthy()
+    const runningSlot = screen.getByText('Flat Session').previousElementSibling as HTMLElement
+    expect(runningSlot.className).not.toMatch(/slotEmpty/)
+    expect(runningSlot.querySelector('[data-state="ongoing"]')).toBeTruthy()
   })
 
   it('renders a selected content-search row and opens only its session', () => {

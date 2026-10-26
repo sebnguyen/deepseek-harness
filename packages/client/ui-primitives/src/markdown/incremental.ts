@@ -7,7 +7,10 @@
  * block (a paragraph becoming a setext heading or a table, or a list
  * continuing after a blank line) — so earlier blocks are final. This parser
  * therefore freezes all but the trailing {@link UNSTABLE_TAIL_BLOCKS} blocks
- * and re-parses only the source tail behind them. A final unclosed top-level
+ * and re-parses only the source tail behind them. A caller that renders a
+ * streaming tail mark passes that mark's source offset: every block reaching
+ * past it stays unstable, because a frozen block's element is cached and
+ * cannot be re-rendered to animate the characters it just received. A final unclosed top-level
  * fence cannot freeze as a block, so its completed content lines use a second
  * frontier: only the last completed line and current partial line return
  * through the caller's grammar. Each source region is therefore parsed a
@@ -35,7 +38,7 @@ import type { Code, Root, RootContent } from 'mdast'
  * block; the second-to-last is retained as safety margin so a freeze decision
  * never has to reason about the parse frontier.
  */
-const UNSTABLE_TAIL_BLOCKS = 2
+const UNSTABLE_TAIL_BLOCKS = 1
 
 /** A top-level mdast block plus a render key that is stable across chunks. */
 export interface PositionedBlock {
@@ -305,9 +308,22 @@ export class IncrementalMarkdownParser {
    * Idempotent for identical input (the previous result is returned as-is),
    * so callers may invoke it from render paths that re-execute.
    * @param text - The full accumulated markdown source.
+   * @param tailFrom - Streaming tail mark: full-source offset where the
+   * characters that arrived in this chunk begin. Blocks whose source reaches
+   * past it stay in the unstable tail so their mark can render; only blocks
+   * that end at or before it may freeze. Must not move backwards across
+   * appends of the same stream: frozen blocks are never thawed.
+   *
+   * Freezing is a parse decision, never a rendering one. A block freezes as
+   * soon as it is positionally stable and no arriving chunk still adds
+   * characters to it; whatever animation is running inside it at that moment
+   * has to survive the freeze (a renderer keeps those spans in the cached
+   * element). Delaying the freeze until an animation ends only defers work and
+   * makes several blocks cross the boundary in one step, which reads as a
+   * bulk flush.
    * @returns Frozen and tail blocks with stream-stable render keys.
    */
-  update(text: string): IncrementalBlocks {
+  update(text: string, tailFrom?: number | undefined): IncrementalBlocks {
     if (this.cached !== null && text === this.prevText) return this.cached
     // Deliberate O(prefix) memcmp per update: sound divergence detection has
     // to verify the whole retained prefix, and startsWith compares bytes two
@@ -336,6 +352,17 @@ export class IncrementalMarkdownParser {
     const base = this.tailStart
     const blocks = this.parse(text.slice(base)).children
     let firstUnstable = Math.max(0, blocks.length - UNSTABLE_TAIL_BLOCKS)
+    if (tailFrom !== undefined) {
+      // No block that reaches past the mark may freeze: the renderer has to
+      // re-render it live to wrap its new characters, while every block that
+      // already ended keeps its cached element. A block starting after the
+      // mark (the blank line before it belongs to no block) is wholly new.
+      const firstMarked = blocks.findIndex((node) => {
+        const end = node.position?.end.offset
+        return end === undefined || base + end > tailFrom
+      })
+      if (firstMarked >= 0) firstUnstable = Math.min(firstUnstable, firstMarked)
+    }
     if (firstUnstable > 0) {
       const cutEnd = blocks[firstUnstable - 1]?.position?.end.offset
       if (cutEnd === undefined) {

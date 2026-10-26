@@ -1,8 +1,10 @@
 /* Base variables referenced by the token sheets and component CSS but defined
  * upstream (deepsuite theme/global.css) — supplied here so the composite
- * --dsw-font-* variables resolve and motion rides the upstream curve. Code
- * font stack deliberately omits a bare `monospace` tail (Windows CJK falls
- * back to SimSun otherwise).
+ * --dsw-font-* variables resolve and motion rides the upstream curve. Inter
+ * is the UI face and JetBrains Mono the code face; Atlas loads the bundled
+ * woff2 files and overrides these tokens at the shell. Code font stack
+ * deliberately omits a bare `monospace` tail (Windows CJK falls back to
+ * SimSun otherwise).
  *
  * The --dsh-z-* band is the frame's single stacking vocabulary: a surface
  * negotiates its level here instead of minting a package-local magic number
@@ -10,9 +12,9 @@
  * hand-tuned literals that silently re-broke each other).
  */
 :root {
-  --dsw-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+  --dsw-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --ds-font-family-code: 'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas,
+  --ds-font-family-code: 'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas,
     'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei';
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
   --ds-transition-duration: 0.2s;
@@ -30,5 +32,9 @@
   --dsh-z-shell-overlay: 20;
   --dsh-z-panel-fullscreen: 40;
   --dsh-z-fullscreen-ide: 45;
+  /* The floating sidebar owns the top of the frame's stack: above every frame
+     band including fullscreen, below the body-level float host so dialogs and
+     portals still win. */
+  --dsh-z-sidebar: 70;
   --dsh-z-float-host: 60;
 }

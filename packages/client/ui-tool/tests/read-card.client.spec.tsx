@@ -37,10 +37,11 @@ const t: GenericToolCardProps['t'] = makeTranslate(zh, commonZh)
 // its own schema whose key is not `file_path`, so it keeps a `url`-less `path`.
 const ARGS = '{"file_path":"src/a.ts","offset":41}'
 
-/** The read block's rendered content cells, one string per row (highlighting
- *  breaks a line across token spans, so match on the row's textContent). */
+/** The read block's rendered file lines, one string per row (the generic
+ *  card still uses the primitive's highlighted content cells). */
 function contentTexts(container: HTMLElement): string[] {
-  return [...container.querySelectorAll('[data-read] [class^="_content_"]')].map(cell => cell.textContent ?? '')
+  return [...container.querySelectorAll('[data-read] .pce-line-text, [data-read] [class^="_content_"]')]
+    .map(cell => cell.textContent ?? '')
 }
 
 /** Three windowed lines starting at file line 41 (a read past an offset). */
@@ -354,16 +355,21 @@ describe('ReadRow batched files', () => {
     expect(view.container.textContent).toContain('3 次阅读：src/a.ts')
     expect(view.container.querySelectorAll('[data-read]').length).toBe(0)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
-    expect(view.container.querySelectorAll('[data-read]').length).toBe(2)
+    // A batched read is a FILE table; each element's card is its preview.
+    const rows = view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)')
+    expect(rows.length).toBe(3)
     expect(view.container.textContent).toContain('显示 1 / 40 行')
     expect(view.container.textContent).toContain('[错误：not found]')
-    expect(view.container.querySelectorAll('[data-detached]').length).toBe(1)
+    fireEvent.click(rows[0]!.querySelector('.pce-row-hit')!)
+    expect(view.container.querySelectorAll('[data-read]').length).toBe(1)
   })
 
   it('banner labels open their element at the window line', () => {
     const openFile = vi.fn()
     const view = render(<ReadRow {...{ ...rowProps(batchSettled()), openFile }} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
+    const rows = view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)')
+    fireEvent.click(rows[1]!.querySelector('.pce-row-hit')!)
     const banners = Array.from(view.container.querySelectorAll('[data-read] button')).filter(button => button.textContent === 'src/b.ts')
     expect(banners.length).toBe(1)
     fireEvent.click(banners[0]!)
@@ -401,6 +407,9 @@ describe('ReadRow batched frame outcomes', () => {
     const view = render(<ReadRow {...rowProps(settled(), openFile)} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.container.textContent).toContain('[未运行：call aborted]')
+    const rows = Array.from(view.container.querySelectorAll('.pce-tool-table .pce-tr:not(.pce-thead)'))
+    const skipRow = rows.find(row => row.textContent?.includes('src/skip.ts'))
+    fireEvent.click(skipRow!.querySelector('.pce-row-hit')!)
     const detached = view.container.querySelector('[data-detached="not-run"]')
     expect(detached).not.toBeNull()
     fireEvent.click(detached!.querySelector('button')!)
@@ -412,6 +421,7 @@ describe('ReadRow batched frame outcomes', () => {
     const view = render(<ReadRow {...rowProps(settled({ meta: { frames: [BAD, FRAME_S] } }), undefined)} />)
     fireEvent.click(view.container.querySelector('[data-expandable]')!)
     expect(view.container.textContent).toContain('[错误：not found]')
+    fireEvent.click(view.container.querySelector('.pce-tool-table .pce-row-hit')!)
     expect(view.container.querySelectorAll('[data-read]').length).toBe(0)
   })
 })

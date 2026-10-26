@@ -116,7 +116,6 @@
   gap: 2px;
   padding: 2px;
   background: var(--dsw-alias-interactive-bg-hover);
-  border-radius: 6px;
 }
 
 .modeToggle button {
@@ -124,7 +123,6 @@
   color: var(--dsw-alias-label-secondary);
   background: transparent;
   border: none;
-  border-radius: 4px;
   cursor: pointer;
   font-size: 12px;
   line-height: 18px;
@@ -149,7 +147,6 @@
   color: var(--dsw-alias-label-secondary);
   background: transparent;
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   line-height: 16px;

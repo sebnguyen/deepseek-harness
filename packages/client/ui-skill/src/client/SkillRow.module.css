@@ -72,7 +72,6 @@
   flex: none;
   width: 2px;
   height: 2px;
-  border-radius: 1px;
   margin: 0 8px;
   background: var(--dsw-alias-label-caption);
 }
@@ -104,7 +103,6 @@
   margin: 4px 0 4px 4px;
   overflow: hidden;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 12px;
   background: var(--dsw-alias-markdown-code-block);
 }
 
@@ -139,7 +137,6 @@
 .instructions::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   background-clip: padding-box;
-  border-radius: 6px;
 }
 
 .instructions::-webkit-scrollbar-track {
@@ -154,8 +151,6 @@
   margin: 4px 0 2px 4px;
   padding: 2px 8px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 999px;
-  corner-shape: round;
   background: var(--dsw-alias-bg-base);
   color: var(--dsw-alias-label-secondary);
   font-size: 11px;

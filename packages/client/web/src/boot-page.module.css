@@ -74,8 +74,8 @@
 .failedItem {
   font-family: var(
     --ds-font-family-code,
-    'SF Mono',
     'JetBrains Mono',
+    'SF Mono',
     'Fira Code',
     Consolas,
     'Liberation Mono',

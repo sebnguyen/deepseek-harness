@@ -72,21 +72,19 @@ describe('client apply', () => {
     return { seen, bodies, injects, status, openTabIn, ctx: ctx as unknown as ClientContext }
   }
 
-  it('registers the type, dictionaries, body seat, adoption hook, and the singleton frame seat', () => {
+  it('registers the type, dictionaries, body seat, and adoption hook', () => {
     const { seen, bodies, injects, status, openTabIn, ctx } = fakeClient()
     clientApply(ctx)
     expect(seen.def).toBeDefined()
     expect(seen.locales).toMatchObject({ ns: 'vscode' })
 
-    // The seat factories register the tab body on the keyed seat and the
-    // singleton frame on ui-layout's positional shell.ide seat.
+    // The seat factory registers the tab body on the keyed seat; the frame it
+    // renders belongs to that body, so no root-scoped shell.ide seat exists.
     const tabReg = injects['sidebar.right.pane.tab']?.() as SlotReg
-    const ideReg = injects['shell.ide']?.() as SlotReg
     expect(tabReg.key).toBe(VSCODE_ID)
     expect(tabReg.locale).toBe('vscode')
     expect(bodies['sidebar.right.pane.tab']).toBeDefined()
-    expect(ideReg.name).toBe('shell.ide')
-    expect(bodies['shell.ide']).toBeDefined()
+    expect(injects['shell.ide']).toBeUndefined()
 
     // The injected face delegates to the remote namespace.
     void (tabReg.inject() as { status: typeof status }).status('s1', new AbortController().signal)

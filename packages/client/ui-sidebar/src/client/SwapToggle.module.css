@@ -9,8 +9,6 @@
   width: 20px;
   height: 20px;
   border: none;
-  border-radius: 6px;
-  corner-shape: round;
   padding: 0;
   background: transparent;
   cursor: pointer;
@@ -25,7 +23,6 @@
 .root.rail {
   width: 22px;
   height: 22px;
-  border-radius: 50%;
 }
 
 /* On-state marker: the IDE-first order is engaged. */

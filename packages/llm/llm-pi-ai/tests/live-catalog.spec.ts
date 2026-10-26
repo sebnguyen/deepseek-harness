@@ -29,7 +29,18 @@ afterEach(async () => {
   await closeMockServers()
 })
 
-async function bootLive(dir: string, baseURL: string): Promise<Context> {
+/**
+ * Boot the shipped digitalocean route against a mock endpoint.
+ * @param dir - temporary home holding the credential and settings documents.
+ * @param baseURL - endpoint the route interrogates.
+ * @param modelOverrides - per-model declarations the listing cannot carry.
+ * @returns the booted context.
+ */
+async function bootLive(
+  dir: string,
+  baseURL: string,
+  modelOverrides?: Record<string, LlmPiAi.PiAiModelOverride>,
+): Promise<Context> {
   const ctx = new Context()
   cleanups.push(async () => { await ctx.fiber.dispose() })
   await ctx.plugin(LlmRuntime)
@@ -40,7 +51,11 @@ async function bootLive(dir: string, baseURL: string): Promise<Context> {
   // the mock so the live feed is deterministic.
   await ctx.plugin(LlmPiAi, {
     providers: {
-      digitalocean: { apiKeyEnv: 'LIVE_KEY', baseURL },
+      digitalocean: {
+        apiKeyEnv: 'LIVE_KEY',
+        baseURL,
+        ...modelOverrides === undefined ? {} : { modelOverrides },
+      },
     },
   } satisfies LlmPiAi.Config)
   return ctx
@@ -86,5 +101,45 @@ describe('live endpoint-fed catalog', () => {
     // Nothing model-shaped landed in the settings document.
     const stored = await readFile(join(dir, 'settings.yaml'), 'utf8').catch(() => '')
     expect(stored).not.toContain('live-large')
+  }, 30_000)
+
+  it('folds per-model overrides onto the fetched feed without storing a catalog', async () => {
+    const server = await mockServer([
+      { body: LISTING }, // the live refresh's GET /v1/models
+      { events: textEvents }, // a request against a fetched model
+      { body: LISTING }, // any later refresh
+    ])
+    const dir = await mkdtemp(join(tmpdir(), 'dsh-pi-live-'))
+    cleanups.push(() => rm(dir, { recursive: true, force: true }))
+    await writeFile(join(dir, '.credentials.yaml'), 'version: 1\nrefs:\n  LIVE_KEY: live-key\n', { mode: 0o600 })
+    // A gateway listing reports ids and capacities, never modalities, so the
+    // deployment declares the one vision model it knows about.
+    const ctx = await bootLive(dir, `${server.url}/v1`, {
+      'live-large': { input: ['text', 'image'] },
+    })
+
+    // Before the feed arrives the override is not a configuration error: the
+    // route is live, and the model it names is the endpoint's to describe.
+    await expect(ctx.llm.listModels('digitalocean')).resolves.toBeInstanceOf(Array)
+
+    await expect.poll(
+      async () => (await ctx.llm.listModels('digitalocean')).map(model => model.id),
+      { timeout: 10_000 },
+    ).toEqual(['live-large', 'live-think'])
+
+    // The override lands on its own model only; a sibling keeps the route
+    // fallback, and the resolved route reports the declared modality.
+    const models = await ctx.llm.listModels('digitalocean')
+    expect(models.find(model => model.id === 'live-large')?.inputModalities).toEqual(['text', 'image'])
+    expect(models.find(model => model.id === 'live-think')?.inputModalities).toEqual(['text'])
+    expect((await ctx.llm.resolveModelInfo('digitalocean', 'live-large')).inputModalities)
+      .toEqual(['text', 'image'])
+
+    // The route still serves, and the override never reaches the document.
+    const result = await assemble(ctx, { provider: 'digitalocean', model: 'live-large', messages: [] })
+    expect(result.finish).toEqual({ kind: 'stop' })
+    const stored = await readFile(join(dir, 'settings.yaml'), 'utf8').catch(() => '')
+    expect(stored).not.toContain('live-large')
+    expect(stored).not.toContain('modelOverrides')
   }, 30_000)
 })

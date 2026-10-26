@@ -461,11 +461,14 @@ export function SessionNodeItem({
       {/* Pending interaction and own or descendant activity outrank the
           finished-but-unviewed reminder, which returns after activity stops
           and is cleared by opening the session. */}
-      {(!flat || showStatus) && (
-        <span className={css.slot}>
-          {showStatus && <SessionStatusDots statuses={statuses} />}
-        </span>
-      )}
+      {/* Mounted in every variant: a flat row reserves the same 16px status
+          box as a grouped one, so titles line up across the list and a status
+          appearing or clearing never moves the row. The empty variant is
+          hidden with visibility, which keeps it out of hit-testing and the
+          a11y tree while its box holds the row's rhythm. */}
+      <span className={clsx(css.slot, !showStatus && css.slotEmpty)}>
+        {showStatus && <SessionStatusDots statuses={statuses} />}
+      </span>
       <span className={css.title}>{title}</span>
       {row.hasActiveSchedule && <ActiveScheduleIndicator t={t} />}
       {/* A blank New Session row is a provisional placeholder: nothing has

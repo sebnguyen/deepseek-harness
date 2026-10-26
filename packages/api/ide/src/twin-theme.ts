@@ -15,7 +15,9 @@
  *
  * Palette and typography mirror `packages/client/ui-theme` at its dark alias
  * layer (bluish slate, `#7bb4bc` brand accent) and the shared `shiki.css`
- * code colors, so the editor and the harness page read as one product.
+ * code colors, so the editor and the harness page read as one product. Inter
+ * is the workbench UI face (bundled in the fork); JetBrains Mono is the editor
+ * and terminal face set below.
  * @module @deepseek-ai/dsh-api-ide/twin-theme
  */
 
@@ -33,57 +35,57 @@ export const VSCODE_THEME_DIR_NAME = `${VSCODE_THEME_EXTENSION_ID}-${VSCODE_THEM
 export const DO_THEME_COLORS: Record<string, string> = {
   // Base ink for every widget the sub-grounds don't paint explicitly.
   'foreground': '#f7f8f8',
-  'descriptionForeground': '#a0a2a3',
+  'descriptionForeground': '#a2a4a5',
   'icon.foreground': '#f7f8f8',
   // App shell backgrounds walk the bluish scale 950→875 like the harness page.
   'activityBar.background': '#121618',
   'activityBar.foreground': '#f7f8f8',
-  'activityBar.inactiveForeground': '#738484',
+  'activityBar.inactiveForeground': '#87898a',
   'activityBarBadge.background': '#7bb4bc',
   'activityBarBadge.foreground': '#121618',
   'editorGroupHeader.tabsBackground': '#121618',
   'minimap.background': '#121618',
-  'sideBar.background': '#1b1f21',
-  'sideBar.border': '#f7f8f80f',
-  'sideBarSectionHeader.background': '#1b1f21',
-  'sideBarTitle.foreground': '#a0a2a3',
-  'panel.background': '#1b1f21',
-  'panel.border': '#f7f8f80f',
+  'sideBar.background': '#171c1e',
+  'sideBar.border': '#ffffff14',
+  'sideBarSectionHeader.background': '#171c1e',
+  'sideBarTitle.foreground': '#a2a4a5',
+  'panel.background': '#171c1e',
+  'panel.border': '#ffffff14',
   'panelTitle.activeForeground': '#f7f8f8',
-  'panelTitle.inactiveForeground': '#a0a2a3',
+  'panelTitle.inactiveForeground': '#a2a4a5',
   'statusBar.background': '#121618',
-  'statusBar.foreground': '#a0a2a3',
+  'statusBar.foreground': '#a2a4a5',
   'statusBar.noFolderBackground': '#121618',
   'titleBar.activeBackground': '#121618',
   'titleBar.activeForeground': '#f7f8f8',
-  'titleBar.inactiveForeground': '#a0a2a3',
-  // Floating-window shell: the deep-sea fill under the ambient scene in the
-  // gutters, and the frame's hairline card stroke (the react frame's
-  // elevation pair border-l4 at 0.5px reads as this 1px stroke).
-  'modernUI.shellBackground': '#0e1214',
-  'modernUI.inactiveShellBackground': '#0e1214',
-  'surface.border': '#f7f8f81f',
+  'titleBar.inactiveForeground': '#a2a4a5',
+  // The shell is one ruled sheet now: the react frame and this workbench are
+  // flush regions separated by hairlines, so the fork's floating-card mode
+  // (glass gutters over the harness ocean) is off, and widgets cast nothing.
+  'modernUI.shellBackground': '#121618',
+  'modernUI.inactiveShellBackground': '#121618',
+  'surface.border': '#ffffff14',
   // Editor chrome sits on markdown-code-block bluish-900 like harness code.
-  'editor.background': '#171b1d',
+  'editor.background': '#171c1e',
   'editor.foreground': '#f7f8f8',
   'editor.lineHighlightBackground': '#f7f8f80a',
   'editor.selectionBackground': '#2e434bcc',
   'editorCursor.foreground': '#7bb4bc',
-  'editorGroup.border': '#f7f8f80f',
+  'editorGroup.border': '#ffffff14',
   'editorGroupHeader.background': '#121618',
   'editorLineNumber.foreground': '#738484',
   'editorLineNumber.activeForeground': '#f7f8f8',
-  'editorWidget.background': '#25292a',
-  'editorWidget.border': '#f7f8f80f',
+  'editorWidget.background': '#252a2b',
+  'editorWidget.border': '#ffffff14',
   'editorStickyScroll.background': '#121618',
   'breadcrumb.background': '#121618',
   'peekViewEditor.background': '#202426',
   // Tabs read like the harness tab strip: dark chip, active ink edge.
-  'tab.activeBackground': '#171b1d',
+  'tab.activeBackground': '#171c1e',
   'tab.activeForeground': '#f7f8f8',
   'tab.activeBorderTop': '#7bb4bc80',
   'tab.inactiveBackground': '#121618',
-  'tab.inactiveForeground': '#a0a2a3',
+  'tab.inactiveForeground': '#a2a4a5',
   'tab.border': '#12161800',
   // Controls: brand accent is #7bb4bc — rings ride it at half alpha, closer
   // to the harness hairline than the stock heavy outline.
@@ -93,31 +95,31 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'button.background': '#2e434b',
   'button.foreground': '#f7f8f8',
   'button.hoverBackground': '#3d5963',
-  'button.secondaryBackground': '#25292a',
+  'button.secondaryBackground': '#252a2b',
   'button.secondaryForeground': '#f7f8f8',
-  'dropdown.background': '#25292a',
-  'dropdown.border': '#f7f8f80f',
-  'input.background': '#1b1f21',
-  'input.border': '#f7f8f80f',
-  'menu.background': '#25292a',
-  'menu.border': '#f7f8f80f',
+  'dropdown.background': '#252a2b',
+  'dropdown.border': '#ffffff14',
+  'input.background': '#171c1e',
+  'input.border': '#ffffff14',
+  'menu.background': '#252a2b',
+  'menu.border': '#ffffff14',
   'menu.foreground': '#f7f8f8',
-  'quickInput.background': '#25292a',
+  'quickInput.background': '#252a2b',
   'list.activeSelectionBackground': '#2e434b',
   'list.activeSelectionForeground': '#f7f8f8',
   'list.focusBackground': '#2e434b',
   'list.hoverBackground': '#ffffff14',
   'list.inactiveSelectionBackground': '#2e434b99',
-  'notification.background': '#25292a',
-  'notification.border': '#f7f8f80f',
+  'notification.background': '#252a2b',
+  'notification.border': '#ffffff14',
   'scrollbarSlider.background': '#ffffff1f',
   'scrollbarSlider.hoverBackground': '#ffffff29',
   'scrollbarSlider.activeBackground': '#ffffff38',
   'textLink.foreground': '#94c6cc',
   'textLink.activeForeground': '#7bb4bc',
-  'widget.shadow': '#00000066',
+  'widget.shadow': 'transparent',
   // Terminal adopts the editor well and the shiki-flavored ANSI row.
-  'terminal.background': '#171b1d',
+  'terminal.background': '#171c1e',
   'terminal.foreground': '#f7f8f8',
   'terminal.selectionBackground': '#2e434b',
   'terminalCursor.foreground': '#7bb4bc',
@@ -151,11 +153,10 @@ export const DO_TOKEN_COLORS: unknown = [
  */
 export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   'workbench.colorTheme': 'DO Harness Dark',
-  // Everything-is-a-floating-window layout: the modern UI renders every
-  // part as a floating card, and the dsh-build twin keeps the shell and
-  // its gutters glass-transparent (dshGlass), so the cards float over the
-  // harness ocean instead of reading as an opaque window-in-window.
-  'workbench.experimental.modernUI': true,
+  // One ruled sheet: the stock workbench layout (no floating cards). The
+  // harness frame around the twin is flush, so glass gutters would read as a
+  // hole rather than as depth.
+  'workbench.experimental.modernUI': false,
   // Chrome hush: no Welcome walkthrough, no second trust gate (the harness
   // sandbox owns trust), no telemetry or update prompts, calm window title.
   'workbench.startupEditor': 'none',
@@ -180,12 +181,12 @@ export const TWIN_CONFIGURATION_DEFAULTS: Record<string, unknown> = {
   // deterministic command once per profile instead of a setting here.
   'workbench.sideBar.location': 'left', // deprecated to UI state; see TWIN_EXTENSION_BOOT
   // Typography: the harness code stack and size, sober line highlight.
-  'editor.fontFamily': "'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
+  'editor.fontFamily': "'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
   'editor.fontSize': 13,
   'editor.lineHeight': 1.5,
   'editor.minimap.enabled': false,
   'editor.renderLineHighlight': 'gutter',
-  'terminal.integrated.fontFamily': "'SF Mono', 'JetBrains Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
+  'terminal.integrated.fontFamily': "'JetBrains Mono', 'SF Mono', 'Fira Code', Consolas, 'Liberation Mono', Menlo, Courier, 'PingFang SC', 'Microsoft YaHei'",
   'terminal.integrated.fontSize': 13,
 }
 

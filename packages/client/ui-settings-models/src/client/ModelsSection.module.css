@@ -54,7 +54,6 @@
    card it expands into reads as the nested object. */
 .rowCard {
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 16px;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -89,7 +88,6 @@
   flex: none;
   padding: 1px 6px;
   border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 4px;
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-secondary);
@@ -101,8 +99,6 @@
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  corner-shape: round;
 }
 
 .credentialDotConfigured {
@@ -134,7 +130,6 @@
   height: 36px;
   padding: 0 14px;
   border: none;
-  border-radius: 18px;
   font: inherit;
   font-size: 14px;
   line-height: 22px;
@@ -174,7 +169,6 @@
   height: 36px;
   padding: 0 14px;
   border: none;
-  border-radius: 18px;
   background: transparent;
   color: var(--dsw-alias-state-error-primary);
   font: inherit;
@@ -187,12 +181,11 @@
   background: var(--dsw-alias-interactive-bg-hover-danger);
 }
 
-/* Provider-row controls take the dense capsule (Button `.sm`). */
+/* Provider-row controls take the dense variant (Button `.sm`). */
 .rowActions .secondaryButton,
 .rowActions .dangerButton {
   height: 28px;
   padding: 0 10px;
-  border-radius: 14px;
   font-size: 12px;
   line-height: 18px;
 }
@@ -222,7 +215,6 @@
 /* Editing surface: a filled module on the panel, matching the settings
    selector fill rather than adding another outline inside the row. */
 .editor {
-  border-radius: 12px;
   background: var(--dsw-alias-bg-module-platform);
   padding: 14px 16px;
   display: flex;
@@ -272,7 +264,6 @@
   height: 28px;
   padding: 0 10px;
   border: none;
-  border-radius: 14px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -324,12 +315,10 @@
   gap: 6px;
   height: 44px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 16px;
 }
 
 .addCard,
 .setupCard {
-  border-radius: 12px;
   background: var(--dsw-alias-bg-module-platform);
   padding: 14px 16px;
   display: flex;
@@ -359,7 +348,6 @@
   width: fit-content;
   padding: 2px 4px;
   margin-left: -4px;
-  border-radius: 6px;
   cursor: pointer;
   font-size: 12px;
   line-height: 18px;
@@ -452,7 +440,6 @@
 
 .modelEntry {
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 10px;
   padding: 6px;
 }
 
@@ -473,7 +460,6 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 6px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -517,7 +503,6 @@
 .modelEmpty {
   padding: 12px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 8px;
   text-align: center;
 }
 
@@ -530,7 +515,6 @@
   height: 28px;
   padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l3);
-  border-radius: 14px;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -549,7 +533,6 @@
   height: 32px;
   padding: 0 10px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 8px;
   font: inherit;
   font-size: 14px;
   line-height: 22px;
@@ -669,9 +652,6 @@ select.input {
   list-style: none;
 }
 
-.candidate {
-  border-radius: 6px;
-}
 
 .candidateLabel {
   display: flex;

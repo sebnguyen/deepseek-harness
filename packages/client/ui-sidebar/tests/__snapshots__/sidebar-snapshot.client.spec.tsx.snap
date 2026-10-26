@@ -6,130 +6,16 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
   style="display: contents;"
 >
   <div
-    class="root collapsed railIn quietBars"
-    style=""
+    class="root fading quietBars"
+    data-collapsed="true"
+    data-dsh-sidebar=""
+    style="width: 56px;"
   >
     <div
       class="logoRow"
     >
       <button
         aria-label="Open sidebar"
-        class="iconButton toggle"
-        type="button"
-      >
-        <span
-          aria-hidden="true"
-          class="railMark"
-        >
-          <div
-            data-slot="sidebar.brand.mark"
-            style="display: contents;"
-          >
-            <svg
-              aria-hidden="true"
-              data-content="389b5220"
-              fill="none"
-              height="24"
-              viewBox="0 0 24 24"
-              width="24"
-            />
-          </div>
-        </span>
-        <svg
-          class="panelIcon"
-          data-content="35f95b0c"
-          fill="none"
-          height="18"
-          viewBox="0 0 16 16"
-          width="18"
-          xmlns="http://www.w3.org/2000/svg"
-        />
-      </button>
-    </div>
-    <button
-      aria-label="New session"
-      class="newSession"
-      type="button"
-    >
-      <svg
-        data-content="c0ce4dcc"
-        fill="none"
-        height="18"
-        viewBox="0 0 16 16"
-        width="18"
-        xmlns="http://www.w3.org/2000/svg"
-      />
-    </button>
-    <div
-      class="regionArea"
-    >
-      <div
-        data-slot="sidebar.workspaces"
-        style="display: contents;"
-      />
-    </div>
-    <div
-      class="footArea"
-    >
-      <div
-        class="guideArea"
-      >
-        <div
-          data-slot="sidebar.guide"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="settingsArea"
-      >
-        <div
-          data-slot="sidebar.settings"
-          style="display: contents;"
-        />
-      </div>
-      <div
-        class="footerActions"
-      >
-        <div
-          data-slot="sidebar.footer.action"
-          style="display: contents;"
-        >
-          <button
-            aria-label="Swap editor and chat columns"
-            aria-pressed="true"
-            class="root rail"
-            type="button"
-          >
-            <svg
-              data-content="ae283ba4"
-              fill="none"
-              height="14"
-              viewBox="0 0 16 16"
-              width="14"
-              xmlns="http://www.w3.org/2000/svg"
-            />
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-`;
-
-exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsule, empty holes) 1`] = `
-<div
-  data-slot="sidebar"
-  style="display: contents;"
->
-  <div
-    class="root quietBars"
-    style="width: 300px;"
-  >
-    <div
-      class="logoRow"
-    >
-      <button
-        aria-label="New session"
         class="brand wide"
         type="button"
       >
@@ -146,8 +32,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             >
               <svg
                 aria-hidden="true"
-                data-content="389b5220"
-                fill="none"
+                data-content="819b53a0"
+                fill="currentColor"
                 height="24"
                 viewBox="0 0 24 24"
                 width="24"
@@ -255,7 +141,162 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             type="button"
           >
             <svg
-              data-content="ae283ba4"
+              data-content="76e5b0a4"
+              fill="none"
+              height="13"
+              viewBox="0 0 16 16"
+              width="13"
+              xmlns="http://www.w3.org/2000/svg"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsule, empty holes) 1`] = `
+<div
+  data-slot="sidebar"
+  style="display: contents;"
+>
+  <div
+    class="root quietBars"
+    data-dsh-sidebar=""
+    style="width: 300px;"
+  >
+    <div
+      class="logoRow"
+    >
+      <button
+        aria-label="New session"
+        class="brand wide"
+        type="button"
+      >
+        <span
+          aria-hidden="true"
+          class="brandIdentity"
+        >
+          <span
+            class="brandMark"
+          >
+            <div
+              data-slot="sidebar.brand.mark"
+              style="display: contents;"
+            >
+              <svg
+                aria-hidden="true"
+                data-content="819b53a0"
+                fill="currentColor"
+                height="24"
+                viewBox="0 0 24 24"
+                width="24"
+              />
+            </div>
+          </span>
+          <span
+            class="brandName"
+          >
+            <div
+              data-slot="sidebar.brand.name"
+              style="display: contents;"
+            >
+              <span
+                class="localBuildBrand"
+              >
+                <span
+                  class="localBuildTitle"
+                >
+                  DigitalOcean Harness
+                </span>
+                <span
+                  class="buildVersion"
+                >
+                  1.2.3-rc.4-abc1234-dirty
+                </span>
+              </span>
+            </div>
+          </span>
+        </span>
+      </button>
+      <button
+        aria-label="Collapse sidebar"
+        class="iconButton toggle"
+        type="button"
+      >
+        <svg
+          class="panelIcon"
+          data-content="35f95b0c"
+          fill="none"
+          height="16"
+          viewBox="0 0 16 16"
+          width="16"
+          xmlns="http://www.w3.org/2000/svg"
+        />
+      </button>
+    </div>
+    <button
+      aria-label="New session"
+      class="newSession"
+      type="button"
+    >
+      <svg
+        data-content="c0ce4dcc"
+        fill="none"
+        height="14"
+        viewBox="0 0 16 16"
+        width="14"
+        xmlns="http://www.w3.org/2000/svg"
+      />
+      <span
+        class="newSessionLabel wide"
+      >
+        New Session
+      </span>
+    </button>
+    <div
+      class="regionArea"
+    >
+      <div
+        data-slot="sidebar.workspaces"
+        style="display: contents;"
+      />
+    </div>
+    <div
+      class="footArea"
+    >
+      <div
+        class="guideArea"
+      >
+        <div
+          data-slot="sidebar.guide"
+          style="display: contents;"
+        />
+      </div>
+      <div
+        class="settingsArea"
+      >
+        <div
+          data-slot="sidebar.settings"
+          style="display: contents;"
+        />
+      </div>
+      <div
+        class="footerActions"
+      >
+        <div
+          data-slot="sidebar.footer.action"
+          style="display: contents;"
+        >
+          <button
+            aria-label="Swap editor and chat columns"
+            aria-pressed="true"
+            class="root"
+            type="button"
+          >
+            <svg
+              data-content="76e5b0a4"
               fill="none"
               height="13"
               viewBox="0 0 16 16"
@@ -277,6 +318,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
 >
   <div
     class="root quietBars"
+    data-dsh-sidebar=""
     style="width: 300px;"
   >
     <div
@@ -300,8 +342,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             >
               <svg
                 aria-hidden="true"
-                data-content="389b5220"
-                fill="none"
+                data-content="819b53a0"
+                fill="currentColor"
                 height="24"
                 viewBox="0 0 24 24"
                 width="24"
@@ -409,7 +451,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             type="button"
           >
             <svg
-              data-content="ae283ba4"
+              data-content="76e5b0a4"
               fill="none"
               height="13"
               viewBox="0 0 16 16"

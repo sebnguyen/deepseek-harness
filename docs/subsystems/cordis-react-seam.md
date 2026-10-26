@@ -270,41 +270,23 @@ These become `useSessions` and `useSessionPendingInteraction` props on every com
 
 ## The vscode twin: putting it together
 
-The `ui-vscode` package registers two components:
+The `ui-vscode` package registers one body, and that body owns its frame:
 
 1. **`VscodeBody`** into `sidebar.right.pane.tab` (keyed, session scope). This body:
    - Polls `ideBridge.status(sessionId)` every 1.5 s.
-   - On mount, calls `markActive(sessionId)` to announce "my session's vscode tab is on screen."
-   - On unmount, calls `clearActive(sessionId)` (guarded: only clears if still active).
-   - Never holds an iframe.
+   - Forms `src = url/?tkn=<token>&folder=<workspaceRoot>` from each ready answer.
+   - Shows the boot hero while the answer is not ready, disabled, or failed.
+   - Renders **`TwinFrame`** in its own box once the answer is ready.
 
-2. **`TwinFrame`** into `shell.ide` (single, root scope). This frame:
-   - Mounts once, lives forever.
-   - Reads `activeSessionId` from a store.
-   - Reads the twin status for that session from the same store.
-   - Derives `src = formUrl(twin)` via `useMemo`.
-   - If `src` changed: re-point the single iframe's `src`.
-   - If `src` is null: hide the frame (`display: none`), document stays alive.
-   - If `src` is same: no-op.
-
-The store (root-scoped, one instance) holds:
-
-```ts
-{
-  activeSessionId: string | null,
-  entries: {
-    [sessionId]: {
-      ready: boolean,
-      url: string | null,
-      tkn: string | null,
-      workspaceRoot: string | null,
-      spawnId: string,
-    },
-  },
-}
-```
-
-The body writes to the store (via baked actions: `upsert`, `markActive`, `clearActive`). The frame reads from the store (via `useStore`). No module singletons, no publish/release protocol, no `readyCache`.
+2. **`TwinFrame`** lives inside the body, not in a root-scoped seat. There is no
+   `shell.ide` slot and no singleton frame cache: the workbench document lives
+   and dies with the tab body.
+   - The tab type declares `surface: true`, so the right column renders this
+     body as the column's content.
+   - The iframe fills the body; the boot cover stays until the document's
+     `load` plus a 1.2 s settle margin, then lifts.
+   - Switching the tab or session unmounts the body, so the next visit boots
+     the workbench cold.
 
 ## Why the seam feels confusing
 
@@ -329,6 +311,6 @@ The confusion comes from three things:
 | `packages/client/ui-slots/src/renderer.ts` | SlotRendererHost, SlotScopeAdapter, HostObservable |
 | `packages/client/ui-session/src/client/index.ts` | UiSession service, scope adapter, provideRoot |
 | `packages/client/ui-layout/src/client/index.ts` | Root seat declaration, store registration |
-| `packages/client/ui-vscode/src/client/index.ts` | VscodeBody + TwinFrame registration |
+| `packages/client/ui-vscode/src/client/index.ts` | VscodeBody registration + surface election |
 | `packages/client/ui-vscode/src/client/twin.tsx` | TwinFrame: iframe custody |
-| `packages/client/ui-vscode/src/client/VscodeBody.tsx` | VscodeBody: polling, active announcement |
+| `packages/client/ui-vscode/src/client/VscodeBody.tsx` | VscodeBody: polling, frame ownership |

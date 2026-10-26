@@ -53,7 +53,6 @@
   text-align: left;
   background: var(--dsw-alias-bg-layer-1);
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 24px;
   cursor: pointer;
 }
 

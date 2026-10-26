@@ -1,5 +1,4 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { IconSearchOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { searchCardModel } from '../models/search-card-model.ts'
@@ -23,7 +22,8 @@ export function SearchRow({ toolName, block, inspect, t }: SearchRowProps) {
       t={t}
       variant={model.variant}
       toolName={toolName}
-      icon={<IconSearchOutline16 size={14} />}
+      pceKind="search"
+      glyph="internet"
       title={t(toolName === 'grep'
         ? SEARCH_TITLE_KEYS.grep
         : toolName === 'glob' ? SEARCH_TITLE_KEYS.glob : model.titleKey)}

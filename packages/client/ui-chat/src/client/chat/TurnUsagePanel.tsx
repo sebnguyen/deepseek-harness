@@ -4,7 +4,8 @@
 // branch action in the tail's IconActions row, ahead of the plain clock text.
 
 import { createPortal } from 'react-dom'
-import { IconClockOutline16, IconDatabaseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { useEffect, useState } from 'react'
+import { IconDatabaseOutline16, PixelGlyph } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TurnTokenUsage } from '../contract/chat-nodes.ts'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import { formatLatencySeconds, formatRunDuration, formatTokensPerSecond } from './message-chrome.ts'
@@ -15,6 +16,8 @@ import dialogCss from './stat-dialog.module.css'
 
 export interface TurnUsagePanelProps {
   usage: TurnTokenUsage
+  /** False while the tail is still behind the reveal gate; the roll waits. */
+  active?: boolean
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
@@ -26,8 +29,66 @@ export interface TurnTimePanelProps {
   tokensPerSecond?: number | undefined
   /** Turn first-step TTFT in ms, a dialog row when known. */
   ttftMs?: number | undefined
+  /** False while the tail is still behind the reveal gate; the roll waits. */
+  active?: boolean
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
+}
+
+/** Roll-in span for the tail numbers: long enough to read as a count, not a blur. */
+const COUNT_UP_MS = 900
+/** Digits step on this cadence; the value itself is a function of elapsed time. */
+const COUNT_UP_TICK_MS = 50
+
+/**
+ * Whether a count-up may run: only where the platform reports a motion preference
+ * (a DOM without matchMedia, such as the test renderer, gets the final value) and
+ * a frame clock exists.
+ * @returns True when the pill should animate.
+ */
+function countUpAllowed(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return false
+  return typeof window.requestAnimationFrame === 'function'
+}
+
+/**
+ * Count a token total (or a duration) up from zero over {@link COUNT_UP_MS}.
+ * @param value - The final token count.
+ * @param active - False until the tail is actually visible; nothing rolls then.
+ * @returns The count to render this frame.
+ */
+function useCountUp(value: number, active: boolean): number {
+  const [shown, setShown] = useState(() => (countUpAllowed() ? 0 : value))
+  useEffect(() => {
+    if (!countUpAllowed() || value === 0) {
+      setShown(value)
+      return
+    }
+    // The tail mounts hidden behind the reveal gate: rolling now would be a
+    // finished number by the time it is seen.
+    if (!active) return
+    const start = performance.now()
+    let frame = 0
+    let painted = start
+    const step = (now: number): void => {
+      const progress = Math.min(1, (now - start) / COUNT_UP_MS)
+      // The count is a function of elapsed time, so the curve stays eased; the
+      // digits only move on a tick, because writing them every frame reads as
+      // a blur rather than a count.
+      if (progress >= 1 || now - painted >= COUNT_UP_TICK_MS) {
+        painted = now
+        // Ease-out cubic: the theme's --a-ease is cubic-bezier(0.22, 0.61, 0.36, 1).
+        setShown(Math.round(value * (1 - (1 - progress) ** 3)))
+      }
+      if (progress < 1) frame = window.requestAnimationFrame(step)
+    }
+    frame = window.requestAnimationFrame(step)
+    return () => {
+      window.cancelAnimationFrame(frame)
+    }
+  }, [value, active])
+  return shown
 }
 
 function formatCompactCount(value: number, t: ChatViewSlotProps['t']): string {
@@ -43,13 +104,13 @@ function formatExactCount(value: number, t: ChatViewSlotProps['t']): string {
  * @param props - Turn usage buckets and locale seat.
  * @returns The trigger and, while open, its portaled dialog anchored above the trigger.
  */
-export function TurnUsagePanel({ usage, t }: TurnUsagePanelProps) {
+export function TurnUsagePanel({ usage, t, active = true }: TurnUsagePanelProps) {
   const { open, setOpen, rootRef, panelRef, pos } = useStatDialog()
 
   const cacheHit = usage.cacheReadTokens === undefined
     ? null
     : formatCacheHitPercent(usage.cacheReadTokens, usage.totalTokens - usage.outputTokens, 1)
-  const total = formatCompactCount(usage.totalTokens, t)
+  const total = formatCompactCount(useCountUp(usage.totalTokens, active), t)
   const routes = usage.routes?.map(route => `${route.provider}/${route.model}`).join(', ') ?? ''
 
   return (
@@ -129,8 +190,9 @@ export function TurnUsagePanel({ usage, t }: TurnUsagePanelProps) {
  * @param props - Turn timing facts and locale seat.
  * @returns The clock-and-duration trigger and, while open, its portaled dialog anchored above the trigger.
  */
-export function TurnTimePanel({ runMs, tokensPerSecond, ttftMs, t }: TurnTimePanelProps) {
+export function TurnTimePanel({ runMs, tokensPerSecond, ttftMs, t, active = true }: TurnTimePanelProps) {
   const { open, setOpen, rootRef, panelRef, pos } = useStatDialog()
+  const shownMs = useCountUp(runMs, active)
   return (
     <span ref={rootRef} className={css.root}>
       <button
@@ -138,10 +200,11 @@ export function TurnTimePanel({ runMs, tokensPerSecond, ttftMs, t }: TurnTimePan
         className={css.trigger}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-label={t('message.ranFor', { duration: formatRunDuration(shownMs, t) })}
         onClick={() => { setOpen(!open) }}
       >
-        <IconClockOutline16 />
-        <span className={css.label}>{t('message.ranFor', { duration: formatRunDuration(runMs, t) })}</span>
+        <PixelGlyph name="clock" size={16} />
+        <span className={css.label}>{formatRunDuration(shownMs, t)}</span>
       </button>
       {open && createPortal(
         <div
@@ -153,7 +216,7 @@ export function TurnTimePanel({ runMs, tokensPerSecond, ttftMs, t }: TurnTimePan
         >
           <div className={dialogCss.title}>
             <span className={dialogCss.titleLabel}>
-              <IconClockOutline16 />
+              <PixelGlyph name="clock" size={16} />
               {t('message.turnTime.title')}
             </span>
           </div>

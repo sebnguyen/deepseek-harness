@@ -78,8 +78,6 @@ body {
 
 ::-webkit-scrollbar-thumb {
   border: var(--dsh-scrollbar-thumb-border) solid transparent;
-  border-radius: 999px;
-  corner-shape: round;
   background: var(--dsh-scrollbar-thumb);
   background-clip: content-box;
 }

@@ -13,8 +13,6 @@
   padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
-  corner-shape: round;
   background: transparent;
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -35,8 +33,6 @@
   justify-content: center;
   gap: 0;
   padding: 0;
-  border-radius: 50%;
-  corner-shape: round;
 }
 
 /* Icon-only entry: the wide label bows out; the button's aria-label keeps
@@ -70,7 +66,6 @@
   overflow: auto;
   padding: 20px 24px;
   border: 0;
-  border-radius: 32px;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-elevation-prominent);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
@@ -97,7 +92,6 @@
   width: 28px;
   height: 28px;
   border: none;
-  border-radius: 8px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -132,7 +126,6 @@
   height: 28px;
   padding: 0 8px 0 10px;
   border: none;
-  border-radius: 24px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
@@ -184,7 +177,6 @@
   font-size: 10px;
   line-height: 16px;
   padding: 0 6px;
-  border-radius: 8px;
   white-space: nowrap;
 }
 
@@ -206,7 +198,6 @@
   height: 26px;
   padding: 0 6px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 8px;
   background: var(--dsw-alias-bg-layer-1);
 }
 
@@ -249,7 +240,6 @@
   height: 20px;
   padding: 0 8px;
   border: none;
-  border-radius: 8px;
   background: var(--dsw-alias-brand-primary);
   color: rgb(18, 22, 24);
   font: inherit;
@@ -280,7 +270,6 @@
 .table th .g {
   display: inline-block;
   padding: 0 6px;
-  border-radius: 8px;
   line-height: 16px;
   font-size: 10px;
 }
@@ -336,7 +325,6 @@
   display: inline-block;
   width: 6px;
   height: 6px;
-  border-radius: 50%;
   margin-right: 6px;
   background: var(--dsw-alias-brand-primary);
   vertical-align: 1px;
@@ -350,7 +338,6 @@
   margin-top: 16px;
   padding: 28px;
   border: 1px dashed var(--dsw-alias-border-l2);
-  border-radius: 12px;
   text-align: center;
   color: var(--dsw-alias-label-tertiary);
 }

@@ -8,12 +8,12 @@ import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
 import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
 import { createLayoutStore } from '../src/client/stores.ts'
+import { SIDEBAR_DEFAULT } from '../src/client/columns.ts'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 // Geometry specs stub requestAnimationFrame for the drag handles; the ambient
 // ocean scene runs its own rAF shine loop, so the whole component stands out.
-vi.mock('../src/client/OceanScene.tsx', () => ({ OceanScene: (): null => null }))
 
 const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined })) as GlobalStandardProps['useResource']
 let selectedSession: SessionId | undefined
@@ -64,7 +64,7 @@ function resize(width: number): void {
   })
 }
 
-function mountFrame(windowWidth = frameWidth, order?: 'legacy') {
+function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' | 'collapsed' = 'open') {
   vi.stubGlobal('innerWidth', windowWidth)
   const instance = createLayoutStore().create()
   // Legacy requests the chat-first order; the store default is IDE-first.
@@ -72,7 +72,19 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy') {
   const slotCalls: { key: string; props: object; options: RenderOpts | undefined }[] = []
   const renderSlot: AppFrameProps['renderSlot'] = (key, owner, options) => {
     slotCalls.push({ key, props: owner, options })
-    return <div data-testid={`${key}-content`} data-entry-key={(owner as { entryKey?: string }).entryKey ?? options?.entryKey} />
+    // The real sidebar positions itself; the stub reports the width it was
+    // handed so the helper can read the panel geometry off the frame.
+    const width = (owner as { width?: number }).width
+    const panel = key === 'sidebar' && width !== undefined
+      ? { 'data-sidebar-panel': '', style: { width } }
+      : {}
+    return (
+      <div
+        data-testid={`${key}-content`}
+        data-entry-key={(owner as { entryKey?: string }).entryKey ?? options?.entryKey}
+        {...panel}
+      />
+    )
   }
   const useSessions: AppFrameProps['useSessions'] = sel => sel({
     ids: selectedSession === undefined ? [] : [selectedSession],
@@ -112,6 +124,9 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy') {
     />
   )
   const utils = render(element())
+  // The sheet now starts collapsed. These cases exercise an opened sidebar, so
+  // the helper opens it; a case about the startup state asks for 'collapsed'.
+  if (sidebar === 'open') act(() => { instance.actions.setSidebar(SIDEBAR_DEFAULT) })
   const frame = utils.container.firstElementChild as HTMLElement
   return {
     ...utils, instance, frame, slotCalls,
@@ -123,15 +138,21 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy') {
 
 function tracks(frame: HTMLElement): number[] {
   const source = frame.style.gridTemplateColumns
+  // The sidebar is an overlay panel: the grid keeps the rail track and the
+  // panel's own inline width is what the layout answers to, so the helper
+  // reports the panel width in the slot it used to read the track from.
+  const panel = frame.querySelector<HTMLElement>('[data-sidebar-panel]')
+  if (panel === null) throw new Error('missing sidebar panel')
+  const sidebar = Number.parseFloat(panel.style.width === '' ? '0' : panel.style.width)
   // The swapped order reads sidebar | rightbar | center; stock reads
   // sidebar | center | rightbar. Both report [sidebar, rightbar].
   const swapped = frame.dataset.rightbarSwapped === 'true'
   const match = (swapped
-    ? /^([\d.]+)px ([\d.]+)px minmax\(0, 1fr\)$/
-    : /^([\d.]+)px minmax\(0, 1fr\) ([\d.]+)px$/
+    ? /^[\d.]+px ([\d.]+)px minmax\(0, 1fr\)$/
+    : /^[\d.]+px minmax\(0, 1fr\) ([\d.]+)px$/
   ).exec(source)
   if (match === null) throw new Error(`unexpected template: ${source}`)
-  return [Number(match[1]), Number(match[2])]
+  return [sidebar, Number(match[1])]
 }
 
 function handleFor(frame: HTMLElement, side: 'sidebar' | 'rightbar'): HTMLElement {
@@ -209,6 +230,19 @@ describe('AppFrame', () => {
     selectedSession = undefined
     rerenderFrame()
     expect(document.title).toBe('Product')
+  })
+
+  it('starts with the sidebar collapsed at its rail', () => {
+    const { frame, sidebarOwner, getByTestId } = mountFrame(frameWidth, undefined, 'collapsed')
+    expect(tracks(frame)).toEqual([56, 0])
+    expect(sidebarOwner()).toEqual({ collapsed: true, width: 56 })
+    expect(getByTestId('sidebar-content')).toBeTruthy()
+    expect(frame.querySelector('[data-side="sidebar"]')).toBeNull()
+  })
+
+  it('renders the right column without a retired IDE layer', () => {
+    const { frame } = mountFrame()
+    expect(frame.querySelector('[data-ide-layer]')).toBeNull()
   })
 
   it('renders owner props for the default sidebar and prospective right panel', () => {
@@ -607,20 +641,6 @@ describe('AppFrame swapped layout', () => {
     drag(handleFor(frame, 'rightbar'), 845, 835)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(535)
     expect(rightOwner().width).toBe(535)
-  })
-
-  it('solves the IDE layer beside the panel and spans the viewport in fullscreen', () => {
-    const { frame, instance } = mountFrame()
-    const layer = frame.querySelector('[data-ide-layer]') as HTMLElement
-    // The layer mirrors the panel's resolved width even before the panel opens.
-    expect(layer.style.width).toBe('1160px')
-    expect(frame.dataset.rightbarShown).toBeUndefined()
-    act(() => { instance.actions.openRightbar(true, false) })
-    expect(layer.style.width).toBe('1160px')
-    expect(frame.dataset.rightbarShown).toBe('true')
-    act(() => { instance.actions.openRightbar(true, true) })
-    expect(layer.style.width).toBe('100%')
-    expect(frame.dataset.rightbarFullscreen).toBe('true')
   })
 })
 

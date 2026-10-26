@@ -14,7 +14,6 @@
   flex-direction: column;
   gap: 0;
   border: 0;
-  border-radius: 20px;
   background: var(--dsw-specific-menu);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   box-shadow: var(--dsw-elevation-prominent);
@@ -103,7 +102,6 @@
   min-height: 40px;
   padding: 8px 10px;
   border: none;
-  border-radius: 10px;
   background: transparent;
   cursor: pointer;
   font-size: 14px;
@@ -129,14 +127,12 @@
 .submenu.compactList {
   min-width: 164px;
   padding: 2px;
-  border-radius: 7px;
 }
 
 .compactList .item {
   min-height: 26px;
   gap: 6px;
   padding: 3px 7px;
-  border-radius: 5px;
   font-size: 12px;
   line-height: 18px;
 }

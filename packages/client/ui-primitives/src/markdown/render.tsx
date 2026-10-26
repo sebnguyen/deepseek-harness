@@ -194,11 +194,24 @@ export interface MarkdownRenderContext {
   /** References rendered per identifier; drives the section's back-reference count. */
   readonly footnoteCounts: Map<string, number>
   /**
-   * Streaming tail mark: slice-relative source offset where the characters
-   * that arrived in this chunk begin. Set on the trailing block only; text
-   * nodes split at it and splittable constructs wrap whole.
+   * Every delta the reveal replay has swept in and is still animating, in
+   * absolute (full-message) source offsets. One run per replay tick, trimmed to
+   * a window as wide as the animation, so every span finishes its swell before
+   * the next tick drops it.
    */
-  readonly tail?: number | undefined
+  readonly tailRuns?: readonly MarkdownTailRun[] | undefined
+  /**
+   * Streaming only: slice-relative source offset from which received characters
+   * have not been revealed yet. They render inside a `data-veil` span, out of
+   * layout, until the replay reaches them.
+   */
+  readonly veil?: number | undefined
+}
+
+/** One delta's run of newly arrived source characters, in absolute offsets. */
+export interface MarkdownTailRun {
+  readonly start: number
+  readonly end: number
 }
 
 /**
@@ -207,44 +220,78 @@ export interface MarkdownRenderContext {
  * replaced pipeline's child lists so separator newlines land identically.
  * @param blocks - Blocks with their stream-stable render keys.
  * @param context - The pass state; footnote numbering mutates in document order.
- * @param tailFrom - Streaming only: full-source offset where the characters
- * that arrived in this chunk begin. The mark is placed inside the LAST block
- * when the offset falls there; every other block renders unmarked.
+ * @param veilFrom - Streaming only: full-source offset where the reveal cursor
+ * sits. A block reaching past it renders its revealed prefix and hides the
+ * rest; the caller renders no block that starts after it.
  * @returns One React node per rendered block.
  */
 export function renderBlocks(
   blocks: readonly PositionedBlock[],
   context: MarkdownRenderContext,
-  tailFrom?: number | undefined,
+  veilFrom?: number | undefined,
 ): ReactNode[] {
-  const lastIndex = blocks.length - 1
-  const last = blocks[lastIndex]
-  const tail = last === undefined || tailFrom === undefined ? undefined : tailOffset(last, tailFrom)
   return blocks
-    .map((block, index) => renderNode(
-      block.node,
-      block.key,
-      index === lastIndex && tail !== undefined ? { ...context, tail } : context,
-    ))
+    .map((block) => {
+      if (veilFrom !== undefined && veilFrom <= block.key) {
+        // Not reached yet: rendered for structure but removed from layout, so the
+        // block's DOM never re-keys (or remounts) when the replay arrives.
+        const element = renderNode(block.node, block.key, { ...context, tailRuns: undefined, veil: undefined })
+        return element === null ? null : veilSpan(block.key, element)
+      }
+      // Runs and the veil arrive in absolute offsets; node positions are
+      // relative to the re-parsed slice, so both rebase onto the block.
+      const runs = tailRunsFor(block, context.tailRuns)
+      const veil = veilFrom === undefined ? undefined : markOffset(block, veilFrom)
+      if (runs === undefined && veil === undefined) return renderNode(block.node, block.key, context)
+      return renderNode(block.node, block.key, { ...context, tailRuns: runs, veil })
+    })
     .filter(element => element !== null)
 }
 
 /**
- * Translate a full-source streaming offset into the slice-relative offset the
- * trailing block's mdast positions use, or undefined when it does not land
- * inside that block. Tail positions are relative to the incremental parse
- * slice while the block key is its absolute source start, so the slice base is
- * `key - start.offset`.
- * @param block - The trailing tail block.
- * @param tailFrom - Full-source offset where this chunk's new characters begin.
- * @returns The block-relative mark offset, or undefined when unplaceable.
+ * Rebase the live deltas onto the block that owns them. A run that opens inside
+ * the block belongs to it and clamps to the block's end, so a run reaching
+ * across the boundary is never re-applied to the next block as well.
+ * @param block - One block of the pass.
+ * @param runs - Every delta still inside the live tail, in absolute offsets.
+ * @returns The block-relative runs, or undefined when none open in this block.
  */
-function tailOffset(block: PositionedBlock, tailFrom: number): number | undefined {
+function tailRunsFor(block: PositionedBlock, runs: readonly MarkdownTailRun[] | undefined): readonly MarkdownTailRun[] | undefined {
+  if (runs === undefined || runs.length === 0) return undefined
   const start = block.node.position?.start.offset
   const end = block.node.position?.end.offset
   if (start === undefined || end === undefined) return undefined
-  const offset = tailFrom - (block.key - start)
-  return offset >= start && offset < end ? offset : undefined
+  const base = block.key - start
+  const span = end - start
+  const clipped = runs
+    // A run that begins before the block (its first characters fell inside the
+    // blank line or an earlier block) still marks the part that landed here, so
+    // clip it rather than dropping it and losing the block's opening characters.
+    .filter(run => run.end > block.key && run.start < block.key + span)
+    .map(run => ({ start: Math.max(run.start, block.key) - base, end: Math.min(run.end, block.key + span) - base }))
+  return clipped.length === 0 ? undefined : clipped
+}
+
+/**
+ * Translate a full-source streaming offset into the slice-relative offset the
+ * block's mdast positions use. A block that reaches past `offset` claims it:
+ * when the offset precedes its start (the chunk boundary fell inside the
+ * blank line before the block) the whole block is new, when it falls inside
+ * the block the suffix from the offset is new, and when the block already
+ * ended it stays settled and returns undefined. Tail positions are relative to
+ * the incremental parse slice while the block key is its absolute source
+ * start, so the slice base is `key - start.offset`.
+ * @param block - One block of the pass.
+ * @param offset - Full-source boundary offset: the animation window's start or
+ * the veil.
+ * @returns The block-relative offset, or undefined when the block ended first.
+ */
+function markOffset(block: PositionedBlock, offset: number): number | undefined {
+  const start = block.node.position?.start.offset
+  const end = block.node.position?.end.offset
+  if (start === undefined || end === undefined) return undefined
+  const relative = offset - (block.key - start)
+  return relative < end ? Math.max(relative, start) : undefined
 }
 
 /**
@@ -308,12 +355,18 @@ function renderChildren(
 function renderNode(node: Md.RootContent, key: Key, context: MarkdownRenderContext): ReactNode {
   if (node.type === 'text' || node.type === 'html') return renderText(node, key, context)
   const element = renderNodeBody(node, key, context)
-  const tail = context.tail
+  if (element === null) return null
+  const start = node.position?.start.offset
   const end = node.position?.end.offset
-  if (element === null || tail === undefined || end === undefined || tail >= end || !isTailWrapped(node)) {
-    return element
+  // A construct the replay has not reached cannot be split either way, so hide
+  // it whole instead of leaking the part behind the veil.
+  if (start !== undefined && context.veil !== undefined && context.veil <= start) {
+    return veilSpan(`veil:${String(key)}:${context.veil}`, element)
   }
-  return tailSpan(`tail:${String(key)}:${tail}`, element)
+  if (end === undefined || !isTailWrapped(node)) return element
+  const inside = context.tailRuns?.find(run => start !== undefined && run.start >= start && run.start < end)
+  if (inside !== undefined) return tailSpan(`run:${inside.start}:${String(key)}`, element)
+  return element
 }
 
 function renderNodeBody(node: Md.RootContent, key: Key, context: MarkdownRenderContext): ReactNode {
@@ -446,35 +499,48 @@ function isTailWrapped(node: Md.RootContent): boolean {
  * @returns The same state with the tail mark cleared.
  */
 function tailOpaque(context: MarkdownRenderContext): MarkdownRenderContext {
-  return { ...context, tail: undefined }
+  return { ...context, tailRuns: undefined, veil: undefined }
 }
 
 /**
- * Render a text node, splitting its value at the tail mark. The mdast value
- * can be shorter than its source span (backslash escapes, character
- * references), so the split clamps: a transient escape may leave the mark
+ * Render a text node as plain text, a marked span for each delta the replay has
+ * swept in, and a veil over the characters it has not reached yet. The mdast
+ * value can be shorter than its source span (backslash escapes, character
+ * references), so every boundary clamps: a transient escape may leave a mark
  * covering more of the value, but no character is ever lost or duplicated.
- * Raw HTML reaches here too: it renders as literal text, so it splits like
- * one instead of re-fading the whole node on every chunk.
+ * Raw HTML reaches here too: it renders as literal text, so it splits like one
+ * instead of re-fading the whole node on every tick.
  * @param node - The text or html node to render.
  * @param key - Stable stream key for the node.
- * @param context - The pass state carrying the tail mark.
- * @returns The value, marked from the split on when it is new.
+ * @param context - The pass state carrying the deltas and the veil.
+ * @returns The value, split into plain, marked, and veiled regions.
  */
 function renderText(node: Md.Text | Md.Html, key: Key, context: MarkdownRenderContext): ReactNode {
-  const tail = context.tail
-  const start = node.position?.start.offset
-  const end = node.position?.end.offset
-  if (tail === undefined || start === undefined || end === undefined || tail >= end) return node.value
-  const split = Math.min(Math.max(tail - start, 0), node.value.length)
-  if (split >= node.value.length) return node.value
-  if (split === 0) return tailSpan(`tail:${String(key)}:${tail}`, node.value)
-  return (
-    <Fragment key={key}>
-      {node.value.slice(0, split)}
-      {tailSpan(`tail:${String(key)}:${tail}`, node.value.slice(split))}
-    </Fragment>
-  )
+  const from = node.position?.start.offset
+  const to = node.position?.end.offset
+  const value = node.value
+  if (from === undefined || to === undefined) return value
+  const limit = clampIndex(context.veil, from, value.length)
+  const runs = context.tailRuns
+  if (limit >= value.length && (runs === undefined || runs.length === 0)) return value
+  const parts: ReactNode[] = []
+  let cursor = 0
+  for (const run of runs ?? []) {
+    if (run.end <= from || run.start >= to) continue
+    const cutFrom = clampIndex(run.start, from, value.length)
+    const cutTo = Math.min(clampIndex(run.end, from, value.length), limit)
+    // An escape can make the value shorter than its source span; a run that lands
+    // entirely past the end marks nothing rather than an empty span.
+    if (cutTo <= cutFrom || cutFrom >= value.length) continue
+    // Plain segments carry keys too: an unkeyed string between keyed spans
+    // shifts their positions and makes React remount them.
+    if (cutFrom > cursor) parts.push(<Fragment key={`p:${from + cursor}`}>{value.slice(cursor, cutFrom)}</Fragment>)
+    parts.push(tailSpan(`run:${run.start}:${String(key)}`, value.slice(cutFrom, cutTo)))
+    cursor = Math.max(cursor, cutTo)
+  }
+  if (cursor < limit) parts.push(<Fragment key={`p:${from + cursor}`}>{value.slice(cursor, limit)}</Fragment>)
+  if (limit < value.length) parts.push(veilSpan(`veil:${from + limit}:${String(key)}`, value.slice(limit)))
+  return <Fragment key={key}>{parts}</Fragment>
 }
 
 /**
@@ -489,18 +555,41 @@ function tailMotion(): boolean {
 }
 
 /**
- * Wrap one newly arrived run. The key carries the split offset so every delta
- * mounts a FRESH span: a stable key would reuse the DOM node, and then the CSS
- * animation would not fire again. Under reduced motion the span still renders
- * but carries an inline `animation: none` — the sheet's media query is the
- * browser backstop, and this inline gate is what a DOM test can observe.
- * @param key - Caller-supplied key; must change whenever the split moves.
- * @param children - The newly arrived rendered content.
+ * Wrap one delta. The key carries the run's start offset so every delta mounts
+ * a fresh span: a stable key would reuse the node and the rise would not fire
+ * for the new characters. Only the live tail is ever marked — a block leaving
+ * the tail drops its spans in the same commit that caches it, so a freeze never
+ * waits for an animation; the spans it removes simply stop. Under reduced
+ * motion the span still renders but carries an inline `animation: none` — the
+ * sheet's media query is the browser backstop, and this inline gate is what a
+ * DOM test can observe.
+ * @param key - Caller-supplied key; unique among the node's siblings.
+ * @param children - The newly arrived characters.
  * @returns The marked span.
  */
 function tailSpan(key: Key, children: ReactNode): ReactNode {
   return (
     <span key={key} data-tail style={tailMotion() ? undefined : { animation: 'none' }}>
+      {children}
+    </span>
+  )
+}
+
+/** Absolute source offset → index into a node whose value starts at `from`. */
+function clampIndex(offset: number | undefined, from: number, length: number): number {
+  if (offset === undefined) return length
+  return Math.min(Math.max(offset - from, 0), length)
+}
+
+/**
+ * Hide characters that have been received but not revealed yet. The replay
+ * drops the veil as it passes, so the block grows instead of popping in.
+ * @param key - Caller-supplied key; unique among the node's siblings.
+ * @param children - The characters still waiting their turn.
+ */
+function veilSpan(key: Key, children: ReactNode): ReactNode {
+  return (
+    <span key={key} data-veil>
       {children}
     </span>
   )

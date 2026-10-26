@@ -1,5 +1,7 @@
 import clsx from 'clsx'
+import { PixelGlyph } from './PixelGlyph.tsx'
 import { PixelLoader } from './PixelLoader.tsx'
+import type { PixelSymbolName } from './pixel-symbols/symbols.ts'
 import css from './StateDot.module.css'
 
 /**
@@ -9,14 +11,22 @@ import css from './StateDot.module.css'
  */
 export type StateDotState = 'done' | 'warning' | 'ongoing' | 'error' | 'idle'
 
+/** The pixel mark that carries each settled state; colour stays per state. */
+const STATE_GLYPHS: Record<Exclude<StateDotState, 'ongoing'>, PixelSymbolName> = {
+  done: 'check',
+  warning: 'pause',
+  error: 'close',
+  idle: 'generic',
+}
+
 /**
  * Render a state mark.
  * @param props.state - which of `done`, `warning`, `ongoing`, `error`, or `idle` to show.
- * @param props.size - outer edge in px (default 10, the figma size).
+ * @param props.size - outer edge in px (default 16).
  * @param props.className - extra class for layout placement.
  * @returns the state element (aria-hidden; pair with text for accessibility).
  */
-export function StateDot({ state, size = 10, className }: {
+export function StateDot({ state, size = 16, className }: {
   state: StateDotState
   size?: number | undefined
   className?: string | undefined
@@ -39,6 +49,8 @@ export function StateDot({ state, size = 10, className }: {
       data-state={state}
       style={{ width: size, height: size }}
       aria-hidden="true"
-    />
+    >
+      <PixelGlyph name={STATE_GLYPHS[state]} size={size} />
+    </span>
   )
 }

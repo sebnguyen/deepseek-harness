@@ -268,7 +268,6 @@
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: 1;
   white-space: nowrap;
-  border-radius: 12px;
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -325,7 +324,6 @@
   line-height: 1;
   background: transparent;
   border: none;
-  border-radius: 20px;
   cursor: pointer;
   opacity: 0;
   /* Hidden means untouchable too: without this a touch press on the chip's
@@ -342,7 +340,7 @@
   pointer-events: auto;
 }
 
-/* The chip's height and corner, so it reads as one more capsule in the row. */
+/* The chip's height and footprint, so it reads as one more tab in the row. */
 .addTab {
   display: flex;
   flex: none;
@@ -355,7 +353,6 @@
   line-height: 1;
   background: transparent;
   border: none;
-  border-radius: 12px;
   cursor: pointer;
 }
 
@@ -417,7 +414,6 @@
   line-height: 1;
   background: transparent;
   border: none;
-  border-radius: 28px;
   cursor: pointer;
 }
 
@@ -450,7 +446,6 @@
   padding: 4px;
   background: var(--dsw-alias-bg-layer-3);
   border: 0.5px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
 }
 
 .menu:not(:has([role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'])) {
@@ -464,7 +459,6 @@
   text-align: left;
   background: transparent;
   border: none;
-  border-radius: 4px;
   cursor: pointer;
 }
 
@@ -569,7 +563,6 @@
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   border: 1.5px dashed var(--dsw-alias-border-l2);
-  border-radius: 12px;
   transition: color 120ms ease-out, background-color 120ms ease-out, border-color 120ms ease-out;
   animation: dockHintIn 140ms ease-out;
 }
@@ -646,7 +639,6 @@
      to its own corners. */
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-2);
-  border-radius: 20px;
   /* The menu's shadow with the stroke rebound one step lighter than the
      default (l2): the panel reads as the same kind of raised surface, and the
      shadow's hairline outlines it, so the frame draws no border of its own. */
@@ -703,10 +695,10 @@
   touch-action: none;
 }
 
-/* The grip is a quarter arc concentric with the frame's 20px corner (16px
-   radius at a 4px inset), so it reads as part of the frame. It shows only
-   while the pointer is over the panel — an idle panel keeps a clean corner —
-   and `:active` keeps it lit while a drag holds the pointer capture. */
+/* The grip is two 1.5px rules meeting at the frame's corner (16px at a 4px
+   inset), so it reads as part of the frame. It shows only while the pointer is
+   over the panel — an idle panel keeps a clean corner — and `:active` keeps it
+   lit while a drag holds the pointer capture. */
 .floatResize::after {
   content: '';
   position: absolute;
@@ -716,7 +708,6 @@
   height: 16px;
   border-right: 1.5px solid var(--dsw-alias-label-caption);
   border-bottom: 1.5px solid var(--dsw-alias-label-caption);
-  border-bottom-right-radius: 16px;
   opacity: 0;
   transition: opacity 120ms ease-out;
 }

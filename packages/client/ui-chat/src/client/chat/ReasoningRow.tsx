@@ -1,52 +1,30 @@
 /** Assistant reasoning disclosure, independent of Tool-call presentation. */
-import { useState } from 'react'
-import { DisclosureRow, IconThinkOutline14, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PceRow } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps } from '../contract/slots.ts'
 import css from './ReasoningRow.module.css'
 
 /**
- * Render one assistant reasoning block as the Think disclosure row. The
- * collapsed summary shows streaming status only; expanded content preserves
- * the complete text.
+ * Render one assistant reasoning block as the proposed `Think` row. The
+ * collapsed head shows streaming status; the expanded body preserves the
+ * complete text.
  * @param props.text - complete or streaming reasoning text.
  * @param props.running - whether this block is the streaming tail.
  * @param props.t - conversation locale seat for the status labels.
- * @returns the reasoning disclosure.
+ * @returns the reasoning pce row.
  */
 export function ReasoningRow({ text, running, t }: { text: string; running: boolean; t: ChatViewSlotProps['t'] }) {
-  const [expanded, setExpanded] = useState(false)
   const summary = running ? t('message.think.streaming') : t('message.think.finished')
-
   return (
-    <div
-      className={css.root}
-      data-variant="think"
-      data-state={running ? 'running' : 'ok'}
-      data-expanded={expanded || undefined}
-    >
-      <DisclosureRow
-        rowClassName={css.row}
-        leadingClassName={css.leading}
-        titleClassName={css.title}
-        chevronClassName={css.chevron}
-        icon={running ? <PixelLoader size={14} /> : <IconThinkOutline14 size={14} />}
+    <div className={css.root} data-variant="think" data-state={running ? 'running' : 'ok'}>
+      <PceRow
+        kind="reasoning"
+        glyph="think"
         title={t('message.think')}
-        open={expanded}
-        expandable
-        expandOnRowClick
-        keepChildrenMounted
-        onToggle={() => { setExpanded(value => !value) }}
-        collapsedContent={(
-          <>
-            <span className={css.separator} aria-hidden />
-            <span className={css.summary}>
-              <span className={css.summaryText}>{summary}</span>
-            </span>
-          </>
-        )}
-      >
-        <div className={css.thinkBody}>{text}</div>
-      </DisclosureRow>
+        state={running ? 'running' : 'ok'}
+        stateLabel={summary}
+        keepMounted
+        body={<div className={css.thinkBody}>{text}</div>}
+      />
     </div>
   )
 }

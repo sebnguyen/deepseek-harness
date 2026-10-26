@@ -1,14 +1,13 @@
 /**
  * Sidebar shell: column geometry and global panel navigation.
- * Collapse is a slide plus crossfade:
- * content freezes at its expanded width (inline style) and fades out in place
- * while the sliding column (AppFrame grid tracks) clips it — nothing reflows
- * mid-slide. At settle the wide-only content unmounts and the upper
- * controls enter the 56px rail from the same horizontal offset (one icon each,
- * same top-down order) on one fade that ends with the slide. The floor only
- * fades. The workspace/session browsing region between global panel rows and
- * the foot is the `sidebar.workspaces` registrant's, and the foot is one icon
- * row holding `sidebar.guide`, `sidebar.settings`, and the additive
+ * The floating panel slides between the 56px rail and its expanded width on
+ * the theme's slow ease-in-out curve (Web Animations API below). At settle
+ * the wide-only content unmounts and the upper controls enter the 56px rail
+ * from the same horizontal offset (one icon each, same top-down order) on one
+ * fade that ends with the slide. The floor only fades. The workspace/session
+ * browsing region between global panel rows and the foot is the
+ * `sidebar.workspaces` registrant's, and the foot is one icon row holding
+ * `sidebar.guide`, `sidebar.settings`, and the additive
  * `sidebar.footer.action`; the shell hands them the wide flag (plus an expand
  * request callback for the browser).
  *
@@ -17,19 +16,16 @@
  * scrollbar indirection away while it is elsewhere, so a list the user is not
  * pointing at carries no bar.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import clsx from 'clsx'
 import {
-  DigitalOceanLogo, IconNewChatOutline16, IconPanelLeftOutline16, Tooltip,
+  IconNewChatOutline16, PixelMark, Tooltip,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   SidebarPanelMetadata, SidebarRootComponentProps, SidebarRootInjected, SidebarSectionOwnerProps,
 } from './contract/slots.ts'
 import css from './SidebarRoot.module.css'
-
-/** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
-const COLLAPSE_SETTLE_MS = 150
 
 /**
  * How long the column's scrollbars stay drawn after the pointer leaves it.
@@ -81,6 +77,18 @@ function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: Pa
   )
 }
 
+/** The collapsed rail's width; mirrors SIDEBAR_COLLAPSED in ui-layout's columns. */
+const RAIL_WIDTH = 56
+
+/** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
+const COLLAPSE_SETTLE_MS = 150
+
+/** The rail ↔ panel width slide; mirrors --ds-transition-duration-slow in ui-theme's base.css. */
+const WIDTH_SLIDE_MS = 300
+
+/** The slide's curve; mirrors --ds-ease-in-out in ui-theme's base.css. */
+const WIDTH_SLIDE_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)'
+
 /**
  * Render the sidebar column shell.
  * @param props - composed slot props (runtime share + injected callbacks, contract/slots.ts).
@@ -98,21 +106,32 @@ export function SidebarRoot({
   renderSlot,
 }: SidebarRootComponentProps) {
   const panels = usePanels(snapshot => snapshot)
+  const [hovered, setHovered] = useState(false)
   // Wide content stays mounted while the collapse animates (fading via
   // .collapsed .wide), unmounts at settle, and remounts right away on expand.
+  // Hover (hovered) forces the wide layout so a collapsed rail opens on hover.
   const [settled, setSettled] = useState(collapsed)
   useEffect(() => {
     if (!collapsed) { setSettled(false); return }
+    if (hovered) { setSettled(false); return }
     const timer = window.setTimeout(() => { setSettled(true) }, COLLAPSE_SETTLE_MS)
     return () => { window.clearTimeout(timer) }
-  }, [collapsed])
-  const wide = !collapsed || !settled
+  }, [collapsed, hovered])
+  /* Hover: a collapsed panel opens while the pointer or focus is inside it and
+     closes when both leave, without touching the stored preference. */
+  const open = !collapsed || hovered
+  const wide = open || (collapsed && !settled)
 
   // Freeze the content at its expanded width while it fades out (collapsed
   // && wide): the sliding column then clips it instead of reflowing it. The
   // rail layout (.collapsed styles) only applies once the fade settles.
-  const lastWideWidth = useRef(width)
+  const lastWideWidth = useRef(Math.max(width, 264))
   if (!collapsed) lastWideWidth.current = width
+  /* An open panel may never be narrower than the sidebar minimum: a stored or
+     conceded width below it renders the wide layout squeezed into a strip,
+     which reads as a broken, misaligned sidebar. */
+  const openWidth = Math.max(collapsed ? lastWideWidth.current : width, 264)
+
 
   // Rail-in only crossfades a live collapse: a refresh straight into the
   // collapsed state renders the rail statically (no delay-hidden icons).
@@ -162,70 +181,119 @@ export function SidebarRoot({
     }
   }, [pointerInside])
 
+  // The fold's width slide. The panel floats over the centre, so its inline
+  // width is the whole animation: React keeps the style at the target and the
+  // WAAPI animation overrides it while playing, which hands the edge back
+  // without a jump. Pointer drags change the width with the fold state held;
+  // easing those would detach the edge from the handle.
+  const shownWidth = useRef(open ? openWidth : RAIL_WIDTH)
+  const previousFold = useRef({ open, collapsed })
+  const widthSlide = useRef<Animation | null>(null)
+  useLayoutEffect(() => {
+    const element = column.current
+    /* v8 ignore next -- the root div renders unconditionally, so the ref is attached by effect time. */
+    if (element === null) return
+    const target = open ? openWidth : RAIL_WIDTH
+    const from = shownWidth.current
+    shownWidth.current = target
+    const previous = previousFold.current
+    previousFold.current = { open, collapsed }
+    const running = widthSlide.current
+    widthSlide.current = null
+    const start = running !== null && running.playState === 'running'
+      ? element.getBoundingClientRect().width
+      : from
+    running?.cancel()
+    if (previous.open === open && previous.collapsed === collapsed) return
+    if (start === target || typeof element.animate !== 'function') return
+    if (typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    widthSlide.current = element.animate(
+      [{ width: `${start}px` }, { width: `${target}px` }],
+      { duration: WIDTH_SLIDE_MS, easing: WIDTH_SLIDE_EASING },
+    )
+  }, [open, collapsed, openWidth])
+  useEffect(() => () => { widthSlide.current?.cancel() }, [])
+
   const buildVersion = localBuildVersion()
 
+  /* The panel leaves the frame's slot tree: a slot anchor is a grid item, and
+     nothing inside the frame's isolated stacking context can outrank the
+     shell's own body-level portals. Portaling to the body is what makes it a
+     max-z overlay rather than a cell in the layout. */
   return (
     <div
       ref={column}
       className={clsx(
         css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
-        collapsed && wide && css.fading, !pointerInside && css.quietBars,
+        collapsed && wide && !hovered && css.fading, !pointerInside && css.quietBars,
       )}
       data-dsh-sidebar=""
-      style={wide ? { width: collapsed ? lastWideWidth.current : width } : undefined}
+      data-sidebar-collapsed={!wide || undefined}
+      style={{ width: open ? openWidth : RAIL_WIDTH }}
+      data-collapsed={open ? undefined : true}
       onPointerEnter={() => {
         cancelLinger()
         setPointerInside(true)
+        setHovered(true)
       }}
-      onPointerLeave={() => { armLinger() }}
+      onPointerLeave={(event) => {
+        armLinger()
+        // Focus inside (a keyboard user in the panel) holds it open.
+        if (!event.currentTarget.contains(document.activeElement)) setHovered(false)
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHovered(false)
+      }}
     >
+      {/* body of the panel */}
       <div className={css.logoRow}>
-        {/* Expanded, the brand doubles as a New Session shortcut; the
-            collapsed rail's logo is the expand toggle below instead. */}
-        {wide && (
+        {wide ? (
+          <>
+            {/* Expanded, the brand doubles as a New Session shortcut; the
+                collapsed rail's logo is the expand toggle below instead. */}
+            <button
+              type="button"
+              className={clsx(css.brand, css.wide)}
+              aria-label={collapsed ? t('toggle.open') : t('session.new.label')}
+              onClick={() => {
+                // Collapsed, the mark is the sidebar's open control: hover already
+                // previews the panel, so a click pins it open.
+                if (collapsed) { toggleSidebar(); return }
+                startSession()
+              }}
+            >
+              <span className={css.brandIdentity} aria-hidden="true">
+                <span className={css.brandMark}>
+                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
+                </span>
+                <span className={css.brandName}>
+                  {renderSlot('sidebar.brand.name', {}, {
+                    fallback: buildVersion === undefined
+                      ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                      : (
+                        <span className={css.localBuildBrand}>
+                          <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                          <span className={css.buildVersion}>{buildVersion}</span>
+                        </span>
+                      ),
+                  })}
+                </span>
+              </span>
+            </button>
+          </>
+        ) : (
           <button
             type="button"
-            className={clsx(css.brand, css.wide)}
-            aria-label={t('session.new.label')}
-            onClick={() => { startSession() }}
+            className={css.iconButton}
+            aria-label={t('toggle.open')}
+            onClick={() => { toggleSidebar() }}
           >
-            <span className={css.brandIdentity} aria-hidden="true">
-              <span className={css.brandMark}>
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <DigitalOceanLogo size={24} /> })}
-              </span>
-              <span className={css.brandName}>
-                {renderSlot('sidebar.brand.name', {}, {
-                  fallback: buildVersion === undefined
-                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
-                    : (
-                      <span className={css.localBuildBrand}>
-                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                        <span className={css.buildVersion}>{buildVersion}</span>
-                      </span>
-                    ),
-                })}
-              </span>
+            <span className={css.railMark} aria-hidden="true">
+              {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
             </span>
           </button>
         )}
-        {/* Rail resting state is the DigitalOcean mark; hovering swaps in the
-            panel icon (the expand affordance, figma sidebar-hover flow). */}
-        <Tooltip label={collapsed ? t('toggle.open') : t('toggle.collapse')} delayMs={500}>
-          <button
-            type="button"
-            className={clsx(css.iconButton, css.toggle)}
-            aria-label={collapsed ? t('toggle.open') : t('toggle.collapse')}
-            onClick={() => { toggleSidebar() }}
-          >
-            {!wide && (
-              <span className={css.railMark} aria-hidden="true">
-                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <DigitalOceanLogo size={24} /> })}
-              </span>
-            )}
-            {/* Rail icons render at 18 (figma rail spec); expanded keeps the glyph-native sizes. */}
-            <IconPanelLeftOutline16 className={css.panelIcon} size={wide ? 16 : 18} />
-          </button>
-        </Tooltip>
       </div>
 
       {/* Expanded, the button carries its own label — tooltip only on the rail. */}

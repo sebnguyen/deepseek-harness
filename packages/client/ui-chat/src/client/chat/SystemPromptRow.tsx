@@ -1,6 +1,6 @@
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import type { ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
-import { DisclosureRow, IconBrowseOutline16 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PceRow } from '@deepseek-ai/dsh-client-ui-primitives'
 import { OpaqueBody } from './ContextBody.tsx'
 import css from './ContextInjectionRow.module.css'
 
@@ -15,31 +15,30 @@ export interface SystemPromptRowProps {
 }
 
 /**
- * Render one complete system prompt as a collapsed disclosure whose expanded
- * body is the same opaque context chrome: 141px code-block scrollport and
- * model-facing text with its real line breaks. An in-history update uses the
- * same row under its own title.
+ * Render one complete system prompt as a pce row whose expanded body is the
+ * model-facing text in a code block. An in-history update uses the same row
+ * under its own title.
  * @param props - Complete prompt text, whether it is an update, and the locale seat.
- * @returns The system-prompt disclosure row.
+ * @returns The system-prompt pce row.
  */
 export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProps) {
-  const [open, setOpen] = useState(false)
   return (
-    <DisclosureRow
-      className={css.root}
-      icon={<IconBrowseOutline16 size={14} />}
-      chevronClassName={css.chevron}
-      title={t(update ? 'message.systemPromptUpdate' : 'message.systemPrompt')}
-      open={open}
-      expandable
-      expandOnRowClick
-      keepChildrenMounted
-      onToggle={() => { setOpen(value => !value) }}
-    >
-      <div className={css.body} data-system-prompt-body>
-        <OpaqueBody content={[{ type: 'text', text }]} source={null} t={t} />
-      </div>
-    </DisclosureRow>
+    <div className={css.root}>
+      <PceRow
+        kind="system-prompt"
+        glyph="setting"
+        title={t(update ? 'message.systemPromptUpdate' : 'message.systemPrompt')}
+        state="ok"
+        keepMounted
+        body={(
+          <div className="pce-code" data-system-prompt-body>
+            <div className="pce-code-body">
+              <OpaqueBody content={[{ type: 'text', text }]} source={null} t={t} />
+            </div>
+          </div>
+        )}
+      />
+    </div>
   )
 }
 

@@ -1,79 +1,44 @@
 /**
- * Workspace twin frames: one live document plus at most two parked spares.
+ * The session twin's workspace frame, owned by the vscode tab body.
  *
- * The seat contract remounts session tab bodies on every session switch, so
- * the body can never own an iframe — and browsers make any move a trap too:
- * reparenting an `<iframe>` resets its browsing context, reloading the
- * workbench like a fresh mount. This module therefore creates frame elements
- * once inside ui-layout's positional `shell.ide` layer (whose geometry the
- * frame owns outright) and only ever re-points their `src`: session bodies
- * publish the active workspace's ready triple through the intent store
- * below, and this wrapper shows the record for it. Hiding (no body shows a
- * twin) parks records with `display: none` — never a removal — so tab and
- * session switches on one workspace keep the live document. A workspace
- * switch parks the live record and shows its own, creating the element on
- * first visit; a flip back is a pure unhide. Records cap at three — one
- * live plus two parked spares, spanning the three-workspace switch cycle —
- * and the least-recently-shown frame falls out past that: workbench
- * documents are heavyweight, and an evicted workspace's server still runs
- * its stable loopback port, so a return is a document boot against a hot
- * twin, with per-workspace origin-keyed IndexedDB restoring editors and
- * layout. Reload-visible state across harness restarts rides that storage.
+ * The `vscode` type declares itself a surface, so the seat renders this body as
+ * the column's content and the body owns the element: the document's lifetime
+ * is the body's lifetime, and the column's own box places it — no absolute
+ * frame seat above the layout, no reparenting, no source intent store.
+ *
+ * The trade the seat contract makes explicit: switching the active tab or the
+ * session unmounts the body, so the workbench boots cold on the next visit.
+ * The boot cover hides exactly that window — `load` plus a settle margin, since
+ * the workbench paints a few beats after its document fires `load`.
  */
-import { useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
  * Anti-flash wait: extra settle time after the twin document fires `load`
  * before the boot cover lifts. The workbench's own scripts paint a few beats
  * after `load`; revealing at `load` alone exposes one white/unstyled frame.
- * The cover still loads under the document, so the delay hides precisely
- * that boot window and nothing else.
  */
 const BOOT_SETTLE_MS = 1_200
 
 /**
- * Keyboard-entry grace: a focus move into a frame landing within this many
+ * Keyboard-entry grace: a focus move into the frame landing within this many
  * milliseconds of a Tab keydown counts as the key's default action — the
- * user tabbing into the frame — never as an automated grab. The move is
- * the keydown's synchronous outcome, so the window needs only to bridge
- * dispatch jitter, not human reaction time.
+ * user tabbing into the frame — never as an automated grab.
  */
 const TAB_ENTRY_GRACE_MS = 300
 
-/**
- * Live records cap: one visible plus two parked spares. The cap must span
- * the observed three-workspace switch cycle — at 2, cycling A→B→C evicts
- * the A record mid-boot and re-shows it with a cold workbench, which is
- * how parked iframes ran with stale spawn tokens (the respawned server
- * answered 'auth mismatch'). Unbounded maps would park a heavyweight
- * workbench per visited workspace; with workspace-pinned connection
- * tokens a parked record whose twin respawned reconnects with its own
- * still-valid token.
- */
-const MAX_LIVE_FRAMES = 3
-
-/** The seat band: fills the frame-owned geometry and opts back into pointer
- *  events (the layer itself is pointer-transparent). */
+/** The body box: fills the pane's content area (`.dockArea` is positioned). */
 const HOST_STYLE = {
   position: 'absolute',
   inset: '0',
-  pointerEvents: 'auto',
-} as const
-
-/** One record's home inside the host; parked with display: none, never removed. */
-const CONTAINER_STYLE = {
-  position: 'absolute',
-  inset: '0',
   display: 'block',
-  borderRadius: 'var(--dsh-frame-card-radius, 14px)',
   overflow: 'hidden',
 } as const
 
-/** The frame fills its record; transparency keeps the glass compositing. */
+/** The frame fills the body; transparency keeps the glass compositing. */
 const FRAME_STYLE = {
   display: 'block',
   width: '100%',
@@ -86,10 +51,10 @@ const FRAME_STYLE = {
   background: 'transparent',
 } as const
 
+/** The cover sits above the frame until the workbench settles. */
 const COVER_STYLE = {
   position: 'absolute',
   inset: '0',
-  // The cover sits above the records until the workbench settles.
   zIndex: 1,
 } as const
 
@@ -142,236 +107,62 @@ export function BootHero({ line, spinning = false }: { readonly line: string; re
   )
 }
 
-/** One published intent: the src a body is showing, plus its ownership token. */
-let intent: { readonly owner: object; readonly src: string } | null = null
-let twinIntent: string | null = null
-const listeners = new Set<() => void>()
-
-function notify(): void {
-  for (const listener of listeners) listener()
-}
-
-/** Store subscription for `useSyncExternalStore` consumers. */
-export function subscribeTwinIntent(listener: () => void): () => void {
-  listeners.add(listener)
-  return () => { listeners.delete(listener) }
-}
-
-/** Snapshot of the published src, or null while no body shows a twin. */
-export function twinIntentSrc(): string | null {
-  return twinIntent
+/** The frame's props: the ready source and the locale share for the cover. */
+export type TwinFrameProps = PropsLocale<'vscode'> & {
+  /** The ready twin source formed by the body. */
+  readonly src: string
 }
 
 /**
- * Publish one body's ready src. Later publishers win; a release clears only
- * its own intent, so a stale body's unmount can never blank a live one's
- * publication.
- * @param owner - the publishing body's identity token.
- * @param src - the ready triple formed into the iframe source.
- * @returns the release, run by the body's unmount.
+ * One workspace frame, sealed under the boot cover until its document settles.
+ * @param props - the ready source and the cover's state line.
+ * @returns the frame box.
  */
-export function publishTwinIntent(owner: object, src: string): () => void {
-  intent = { owner, src }
-  if (twinIntent !== src) {
-    twinIntent = src
-    notify()
-  }
-  return () => {
-    if (intent?.owner !== owner) return
-    intent = null
-    if (twinIntent !== null) {
-      twinIntent = null
-      notify()
-    }
-  }
-}
-
-/**
- * Publish this body's ready src as the frame cache's intent for as long as
- * the body is mounted.
- * @param src - the formed frame source, or null while not ready.
- */
-export function useTwinIntent(src: string | null): void {
-  const [owner] = useState<object>(() => ({}))
-  useEffect(() => (src === null ? undefined : publishTwinIntent(owner, src)), [owner, src])
-}
-
-/** Drop the published intent; specs start from a cold store. */
-export function resetTwinIntent(): void {
-  intent = null
-  twinIntent = null
-  notify()
-}
-
-/** One workspace's frame: its container in the host, the element, its boot lifecycle. */
-interface TwinRecord {
-  readonly container: HTMLDivElement
-  readonly frame: HTMLIFrameElement
-  settled: boolean
-  settleTimer: ReturnType<typeof setTimeout> | undefined
-}
-
-/**
- * Create one workspace record: container, frame element, and the anti-flash
- * settle that marks the document ready once its `load` plus margin passes.
- * @param src - the workspace's ready triple formed into the iframe source.
- * @param onSettled - re-render nudge so the seat can lift the cover.
- * @returns the mounted record, ready to show.
- */
-function createTwinRecord(src: string, onSettled: () => void): TwinRecord {
-  const container = document.createElement('div')
-  Object.assign(container.style, CONTAINER_STYLE)
-  container.setAttribute('data-twin-record', '')
-  const frame = document.createElement('iframe')
-  frame.title = 'vscode'
-  Object.assign(frame.style, FRAME_STYLE)
-  // Chromium gate: without this attribute the iframe composites opaque even
-  // when both the element and the framed document are transparent.
-  frame.setAttribute('allowtransparency', 'true')
-  // Clipboard delegation: the twin is cross-origin (its own 127.0.0.1 port),
-  // so without this the browser's permissions policy blocks the Clipboard API
-  // inside the frame and the workbench shows its sticky "Unable to read from
-  // the browser's clipboard" prompt on the first readText-driven paste path.
-  frame.setAttribute('allow', 'clipboard-read; clipboard-write')
-  frame.src = src
-  container.appendChild(frame)
-  const record: TwinRecord = { container, frame, settled: false, settleTimer: undefined }
-  frame.addEventListener('load', () => {
-    record.settleTimer = setTimeout(() => {
-      record.settleTimer = undefined
-      record.settled = true
-      onSettled()
-    }, BOOT_SETTLE_MS)
-  })
-  return record
-}
-
-/** Drop one record: its settle timer stops; removing the container unloads the document. */
-function discardTwinRecord(record: TwinRecord): void {
-  if (record.settleTimer !== undefined) clearTimeout(record.settleTimer)
-  record.container.remove()
-}
-
-/** The positional shell.ide seat entry's props: runtime share plus copy. */
-export type TwinFrameProps = PropsRuntime<'shell.ide'> & PropsLocale<'vscode'>
-
-/**
- * The workspace frame cache, registered once into the root-scoped positional
- * seat. Shows the record matching the published src — parking everything
- * else alive and creating on first visit — and seals each fresh document
- * under the boot cover until `load` plus the settle margin.
- * @param props - locale share for the cover's state line.
- * @returns the seat content.
- */
-export function TwinFrame({ t }: TwinFrameProps): ReactNode {
-  const src = useSyncExternalStore(subscribeTwinIntent, twinIntentSrc)
+export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
   const hostRef = useRef<HTMLDivElement | null>(null)
-  // Insertion order is the recency queue: a shown record is re-set to move to
-  // most-recent, so the map's first key is always the next eviction.
-  const records = useRef(new Map<string, TwinRecord>())
-  const [, bump] = useReducer((tick: number): number => tick + 1, 0)
+  const frameRef = useRef<HTMLIFrameElement | null>(null)
+  // The src whose document has settled; anything else is still covered.
+  const [settledSrc, setSettledSrc] = useState<string | null>(null)
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // Park everything, then show the intent's record — the one effect that
-  // mutates the cache so the parking and the creation land in one commit.
-  useLayoutEffect(() => {
-    const host = hostRef.current
-    if (host === null) return
-    const map = records.current
-    // Parking or evicting the record whose frame owns the document's focus
-    // would drop the keyboard onto <body> — a mount or switch removing
-    // focus from the thing that had it. Hand it back first, to wherever
-    // the document last had it, mirroring the blur guard's hand-back below.
-    const active = document.activeElement
-    if (active instanceof HTMLIFrameElement) {
-      for (const record of map.values()) {
-        if (record.frame !== active) continue
-        if (frameHolder.current === active) frameHolder.current = null
-        const prior = lastFocus.current
-        if (prior !== null && prior.isConnected) {
-          prior.focus({ preventScroll: true })
-        } else {
-          active.blur()
-        }
-        break
-      }
-    }
-    for (const record of map.values()) {
-      record.container.style.display = 'none'
-      record.container.removeAttribute('data-current')
-    }
-    if (src === null) return
-    let record = map.get(src)
-    let created = false
-    if (record === undefined) {
-      record = createTwinRecord(src, bump)
-      map.set(src, record)
-      host.appendChild(record.container)
-      created = true
-    } else {
-      map.delete(src)
-      map.set(src, record)
-    }
-    record.container.style.display = ''
-    record.container.setAttribute('data-current', '')
-    while (map.size > MAX_LIVE_FRAMES) {
-      const oldest = map.keys().next()
-      if (oldest.done) break
-      const stale = map.get(oldest.value)
-      if (stale === undefined) break
-      discardTwinRecord(stale)
-      map.delete(oldest.value)
-    }
-    // A creation past render means the cover flag needs a re-read.
-    if (created) bump()
+  // A changed source is a fresh document until its own `load` settles it.
+  useEffect(() => () => {
+    if (settleTimer.current !== undefined) clearTimeout(settleTimer.current)
   }, [src])
 
-  // Focus guard, holding for the frame's whole life — a mount and every
-  // boot past the settle margin included. The workbench auto-focuses its
-  // restored editor whenever its deferred restore lands, and focusing
-  // inside an iframe promotes browser-level focus to the <iframe> element,
-  // pulling the keyboard out of the composer or wherever it was. The
-  // workbench's own don't-steal guard can never trip in a never-focused
-  // browsing context (the active element is <body> before and after its
-  // restore), and the frame is cross-origin, so all the parent can do is
-  // hand the focus back. The hand-back fires only on an automated grab: a
-  // pointer inside the frame's box or a Tab just pressed marks the user's
-  // own entry, after which the frame legitimately owns the focus — and a
-  // window blur that moved nothing (alt-tab away, then back) stands down.
+  const covered = settledSrc !== src
+
+  // Focus guard, holding for the frame's whole life — including every boot
+  // past the settle margin. The workbench auto-focuses its restored editor
+  // whenever its deferred restore lands, and focusing inside an iframe
+  // promotes browser-level focus to the <iframe> element, pulling the
+  // keyboard out of the composer. The frame is cross-origin, so all the
+  // parent can do is hand the focus back — and only on an automated grab: a
+  // pointer inside the frame or a Tab just pressed marks the user's own entry,
+  // after which the frame legitimately owns the focus. A window blur that
+  // moved nothing (alt-tab away, then back) stands down.
   const lastFocus = useRef<HTMLElement | null>(null)
-  // The frame the user deliberately entered and that still owns the focus.
-  const frameHolder = useRef<HTMLIFrameElement | null>(null)
-  // The frame under the pointer: a click's entry lands on the inner
-  // document before the parent sees anything, so the boundary crossings
-  // are the only click-through signal a cross-origin frame gives us.
-  const frameHover = useRef<HTMLIFrameElement | null>(null)
-  // The latest Tab keydown: a focus move inside the grace is the key's
-  // default action. Nothing pressed yet — never pre-arm the grace.
+  const frameHolds = useRef(false)
+  const frameHovered = useRef(false)
   const frameTabAt = useRef(Number.NEGATIVE_INFINITY)
   useEffect(() => {
     // Seed the restore target with the focus the document already holds:
     // focusin tracks only changes, and the composer's autofocus normally
-    // lands before this guard installs, so a boot-time grab would
-    // otherwise meet an empty ref and be dumped onto <body> — the steal
-    // the guard exists to reverse.
+    // lands before this guard installs.
     const held = document.activeElement
-    if (held instanceof HTMLElement && held !== document.body && hostRef.current?.contains(held) !== true) {
-      lastFocus.current = held
-    }
-    // Track our document's focus so a grab has somewhere to be handed
-    // back; focus inside the seat (cover, frames) is never a valid restore
-    // target, and focus landing back here ends a frame's verified hold.
+    if (held instanceof HTMLElement && held !== document.body) lastFocus.current = held
     const onFocusIn = (event: FocusEvent): void => {
       const host = hostRef.current
       if (!(event.target instanceof HTMLElement)) return
       if (host !== null && host.contains(event.target)) return
-      frameHolder.current = null
+      frameHolds.current = false
       lastFocus.current = event.target
     }
     const onPointerOver = (event: PointerEvent): void => {
-      if (event.target instanceof HTMLIFrameElement) frameHover.current = event.target
+      if (event.target === frameRef.current) frameHovered.current = true
     }
     const onPointerOut = (event: PointerEvent): void => {
-      if (frameHover.current !== null && event.target === frameHover.current) frameHover.current = null
+      if (event.target === frameRef.current) frameHovered.current = false
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Tab') frameTabAt.current = performance.now()
@@ -380,29 +171,20 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
     // activeElement is the frame element — the same signal Menu.tsx uses.
     const onBlur = (): void => {
       const thief = document.activeElement
-      if (!(thief instanceof HTMLIFrameElement)) return
-      // The verified holder's own blurs (the window itself losing focus)
-      // moved nothing; only a dead grab needs a hand-back.
-      if (frameHolder.current === thief) return
-      let owned = false
-      for (const record of records.current.values()) owned ||= record.frame === thief
-      if (!owned) return
-      // The user's own entry: the pointer rests inside this frame's box,
-      // or a Tab just landed. The frame owns the keyboard from here on.
-      if (frameHover.current === thief || performance.now() - frameTabAt.current < TAB_ENTRY_GRACE_MS) {
-        frameHolder.current = thief
-        // A Tab arms exactly one move; the entry it explained consumes it,
-        // so a later grab waits for a fresh key.
+      if (!(thief instanceof HTMLIFrameElement) || thief !== frameRef.current) return
+      if (frameHolds.current) return
+      // The user's own entry: the pointer rests inside the frame, or a Tab
+      // just landed. The frame owns the keyboard from here on.
+      if (frameHovered.current || performance.now() - frameTabAt.current < TAB_ENTRY_GRACE_MS) {
+        frameHolds.current = true
+        // A Tab arms exactly one move; the entry it explained consumes it.
         frameTabAt.current = Number.NEGATIVE_INFINITY
         return
       }
-      // Automated grab: hand the focus back — to the frame the user was
-      // working in when another one grabbed, else wherever the document
-      // last had it (the composer). Returned lastFocus focus clears the
-      // hold itself through the focusin above. Nothing on record to hand
-      // back, and the frame drops the focus itself onto <body>: a frame
-      // never holds a focus it took.
-      const prior = frameHolder.current ?? lastFocus.current
+      // Automated grab: hand the focus back to whatever the document last
+      // held. A frame never keeps a focus it took itself; with nothing on
+      // record it drops the focus onto <body>.
+      const prior = lastFocus.current
       if (prior !== null && prior.isConnected) {
         prior.focus({ preventScroll: true })
       } else {
@@ -423,19 +205,34 @@ export function TwinFrame({ t }: TwinFrameProps): ReactNode {
     }
   }, [])
 
-  // Seat teardown is test-side only in practice (the root scope lives for the
-  // app): drop every record and its pending settle with the host.
-  useEffect(() => () => {
-    for (const record of records.current.values()) discardTwinRecord(record)
-    records.current.clear()
-  }, [])
-
-  const current = src === null ? undefined : records.current.get(src)
   return (
-    <div ref={hostRef} style={HOST_STYLE} data-twin-frame-seat>
-      {current !== undefined && !current.settled
+    <div ref={hostRef} style={HOST_STYLE} data-twin-frame>
+      <iframe
+        ref={frameRef}
+        title="vscode"
+        src={src}
+        style={FRAME_STYLE}
+        // Chromium gate: without this attribute the iframe composites opaque
+        // even when both the element and the framed document are transparent.
+        // Spread because React's typed prop (`allowTransparency`) does not
+        // reach the DOM; unknown lowercase attributes pass through verbatim.
+        {...{ allowtransparency: 'true' }}
+        // Clipboard delegation: the twin is cross-origin (its own loopback
+        // port), so without this the permissions policy blocks the Clipboard
+        // API inside the frame and the workbench shows its sticky "Unable to
+        // read from the browser's clipboard" prompt.
+        allow="clipboard-read; clipboard-write"
+        onLoad={() => {
+          if (settleTimer.current !== undefined) clearTimeout(settleTimer.current)
+          settleTimer.current = setTimeout(() => {
+            settleTimer.current = undefined
+            setSettledSrc(src)
+          }, BOOT_SETTLE_MS)
+        }}
+      />
+      {covered
         ? (
-          <div style={COVER_STYLE}>
+          <div style={COVER_STYLE} data-twin-cover>
             <BootHero line={t('state.opening')} spinning />
           </div>
         )

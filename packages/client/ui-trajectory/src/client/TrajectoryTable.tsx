@@ -1072,7 +1072,7 @@ function RequestContextPanel({
           capacity: contextWindow === undefined ? '?' : contextWindow.toLocaleString(),
         })}</span>
       </div>
-      {cacheUnknown && <p className={css.contextNote}>{t('context.cacheUnknown')}</p>}
+      <p className={cacheUnknown ? css.contextNote : `${css.contextNote} ${css.hidden}`}>{t('context.cacheUnknown')}</p>
       <div className={css.contextTrack}>
         {segments.map((segment) => {
           const style: ContextSpanStyle = { flexGrow: Math.max(segment.heuristicTokens, 1) }
@@ -1109,15 +1109,13 @@ function RequestContextPanel({
                 <span className={`${css.kindTag} ${CONTEXT_TAG_CLASS[segment.role]}`}>{t(`context.role.${segment.role}`)}</span>
                 <span className={css.contextRowTokens}>{segment.heuristicTokens.toLocaleString()}</span>
               </button>
-              {open && (
-                <div className={css.contextAccordionBody}>
-                  {content === undefined
-                    ? <p className={css.noPayload}>{t('context.notLoaded')}</p>
-                    : content === ''
-                      ? <p className={css.noPayload}>{t('context.empty')}</p>
-                      : <pre className={css.payload}>{content}</pre>}
-                </div>
-              )}
+              <div className={open ? css.contextAccordionBody : `${css.contextAccordionBody} ${css.hidden}`}>
+                {content === undefined
+                  ? <p className={css.noPayload}>{t('context.notLoaded')}</p>
+                  : content === ''
+                    ? <p className={css.noPayload}>{t('context.empty')}</p>
+                    : <pre className={css.payload}>{content}</pre>}
+              </div>
             </Fragment>
           )
         })}
@@ -2121,7 +2119,7 @@ export function TrajectoryTable({
   const [selectedRequest, setSelectedRequest] = useState<SelectedRequest | null>(null)
   const [activeTab, setActiveTab] = useState<DetailTab>('overview')
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
-  const [detailsWidth, setDetailsWidth] = useState<number | null>(null)
+  const [, setDetailsWidth] = useState<number | null>(null)
   const [toolRequestOffset, setToolRequestOffset] = useState<number | null>(null)
   const detailsResizeDrag = useRef<DetailsResizeDrag | null>(null)
   const appliedRecordSelection = useRef<TrajectoryTableProps['recordSelection']>(null)
@@ -3012,7 +3010,6 @@ export function TrajectoryTable({
         <aside
           className={css.details}
           aria-label={t('details.event')}
-          style={detailsWidth === null ? undefined : { width: detailsWidth }}
         >
           <div
             className={css.detailsResizeHandle}

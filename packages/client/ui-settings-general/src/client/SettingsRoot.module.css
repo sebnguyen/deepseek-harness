@@ -51,8 +51,6 @@
   padding: 0;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
-  corner-shape: round;
   background: transparent;
   cursor: pointer;
   overflow: hidden;
@@ -75,8 +73,6 @@
   justify-content: center;
   gap: 0;
   padding: 0;
-  border-radius: 50%;
-  corner-shape: round;
 }
 
 /* Full-viewport layer (figma Mask 501:29946 #000@24%): mask tokens match the
@@ -110,7 +106,6 @@
   width: 800px;
   height: min(800px, calc(100vh - 48px));
   max-width: calc(100vw - 48px);
-  border-radius: 32px;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-2);
   box-shadow: var(--dsw-elevation-prominent);
@@ -161,7 +156,6 @@
   padding: 9px 16px 9px 12px;
   box-sizing: border-box;
   border: none;
-  border-radius: 12px;
   background: transparent;
   cursor: pointer;
   font-family: inherit;
@@ -230,7 +224,6 @@
   height: 28px;
   padding: 0;
   border: none;
-  border-radius: 28px;
   background: transparent;
   cursor: pointer;
   color: var(--dsw-alias-label-primary);

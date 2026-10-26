@@ -11,7 +11,6 @@
 }
 
 .renderer .code {
-  --dsl-code-block-border-radius: 0px;
   --dsl-code-block-line-white-space: pre;
   /* In a sidebar pane the code sits on the pane's own background; the chat
      card's gray fill stays a chat-only default. */

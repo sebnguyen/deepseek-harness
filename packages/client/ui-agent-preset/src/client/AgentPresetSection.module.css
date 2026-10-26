@@ -25,7 +25,6 @@
   gap: 20px;
   padding: 14px 16px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 14px;
   background: var(--dsw-alias-bg-module-platform);
 }
 
@@ -92,7 +91,6 @@
 
 .card {
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 20px;
   display: flex;
   flex-direction: column;
   background: transparent;
@@ -133,8 +131,6 @@
 }
 
 .brokenBadge {
-  border-radius: 999px;
-  corner-shape: round;
   padding: 1px 8px;
   font-size: 11px;
   line-height: 17px;
@@ -157,7 +153,6 @@
   width: max-content;
   max-width: 100%;
   padding: 6px 8px;
-  border-radius: 6px;
   background: var(--dsw-alias-label-primary);
   color: var(--dsw-alias-bg-layer-3);
   font-size: 11px;
@@ -216,7 +211,6 @@
   flex-direction: column;
   gap: 8px;
   padding: 14px 16px 12px;
-  border-radius: 12px 12px 0 0;
 }
 
 .cardMain:disabled {
@@ -245,7 +239,7 @@
   line-height: 1.4;
 }
 
-/* Placement only: the capsule geometry and palette come from `Tag`. */
+/* Placement only: the box geometry and palette come from `Tag`. */
 .inUse {
   margin-left: auto;
 }
@@ -291,7 +285,6 @@
   position: relative;
   appearance: none;
   border: 0;
-  border-radius: 7px;
   padding: 6px;
   background: none;
   color: var(--dsw-alias-label-tertiary);
@@ -322,7 +315,6 @@
   left: 50%;
   transform: translateX(-50%);
   padding: 3px 8px;
-  border-radius: 6px;
   background: var(--dsw-alias-label-primary);
   color: var(--dsw-alias-bg-layer-3);
   font-size: 11px;
@@ -368,7 +360,6 @@
 
 .secondaryButton {
   border: none;
-  border-radius: 7px;
   padding: 5px 8px;
   background: none;
   color: var(--dsw-alias-label-secondary);
@@ -403,7 +394,6 @@
   box-sizing: border-box;
   padding: 9px 12px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 10px;
   font: inherit;
   font-size: 13px;
   background: var(--dsw-alias-bg-layer-1);
@@ -436,7 +426,6 @@
   max-height: min(52vh, 480px);
   overflow: auto;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
   font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
@@ -479,7 +468,6 @@
   gap: 6px;
   height: 44px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 20px;
   font: inherit;
   font-size: 14px;
   line-height: 22px;

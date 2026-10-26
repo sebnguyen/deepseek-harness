@@ -158,7 +158,8 @@ describe('stageTwinTheme', () => {
     expect(TWIN_CONFIGURATION_DEFAULTS['workbench.startupEditor']).toBe('none')
     expect(TWIN_CONFIGURATION_DEFAULTS['security.workspace.trust.enabled']).toBe(false)
     expect(TWIN_CONFIGURATION_DEFAULTS['editor.minimap.enabled']).toBe(false)
-    expect(String(TWIN_CONFIGURATION_DEFAULTS['editor.fontFamily'])).toContain('SF Mono')
+    expect(String(TWIN_CONFIGURATION_DEFAULTS['editor.fontFamily'])).toContain("'JetBrains Mono'")
+    expect(String(TWIN_CONFIGURATION_DEFAULTS['terminal.integrated.fontFamily'])).toContain("'JetBrains Mono'")
     expect(String(TWIN_CONFIGURATION_DEFAULTS['window.title'])).not.toContain('${appName}')
   })
 

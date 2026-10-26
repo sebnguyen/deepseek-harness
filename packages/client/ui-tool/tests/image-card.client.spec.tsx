@@ -294,7 +294,7 @@ describe('ReadImageRow keyed toolview', () => {
     const openFile = vi.fn()
     const view = render(<ReadImageRow {...rowProps(settled(), stubRenderSlot())} openFile={openFile} />)
     expect(view.container.querySelector('[data-variant]')?.getAttribute('data-variant')).toBe('read')
-    const link = view.container.querySelector('button[class*="fileLink"]')
+    const link = view.container.querySelector('[data-file-link]')
     expect(link).not.toBeNull()
     fireEvent.click(link!)
     expect(openFile).toHaveBeenCalledWith('shots/card.png')

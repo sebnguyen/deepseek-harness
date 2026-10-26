@@ -1,4 +1,4 @@
-/* Matches CodeBlock's outer rhythm (margin, radius, background) so a
+/* Matches CodeBlock's outer rhythm (margin, border, background) so a
    rendered diagram sits at the same visual weight as a code fence. */
 
 .diagram {
@@ -7,7 +7,6 @@
   overflow-x: auto;
   text-align: center;
   background: var(--dsw-alias-markdown-code-block);
-  border-radius: 12px;
 }
 
 .diagram :global(svg) {

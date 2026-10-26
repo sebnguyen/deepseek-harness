@@ -20,22 +20,23 @@ import type { ReactNode } from 'react'
 import type {
   PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { computeColumns, rightbarDefaultWidth, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_DEFAULT, sidebarWidth } from './columns.ts'
+import { computeColumns, rightbarDefaultWidth, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, sidebarWidth } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
-/* Frame card geometry mirrored from AppFrame.module.css: the outer inset and
-   the inter-card gap. Drag handles center on a gap, so a handle's left gains
-   the inset plus half the gap on each side of the frame. */
+/* Frame chrome geometry as the theme renders it: atlas.css zeroes the module's
+   floating inset and inter-card gap, so the columns meet on their 1px rules.
+   Drag handles center on a gap, so a handle's left gains the inset plus half
+   the gap on each side of the frame. */
 const FRAME_INSET = 0
-const FRAME_GAP = 8
+const FRAME_GAP = 0
 const GAP_CENTER = FRAME_INSET + FRAME_GAP / 2
 
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay' | 'shell.ide'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
@@ -56,13 +57,10 @@ function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'use
  * occupant's panel is positioned against the column's right edge, which never
  * moves, so it can hang over the centre when there is no track.
  */
-function RightbarColumn(props: { children?: ReactNode; ide?: ReactNode; ideWidth: number | '100%' }) {
+function RightbarColumn(props: { children?: ReactNode }) {
   return (
     <div className={css.rightbarCol} data-rightbar-col>
       {props.children}
-      {/* The singleton IDE layer: shares the panel's anchor and slide
-          (AppFrame.module.css); its width mirrors the resolved panel width. */}
-      <div className={`${css.frameslot} ${css.ideLayer}`} style={{ width: props.ideWidth }} data-ide-layer>{props.ide}</div>
     </div>
   )
 }
@@ -226,10 +224,6 @@ export function AppFrame({
     canShow: normal.rightbar > 0,
   }), [renderSlot, normal.rightbar, viewport])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
-  const ide = useMemo(() => renderSlot('shell.ide', {}), [renderSlot])
-  // The IDE layer mirrors the panel's contract: resolved width normally,
-  // viewport-spanning while fullscreen.
-  const ideWidth: number | '100%' = layoutInfo.rightbarFullscreen ? '100%' : normal.rightbar
 
   return (
     <div
@@ -237,9 +231,11 @@ export function AppFrame({
       className={css.frame}
       data-dsh-shell=""
       style={{
+        /* The sidebar track is always the collapsed rail: the expanded panel
+           floats over the centre, so opening it never reflows the chat. */
         gridTemplateColumns: swapped
-          ? `${cols.sidebar}px ${cols.rightbar}px minmax(0, 1fr)`
-          : `${cols.sidebar}px minmax(0, 1fr) ${cols.rightbar}px`,
+          ? `${SIDEBAR_COLLAPSED}px ${cols.rightbar}px minmax(0, 1fr)`
+          : `${SIDEBAR_COLLAPSED}px minmax(0, 1fr) ${cols.rightbar}px`,
       }}
       data-rightbar-swapped={swapped || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
@@ -254,13 +250,15 @@ export function AppFrame({
         useSessions={useSessions}
         usePanelInfo={usePanelInfo}
       />
-      <div className={`${css.frameslot} ${css.sidebarCol}`}>
-        {sidebar}
-      </div>
+      {/* The rail is an empty, permanent 56px column. The seat shares that
+          column so the panel's inline width overhangs the centre instead of
+          consuming a track (see AppFrame.module.css). */}
+      <div className={css.sidebarRail} aria-hidden />
+      <div className={css.sidebarSeat}>{sidebar}</div>
       {swapped
         ? (
           <>
-            <RightbarColumn ideWidth={ideWidth} ide={ide}>
+            <RightbarColumn>
               {rightbar}
             </RightbarColumn>
             <CenterColumn>{main}</CenterColumn>
@@ -269,7 +267,7 @@ export function AppFrame({
         : (
           <>
             <CenterColumn>{main}</CenterColumn>
-            <RightbarColumn ideWidth={ideWidth} ide={ide}>
+            <RightbarColumn>
               {rightbar}
             </RightbarColumn>
           </>

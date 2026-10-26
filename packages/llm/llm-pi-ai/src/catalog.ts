@@ -733,11 +733,12 @@ export interface PiAiModelProfile {
 }
 
 /**
- * Customization of one installed catalog model, keyed by its id in the
- * route's `modelOverrides` dict — the same fields a `models` entry may set,
- * with the id living in the key. Unlike a `models` list, overrides leave the
- * rest of the catalog serving untouched, which is what makes "correct one
- * model, keep the other thirty-seven" a three-line edit.
+ * Customization of one model, keyed by its id in the route's `modelOverrides`
+ * dict — the same fields a `models` entry may set, with the id living in the
+ * key. Unlike a `models` list, overrides leave the rest of the route serving
+ * untouched, which is what makes "correct one model, keep the other
+ * thirty-seven" a three-line edit. A live route applies them to the fetched
+ * entry of the same id.
  */
 export type PiAiModelOverride = Omit<PiAiModelProfile, 'id'>
 
@@ -764,7 +765,12 @@ export interface RouteCatalogRequest {
   baseURL?: string
   /** Configured catalog; absent means the whole installed catalog for this route. */
   models?: readonly PiAiModelProfile[]
-  /** Installed-catalog customizations by model id; only meaningful while `models` is absent. */
+  /**
+   * Per-model customizations by id; only meaningful while `models` is absent.
+   * A live route carries them onto the fetched entry of the same id, which is
+   * how a listing that reports no modalities still yields a per-model
+   * declaration without freezing the endpoint's catalog.
+   */
   modelOverrides?: Readonly<Record<string, PiAiModelOverride>>
   /** Route-level wire-compatibility switches, landing on each model whose protocol declares them; entries override per field. */
   compat?: PiAiCompatProfile
@@ -1019,10 +1025,12 @@ export function resolveRouteModels(
   const overrides = request.modelOverrides ?? {}
   const modelErrors = new Map<string, string>()
   // Writes reject missing referents. Stored overrides retain a diagnostic
-  // after catalog removal rather than silently disappearing.
+  // after catalog removal rather than silently disappearing. A live route is
+  // the exception: its models arrive from the endpoint, so an override names
+  // a model only the feed can describe and must survive the pre-fetch pass.
   for (const [id, override] of Object.entries(overrides)) {
     if (id.length === 0) invalid(provider, 'has a modelOverrides entry with an empty model id')
-    if (defaults.size === 0) {
+    if (defaults.size === 0 && request.live !== true) {
       invalid(provider, `sets modelOverrides for "${id}", but the installed catalog does not describe this route;`
         + ' a declared route spells every model out in its models list')
     }
@@ -1030,7 +1038,7 @@ export function resolveRouteModels(
       invalid(provider, `sets modelOverrides for "${id}" beside a models list; models already replaces the served`
         + ' catalog, so declare the fields on its entries')
     }
-    if (!defaults.has(id)) {
+    if (!defaults.has(id) && request.live !== true) {
       const message = `modelOverrides names "${id}", which the installed catalog does not describe`
       if (validation === 'strict') invalid(provider, message)
       modelErrors.set(id, `llm-pi-ai: provider "${provider}" ${message}`)
@@ -1044,7 +1052,10 @@ export function resolveRouteModels(
   }
   // An override becomes the catalog entry's configuration, so everything a
   // models entry may declare — capacities, efforts, compat — resolves through
-  // the same path with the same diagnostics and request-default semantics.
+  // the same path with the same diagnostics and request-default semantics. A
+  // live route's overrides never reach the branch below: the plugin folds
+  // them onto the fetched feed, which arrives as `models` already carrying
+  // them, so nothing here has to know a feed from a stored list.
   const entries: readonly PiAiModelProfile[] = configured.length > 0
     ? configured
     : [...defaults.values()].map(model => ({ id: model.id, ...overrides[model.id] }))

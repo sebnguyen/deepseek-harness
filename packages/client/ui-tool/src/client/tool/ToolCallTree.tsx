@@ -1,5 +1,6 @@
 /** Root/subcall Tool composition with one keyed atomic dispatch path. */
 import { memo, useMemo, type ReactNode } from 'react'
+import { PceRow } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ToolCallBlock } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { ToolCallOwnerProps, ToolTreeProps } from '../contract/slots.ts'
 import { GenericToolCard } from './toolviews/GenericToolCard.tsx'
@@ -33,7 +34,6 @@ const ToolCall = memo(function ToolCall({
   }), [callId, toolName, block, openFile, cwd, home, loadImage, revealFile, inspectCall])
   return (
     <div
-      className={css.callRow}
       data-chat-anchor-key={`call:${callId}`}
       data-chat-call-id={callId}
     >
@@ -68,20 +68,28 @@ const ToolCallBranch = memo(function ToolCallBranch({
     >
       {block.subCalls.length > 0 ? (
         <div className={css.subCalls} data-subcalls>
-          {block.subCalls.map(child => (
-            <ToolCallBranch
-              key={child.callId}
-              renderSlot={renderSlot}
-              block={child}
-              cwd={cwd}
-              home={home}
-              openFile={openFile}
-              inspectCall={inspectCall}
-              revealFile={revealFile}
-              loadImage={loadImage}
-              t={t}
-            />
-          ))}
+          <PceRow
+            kind="subcalls"
+            glyph="fork"
+            title={t('subcalls.title')}
+            summary={t('subcalls.count', { count: block.subCalls.length })}
+            state="ok"
+            defaultOpen
+            body={block.subCalls.map(child => (
+              <ToolCallBranch
+                key={child.callId}
+                renderSlot={renderSlot}
+                block={child}
+                cwd={cwd}
+                home={home}
+                openFile={openFile}
+                inspectCall={inspectCall}
+                revealFile={revealFile}
+                loadImage={loadImage}
+                t={t}
+              />
+            ))}
+          />
         </div>
       ) : null}
     </ToolCall>

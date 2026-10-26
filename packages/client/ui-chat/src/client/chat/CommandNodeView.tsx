@@ -1,11 +1,11 @@
 import { memo, useMemo } from 'react'
+import { PceRow } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
   ChatNodeViewProps, CommandRowOwnerProps,
 } from '../contract/slots.ts'
 import { CompactionCommandCard } from './CompactionCommandCard.tsx'
 import { GenericCommandCard } from './GenericCommandCard.tsx'
-import css from './ChatView.module.css'
 
 type CommandNodeViewProps = ChatNodeViewProps<'command'> & PropsRenderSlots<'conversation.chat.commandview'>
 
@@ -14,12 +14,21 @@ export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot,
   const command = node.data
   const owner = useMemo<CommandRowOwnerProps>(() => ({ node: command }), [command])
   return (
-    <div className={css.callRow}>
-      {renderSlot('conversation.chat.commandview', owner, {
-        entryKey: command.name ?? '',
-        fallback: <GenericCommandCard {...owner} t={t} />,
-      })}
-    </div>
+    <PceRow
+      kind="command"
+      glyph="adjust"
+      title={t('message.command')}
+      state="ok"
+      collapsible={false}
+      body={(
+        <div>
+          {renderSlot('conversation.chat.commandview', owner, {
+            entryKey: command.name ?? '',
+            fallback: <GenericCommandCard {...owner} t={t} />,
+          })}
+        </div>
+      )}
+    />
   )
 })
 
@@ -29,12 +38,21 @@ export const ManualCompactionNodeView = memo(function ManualCompactionNodeView({
 }: ChatNodeViewProps<'manual-compaction'>) {
   const data = node.data
   return (
-    <div className={css.callRow}>
-      <CompactionCommandCard
-        node={data.command}
-        {...data.compaction === null ? {} : { compaction: data.compaction }}
-        t={t}
-      />
-    </div>
+    <PceRow
+      kind="manual-compaction"
+      glyph="copy"
+      title={t('message.compaction.commandTitle')}
+      state="ok"
+      collapsible={false}
+      body={(
+        <div>
+          <CompactionCommandCard
+            node={data.command}
+            {...data.compaction === null ? {} : { compaction: data.compaction }}
+            t={t}
+          />
+        </div>
+      )}
+    />
   )
 })

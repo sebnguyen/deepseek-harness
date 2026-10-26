@@ -1,9 +1,10 @@
-.split {
+i.split {
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 
   position: relative;
   display: flex;
+  flex-direction: column;
   flex: 1;
   width: 100%;
   min-height: 0;
@@ -14,8 +15,9 @@
 
 .tablePane {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   padding-bottom: var(--dsh-trajectory-bottom-clearance, 0px);
@@ -237,8 +239,6 @@
   left: 5.5px;
   width: 5px;
   height: 5px;
-  border-radius: 50%;
-  corner-shape: round;
   background: var(--dsw-alias-label-caption);
   box-shadow:
     0 0 0 2px var(--dsw-alias-bg-layer-1),
@@ -256,7 +256,6 @@
   width: max-content;
   padding: 0 4px;
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 2px;
   color: var(--dsw-alias-label-secondary);
   background: var(--dsw-alias-bg-layer-1);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
@@ -386,7 +385,6 @@
   box-sizing: border-box;
   width: max-content;
   padding: 1px 5px;
-  border-radius: 0 0 2px;
   color: var(--dsw-alias-label-tertiary);
   background: var(--dsw-alias-bg-module-platform);
   font: 8px/10px var(--ds-font-family-code);
@@ -454,7 +452,6 @@
   height: 19px;
   padding: 0 5px;
   border: 1px solid transparent;
-  border-radius: 4px;
   font-size: 10px;
   line-height: 16px;
   font-weight: 650;
@@ -852,17 +849,26 @@
 .details {
   position: relative;
   display: flex;
-  flex: none;
+  flex: 0 1 auto;
   flex-direction: column;
-  width: clamp(320px, 38%, 440px);
-  max-width: calc(100% - 280px);
+  /* Stacked under the table at full width, capped so a long payload scrolls
+     in its own pane instead of shrinking the table away. */
+  width: 100%;
+  max-width: 100%;
+  max-height: 45%;
   min-width: 0;
   min-height: 0;
-  border-left: 0.5px solid var(--dsw-alias-border-l2);
+  overflow: auto;
+  overscroll-behavior: contain;
+  /* Keep the stacked pane clear of the composer overlay the way the table
+     pane's own bottom padding does. */
+  margin-bottom: var(--dsh-trajectory-bottom-clearance, 0px);
+  border-top: 0.5px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-layer-1);
 }
 
 .detailsResizeHandle {
+  display: none;
   position: absolute;
   z-index: 6;
   top: 0;
@@ -904,8 +910,6 @@
   flex: none;
   width: 5px;
   height: 5px;
-  border-radius: 50%;
-  corner-shape: round;
   background: var(--dsw-alias-label-secondary);
 }
 
@@ -932,7 +936,6 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 6px;
   color: var(--dsw-alias-label-secondary);
   background: transparent;
   cursor: pointer;
@@ -993,7 +996,6 @@
   bottom: 0;
   left: 9px;
   height: 2px;
-  border-radius: 1px 1px 0 0;
   background: var(--dsw-alias-state-business-primary);
   content: '';
 }
@@ -1150,7 +1152,6 @@
   display: flex;
   height: 8px;
   margin: 0 14px 10px;
-  border-radius: 4px;
   overflow: hidden;
   background: var(--dsw-alias-bg-module-platform);
 }
@@ -1206,7 +1207,6 @@
   height: 26px;
   padding: 0 8px;
   border: 0;
-  border-radius: 6px;
   font: inherit;
   color: inherit;
   text-align: left;
@@ -1248,6 +1248,10 @@
 /* Fixed-height, independently scrollable dropdown rendered inline directly
    beneath the selected composition row, so expanding a component never pushes
    the rest of the list or forces page scrolling. */
+.hidden {
+  display: none;
+}
+
 .contextAccordionBody {
   box-sizing: border-box;
   max-height: 320px;
@@ -1255,7 +1259,6 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--dsw-alias-bg-module-platform);
-  border-radius: 6px;
   scrollbar-gutter: stable;
 }
 
@@ -1553,7 +1556,6 @@
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: 400 12px/18px var(--ds-font-family-code);
-  border-radius: 6px;
 }
 
 .schema {
@@ -1724,7 +1726,6 @@
   align-items: center;
   margin-left: -4px;
   padding: 0 4px;
-  border-radius: 3px;
   cursor: pointer;
 }
 

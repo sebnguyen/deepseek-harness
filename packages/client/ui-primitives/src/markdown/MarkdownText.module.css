@@ -9,32 +9,6 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* Streaming tail: MarkdownText marks exactly the characters that arrived in
-   the current chunk, and every delta mounts a fresh span. The animation thus
-   runs once per arrival over the new characters only — never over the whole
-   trailing block, which is what strobed. */
-@keyframes markdown-tail-in {
-  from {
-    opacity: 0.35;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
-.markdown [data-tail] {
-  animation: markdown-tail-in 140ms ease-out both;
-}
-
-/* Reduced motion: MarkdownText also opts the span out inline (the gate DOM
-   tests can observe); this rule is the browser-side backstop. */
-@media (prefers-reduced-motion: reduce) {
-  .markdown [data-tail] {
-    animation: none;
-  }
-}
-
 .markdown strong {
   font-weight: 600;
 }
@@ -193,7 +167,6 @@
   font-size: 0.875em !important;
   background-color: var(--dsw-alias-markdown-inline-code);
   border: 0.5px solid var(--dsw-alias-border-l1);
-  border-radius: 6px;
   padding: 0 5px;
 }
 
@@ -318,7 +291,6 @@
   max-width: 100%;
   height: auto;
   margin: 0;
-  border-radius: 8px;
   background: var(--dsw-alias-bg-base);
   object-fit: contain;
 }
@@ -346,23 +318,49 @@
   text-underline-offset: 3px;
 }
 
-/* Bubble up: the tail span rises a hair and warms from deep ocean blue to ink,
-   layered on the opacity fade. `position` + `top` rather than `transform`:
-   a transform does not apply to a non-replaced inline box, and inline-block
-   would stop the span from wrapping mid-line. */
-@keyframes markdown-tail-rise {
-  from { opacity: 0.2; color: var(--a-deep, #0E4A7A); top: 4px; }
-  to   { opacity: 1;    color: var(--a-ink, currentColor); top: 0; }
+/* Streaming tail. MarkdownText marks exactly the characters that arrived in the
+   current chunk and gives every delta its own span, so this runs once per
+   arrival over the new characters only — never over the whole trailing block.
+   The shape is a rise: the character enters from just under the line, fades up
+   through foam, and settles in ink exactly where it belongs — no dip, no crest,
+   nothing moves once it lands. `top` rather than `transform` because a transform
+   does not apply to a non-replaced inline box, and inline-block would stop the
+   span wrapping mid-line. Every part is a variable so the demo's sliders can
+   drive it. */
+@keyframes markdown-tail-swell {
+  0% {
+    opacity: 0;
+    color: var(--a-deep, #0E4A7A);
+    top: var(--a-tail-rise, 5px);
+  }
+
+  55% {
+    opacity: 1;
+    color: var(--a-foam, #7FD1FF);
+    top: 0;
+  }
+
+  100% {
+    opacity: 1;
+    color: var(--a-ink, currentColor);
+    top: 0;
+  }
 }
 
-/* Doubled attribute selector: the earlier opacity-only rule for the same
-   element wins by source order in the built stylesheet, which silently reduced
-   the rise to a plain fade. Specificity makes the winner independent of order. */
-.markdown [data-tail][data-tail] {
+.markdown [data-tail] {
   position: relative;
-  animation: markdown-tail-rise 220ms ease-in both;
+  animation: markdown-tail-swell var(--a-tail-dur, var(--a-dur, 220ms)) var(--a-tail-ease, var(--a-ease, ease-in-out)) both;
 }
 
+/* Received but not revealed yet: the replay drops the veil when it passes, so
+   the block grows into place. Out of layout rather than transparent, because a
+   transparent span would reserve the paragraph's final height up front. */
+.markdown [data-veil] {
+  display: none;
+}
+
+/* Reduced motion: MarkdownText also opts the span out inline (the gate DOM
+   tests can observe); this rule is the browser-side backstop. */
 @media (prefers-reduced-motion: reduce) {
   .markdown [data-tail] {
     animation: none;

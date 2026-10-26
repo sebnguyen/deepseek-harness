@@ -14,7 +14,7 @@ const t = makeTranslate(zh, commonZh)
 const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () => null
 
 describe('ReasoningRow', () => {
-  it('shows streaming status while reasoning arrives, then finished when settled', () => {
+  it('shows the running mark while reasoning arrives, then the check when settled', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -23,7 +23,7 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('流式输出')).toBeTruthy()
+    expect(view.container.querySelector('.pce-head-state.is-running')).not.toBeNull()
     expect(view.queryByText('Newest reasoning tokens')).toBeNull()
 
     view.rerender(
@@ -34,7 +34,7 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('流式输出')).toBeTruthy()
+    expect(view.container.querySelector('.pce-head-state.is-running')).not.toBeNull()
     expect(view.queryByText('Newest reasoning tokens keep arriving')).toBeNull()
 
     view.rerender(
@@ -45,11 +45,13 @@ describe('ReasoningRow', () => {
         renderMessageImages={renderMessageImages}
       />,
     )
-    expect(view.getByText('已完成')).toBeTruthy()
+    // Settled: a bare check mark with no text in the mark cell.
+    expect(view.container.querySelector('[data-glyph="check"]')).not.toBeNull()
+    expect(view.container.querySelector('.pce-head-state')?.textContent).toBe('')
     expect(view.queryByText('Inspect the session')).toBeNull()
   })
 
-  it('expands from either Think or the status summary', () => {
+  it('expands from the Think title', () => {
     const view = render(
       <AssistantMarkdown
         t={t}
@@ -60,7 +62,7 @@ describe('ReasoningRow', () => {
     )
     const row = view.getByRole('button')
 
-    fireEvent.click(view.getByText('已完成'))
+    fireEvent.click(view.getByText('思考'))
     expect(row.getAttribute('aria-expanded')).toBe('true')
     expect(view.getByText(/Check persistence/)).toBeTruthy()
 
@@ -79,7 +81,7 @@ describe('ReasoningRow', () => {
       />,
     )
 
-    expect(view.getByText('已完成')).toBeTruthy()
+    expect(view.container.querySelector('[data-glyph="check"]')).not.toBeNull()
     expect(view.queryByText('Comparing checkout and merge bases')).toBeNull()
 
     fireEvent.click(view.getByText('思考'))

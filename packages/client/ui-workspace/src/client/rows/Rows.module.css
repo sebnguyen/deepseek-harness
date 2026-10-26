@@ -3,7 +3,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  border-radius: 6px;
   padding: 0 6px;
   cursor: pointer;
   user-select: none;
@@ -27,7 +26,6 @@
   min-height: 36px;
   box-sizing: border-box;
   border: none;
-  border-radius: 6px;
   padding: 4px 6px;
   background: transparent;
   cursor: pointer;
@@ -138,6 +136,12 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
+/* Empty variant of the status slot: hidden, not unmounted, so the reserved
+   box keeps every row's title on the same x. */
+.slotEmpty {
+  visibility: hidden;
+}
+
 .visuallyHidden {
   position: absolute;
   width: 1px;
@@ -200,7 +204,6 @@
   line-height: 16px;
   padding: 0 2px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 4px;
   background: var(--dsw-alias-button-elevated-fill);
   color: inherit;
   outline: none;
@@ -381,7 +384,6 @@
   width: 16px;
   height: 16px;
   border: none;
-  border-radius: 4px;
   padding: 0;
   background: transparent;
   cursor: pointer;

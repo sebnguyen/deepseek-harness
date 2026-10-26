@@ -1,5 +1,5 @@
-/* The split button matches the header's 28px control row (pill radius,
-   hairline l4 border, 11px primary-color label) beside the round icon buttons. */
+/* The split button matches the header's 28px control row (hairline l4 border,
+   11px primary-color label) beside the square icon buttons. */
 
 .split {
   display: inline-flex;
@@ -7,7 +7,6 @@
   box-sizing: border-box;
   height: 28px;
   border: 0.5px solid var(--dsw-alias-border-l4);
-  border-radius: 14px;
   overflow: hidden;
   font-family: var(--dsw-font-family);
 }
