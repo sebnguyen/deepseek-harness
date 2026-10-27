@@ -223,6 +223,10 @@
   flex: 1;
   flex-direction: column;
   min-height: 0;
+  /* The history curtain is absolute in this box; it shares the sticky
+     composer seat's z-index so the later sibling (the seat) still wins and
+     the input card stays live while the transcript loads. */
+  position: relative;
 }
 
 /* Width handles: 40px col-resize strips beside the transcript, absolute in

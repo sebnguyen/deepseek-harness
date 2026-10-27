@@ -192,6 +192,32 @@ describe('paging', () => {
     expect(eventSeqs(session)).toEqual([...older, ...newer].map(event => event.seq))
   })
 
+  it('releases a prefix at a turn start and leaves it pageable', async ({ mock, start }) => {
+    const first = plainTurn(SessionSeq(0), 0, '一问', '一答')
+    const second = plainTurn(SessionSeq(6), 1, '二问', '二答')
+    const third = plainTurn(SessionSeq(12), 2, '三问', '三答')
+    const session = await sessionBench(mock, start, SID)
+    mock.stream(FOLLOW, followScript(history([...first, ...second, ...third], false)))
+    await session.open()
+    expect(session.getSnapshot().hasMore).toBe(false)
+
+    // The cut lands inside the second turn, so it snaps back to that turn's
+    // start: whole turns only, and never more than was asked for.
+    session.evictBefore(SessionSeq(7))
+    expect(eventSeqs(session)).toEqual([...second, ...third].map(event => event.seq))
+    expect(session.getSnapshot().hasMore).toBe(true)
+
+    // A cut with nothing before it, or past the tail, leaves the window alone.
+    session.evictBefore(SessionSeq(0))
+    session.evictBefore(SessionSeq(999))
+    expect(eventSeqs(session)).toEqual([...second, ...third].map(event => event.seq))
+
+    // The released history pages back in from the new head.
+    mock.remote.session.page.mockImplementation(pageRule(history([...first], false)))
+    await session.loadOlder()
+    expect(eventSeqs(session).at(0)).toBe(0)
+  })
+
   it('installs a page without interpreting business replacement metadata', async ({ mock, start }) => {
     const session = await sessionBench(mock, start, SID)
     mock.stream(FOLLOW, followScript(history([

@@ -23,7 +23,6 @@ authoritative.
 
 Spacing is now one property with one value, declared once in `atlas.css`:
 
-TOoe  
 ```css
 html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind] {
   margin: 0;

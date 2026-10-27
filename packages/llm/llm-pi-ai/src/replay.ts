@@ -40,6 +40,71 @@ interface PiAiReplayState {
   blocks: PiAiReplayBlock[]
 }
 
+/** The pi-ai route a request targets: the triple pi-ai compares when it decides whether history is native. */
+export interface PiRequestTarget {
+  provider: string
+  api: Api
+  model: string
+}
+
+/**
+ * The one wire vocabulary that carries plain reasoning prose under a bare field
+ * name. `reasoning_content` is a field selector, not a signature issued by the
+ * model, so prose written by another model on this same api replays unchanged.
+ */
+const PLAIN_REASONING_API = 'openai-completions'
+const PLAIN_REASONING_SIGNATURE = 'reasoning_content'
+
+/** A signature only the issuing provider can validate: encrypted reasoning, signed thinking, or a thought signature. */
+function isProviderBound(block: PiAiReplayBlock): boolean {
+  switch (block.type) {
+    case 'text': return block.textSignature !== undefined
+    case 'reasoning': return block.redacted === true
+      || (block.thinkingSignature !== undefined && block.thinkingSignature !== PLAIN_REASONING_SIGNATURE)
+    case 'tool-call': return block.thoughtSignature !== undefined
+  }
+}
+
+/** Restamp a reconstructed message as the request target so pi-ai keeps its blocks. */
+function retarget(message: AssistantMessage, target: PiRequestTarget): AssistantMessage {
+  return { ...message, provider: target.provider, api: target.api, model: target.model }
+}
+
+function sameIdentity(message: AssistantMessage, target: PiRequestTarget): boolean {
+  return message.provider === target.provider && message.api === target.api && message.model === target.model
+}
+
+/**
+ * Whether durable content may be replayed under `target` without a native replay
+ * record. Both qualifying cases need a wire that writes plain prose instead of a
+ * provider signature:
+ *
+ * - the same model wrote the turn and no record survived (an interrupted turn); or
+ * - a record survived whose api equals the target api and whose blocks carry no
+ *   provider-bound signature.
+ */
+function mayReplayPortably(
+  source: ModelMessageSource,
+  target: PiRequestTarget,
+  state: PiAiReplayState | undefined,
+): boolean {
+  if (target.api !== PLAIN_REASONING_API) return false
+  if (state === undefined) return source.provider === target.provider && source.model === target.model
+  return state.response.api === target.api && !state.blocks.some(isProviderBound)
+}
+
+/** Provider-neutral conversion, restamped as the target when the durable prose may cross. */
+function portableOrForeign(
+  message: Message,
+  source: ModelMessageSource,
+  target: PiRequestTarget | undefined,
+): AssistantMessage {
+  const neutral = foreignAssistant(message)
+  return target !== undefined && mayReplayPortably(source, target, undefined)
+    ? retarget(neutral, target)
+    : neutral
+}
+
 /** Parse tool-call argument JSON; tolerate model malformations with {}. */
 function parseArguments(raw: string): Record<string, unknown> {
   try {
@@ -185,8 +250,7 @@ function foreignAssistant(message: Message): AssistantMessage {
 }
 
 /** Recombine durable Harness content with validated pi-ai replay metadata. */
-function replayedAssistant(message: Message, source: ModelMessageSource, rawState: unknown): AssistantMessage {
-  const state = readReplayState(rawState)
+function replayedAssistant(message: Message, source: ModelMessageSource, state: PiAiReplayState): AssistantMessage {
   if (state.response.provider !== source.provider) return invalidReplay('provider does not match assistant source')
   if (state.response.model !== source.model) return invalidReplay('model does not match assistant source')
   if (state.blocks.length !== message.content.length) return invalidReplay('block count does not match assistant content')
@@ -241,21 +305,35 @@ function replayedAssistant(message: Message, source: ModelMessageSource, rawStat
  * another adapter's kind, another version, a malformed value, or metadata that
  * no longer matches the content — therefore degrades the one message to
  * provider-neutral history instead of failing the request.
+ *
+ * Passing the request `target` lets a degraded turn keep its reasoning anyway when
+ * the wire carries plain prose: the same model's interrupted turn, or another
+ * model's turn on the same api whose blocks carry no provider-bound signature.
+ * Without a target, every degraded turn stays foreign.
  * @param message - assistant content with required source and optional adapter-owned replay metadata.
  * @param onDegrade - called with the diagnostic reason when an unusable replay
  *   state falls back to provider-neutral conversion.
- * @returns a native pi-ai assistant message reconstructed from durable content.
+ * @param target - the route this request targets; omission keeps the pre-target behavior.
+ * @returns a pi-ai assistant message reconstructed from durable content.
  */
-export function toPiAssistant(message: Message, onDegrade?: (reason: string) => void): AssistantMessage {
+export function toPiAssistant(
+  message: Message,
+  onDegrade?: (reason: string) => void,
+  target?: PiRequestTarget,
+): AssistantMessage {
   const source = message.source
-  if (source.kind !== 'model' || source.replayState === undefined) return foreignAssistant(message)
+  if (source.kind !== 'model') return foreignAssistant(message)
+  if (source.replayState === undefined) return portableOrForeign(message, source, target)
   try {
-    return replayedAssistant(message, source, source.replayState)
+    const state = readReplayState(source.replayState)
+    const native = replayedAssistant(message, source, state)
+    if (target === undefined || sameIdentity(native, target)) return native
+    return mayReplayPortably(source, target, state) ? retarget(native, target) : native
   } catch (error: unknown) {
-    /* v8 ignore next -- replayedAssistant throws only INVALID_REPLAY_STATE LlmErrors; the
-       guard keeps a future non-replay failure loud instead of silently degrading it */
+    /* v8 ignore next -- readReplayState and replayedAssistant throw only INVALID_REPLAY_STATE
+       LlmErrors; the guard keeps a future non-replay failure loud instead of degrading it */
     if (!(error instanceof LlmError) || error.code !== 'INVALID_REPLAY_STATE') throw error
     onDegrade?.(error.message)
-    return foreignAssistant(message)
+    return portableOrForeign(message, source, target)
   }
 }

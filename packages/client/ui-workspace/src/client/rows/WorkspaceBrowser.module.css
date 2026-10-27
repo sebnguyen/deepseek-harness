@@ -302,6 +302,17 @@
   padding-left: 0;
 }
 
+/* The list survives the fold: layout-transparent while wide, so its root stays
+   the list area's flex child, and display:none in the rail so the hidden tree
+   costs neither layout nor paint. */
+.listBody {
+  display: contents;
+}
+
+.rail .listBody {
+  display: none;
+}
+
 /* Relative for the bottom fade overlay. */
 .treeBody {
   flex: 1;

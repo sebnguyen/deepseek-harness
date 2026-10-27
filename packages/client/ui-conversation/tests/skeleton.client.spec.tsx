@@ -266,6 +266,7 @@ function mount(
           renderSlot={renderSlot as never}
           bindDraftMirror={write => wiring.bindMirror(write)}
           openView={(view, focus) => { store.actions.openView(view, focus) }}
+          t={t}
         />
       )
     }
@@ -563,6 +564,17 @@ describe('ConversationRoot resident composer', () => {
     const root = b.view.container.querySelector('[data-phase]')
     expect(root?.getAttribute('data-phase')).toBe('settling')
     expect(b.view.queryByTestId('hero-headline')).toBeNull()
+  })
+
+  it('curtains a non-blank Session while its history opens, then reveals the view', async () => {
+    const b = mount(sessionSnapshotOf({ openState: 'loading' }))
+    // The flash guard keeps a warm open from ever painting the curtain.
+    expect(b.view.queryByRole('status')).toBeNull()
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 160)) })
+    const status = b.view.getByRole('status')
+    expect(status.getAttribute('aria-label')).toBe('载入历史…')
+    expect(status.querySelector('[data-surf-text]')).toBeTruthy()
+    expect(status.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 16 16')
   })
 
   it('settling phase: a session the list has no row for settles conservatively', () => {

@@ -8,6 +8,9 @@ import css from './ChatView.module.css'
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly nodeKey: string
   readonly live: boolean
+  /** Swept in by the band rather than delivered: its mount is a wake, so the
+   *  theme suppresses the arrival rise for it. */
+  readonly woke: boolean
   /** Measured content-box heights shared with ChatView's reserved heights. */
   readonly heights: { current: Map<string, number> }
   readonly useChatNode: ChatViewSlotProps['useChatNode']
@@ -41,7 +44,7 @@ export function measureContentBox(el: HTMLElement): number {
 
 /** Subscribe to one stable node key and dispatch it to its keyed renderer. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
-  nodeKey, live, heights, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
+  nodeKey, live, woke, heights, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
   loadImage, renderMessageImages, fileMentions, renderSlot, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
@@ -76,6 +79,11 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     heights.current.set(nodeKey, measureContentBox(el))
   }, [nodeKey, heights, live])
 
+  // A row the band swept in mounts behind the reader, in bulk, mid-scroll: the
+  // rise marks an arrival, so the theme suppresses it for a woken mount
+  // (`[data-chat-flow-woke]` in atlas.css). The flag is the parent's, because
+  // only the band knows why a row became live — a newly delivered row is live a
+  // pass later for reasons this seat cannot see.
   if (routedNode === undefined || owner === null) return null
   const turnData = turnDataOf(routedNode)
   const routedOwner = { ...owner, node: routedNode } as RoutedChatNodeOwner
@@ -85,7 +93,7 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
   const reserved = heights.current.get(nodeKey) ?? 0
 
   return (
-    <div ref={wrapperRef} className={css.flowItem} data-chat-anchor-key={routedNode.key} data-chat-flow-key={routedNode.key} data-chat-flow-kind={routedNode.kind} data-chat-turn={turn}>
+    <div ref={wrapperRef} className={css.flowItem} data-chat-anchor-key={routedNode.key} data-chat-flow-key={routedNode.key} data-chat-flow-kind={routedNode.kind} data-chat-flow-woke={live && woke ? '' : undefined} data-chat-turn={turn}>
       {live ? (
         renderSlot('conversation.chat.node', routedOwner, {
           entryKey: routedNode.kind,

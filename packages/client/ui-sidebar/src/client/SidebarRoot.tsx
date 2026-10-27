@@ -82,6 +82,12 @@ function PanelRow({ id, label, wide, usePanelInfo, selectPanel, renderSlot }: Pa
 /** The collapsed rail's width; mirrors SIDEBAR_COLLAPSED in ui-layout's columns. */
 const RAIL_WIDTH = 56
 
+/**
+ * The shell's horizontal padding; mirrors --dsh-sidebar-inline-padding in the
+ * module CSS, which the styles spec pins beside this value.
+ */
+const INLINE_PADDING = 12
+
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
 
@@ -407,12 +413,20 @@ export function SidebarRoot({
       )}
 
       {/* The browsing region fills the column between the controls and the
-          foot in both states; its rail icon column rides the same slot. */}
-      <div className={css.regionArea}>
-        {renderSlot('sidebar.workspaces', {
-          wide,
-          expandSidebar: () => { if (collapsed) toggleSidebar() },
-        })}
+          foot in both states; its rail icon column rides the same slot. Its box
+          keeps the expanded width for the whole slide and the column clips it:
+          a box that followed the slide would re-flow the session tree on every
+          frame. */}
+      <div
+        className={css.regionBox}
+        style={wide ? { width: openWidth - 2 * INLINE_PADDING } : undefined}
+      >
+        <div className={css.regionArea}>
+          {renderSlot('sidebar.workspaces', {
+            wide,
+            expandSidebar: () => { if (collapsed) toggleSidebar() },
+          })}
+        </div>
       </div>
 
       {/* Floor row: the guide and the settings cluster lead, additive frame

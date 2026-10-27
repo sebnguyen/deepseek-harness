@@ -90,7 +90,7 @@ The macOS arm64 command requires Apple Silicon. The macOS x64 command runs on In
 
 ### Windows application icon
 
-The Windows exe, installer, taskbar, and window icons rasterize from `resources/icon-windows.svg`, the white DigitalOcean mark on a rounded `#0069FF` tile; the committed `resources/icon-windows.png` and `resources/tray-windows.ico` are its outputs, regenerated with `pnpm run render:tray-icon` in this directory after changing the vector source.
+The Windows exe, installer, taskbar, and window icons rasterize from `resources/icon-windows.svg`, the solid teal (`#7BB4BC`) pixelated DigitalOcean mark on a transparent 1024-unit canvas; the committed `resources/icon-windows.png` and `resources/tray-windows.ico` are its outputs, regenerated with `pnpm run render:tray-icon` in this directory after changing the source. The source is generated from the shared 16x16 pixel grid by `node design/pixel-do-loader-gen.mjs` at the repository root.
 The ICO bundles one PNG bitmap per display scale from 16 through 64 px, rasterized separately at four times the target edge so small tray and taskbar sizes keep crisp glyph edges; the PNG rides inside the packaged asar, and development runs load it from the source tree for every window.
 Electron-builder consumes the PNG as the Windows executable and NSIS installer icon, and `src/main.ts` applies the same image to each `BrowserWindow`; an unreadable icon file leaves the platform default in place.
 

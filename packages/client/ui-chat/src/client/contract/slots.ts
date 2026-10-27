@@ -131,6 +131,14 @@ export interface ChatScrollPosition {
   readonly scrollTop: number
 }
 
+/** Measured row heights remembered per session, so a reopen can reserve the
+ *  flow's geometry without mounting rows to measure them. A height is only valid
+ *  at the column width and font size recorded in `stamp`. */
+export interface ChatHeightSnapshot {
+  readonly heights: ReadonlyMap<string, number>
+  readonly stamp: string
+}
+
 /** Business callbacks injected into the Chat view. */
 export interface ChatViewInjected {
   keyedHooks: {
@@ -145,10 +153,17 @@ export interface ChatViewInjected {
   loadOlder: () => void
   /** Jump loader: page history back through seq; resolves when the window covers it. */
   loadThrough: (seq: SessionSeq) => Promise<void>
+  /** Release history before `seq` back to the host; it stays pageable. */
+  evictBefore: (seq: number) => void
   loadImage: MessageImageLoader
   chatScroll: {
     save: (position: ChatScrollPosition | null) => void
     read: () => ChatScrollPosition | null
+  }
+  /** Remembered row heights; absent means the next open must measure by mounting. */
+  chatHeights: {
+    save: (snapshot: ChatHeightSnapshot | null) => void
+    read: () => ChatHeightSnapshot | null
   }
   forkAt: (seq: number) => void
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined

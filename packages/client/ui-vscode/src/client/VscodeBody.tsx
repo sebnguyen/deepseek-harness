@@ -17,7 +17,7 @@ import type { RemoteResult } from '@deepseek-ai/dsh-api-remotes/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { parseFileAddress } from '@deepseek-ai/dsh-util-workspace-path'
-import { BootHero, TwinFrame } from './twin.tsx'
+import { BootHero, bootTips, TwinFrame } from './twin.tsx'
 import { useVscodeAddressForward, type VscodeForwardRequest } from './forward.ts'
 import { vscodeDebug, vscodeWarn } from './log.ts'
 import type { IdeBridgeStatus, IdeOpenRequest } from './rpc.ts'
@@ -141,13 +141,14 @@ export function VscodeBody({ useTabInfo, sessionId: scopeSessionId, status, forw
   )
   useVscodeAddressForward(address, tab.navigation.revision, ready, workspaceRoot, sendForward)
 
-  if (state === undefined) return <BootHero line={t('state.opening')} spinning />
+  if (state === undefined) return <BootHero line={t('state.opening')} spinning tips={bootTips(t)} />
   if (!state.enabled) return <BootHero line={t('state.unavailable')} />
   if (!state.ready || state.url === null || state.tkn === null || src === null) {
     return (
       <BootHero
         line={t(state.detail === null ? 'state.opening' : 'state.failed', { detail: state.detail ?? '' })}
         spinning={state.detail === null}
+        tips={state.detail === null ? bootTips(t) : undefined}
       />
     )
   }

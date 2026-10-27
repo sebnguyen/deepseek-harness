@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
 import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
+import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -21,7 +22,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {
-  ChatNodeTurnDataInjected, ChatScrollPosition, ChatViewInjected,
+  ChatNodeTurnDataInjected, ChatScrollPosition, ChatHeightSnapshot, ChatViewInjected,
   TurnTailOwnerProps,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
@@ -79,6 +80,9 @@ export function apply(ctx: Context): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-chat: dictionaries')
   const t = ctx.locale.bind(NS)
   const chatScrollPositions = new Map<SessionId, ChatScrollPosition>()
+  // Same lifetime as the reader position: a view remount (tab switch) keeps both,
+  // a reload loses both, which is the honest cost of not persisting heights.
+  const chatHeightSnapshots = new Map<SessionId, ChatHeightSnapshot>()
   ctx.slots.inject('settings.trigger-item', () => ctx.slots.register({
     name: 'settings.trigger-item',
     id: 'token-efficiency',
@@ -153,6 +157,7 @@ export function apply(ctx: Context): void {
           },
           loadOlder: () => { void session.loadOlder() },
           loadThrough: seq => session.loadThrough(seq),
+          evictBefore: (seq) => { session.evictBefore(SessionSeq(seq)) },
           loadImage: Object.assign(
             (attachment: ImageAttachmentRef) => ctx.uiConversation.imageUrl(sessionId, attachment),
             { peek: (attachment: ImageAttachmentRef) => ctx.uiConversation.peekImageUrl(sessionId, attachment) },
@@ -163,6 +168,13 @@ export function apply(ctx: Context): void {
               else chatScrollPositions.set(sessionId, position)
             },
             read: () => chatScrollPositions.get(sessionId) ?? null,
+          },
+          chatHeights: {
+            save: (snapshot) => {
+              if (snapshot === null) chatHeightSnapshots.delete(sessionId)
+              else chatHeightSnapshots.set(sessionId, snapshot)
+            },
+            read: () => chatHeightSnapshots.get(sessionId) ?? null,
           },
           forkAt: (seq) => {
             ctx.sessions.fork({ sessionId, atSeq: seq, increaseTitle: true })

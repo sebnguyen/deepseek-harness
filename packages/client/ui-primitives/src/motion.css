@@ -43,3 +43,48 @@
   position: relative;
   animation: surf-up var(--a-tail-dur, var(--a-dur, 220ms)) var(--a-tail-ease, var(--a-ease, ease-in-out)) backwards;
 }
+
+/* The history curtain's rotating line: the arriving copy rides the same swell
+   a streamed character does, while the departing copy sinks back under the
+   line. The names stay global for the same reason surf-up does — a CSS module
+   cannot name a keyframe it does not own. */
+[data-surf-line] {
+  position: relative;
+  animation-duration: var(--a-surf-dur, var(--a-tail-dur, var(--a-dur, 220ms)));
+  animation-fill-mode: both;
+  animation-timing-function: var(--a-surf-ease, var(--a-tail-ease, var(--a-ease, ease-in-out)));
+}
+
+[data-surf-line='in'] {
+  animation-name: surf-up;
+}
+
+[data-surf-line='out'] {
+  animation-name: surf-out;
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes surf-out {
+  0% {
+    opacity: 1;
+    color: var(--a-ink, currentColor);
+    top: 0;
+  }
+
+  100% {
+    opacity: 0;
+    color: var(--a-deep, #0E4A7A);
+    top: var(--a-surf-fall, var(--a-tail-rise, 5px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-surf-line='in'] {
+    animation: none;
+  }
+
+  [data-surf-line='out'] {
+    display: none;
+  }
+}

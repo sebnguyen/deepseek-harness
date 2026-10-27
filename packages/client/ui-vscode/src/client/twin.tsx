@@ -14,7 +14,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { PixelLoader, PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PixelLoader, PixelMark, SurfText } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { VscodeKey } from './locales.ts'
 
 /**
  * Anti-flash wait: extra settle time after the twin document fires `load`
@@ -22,6 +23,32 @@ import { PixelLoader, PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
  * after `load`; revealing at `load` alone exposes one white/unstyled frame.
  */
 const BOOT_SETTLE_MS = 1_200
+
+/** Hold per boot tip; the same clock as the history curtain. */
+const TIP_HOLD_MS = 3_200
+
+/** Ordered tips; the `vscode` namespace owns the copy. */
+const TIP_KEYS = [
+  'boot.tip.0',
+  'boot.tip.1',
+  'boot.tip.2',
+  'boot.tip.3',
+  'boot.tip.4',
+  'boot.tip.5',
+  'boot.tip.6',
+  'boot.tip.7',
+  'boot.tip.8',
+  'boot.tip.9',
+] as const satisfies readonly VscodeKey[]
+
+/**
+ * Project the ordered boot tips through the tab's translator.
+ * @param t - the vscode namespace translator.
+ * @returns the tip lines, in display order.
+ */
+export function bootTips(t: (key: VscodeKey) => string): readonly string[] {
+  return TIP_KEYS.map(key => t(key))
+}
 
 /**
  * The body box: a flex item filling the dock area's row, kept positioned so
@@ -61,7 +88,7 @@ const HERO_STYLE = {
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '16px',
+  gap: '12px',
   width: '100%',
   height: '100%',
   padding: '16px',
@@ -72,9 +99,9 @@ const HERO_STYLE = {
 
 const WORDMARK_STYLE = {
   color: 'var(--dsw-alias-label-primary, #f7f8f8)',
-  fontSize: '16px',
-  lineHeight: '24px',
-  fontWeight: 600,
+  fontSize: '26px',
+  lineHeight: '32px',
+  fontWeight: 500,
 } as const
 
 const DETAIL_STYLE = {
@@ -86,20 +113,37 @@ const DETAIL_STYLE = {
 } as const
 
 /**
- * The seam the user watches every time the twin spawns: the same pixel mark
- * and type scale as the harness boot page, with the state line below.
- * @param line - the state line under the wordmark.
- * @param spinning - twinkle loader instead of the solid pixel mark.
+ * The seam the user watches every time the twin spawns: the same pixel mark,
+ * sweep, and type scale as the harness boot page. While spinning, the state
+ * line becomes the stable status label and the visible copy rotates through
+ * DigitalOcean stack tips; otherwise the literal state line remains.
+ * @param line - the state line, kept as the stable status label while spinning.
+ * @param spinning - sweep loader with rotating tips instead of the solid mark.
+ * @param tips - the ordered tip lines; required for a spinning hero.
  * @returns the hero element.
  */
-export function BootHero({ line, spinning = false }: { readonly line: string; readonly spinning?: boolean }): ReactNode {
+export function BootHero({
+  line, spinning = false, tips,
+}: {
+  readonly line: string
+  readonly spinning?: boolean
+  readonly tips?: readonly string[] | undefined
+}): ReactNode {
   return (
     <div style={HERO_STYLE}>
-      {spinning
-        ? <PixelLoader mode="twinkle" size={128} />
-        : <PixelMark size={64} />}
+      {spinning ? <PixelLoader size={128} /> : <PixelMark size={64} />}
       <div style={WORDMARK_STYLE}>DigitalOcean Harness</div>
-      <output style={DETAIL_STYLE}>{line}</output>
+      {spinning
+        ? (
+          <div role="status" aria-live="polite" aria-label={line} style={DETAIL_STYLE}>
+            <SurfText
+              messages={tips ?? []}
+              interval={TIP_HOLD_MS}
+              font={{ size: 12, lineHeight: '18px' }}
+            />
+          </div>
+        )
+        : <output style={DETAIL_STYLE}>{line}</output>}
     </div>
   )
 }
@@ -155,7 +199,7 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
       {covered
         ? (
           <div style={COVER_STYLE} data-twin-cover>
-            <BootHero line={t('state.opening')} spinning />
+            <BootHero line={t('state.opening')} spinning tips={bootTips(t)} />
           </div>
         )
         : null}

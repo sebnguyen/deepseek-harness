@@ -32,6 +32,7 @@ The streaming caret is gone: the live edge of an answer is the text arriving, an
 ## Consequences
 
 - One animation, one shape, one duration: a row, an answer, a character and the turn's tail all arrive the same way.
+- A row the band woke does not replay the rise. Dormancy re-mounts rows in bulk behind the reader mid-scroll, so the arrival there is not an arrival at all: 240ms of per-frame style and paint on every woken row would spend the whole animation budget where nobody is looking, at the moment the mounts already saturate the main thread. The theme suppresses every arrival site under `[data-chat-flow-woke]`; a row delivered at the tail and a session replayed from history keep the rise.
 - A pce row's arrival drops from 620ms to 240ms.
 - The answer rises with the rows, whether it arrives whole, replayed from history, or woken back up by the row window.
 - The streaming answer keeps its characters arriving one at a time, on the same motion as the block they sit in.

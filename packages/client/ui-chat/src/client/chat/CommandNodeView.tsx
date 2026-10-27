@@ -38,21 +38,10 @@ export const ManualCompactionNodeView = memo(function ManualCompactionNodeView({
 }: ChatNodeViewProps<'manual-compaction'>) {
   const data = node.data
   return (
-    <PceRow
-      kind="manual-compaction"
-      glyph="copy"
-      title={t('message.compaction.commandTitle')}
-      state="ok"
-      collapsible={false}
-      body={(
-        <div>
-          <CompactionCommandCard
-            node={data.command}
-            {...data.compaction === null ? {} : { compaction: data.compaction }}
-            t={t}
-          />
-        </div>
-      )}
+    <CompactionCommandCard
+      node={data.command}
+      {...data.compaction === null ? {} : { compaction: data.compaction }}
+      t={t}
     />
   )
 })

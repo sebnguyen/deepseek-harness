@@ -197,6 +197,9 @@ html body [data-dsh-shell][data-rightbar-collapsed] [data-rightbar-col] {
    -------------------------------------------------------------------------- */
 html body [data-dsh-shell] [data-dsh-sidebar] {
   background: var(--a-panel);
+  /* Walrus separates dark chrome with a hairline, not a tint: color-surface is
+     the 2% white rung over color-app-bg, so the edge carries the boundary. */
+  border-right: 1px solid var(--a-rule);
   color: var(--a-ink);
   font-family: var(--a-ui);
 }
@@ -217,6 +220,12 @@ html body [data-dsh-shell] [data-dsh-sidebar] button[class*='_brand'] {
 }
 
 html body [data-dsh-shell] [data-dsh-sidebar] [class*='_brandMark'] {
+  color: var(--a-signal);
+}
+
+/* The rail renders the same mark in its own wrapper; the rail button's ink is
+   the label ladder, so the mark carries the family teal explicitly. */
+html body [data-dsh-shell] [data-dsh-sidebar] [class*='_railMark'] {
   color: var(--a-signal);
 }
 
@@ -910,7 +919,6 @@ html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] [class*
 
 /* The retry summary is width:fit-content in the module, so its ledger hairline
    spanned only the text instead of the measure. */
-html body [data-dsh-shell] [class*='_compactionButton'],
 html body [data-dsh-shell] [class*='_retrySummary'] {
   width: 100%;
   border: 0;
@@ -1581,6 +1589,19 @@ html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='turn-tail'] 
 html body [data-dsh-shell] [data-chat-flow]:has([data-revealing='true']) > [data-chat-flow-kind='turn-tail'] {
   visibility: hidden;
   animation-play-state: paused;
+}
+
+/* A row the band woke is not an arrival. Dormancy re-mounts rows behind the
+   reader in bulk while they scroll, so replaying the rise there would spend the
+   whole animation budget — 240ms of per-frame style and paint per woken row,
+   on the main thread — on rows nobody is looking at, at the moment the mounts
+   already saturate it. Only a woken mount is marked; a row that arrives at the
+   tail, or a session replayed from history, still rises. */
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='turn-tail'][data-chat-flow-woke],
+html body [data-dsh-shell] [data-chat-flow-woke] .pce,
+html body [data-dsh-shell] [data-chat-flow-woke] [class*='_body'] > *,
+html body [data-dsh-shell] [data-chat-flow-woke] [data-tail] {
+  animation: none;
 }
 
 /* The swimming mark: stock motion is left intact — only its box is corrected,

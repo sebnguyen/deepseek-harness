@@ -9,6 +9,7 @@ import type {
 } from '../contract/slots.ts'
 import { conversationPhase } from '../contract/snapshot.ts'
 import { resolveActiveView } from '../view-selection.ts'
+import { HistoryCurtain } from './HistoryCurtain.tsx'
 import css from './ConversationRoot.module.css'
 
 /** Full props composed from the strict session body contract. */
@@ -175,7 +176,7 @@ export function ConversationSessionHeader({
  */
 export function ConversationSession({
   useSession, useConversation, useConversationViews, useInput, inputActions, useStore, actions,
-  renderSlot, bindDraftMirror, openView,
+  renderSlot, bindDraftMirror, openView, t,
 }: ConversationSessionProps) {
   const tabs = useConversationViews(value => value)
   const selectedId = useStore(s => s.view)
@@ -188,6 +189,7 @@ export function ConversationSession({
     <>
       {!blank && (
         <div className={css.viewArea}>
+          {session.openState === 'loading' && <HistoryCurtain t={t} />}
           {active !== undefined && renderSlot('conversation.view', {
             viewRequest,
             openView,

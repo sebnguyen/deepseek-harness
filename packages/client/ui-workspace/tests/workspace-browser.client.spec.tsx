@@ -1175,6 +1175,18 @@ describe('WorkspaceBrowser', () => {
     }
   })
 
+  it('keeps the session tree mounted when the fold drops to the rail', () => {
+    const sessions = sessionState([summary('alpha', 0)])
+    const b = mount({
+      useSessions: hook(sessions),
+      useWorkspaces: hook(workspaceState([workspace('alpha', sessions.ids)])),
+    })
+    const row = screen.getByText('alpha')
+    rerender(b, { wide: false })
+    // The rail hides the list through .listBody; the same node survives.
+    expect(screen.getByText('alpha')).toBe(row)
+  })
+
   it('rail add-workspace raises the directory flow in place, with no menu and no expansion', () => {
     const expandSidebar = vi.fn()
     mount({ wide: false, expandSidebar, useWorkspaces: hook(workspaceState([workspace('alpha', [])])) })

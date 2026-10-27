@@ -235,6 +235,7 @@ function makeHarness(
   const openSkill = vi.fn<(name: string) => void>()
   const loadOlder = vi.fn()
   const loadThrough = vi.fn<(seq: number) => Promise<void>>().mockResolvedValue(undefined)
+  const evictBefore = vi.fn<(seq: number) => void>()
   // Mutable outline holder: tests swap the value and drive a re-render via set().
   let outlineValue: unknown
   const openView = vi.fn<(view: string, focus: string) => void>()
@@ -243,6 +244,12 @@ function makeHarness(
   const chatScroll: ChatViewSlotProps['chatScroll'] = {
     save: (position) => { savedScroll = position },
     read: () => savedScroll,
+  }
+  // In-memory height memory matching the apply.ts per-session snapshot contract.
+  let savedHeights: ReturnType<ChatViewSlotProps['chatHeights']['read']> = null
+  const chatHeights: ChatViewSlotProps['chatHeights'] = {
+    save: (snapshot) => { savedHeights = snapshot },
+    read: () => savedHeights,
   }
   const forkAt = vi.fn()
   const t = makeTranslate(zh, commonZh)
@@ -380,8 +387,10 @@ function makeHarness(
     openSkill,
     loadOlder,
     loadThrough,
+    evictBefore,
     loadImage: vi.fn(() => Promise.reject(new Error('not used'))),
     chatScroll,
+    chatHeights,
     forkAt,
     // Absent-service default; mention tests override with a real resolver.
     fileMentions: () => undefined,
@@ -407,9 +416,9 @@ function makeHarness(
   }
   return {
     set, setSession: session.set, setChat: chatSource.set, ChatView, props,
-    openFile, openSkill, loadOlder, loadThrough, openView,
+    openFile, openSkill, loadOlder, loadThrough, evictBefore, openView,
     setOutline: (value: unknown) => { outlineValue = value },
-    chatScroll, forkAt, toolOwners,
+    chatScroll, chatHeights, forkAt, toolOwners,
     setNodeRenderer: (renderer: React.ComponentProps<typeof ChatNodeSeat>['renderSlot']) => {
       nodeSlotOverride = renderer
     },
@@ -443,6 +452,12 @@ function installScrollMetrics(element: HTMLElement, initialHeight: number, clien
       scrollTop = Math.max(0, Math.min(top, scrollHeight - clientHeight))
     },
   }
+}
+
+/** A rect for a runtime with no layout: only the edges this view reads. */
+function box(top: number, bottom: number): DOMRect {
+  const height = bottom - top
+  return { top, bottom, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON: () => ({}) } as DOMRect
 }
 
 /** jsdom has no compositor: queue animation frames and drain them on demand, so
@@ -571,14 +586,16 @@ describe('ChatView', () => {
     // The reader moves after the request starts; this, not the click-time
     // row, is the intent the arriving page must preserve.
     firstTop = -200
-    nextTop = 60
+    // Inside the window, but its end is below it: the reader is above the tail,
+    // so the arriving page must keep their row instead of following the floor.
+    nextTop = 180
     readerScroll(scroller, 90)
     Object.defineProperty(scroller, 'scrollHeight', { value: 1300, writable: true })
     nextTop = 560
     act(() => {
       h.setChat({ nodes: [assistant(2, 'older'), user(9, 'first visible'), user(10, 'next visible')] })
     })
-    expect(scroller.scrollTop).toBe(590) // latest 90 + the anchored row's 500px prepend shift
+    expect(scroller.scrollTop).toBe(470) // latest 90 + the anchored row's 380px prepend shift
   })
 
   it('bounds no-anchor hit testing before using the mounted-row fallback', () => {
@@ -598,7 +615,8 @@ describe('ChatView', () => {
         top: 0, bottom: 2_000, left: 0, right: 1_000,
       } as DOMRect)
       vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
-        top: 100, bottom: 140, left: 0, right: 1_000,
+        // Below the window: the flow's end is out of view, so the reader is away.
+        top: 2_400, bottom: 2_440, left: 0, right: 1_000,
       } as DOMRect)
 
       readerScroll(scroller, 100)
@@ -640,6 +658,147 @@ describe('ChatView', () => {
       // ...but the newest rows stay mounted: the streaming output and the turn
       // tail must not unmount under a reader parked in history.
       expect(view.getByText('row 400')).toBeTruthy()
+    } finally {
+      if (originalHitTest !== undefined) {
+        Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
+      } else {
+        Reflect.deleteProperty(document, 'elementsFromPoint')
+      }
+    }
+  })
+
+  it('marks a band-woken row so its arrival rise does not replay', () => {
+    const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint')
+    const nodes = Array.from({ length: 400 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const rowForKey = (key: string): HTMLElement => {
+      const row = view.container.querySelector<HTMLElement>(`[data-chat-flow-key="${key}"]`)
+      if (row === null) throw new Error(`row ${key} missing`)
+      return row
+    }
+    /** Keys rendering content right now: a dormant row renders none. */
+    const rendered = (): Set<string> => {
+      const keys = new Set<string>()
+      for (const row of view.container.querySelectorAll<HTMLElement>('[data-chat-flow-key]')) {
+        const key = row.dataset.chatFlowKey
+        if (key !== undefined && row.textContent?.includes('row ') === true) keys.add(key)
+      }
+      return keys
+    }
+    let hitRow = rowForKey('fixture:user:101')
+    Object.defineProperty(document, 'elementsFromPoint', {
+      configurable: true,
+      value: vi.fn((): Element[] => [hitRow]),
+    })
+    try {
+      installScrollMetrics(scroller, 4_000, 2_000)
+
+      readerScroll(scroller, 100)
+      const before = rendered()
+
+      hitRow = rowForKey('fixture:user:200')
+      readerScroll(scroller, 140)
+      const after = rendered()
+
+      // A row the band moved onto was woken, not delivered: its mount must not
+      // replay the arrival rise.
+      const woke = [...after].find(key => !before.has(key))
+      expect(woke).toBeDefined()
+      expect(rowForKey(woke as string).hasAttribute('data-chat-flow-woke')).toBe(true)
+
+      // A row that stayed live across both samples keeps its arrival.
+      const stayed = [...after].find(key => before.has(key))
+      expect(stayed).toBeDefined()
+      expect(rowForKey(stayed as string).hasAttribute('data-chat-flow-woke')).toBe(false)
+    } finally {
+      if (originalHitTest !== undefined) {
+        Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
+      } else {
+        Reflect.deleteProperty(document, 'elementsFromPoint')
+      }
+    }
+  })
+
+  it('reopens a measured session with only its band mounted', () => {
+    const nodes = Array.from({ length: 600 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    // Every row reports a box, so the cold open measures a real height for each.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.chatFlowKey === undefined ? box(0, 0) : box(0, 50)
+    })
+    try {
+      const cold = render(<h.ChatView {...h.props} />)
+      // Cold open: nothing is remembered, so every row mounts and measures.
+      expect(cold.container.querySelectorAll('[data-chat-flow-spacer]').length).toBe(0)
+      expect(cold.getByText('row 600')).toBeTruthy()
+      expect(h.chatHeights.read()?.heights.size).toBe(nodes.length)
+      h.chatScroll.save({ anchorKey: 'fixture:user:300', anchorTop: 0, scrollTop: 1_200 })
+      cold.unmount()
+
+      const warm = render(<h.ChatView {...h.props} />)
+      // Warm open: the remembered band renders; the rest reserves its measured height.
+      expect(warm.queryByText('row 1')).toBeNull()
+      expect(warm.getByText('row 300')).toBeTruthy()
+      expect(warm.container.querySelectorAll('[data-chat-flow-spacer]').length).toBeGreaterThan(200)
+    } finally {
+      rect.mockRestore()
+    }
+  })
+
+  it('drops remembered heights measured at another geometry', () => {
+    const nodes = Array.from({ length: 400 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    // A height remembered at another column width cannot be trusted.
+    h.chatHeights.save({ heights: new Map([['fixture:user:1', 50]]), stamp: 'another-width' })
+    const view = render(<h.ChatView {...h.props} />)
+    // Rather than reserving a wrong box, the flow remeasures everything.
+    expect(view.getByText('row 1')).toBeTruthy()
+    expect(h.chatHeights.read()?.stamp).not.toBe('another-width')
+  })
+
+  it('rises for a freshly delivered row', () => {
+    const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
+    const view = render(<h.ChatView {...h.props} />)
+    act(() => {
+      h.setChat({ nodes: [user(1, 'q'), assistant(2, 'a'), user(3, 'later')] })
+    })
+    const row = view.container.querySelector('[data-chat-flow-key="fixture:user:3"]')
+    expect(row).not.toBeNull()
+    // A delivered row is not swept in by the band: its mount keeps the arrival rise.
+    expect(row?.hasAttribute('data-chat-flow-woke')).toBe(false)
+    expect(view.getByText('later')).toBeTruthy()
+  })
+
+  it('releases history the reader scrolled far past', () => {
+    const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint')
+    const nodes = Array.from({ length: 1_200 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    installScrollMetrics(scroller, 60_000, 800)
+    const rowFor = (seq: number): HTMLElement => {
+      const row = view.container.querySelector<HTMLElement>(`[data-chat-flow-key="fixture:user:${seq}"]`)
+      if (row === null) throw new Error(`row ${seq} missing`)
+      return row
+    }
+    const hitRow = rowFor(900)
+    Object.defineProperty(document, 'elementsFromPoint', {
+      configurable: true,
+      value: vi.fn((): Element[] => [hitRow]),
+    })
+    try {
+      readerScroll(scroller, 20_000)
+      // Centre 899 → band top 799, past the 200-row margin plus a 200-row chunk,
+      // so the prefix is released at the row 200 above the band.
+      expect(h.evictBefore).toHaveBeenCalledTimes(1)
+      expect(h.evictBefore.mock.calls[0]?.[0]).toBe(600)
+
+      // The reader row is held while the release settles: a second sample at the
+      // same band must not ask again for a window already on its way out.
+      readerScroll(scroller, 20_010)
+      expect(h.evictBefore).toHaveBeenCalledTimes(1)
     } finally {
       if (originalHitTest !== undefined) {
         Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
@@ -1679,6 +1838,71 @@ describe('ChatView', () => {
     expect(view.queryByLabelText('回到底部')).toBeNull()
   })
 
+  it('re-arms the streaming follow while the end of the flow is on screen', () => {
+    let notify: (() => void) | undefined
+    class ResizeObserverStub {
+      constructor(callback: ResizeObserverCallback) {
+        notify = () => { callback([], this as unknown as ResizeObserver) }
+      }
+
+      observe = vi.fn()
+      disconnect = vi.fn()
+    }
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const clock = frameClock()
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1_000, writable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 300, writable: true })
+    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue(box(0, 300))
+    const rows = view.container.querySelectorAll<HTMLElement>('[data-chat-flow] > [data-chat-flow-key]')
+    const tail = rows[rows.length - 1] as HTMLElement
+    const tailBox = vi.spyOn(tail, 'getBoundingClientRect').mockReturnValue(box(240, 290))
+
+    // 200px above the floor, far past the threshold, but the end of the flow is
+    // still on screen: the reader is watching the live edge.
+    readerScroll(scroller, 500)
+    expect(view.queryByLabelText('回到底部')).toBeNull()
+
+    // Streaming growth snaps: the eased carry lands on the floor.
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1_200, writable: true })
+    act(() => { notify?.() })
+    clock.settle()
+    expect(scroller.scrollTop).toBe(1_200)
+
+    // Reading back inside a tall answer pushes its end out of the viewport: the
+    // follow releases instead of dragging the reader down again.
+    tailBox.mockReturnValue(box(340, 390))
+    readerScroll(scroller, 600)
+    expect(view.getByLabelText('回到底部')).toBeTruthy()
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1_400, writable: true })
+    act(() => { notify?.() })
+    expect(scroller.scrollTop).toBe(600)
+  })
+
+  it('reads the flow end from its last row that has a box', () => {
+    // A settled transcript usually ends in a declined shell (the turn tail when
+    // it owns neither actions nor extensions). A collapsed row has no box, so it
+    // cannot mark where the flow ends.
+    const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    Object.defineProperty(scroller, 'scrollHeight', { value: 1_000, writable: true })
+    Object.defineProperty(scroller, 'clientHeight', { value: 300, writable: true })
+    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue(box(0, 300))
+    const rows = view.container.querySelectorAll<HTMLElement>('[data-chat-flow] > [data-chat-flow-key]')
+    const declined = rows[rows.length - 1] as HTMLElement
+    const lastBoxed = rows[rows.length - 2] as HTMLElement
+    vi.spyOn(declined, 'getBoundingClientRect').mockReturnValue(box(0, 0))
+    vi.spyOn(lastBoxed, 'getBoundingClientRect').mockReturnValue(box(240, 290))
+
+    // 200px above the floor: past the threshold, but the last boxed row's end is
+    // on screen, so the reader is still watching the live edge.
+    readerScroll(scroller, 500)
+    expect(view.queryByLabelText('回到底部')).toBeNull()
+  })
+
   it('keeps following when a stream-finalization shrink clamp delivers its scroll', () => {
     const h = makeHarness({ nodes: [user(1, 'q'), assistant(2, 'a')] })
     const view = render(<h.ChatView {...h.props} />)
@@ -1949,6 +2173,8 @@ describe('ChatView', () => {
 
     expect(scroller.scrollTop).toBe(900)
     expect(rect).not.toHaveBeenCalled()
+    // Never leave the prototype spy behind: later tests read row geometry.
+    rect.mockRestore()
   })
 
   it('entering the at-bottom threshold does not snap the remaining scroll distance', () => {
@@ -2001,6 +2227,10 @@ describe('ChatView', () => {
     const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       if (this.dataset.chatAnchorKey === 'fixture:user:1') {
         return { top: anchorTop, bottom: anchorTop + 40 } as DOMRect
+      }
+      // The row at the end of the flow sits below the window: the reader is away.
+      if (this.dataset.chatFlowKey !== undefined && this.parentElement?.lastElementChild === this) {
+        return { top: 900, bottom: 940 } as DOMRect
       }
       return { top: 0, bottom: 40 } as DOMRect
     })
@@ -2088,16 +2318,18 @@ describe('ChatView', () => {
     expect(view.getByText('加载中…')).toBeTruthy()
   })
 
-  it('shows open error and loading states', () => {
+  it('shows the open error state and leaves the loading copy to the history curtain', () => {
     const h = makeHarness({}, {
       openState: 'error',
       openError: { code: 'gateway/internal', message: 'boom' } as never,
     })
     const view = render(<h.ChatView {...h.props} />)
     expect(view.getByText(/历史加载失败：boom/)).toBeTruthy()
+    // The curtain in ConversationSession owns the loading copy now; ChatView
+    // stays an empty transcript until the open resolves.
     const loading = makeHarness({}, { openState: 'loading' })
     const lv = render(<loading.ChatView {...loading.props} />)
-    expect(lv.getByText('载入历史…')).toBeTruthy()
+    expect(lv.container.querySelector('[data-chat-flow]')?.textContent).toBe('')
   })
 
   it('renders command nodes as durable rows: settled text, error state, executing spinner, run-less soft-fall', () => {
@@ -2166,13 +2398,13 @@ describe('ChatView', () => {
     expect(view.queryByText('上下文已压缩')).toBeNull()
     expect(view.getByText('已压缩 16 条历史记录（约 11309 tokens）')).toBeTruthy()
     const row = view.getByRole('button', { name: /compact/ })
+    // The pce head itself is the disclosure; there is no second row under it.
+    expect(row.classList.contains('pce-head')).toBe(true)
     expect(row.getAttribute('aria-expanded')).toBe('false')
-    expect(row.querySelector('[data-compaction-icon="context"]')).not.toBeNull()
-    expect(row.querySelector('[data-compaction-disclosure="collapsed"]')).not.toBeNull()
+    expect(view.container.querySelector('[data-pce="manual-compaction"]')).not.toBeNull()
     expect(view.queryByText('保留的事实。')).toBeNull()
     fireEvent.click(row)
     expect(row.getAttribute('aria-expanded')).toBe('true')
-    expect(row.querySelector('[data-compaction-disclosure="expanded"]')).not.toBeNull()
     expect(view.getByRole('heading', { name: '压缩摘要' })).toBeTruthy()
   })
 
@@ -2197,5 +2429,21 @@ describe('ChatView', () => {
     const failedView = render(<failed.ChatView {...failed.props} />)
     expect(failedView.getByText('Compaction cancelled.')).toBeTruthy()
     expect(failedView.container.querySelector('[data-state="error"]')).not.toBeNull()
+  })
+
+  it('renders automatic compaction as one pce marker with a Markdown summary body', () => {
+    const h = makeHarness({ nodes: [compaction()] })
+    const view = render(<h.ChatView {...h.props} />)
+    const marker = view.container.querySelector('[data-pce="compaction"]')
+    expect(marker).not.toBeNull()
+    const row = view.getByRole('button', { name: /上下文已压缩/ })
+    // The pce head is the disclosure: the article carries no second row.
+    expect(row.classList.contains('pce-head')).toBe(true)
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+    expect(view.getByText('已压缩 16 条历史记录（约 11309 tokens）')).toBeTruthy()
+    expect(view.queryByText('保留的事实。')).toBeNull()
+    fireEvent.click(row)
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(view.getByRole('heading', { name: '压缩摘要' })).toBeTruthy()
   })
 })

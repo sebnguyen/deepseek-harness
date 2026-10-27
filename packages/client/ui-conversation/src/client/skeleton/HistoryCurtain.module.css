@@ -1,0 +1,44 @@
+.curtain {
+  position: absolute;
+  inset: 0;
+  /* The sticky composer seat also sits at 7; it is a later sibling in
+     .scrollBody, so it wins the tie and stays above the curtain. Transcript
+     content stays below 7; Chat's back-to-bottom control is the one higher
+     face and does not render while the history is empty. */
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 24px;
+  color: var(--dsw-alias-brand-primary);
+  background: var(--dsw-alias-bg-base);
+  animation: history-curtain-in 180ms ease-out both;
+}
+
+.mark {
+  flex: none;
+}
+
+.tips {
+  max-width: 100%;
+  color: var(--dsw-alias-label-primary);
+  text-align: center;
+}
+
+@keyframes history-curtain-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .curtain {
+    animation: none;
+  }
+}

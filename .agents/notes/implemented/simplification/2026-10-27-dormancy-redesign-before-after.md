@@ -1,6 +1,6 @@
 # Agent Note: dormancy redesign — before and after
 
-Status: implemented (band + render gating + height reserve); `row-window.tsx` removal pending
+Status: implemented (band + render gating + height reserve); `row-window.tsx` deleted
 
 ## Implementation status
 
@@ -11,7 +11,7 @@ Shipped in `ChatView.tsx`, `ChatNodeSeat.tsx`, `ChatView.module.css`:
   ancestor inside the list (overlays such as the to-bottom button sit on top).
   When no row answers, a binary search over the ordered rows compares rects —
   `log(rows)` reads, not a linear scan. No estimates anywhere.
-- **Band** is `LIVE_BAND_NODES = 150`: a hundred and fifty rows on each side
+- **Band** is `LIVE_BAND_NODES = 100`: a hundred rows on each side
   of the row under the viewport centre, so at most 301 live rows.
 - **The newest rows are pinned** (`PIN_TAIL_NODES = 8`) whatever the reader
   looks at. They are the only rows that change on their own — the streaming
@@ -38,14 +38,13 @@ Shipped in `ChatView.tsx`, `ChatNodeSeat.tsx`, `ChatView.module.css`:
   next scroll sample narrows the band again. First paint and freshly appended
   tail rows are therefore always rendered.
 
-Still open: deleting `row-window.tsx` (it has uncommitted edits and is now
-unreferenced), and deciding whether prepend compensation needs the height
-cache or keeps `pagingAnchor`.
+Still open: deciding whether prepend compensation needs the height cache or
+keeps `pagingAnchor`.
 
 ## Problem
 
-The current dormancy system (`packages/client/ui-chat/src/client/chat/row-window.tsx`,
-`ChatNodeSeat.tsx`) works mechanically but is over-branched:
+The dormancy system this replaced (`packages/client/ui-chat/src/client/chat/row-window.tsx`,
+now deleted, `ChatNodeSeat.tsx`) worked mechanically but was over-branched:
 
 - `ChatRowWindow` mixes IntersectionObserver callbacks, a count-based live band,
   a 400 ms exit hold, tail-pinning, and per-row height measurement in one class.

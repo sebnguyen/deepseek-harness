@@ -1346,79 +1346,86 @@ export function WorkspaceBrowser({
         </Tooltip>
       </div>}
 
-      {/* Always-mounted seat keeps the region's flex slot while the list
-          itself is wide-only. */}
+      {/* Always-mounted seat keeps the region's flex slot, and the list stays
+          mounted through the fold: .listBody is layout-transparent while wide
+          and display:none in the rail, so a fold change never remounts the
+          tree. An active search is the exception — its results unmount in the
+          rail so a hidden panel runs no Host search. */}
       <div className={css.listArea}>
-        {wide && (normalizedQuery !== ''
-          ? (
-            <SearchResults
-              usePanelInfo={usePanelInfo}
-              useSessions={useSessions}
-              useSessionPendingInteraction={useSessionPendingInteraction}
-              open={openSearchResult}
-              workspaces={workspaces}
-              archivedSessionIds={archivedSessionIds}
-              query={normalizedQuery}
-              remote={remoteSearch}
-              resultLimit={searchResultLimit}
-              t={t}
-            />
-          )
-          : groupBy === 'flat'
-            ? (
-              <FlatList
-                usePanelInfo={usePanelInfo}
-                useSessions={useSessions} useSessionPendingInteraction={useSessionPendingInteraction}
-                open={open} forkSession={forkSession}
-                onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
-                archivedSessionIds={archivedSessionIds}
-                orderBy={orderBy}
-                sessionOrderByAccount={sessionOrderByAccount}
-                sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
-                syncSessionOrderAccount={actions.syncSessionOrderAccount}
-                setSessionOrder={actions.setSessionOrder}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                t={t}
-              />
-            )
-            : (
-              <SessionTree
-                usePanelInfo={usePanelInfo}
-                useSessions={useSessions}
-                useSessionPendingInteraction={useSessionPendingInteraction}
-                onSessionRename={onSessionRename}
-                onSessionArchive={onSessionArchive}
-                forkSession={forkSession}
-                workspaces={workspaces}
-                workspaceReady={workspacePhase === 'ready' && workspaceStreamState !== 'loading'}
-                groupExpansion={groupExpansion}
-                setGroupExpanded={actions.setGroupExpanded}
-                sessionOrderByAccount={sessionOrderByAccount}
-                sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
-                syncSessionOrderAccount={actions.syncSessionOrderAccount}
-                setSessionOrder={actions.setSessionOrder}
-                archivedSessionIds={archivedSessionIds}
-                startSession={startSession}
-                open={open}
-                insertWorkspaceBefore={insertWorkspaceBefore}
-                insertSessionBefore={insertSessionBefore}
-                orderBy={orderBy}
-                revealSessionId={revealSessionId}
-                onSessionRevealed={acknowledgeSessionReveal}
-                home={home}
-                t={t}
-                onRenameRequest={(workspaceId, currentTitle) => {
-                  setRenameTarget({ workspaceId, currentTitle })
-                  setRenameDraft(currentTitle)
-                  setRenameError(null)
-                }}
-                onDeleteRequest={(workspaceId, title) => {
-                  setDeleteTarget({ workspaceId, title })
-                  setDeleteError(null)
-                }}
-              />
-            ))}
+        <div className={css.listBody}>
+          {normalizedQuery !== ''
+            ? (wide
+              ? (
+                <SearchResults
+                  usePanelInfo={usePanelInfo}
+                  useSessions={useSessions}
+                  useSessionPendingInteraction={useSessionPendingInteraction}
+                  open={openSearchResult}
+                  workspaces={workspaces}
+                  archivedSessionIds={archivedSessionIds}
+                  query={normalizedQuery}
+                  remote={remoteSearch}
+                  resultLimit={searchResultLimit}
+                  t={t}
+                />
+              )
+              : null)
+            : groupBy === 'flat'
+              ? (
+                <FlatList
+                  usePanelInfo={usePanelInfo}
+                  useSessions={useSessions} useSessionPendingInteraction={useSessionPendingInteraction}
+                  open={open} forkSession={forkSession}
+                  onSessionRename={onSessionRename} onSessionArchive={onSessionArchive}
+                  archivedSessionIds={archivedSessionIds}
+                  orderBy={orderBy}
+                  sessionOrderByAccount={sessionOrderByAccount}
+                  sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
+                  syncSessionOrderAccount={actions.syncSessionOrderAccount}
+                  setSessionOrder={actions.setSessionOrder}
+                  revealSessionId={wide ? revealSessionId : undefined}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  t={t}
+                />
+              )
+              : (
+                <SessionTree
+                  usePanelInfo={usePanelInfo}
+                  useSessions={useSessions}
+                  useSessionPendingInteraction={useSessionPendingInteraction}
+                  onSessionRename={onSessionRename}
+                  onSessionArchive={onSessionArchive}
+                  forkSession={forkSession}
+                  workspaces={workspaces}
+                  workspaceReady={workspacePhase === 'ready' && workspaceStreamState !== 'loading'}
+                  groupExpansion={groupExpansion}
+                  setGroupExpanded={actions.setGroupExpanded}
+                  sessionOrderByAccount={sessionOrderByAccount}
+                  sessionUpdatedAtByAccount={sessionUpdatedAtByAccount}
+                  syncSessionOrderAccount={actions.syncSessionOrderAccount}
+                  setSessionOrder={actions.setSessionOrder}
+                  archivedSessionIds={archivedSessionIds}
+                  startSession={startSession}
+                  open={open}
+                  insertWorkspaceBefore={insertWorkspaceBefore}
+                  insertSessionBefore={insertSessionBefore}
+                  orderBy={orderBy}
+                  revealSessionId={wide ? revealSessionId : undefined}
+                  onSessionRevealed={acknowledgeSessionReveal}
+                  home={home}
+                  t={t}
+                  onRenameRequest={(workspaceId, currentTitle) => {
+                    setRenameTarget({ workspaceId, currentTitle })
+                    setRenameDraft(currentTitle)
+                    setRenameError(null)
+                  }}
+                  onDeleteRequest={(workspaceId, title) => {
+                    setDeleteTarget({ workspaceId, title })
+                    setDeleteError(null)
+                  }}
+                />
+              )}
+        </div>
       </div>
 
       <Modal

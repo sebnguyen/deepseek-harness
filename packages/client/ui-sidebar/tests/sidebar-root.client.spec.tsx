@@ -195,6 +195,15 @@ describe('SidebarRoot shell', () => {
     b.regionOwner().expandSidebar()
     expect(b.toggleSidebar).toHaveBeenCalledOnce()
   })
+
+  it('pins the browsing region to the expanded width while the column is wide', () => {
+    const expanded = mountShell({ width: 300 })
+    // The panel's content box: the 300px border box less the 12px inline padding per side.
+    expect(expanded.container.querySelector('[class*="regionBox"]')?.getAttribute('style')).toContain('276px')
+    cleanup()
+    const rail = mountShell({ collapsed: true })
+    expect(rail.container.querySelector('[class*="regionBox"]')?.getAttribute('style')).toBeNull()
+  })
 })
 
 describe('SidebarRoot hover preview', () => {

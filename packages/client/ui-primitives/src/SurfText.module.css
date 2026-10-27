@@ -1,0 +1,16 @@
+/* The two lines share one grid cell so the arriving copy surfs up through the
+   spot the departing copy is sinking out of. The keyframes are global (see
+   motion.css); this module only owns the stack geometry. */
+
+.stack {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 1.5em;
+}
+
+.line {
+  grid-area: 1 / 1;
+  max-width: 100%;
+  text-align: center;
+}

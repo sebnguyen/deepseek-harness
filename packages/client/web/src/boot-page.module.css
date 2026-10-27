@@ -27,7 +27,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .titleRow {
@@ -38,19 +38,28 @@
 }
 
 .wordmark {
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 600;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
   color: var(--dsw-alias-label-primary, var(--dsh-boot-label-primary));
 }
 
 .hint {
+  display: grid;
+  place-items: center;
+  min-height: 18px;
+  max-width: 420px;
   font-size: 12px;
   line-height: 18px;
   color: var(--dsw-alias-label-tertiary, var(--dsh-boot-label-tertiary));
+  text-align: center;
 }
 
-/* Large pixel mark host: every dot self-times its pop & fade twinkle. */
+.tipLine {
+  grid-area: 1 / 1;
+}
+
+/* Large pixel mark host: the sweep starts at the arc origin. */
 .spinner {
   width: 128px;
   height: 128px;

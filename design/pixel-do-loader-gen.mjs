@@ -15,12 +15,18 @@
 //   design/pixel-do-twinkle-16.svg      stable twinkle at 128px (compat name)
 //   design/pixel-do-loader-16-twinkle-do.svg  stable twinkle in DO blue
 //   design/pixel-do-loader-mockup.html  live review page
+//   apps/web/public/favicon.svg         solid teal mark for the browser tab / PWA icon
+//   apps/desktop/resources/icon-windows.svg  solid teal mark source for the Windows icon
 //   packages/client/ui-primitives/src/pixel-loader/generated.ts   shared cells + css
 //   apps/desktop/renderer/spinner.svg  inline SMIL twinkle for the desktop splash
 //   apps/desktop/renderer/startup.html splash spinner div rewritten in place
 //   ../vscode/src/.../editor/media/letterpress-{dark,light,hcDark,hcLight}.svg
 //     the twin's empty-editor mark: stable 16-grid twinkle face
 //   ../.vscode-twin/dist/out/... same four files, when the staged dist exists
+//
+// The Windows icon source is rasterized by apps/desktop's render:tray-icon
+// script; rerun that after this generator to refresh icon-windows.png and
+// tray-windows.ico.
 //
 // Stable scale is the whole point: one 16x16 grid is sampled once through the
 // 16x16 kernel, and every lit cell is a full 1x1 rect at integer coordinates.
@@ -63,6 +69,11 @@ const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM]
 // standalone SVG files, and <use> instantiation.
 const GAP_PCT = 20
 const CELL_CLIP = `inset(${GAP_PCT / 2}%)`
+// The same gap as geometry, for rasterizers that ignore the CSS inset()
+// clip-path on SVG rects (sharp/librsvg does); the browser faces use the same
+// 0.8 cell, so every host renders one pixel scale.
+const CELL_INSET = GAP_PCT / 200
+const CELL_SIDE = 1 - GAP_PCT / 100
 
 // Twinkle recipe (idle brand mark, starting chat / boot / editor letterpress):
 // every pixel runs its own pop-and-fade cycle — duration and negative delay
@@ -92,6 +103,13 @@ function twinkleSchedule(cellCount, seed) {
 const DESIGN = join(ROOT, 'design')
 const MODULE_OUT = join(ROOT, 'packages/client/ui-primitives/src/pixel-loader/generated.ts')
 const DESKTOP_OUT = join(ROOT, 'apps/desktop/renderer/spinner.svg')
+const FAVICON_OUT = join(ROOT, 'apps/web/public/favicon.svg')
+const WINDOW_ICON_OUT = join(ROOT, 'apps/desktop/resources/icon-windows.svg')
+const BRAND_TEAL = '#7BB4BC'
+const WINDOW_ICON_EDGE = 1024
+const WINDOW_MARK_EDGE = 800
+const WINDOW_MARK_OFFSET = (WINDOW_ICON_EDGE - WINDOW_MARK_EDGE) / 2
+const WINDOW_MARK_SCALE = WINDOW_MARK_EDGE / GRID
 const VSCODE = join(ROOT, '../vscode')
 const TWIN_DIST = join(ROOT, '../.vscode-twin/dist')
 
@@ -111,6 +129,12 @@ function bucketsFor(cells, N) {
 function rectsFor(cells) {
   return cells.map(([c, r]) =>
     `<rect x="${c}" y="${r}" width="1" height="1" clip-path="${CELL_CLIP}"/>`).join('')
+}
+
+/** Cell rects with the gap in geometry, for rasterizers that ignore CSS clip-path. */
+function solidRectsFor(cells) {
+  return cells.map(([c, r]) =>
+    `<rect x="${c + CELL_INSET}" y="${r + CELL_INSET}" width="${CELL_SIDE}" height="${CELL_SIDE}"/>`).join('')
 }
 
 /** The sweep stylesheet shared by every document host. */
@@ -173,6 +197,30 @@ ${innerTwinkle(flat, schedule)}
 `
 }
 
+/** The solid teal mark for the browser tab and PWA icon, on a transparent ground. */
+function solidFaviconSvg(cells) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 ${GRID} ${GRID}" fill="${BRAND_TEAL}">
+${solidRectsFor(cells)}
+</svg>
+`
+}
+
+/**
+ * The solid teal mark source for the Windows icon. The 800-unit mark rides a
+ * transparent 1024 canvas; the `tray-glyph` group is what the desktop renderer
+ * scales 1.2x so the 16-64 px tray bitmaps keep a legible mark.
+ */
+function solidWindowIconSvg(cells) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WINDOW_ICON_EDGE}" height="${WINDOW_ICON_EDGE}" viewBox="0 0 ${WINDOW_ICON_EDGE} ${WINDOW_ICON_EDGE}" fill="none">
+<g id="tray-glyph">
+<g transform="translate(${WINDOW_MARK_OFFSET} ${WINDOW_MARK_OFFSET}) scale(${WINDOW_MARK_SCALE})" fill="${BRAND_TEAL}">
+${solidRectsFor(cells)}
+</g>
+</g>
+</svg>
+`
+}
+
 const CSS = styleBlock()
 const TW_CSS = twinkleStyleBlock()
 const flat = deriveCells(LOGO_D, GRID, COVERAGE)
@@ -194,6 +242,8 @@ writeFileSync(join(DESIGN, 'pixel-do-loader-16-do.svg'), sweepBlue)
 writeFileSync(join(DESIGN, 'pixel-do-twinkle.svg'), twinkle96)
 writeFileSync(join(DESIGN, 'pixel-do-twinkle-16.svg'), twinkle128)
 writeFileSync(join(DESIGN, 'pixel-do-loader-16-twinkle-do.svg'), twinkleBlue)
+writeFileSync(FAVICON_OUT, solidFaviconSvg(flat))
+writeFileSync(WINDOW_ICON_OUT, solidWindowIconSvg(flat))
 
 mkdirSync(dirname(MODULE_OUT), { recursive: true })
 writeFileSync(MODULE_OUT, `/**

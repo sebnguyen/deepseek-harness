@@ -14,15 +14,21 @@ import { followScrollport, type FollowHandle } from './follow-scroll.ts'
 const FOLLOW_THRESHOLD = 24
 const SCROLL_SAMPLE_INTERVAL_MS = 500
 /** Live band: rows kept rendered on each side of the row at the viewport
- *  centre. A hundred and fifty rows above and a hundred and fifty below is
- *  at most 301 live rows. A node count, never a pixel estimate — every row
- *  outside the band holds a measured spacer instead of its content. */
-const LIVE_BAND_NODES = 150
+ *  centre. A hundred rows above and a hundred below is at most 201 live rows. A
+ *  node count, never a pixel estimate — every row outside the band holds a
+ *  measured spacer instead of its content. */
+const LIVE_BAND_NODES = 100
 /** The newest rows stay live whatever the reader looks at. They are the only
  *  rows that change on their own — the streaming output and the turn tail —
  *  so a reader parked in history must not unmount them: a remount restarts
  *  the tail's count-up and reads as a flicker. */
 const PIN_TAIL_NODES = 8
+/** History the reader has scrolled past stays pageable rather than loaded. The
+ *  retained window keeps two bands of margin above the band, so a scroll back
+ *  up needs no fetch, and releases a page-sized chunk at a time, so one
+ *  projection rebuild covers a page of growth instead of one per crossing row. */
+const EVICT_MARGIN_NODES = LIVE_BAND_NODES * 2
+const EVICT_CHUNK_NODES = 200
 
 /** Active column host when present; otherwise the view-local scroller. */
 function scrollerOf(from: HTMLElement): HTMLElement {
@@ -52,6 +58,53 @@ function anchorElement(list: HTMLElement, key: string): HTMLElement | null {
 /** Row position in scrollport coordinates (viewport-independent). */
 function flowTop(row: HTMLElement, scrollport: HTMLElement): number {
   return row.getBoundingClientRect().top - scrollport.getBoundingClientRect().top
+}
+
+/** The live band a warm open mounts: the band around the remembered anchor (the
+ *  tail when there is none) plus the pinned tail. A node count, like every other
+ *  band decision — no geometry is needed to know which rows to mount. */
+function bandAround(order: readonly string[], anchorKey: string | undefined): Set<string> {
+  const anchored = anchorKey === undefined ? -1 : order.indexOf(anchorKey)
+  const pivot = anchored < 0 ? order.length - 1 : anchored
+  const keys = new Set(
+    order.slice(Math.max(0, pivot - LIVE_BAND_NODES), Math.min(order.length, pivot + LIVE_BAND_NODES + 1)),
+  )
+  for (const key of order.slice(Math.max(0, order.length - PIN_TAIL_NODES))) keys.add(key)
+  return keys
+}
+
+/** The geometry a remembered height is valid at: the content-width preference the
+ *  column inherits, its font size, and the window that clamps that width. Read
+ *  from computed style rather than a rect, so the save path stays layout-free. */
+function stampOf(column: HTMLElement): string {
+  const style = getComputedStyle(column)
+  return `${style.getPropertyValue('--dsh-chat-content-width')}|${style.fontSize}|${window.innerWidth}`
+}
+
+/** Does the reader see where the flow ends? The last row's bottom edge sits
+ *  inside the scrollport box, so the floor always counts and a reader a little
+ *  above it still counts while the end of the flow is on screen. Geometry, not a
+ *  pixel distance from the floor: a last row taller than the window re-arms the
+ *  streaming follow once its end is visible, and a reader who scrolls back up
+ *  inside it releases the follow by pushing that end out of view. Runtimes
+ *  without layout (jsdom) keep the floor test. */
+function tailEndVisible(list: HTMLElement, scrollport: HTMLElement, floor: number): boolean {
+  const rows = list.querySelectorAll<HTMLElement>('[data-chat-flow] > [data-chat-flow-key]')
+  // The flow ends at its last row that has a box. A declined row (the settled
+  // turn tail, for one) is display:none and a runtime without layout has no
+  // boxes at all, so neither can mark the end.
+  let lastRect: DOMRect | undefined
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const row = rows.item(index)
+    if (row === null) continue
+    const rect = row.getBoundingClientRect()
+    if (rect.height > 0) {
+      lastRect = rect
+      break
+    }
+  }
+  if (lastRect === undefined) return floor - scrollport.scrollTop <= FOLLOW_THRESHOLD + 1
+  return lastRect.bottom <= scrollport.getBoundingClientRect().bottom + 1
 }
 
 /** Select a visible stable node/call identity, falling back only when layout
@@ -135,14 +188,15 @@ function observedRpcIds(
   return observed
 }
 
-type ChatNodeListProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey' | 'live'> & {
+type ChatNodeListProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey' | 'live' | 'woke'> & {
   readonly order: readonly string[]
   readonly liveKeys: ReadonlySet<string>
+  readonly wokeKeys: ReadonlySet<string>
 }
 
-const ChatNodeList = memo(function ChatNodeList({ order, liveKeys, ...seatProps }: ChatNodeListProps) {
+const ChatNodeList = memo(function ChatNodeList({ order, liveKeys, wokeKeys, ...seatProps }: ChatNodeListProps) {
   return order.map(nodeKey => (
-    <ChatNodeSeat key={nodeKey} nodeKey={nodeKey} live={liveKeys.has(nodeKey)} {...seatProps} />
+    <ChatNodeSeat key={nodeKey} nodeKey={nodeKey} live={liveKeys.has(nodeKey)} woke={wokeKeys.has(nodeKey)} {...seatProps} />
   ))
 })
 
@@ -152,7 +206,7 @@ const ChatNodeList = memo(function ChatNodeList({ order, liveKeys, ...seatProps 
  */
 export function ChatView({
   useSession, useChat, useChatNode, useSessions, renderSlot,
-  sessionId, openFile, openSkill, loadOlder, loadImage, openView, chatScroll, forkAt,
+  sessionId, openFile, openSkill, loadOlder, loadImage, openView, chatScroll, chatHeights, evictBefore, forkAt,
   revealFile, fileMentions,
   t,
 }: ChatViewSlotProps) {
@@ -229,19 +283,47 @@ export function ChatView({
   // restores it and normalizes a floor-clamped position back to following.
   const [atBottom, setAtBottom] = useState(() => chatScroll.read() === null)
   const atBottomRef = useRef(atBottom)
-  const [liveKeys, setLiveKeys] = useState<Set<string>>(() => new Set(order))
+  // A remembered height is only valid at the width and font it was measured
+  // under, so the snapshot carries a stamp and the restore compares it.
+  const heightSnapshot = useRef(chatHeights.read()).current
+  const heightStampRef = useRef<string | null>(heightSnapshot?.stamp ?? null)
+  const [liveKeys, setLiveKeys] = useState<Set<string>>(() => heightSnapshot === null
+    // Nothing remembered: mounting every row is the only way to learn heights.
+    ? new Set(order)
+    // Warm open: the band around the remembered row, so the rest never mounts.
+    : bandAround(order, chatScroll.read()?.anchorKey))
   // The scroll-sample effect mounts once, so every input the band computation
   // reads is mirrored into a ref instead of closed over a mount-time value.
   const orderRef = useRef<readonly string[]>(order)
   orderRef.current = order
   const liveKeysRef = useRef<ReadonlySet<string>>(liveKeys)
   liveKeysRef.current = liveKeys
+  /** Keys that became live because the band moved onto them. Sticky: a row that
+   *  wakes twice is a wake both times, and the marker only matters for the mount
+   *  that follows it. */
+  const wokeKeysRef = useRef<Set<string>>(new Set())
+  /** Mark the rows this band swept in; a delivered row is not one of them. */
+  const markWoke = useCallback((next: ReadonlySet<string>): void => {
+    for (const key of next) if (!liveKeysRef.current.has(key)) wokeKeysRef.current.add(key)
+  }, [])
   const loadingOlderRef = useRef(loadingOlder)
   loadingOlderRef.current = loadingOlder
   // Measured content heights keyed by node: the only thing a dormant row
-  // reserves. Written when a row mounts and when it leaves the live band.
-  const rowHeightsRef = useRef(new Map<string, number>())
+  // reserves. Written when a row mounts and when it leaves the live band, and
+  // seeded from the session's remembered snapshot so a warm open needs no mount.
+  const rowHeightsRef = useRef<Map<string, number>>(new Map(heightSnapshot?.heights ?? []))
   const scrollSamplePendingRef = useRef(false)
+  /** The sample reads props through refs, so the eviction verb and the node
+   *  store it needs are mirrored like every other sample input. */
+  const nodeStoreRef = useRef(nodeStore)
+  nodeStoreRef.current = nodeStore
+  const evictBeforeRef = useRef(evictBefore)
+  evictBeforeRef.current = evictBefore
+  /** Reader row an eviction must keep in place; cleared by the next layout pass. */
+  const evictAnchorRef = useRef<PagingAnchor | null>(null)
+  /** Cut already asked for: the window update lands a render later, so a second
+   *  sample must not request the same release again. */
+  const releasedKeyRef = useRef<string | null>(null)
 
   /** Last position delivered or written on the main thread. */
   const observedTopRef = useRef(0)
@@ -270,6 +352,28 @@ export function ChatView({
   const followSig = `${openState}:${firstSeq}:${lastKey}:${order.length}:${running ? 1 : 0}:${lastSteeringId ?? ''}:${lastSubmissionId ?? ''}`
   const effectiveLiveKeys = liveKeys.size === 0 && order.length > 0 ? new Set(order) : liveKeys
 
+  /** Release the history the reader has scrolled far past, a page-sized chunk at
+   *  a time. The retained window keeps the band plus a margin, so the scroll
+   *  range stops covering the whole session while the released prefix stays one
+   *  Load Earlier away. Never while a paging request owns the head. */
+  const releasePrefix = useCallback((bandTop: number): void => {
+    if (bandTop <= EVICT_MARGIN_NODES + EVICT_CHUNK_NODES) return
+    if (loadingOlderRef.current || anchorRef.current !== null || evictAnchorRef.current !== null) return
+    const local = listRef.current
+    /* v8 ignore next -- ref-null guard: the sample only runs while mounted. */
+    if (local === null) return
+    const cutKey = orderRef.current[bandTop - EVICT_MARGIN_NODES]
+    if (cutKey === undefined || releasedKeyRef.current === cutKey) return
+    const seq = nodeStoreRef.current.get(cutKey)?.anchorSeq
+    if (seq === undefined) return
+    const scrollport = scrollerOf(local)
+    const row = pagingAnchor(local, scrollport)
+    if (row === null || row.dataset.chatAnchorKey === undefined) return
+    evictAnchorRef.current = { key: row.dataset.chatAnchorKey, top: flowTop(row, scrollport) }
+    releasedKeyRef.current = cutKey
+    evictBeforeRef.current(seq)
+  }, [])
+
   // Compute liveKeys from the row at the viewport centre: a node-count band,
   // never an estimate. Reads refs because the scroll sample mounts once.
   const recomputeLiveKeys = useCallback(() => {
@@ -282,6 +386,7 @@ export function ChatView({
     const scrollport = scrollerOf(local)
     if (typeof document.elementsFromPoint !== 'function') {
       // jsdom / no hit-testing: all nodes live.
+      markWoke(new Set(order))
       setLiveKeys(new Set(order))
       return
     }
@@ -337,6 +442,7 @@ export function ChatView({
       next.add(key)
     }
     if (next.size === 0 && order.length > 0) {
+      markWoke(new Set(order))
       setLiveKeys(new Set(order))
       return
     }
@@ -344,6 +450,11 @@ export function ChatView({
     // each spacer reserves the height that row actually had.
     const leaving = new Set<string>()
     for (const key of liveKeysRef.current) if (!next.has(key)) leaving.add(key)
+    // A row that sleeps forgets its wake: the marker only holds for the live
+    // stint it was swept into. Clearing it while the row is *live* would be a
+    // bug — the suppression rule would stop matching and the rise would start
+    // late instead of being skipped.
+    for (const key of leaving) wokeKeysRef.current.delete(key)
     if (leaving.size > 0) {
       for (const row of local.querySelectorAll<HTMLElement>('[data-chat-flow-key]')) {
         const key = row.dataset.chatFlowKey
@@ -351,11 +462,15 @@ export function ChatView({
         rowHeightsRef.current.set(key, measureContentBox(row))
       }
     }
+    markWoke(next)
     setLiveKeys((prev) => {
       if (prev.size === next.size && [...next].every(k => prev.has(k))) return prev
       return next
     })
-  }, [])
+    // Far above the band the retained window stops paying for itself: release it
+    // and let Load Earlier bring it back.
+    releasePrefix(start)
+  }, [markWoke, releasePrefix])
   const stopFollow = (): void => {
     followHandleRef.current?.stop()
     followHandleRef.current = null
@@ -402,6 +517,39 @@ export function ChatView({
     /* v8 ignore next -- ref-null guard: React attaches the ref before layout effects run. */
     if (local === null) return
     const el = scrollerOf(local)
+    // A remembered height is only valid at the width and font it was measured
+    // under. A mismatch drops the snapshot and remeasures on the next pass
+    // rather than restoring into a flow whose height is wrong.
+    const column = columnRef.current
+    if (column !== null && heightStampRef.current !== null) {
+      const stamp = stampOf(column)
+      if (stamp !== heightStampRef.current) {
+        heightStampRef.current = null
+        chatHeights.save(null)
+        setLiveKeys(new Set(orderRef.current))
+        return
+      }
+    }
+    // A released prefix raises the head exactly like a prepend lowers it, and
+    // the reader's row keeps its place either way. The eviction pass never
+    // re-arms the anchor: there is no next chunk to wait for.
+    if (evictAnchorRef.current !== null) {
+      const anchor = evictAnchorRef.current
+      evictAnchorRef.current = null
+      if (firstSeq !== null && firstSeq !== firstSeqRef.current) {
+        releasedKeyRef.current = null
+        stopFollow()
+        const row = anchorElement(local, anchor.key)
+        if (row !== null) el.scrollTop += flowTop(row, el) - anchor.top
+        observedTopRef.current = el.scrollTop
+        // A release must never leave the live set pointing only at rows it
+        // removed: then every shell is dormant and the flow renders nothing.
+        const live = liveKeysRef.current
+        if (live.size > 0 && !orderRef.current.some(key => live.has(key))) {
+          setLiveKeys(new Set(orderRef.current))
+        }
+      }
+    }
     // Open completed: jump to the bottom once — unless a scroll position
     // survives from a previous mount (view-tab switch away and back), which
     // is restored instead of snapping the reader back to the floor.
@@ -417,7 +565,7 @@ export function ChatView({
         const row = anchorElement(local, saved.anchorKey)
         if (row !== null) el.scrollTop += flowTop(row, el) - saved.anchorTop
         observedTopRef.current = el.scrollTop
-        const isAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= FOLLOW_THRESHOLD + 1
+        const isAtBottom = tailEndVisible(local, el, Math.max(0, el.scrollHeight - el.clientHeight))
         atBottomRef.current = isAtBottom
         setAtBottom(isAtBottom)
         const normalized = isAtBottom ? null : scrollPosition(local, el)
@@ -471,15 +619,39 @@ export function ChatView({
     }
   })
 
+  /** Remember this session's measured heights, pruned to rows still in the flow,
+   *  so the next open can reserve them without mounting anything. */
+  const saveHeights = useCallback((): void => {
+    const column = columnRef.current
+    if (column !== null) heightStampRef.current = stampOf(column)
+    const stamp = heightStampRef.current
+    if (stamp === null) return
+    // Every measured height is kept, including the rows an eviction released:
+    // a number per node is what makes paging them back exact and mount-free.
+    const heights = new Map<string, number>()
+    for (const [key, height] of rowHeightsRef.current) if (height > 0) heights.set(key, height)
+    if (heights.size === 0) return
+    chatHeights.save({ heights, stamp })
+  }, [chatHeights])
+  // After every band sample, and once more on unmount — a view-tab switch is the
+  // moment measurements would otherwise be lost.
+  useEffect(() => { saveHeights() }, [liveKeys, saveHeights])
+  useEffect(() => () => saveHeights(), [saveHeights])
+
   // New arrivals join the live set until the next scroll sample narrows the
   // band around the centered key (recomputeLiveKeys runs on scroll sample,
   // so this effect never widens what a scroll just narrowed).
+  // Keys the flow has ever been told about. A warm open starts with only its band
+  // live, so the dormant rows must not read as arrivals; only keys that appear
+  // after the first render join the live set.
+  const knownKeysRef = useRef(new Set(order))
   useEffect(() => {
+    const fresh = order.filter(key => !knownKeysRef.current.has(key))
+    if (fresh.length === 0) return
+    for (const key of fresh) knownKeysRef.current.add(key)
     setLiveKeys((prev) => {
-      const missing = order.filter(k => !prev.has(k))
-      if (missing.length === 0) return prev
       const next = new Set(prev)
-      for (const k of missing) next.add(k)
+      for (const key of fresh) next.add(key)
       return next
     })
   }, [order])
@@ -502,7 +674,7 @@ export function ChatView({
     // The reader owns the position again from the first frame they move it.
     if (movedByReader) stopFollow()
     const isAtBottom = movedByReader
-      ? floor - el.scrollTop <= FOLLOW_THRESHOLD + 1
+      ? tailEndVisible(local, el, floor)
       : atBottomRef.current
     if (!movedByReader && isAtBottom) {
       // A follow in flight already owns the floor; re-pinning here would only
@@ -635,7 +807,6 @@ export function ChatView({
     <div className={css.root}>
       <div ref={listRef} className={css.scroll} data-chat-window-root="">
         <div ref={columnRef} className={css.column} data-chat-flow="">
-          {openState === 'loading' && <div className={css.hint}>{t('chat.loadingHistory')}</div>}
           {openState === 'error' && openError !== null && (
             <div className={css.openError}>
               {t('chat.loadError', { message: openError.message, code: openError.code })}
@@ -651,6 +822,7 @@ export function ChatView({
           <ChatNodeList
             order={order}
             liveKeys={effectiveLiveKeys}
+            wokeKeys={wokeKeysRef.current}
             heights={rowHeightsRef}
             useChatNode={useChatNode}
             cwd={cwd}

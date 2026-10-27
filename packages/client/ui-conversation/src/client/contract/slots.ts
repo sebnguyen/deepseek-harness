@@ -381,6 +381,7 @@ export type ConversationSessionSlotProps =
   & PropsRenderSlots<'conversation.view'>
   & PropsStore<ConversationStore>
   & InjectFace<ConversationSessionInjected>
+  & PropsLocale<'conversation'>
 
 /** Full props of the strict Session header. */
 export type ConversationSessionHeaderSlotProps =

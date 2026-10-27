@@ -132,6 +132,14 @@ export interface ISession {
    */
   loadThrough(seq: SessionSeq): Promise<void>
   /**
+   * Release the window prefix before `seq` back to the host. The window stays
+   * contiguous and the released history stays pageable: `baseSeq` moves to the
+   * retained head and `hasMore` becomes true, so `loadOlder` pulls it back.
+   * The cut snaps forward to a `turn/start` and never reaches the live tail.
+   * @param seq - durable seq the retained window must start at or after.
+   */
+  evictBefore(seq: SessionSeq): void
+  /**
    * Execute one slash-command line against this session's agent — pure
    * admission semantics (the host executor durably logs the lifecycle).
    * @param line - the full command line, leading slash included.

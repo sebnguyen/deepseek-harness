@@ -454,6 +454,36 @@ export class Session implements SessionFace {
     return this.jumpPromise
   }
 
+  /**
+   * Release the window prefix before `seq`. The released history stays pageable —
+   * `baseSeq` moves to the retained head and `hasMore` becomes true — so
+   * {@link loadOlder} brings it back one page at a time.
+   *
+   * The cut snaps back to the `turn/start` of the turn it lands in: a turn is
+   * projected from its whole event range, so a partial turn is a broken
+   * projection — and snapping *forward* could over-release past the rows the
+   * reader is looking at when one turn spans the whole viewport.
+   * @param seq - durable seq the retained window must start at or after.
+   */
+  evictBefore(seq: SessionSeq): void {
+    if (this.openState !== 'open') return
+    const entries = this.eventSource.getSnapshot().entries
+    let index = entries.findIndex(entry => entry.event.seq >= seq)
+    if (index <= 0) return
+    while (index > 0 && entries[index]?.event.type !== 'turn/start') index -= 1
+    if (index <= 0) return
+    const kept = entries.slice(index)
+    const head = kept[0]
+    if (head === undefined) return
+    this.baseSeq = SessionLogOffset(head.event.seq)
+    this.hasMore = true
+    // The transport keeps its own head cursor: without trimming it, a page
+    // fetched by loadOlder is filtered away as already-held.
+    this.events?.truncate(head.event.seq)
+    this.eventSource.replace(kept, true)
+    this.notifier.markDirty()
+  }
+
   /** Rebuild an opened history source after address replacement.
    *  Invalidates any in-flight open first; queue state belongs to the independently
    *  reconnecting control stream and remains untouched. */

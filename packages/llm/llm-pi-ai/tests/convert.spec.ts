@@ -5,6 +5,7 @@ import { createUserMessage, ToolCallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESP
 import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { AssistantMessage, AssistantMessageEvent, Usage } from '@earendil-works/pi-ai'
 import { transformMessages } from '@earendil-works/pi-ai/api/transform-messages'
+import { convertMessages } from '@earendil-works/pi-ai/api/openai-completions'
 import { getBuiltinModels } from '@earendil-works/pi-ai/providers/all'
 import { toPiContext } from '../src/context.ts'
 import { toPiReplayState } from '../src/replay.ts'
@@ -33,6 +34,17 @@ function assistant(overrides: Partial<AssistantMessage> = {}): AssistantMessage 
     timestamp: 0,
     ...overrides,
   }
+}
+
+/** Serialize converted history the way the completions wire does, including the compat fill. */
+function wireMessages(messages: readonly unknown[], model: string): unknown[] {
+  const target = { id: model, provider: 'deepseek', api: 'openai-completions', reasoning: true, input: ['text'] }
+  return convertMessages(
+    target as never,
+    { messages } as never,
+    { requiresReasoningContentOnAssistantMessages: true } as never,
+    {} as never,
+  )
 }
 
 async function* feed(...events: AssistantMessageEvent[]): AsyncGenerator<AssistantMessageEvent> {
@@ -253,6 +265,125 @@ describe('toPiContext', () => {
       provider: 'deepseek',
       model: 'old-model',
     })
+  })
+
+  it('keeps the reasoning of an interrupted same-model turn on a completions target', () => {
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'm',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }, { type: 'text', text: 'done' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'm' },
+      })],
+    }, undefined, undefined, { provider: 'deepseek', api: 'openai-completions', model: 'm' })
+    expect(context.messages[0]).toMatchObject({
+      role: 'assistant',
+      api: 'openai-completions',
+      provider: 'deepseek',
+      model: 'm',
+    })
+    expect((context.messages[0] as AssistantMessage).content[0]).toEqual({
+      type: 'thinking',
+      thinking: 'why',
+      thinkingSignature: 'reasoning_content',
+    })
+  })
+
+  it('keeps an interrupted same-model turn foreign on a non-completions target', () => {
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'm',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'm' },
+      })],
+    }, undefined, undefined, { provider: 'deepseek', api: 'anthropic-messages', model: 'm' })
+    expect(context.messages[0]).toMatchObject({ role: 'assistant', api: 'dsh-foreign' })
+  })
+
+  it('retargets a recorded turn from another model on the same api with no provider-bound block', () => {
+    const replayState = toPiReplayState(assistant({
+      model: 'old-model',
+      content: [
+        { type: 'thinking', thinking: 'why', thinkingSignature: 'reasoning_content' },
+        { type: 'text', text: 'done' },
+      ],
+    }), 'old-model')
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'new-model',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }, { type: 'text', text: 'done' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'old-model', replayState },
+      })],
+    }, undefined, undefined, { provider: 'deepseek', api: 'openai-completions', model: 'new-model' })
+    expect(context.messages[0]).toMatchObject({
+      role: 'assistant',
+      api: 'openai-completions',
+      provider: 'deepseek',
+      model: 'new-model',
+    })
+    expect((context.messages[0] as AssistantMessage).content[0]).toMatchObject({
+      type: 'thinking',
+      thinkingSignature: 'reasoning_content',
+    })
+  })
+
+  it('does not retarget a recorded turn whose reasoning signature is provider-bound', () => {
+    const replayState = toPiReplayState(assistant({
+      model: 'old-model',
+      content: [
+        { type: 'thinking', thinking: 'why', thinkingSignature: '{"type":"reasoning.encrypted","id":"rs1"}' },
+      ],
+    }), 'old-model')
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'new-model',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'old-model', replayState },
+      })],
+    }, undefined, undefined, { provider: 'deepseek', api: 'openai-completions', model: 'new-model' })
+    expect(context.messages[0]).toMatchObject({
+      role: 'assistant',
+      api: 'openai-completions',
+      provider: 'deepseek',
+      model: 'old-model',
+    })
+  })
+
+  it('serializes portably replayed prose as reasoning_content on the target model', () => {
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'm',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }, { type: 'text', text: 'done' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'm' },
+      })],
+    }, undefined, undefined, { provider: 'deepseek', api: 'openai-completions', model: 'm' })
+    const wire = wireMessages(context.messages, 'm')
+    expect(wire[0]).toMatchObject({ reasoning_content: 'why' })
+    expect(wire[0]).toMatchObject({ content: 'done' })
+  })
+
+  it('serializes a foreign turn as an empty reasoning_content', () => {
+    const context = toPiContext({
+      provider: 'deepseek',
+      model: 'm',
+      messages: [createMessage({
+        role: 'assistant',
+        content: [{ type: 'reasoning', text: 'why' }, { type: 'text', text: 'done' }],
+        source: { kind: 'model', provider: 'deepseek', model: 'm' },
+      })],
+    })
+    const wire = wireMessages(context.messages, 'm')
+    expect(wire[0]).toMatchObject({ reasoning_content: '' })
+    expect(wire[0]).toMatchObject({ content: 'whydone' })
   })
 
   it('parses malformed tool-call arguments to {}', () => {

@@ -43,6 +43,11 @@ describe('WorkspaceBrowser.module.css list', () => {
     expect(list!.get('overflow-y')).toBe('auto')
   })
 
+  it('hides the list in the rail without unmounting it', () => {
+    expect(declarations('.listBody')?.get('display')).toBe('contents')
+    expect(declarations('.rail .listBody')?.get('display')).toBe('none')
+  })
+
   it('counts the themed scrollbar inside the shell trailing inset', () => {
     expect(root?.get('--dsh-session-list-edge-inset')).toBe('var(--dsh-sidebar-inline-padding)')
     expect(root?.get('--dsh-session-list-scrollbar-width')).toBe('8px')

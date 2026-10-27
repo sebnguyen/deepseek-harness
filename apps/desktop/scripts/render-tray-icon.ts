@@ -105,8 +105,8 @@ export async function renderTrayIconEntries(svg: Buffer, sizes: readonly number[
   const source = svg.toString('utf8')
   const glyph = '<g id="tray-glyph"'
   if (!source.includes(glyph)) throw new Error('tray icon: SVG requires a tray-glyph group')
-  // Scale the mark around the tile center, retaining the tile background and
-  // the mark's aspect ratio, so the small tray sizes keep a legible glyph.
+  // Scale the mark around the canvas center, retaining the transparent canvas
+  // and the mark's aspect ratio, so the small tray sizes keep a legible glyph.
   const center = SOURCE_EDGE / 2
   const tray = Buffer.from(source.replace(glyph, `${glyph} transform="translate(${center} ${center}) scale(1.2) translate(${-center} ${-center})"`))
   return Promise.all(sizes.map(async size => ({

@@ -307,6 +307,7 @@ export function apply(ctx: Context, config: Config = Config({})): void {
 
   const registerConversationSession = () => slots.register({
     name: 'conversation.session',
+    locale: NS,
     children: {
       'conversation.view': { kind: 'list', scope: 'session' },
     },

@@ -211,6 +211,18 @@ export abstract class RemoteJournalStream<
     })
   }
 
+  /**
+   * Release the window prefix below `beforeCursor`. The retained window stays
+   * contiguous and the released entries stay pageable: {@link prepend} filters
+   * against the new head, so the domain can ask for them again.
+   * @param beforeCursor - cursor the retained window now starts at.
+   */
+  truncate(beforeCursor: Cursor): void {
+    if (this.firstCursor === undefined) return
+    if (this.options.compare(beforeCursor, this.firstCursor) <= 0) return
+    this.firstCursor = beforeCursor
+  }
+
   /** Replace the active physical generation while retaining the published window. */
   restart(): void {
     this.stream.restart()

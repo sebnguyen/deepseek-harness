@@ -389,13 +389,11 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
 /** Automatic compaction keyed Chat renderer. */
 export const CompactionNodeView = memo(function CompactionNodeView({ node, t }: ChatNodeViewProps<'compaction'>) {
   return (
-    <PceRow
+    <CompactionItem
+      node={node.data}
       kind="compaction"
-      glyph="folder-close"
       title={t('message.compaction')}
-      state="ok"
-      collapsible={false}
-      body={<CompactionItem node={node.data} t={t} />}
+      t={t}
     />
   )
 })

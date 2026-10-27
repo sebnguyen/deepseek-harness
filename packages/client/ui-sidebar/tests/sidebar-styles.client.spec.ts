@@ -67,6 +67,13 @@ describe('SidebarRoot.module.css', () => {
     expect(css).toMatch(/@keyframes content-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
   })
 
+  it('clips the sliding column around the frozen browsing region', () => {
+    expect(declarations('.root')?.get('overflow')).toBe('hidden')
+    expect(declarations('.regionBox')?.get('flex')).toBe('1')
+    expect(declarations('.regionBox')?.get('min-height')).toBe('0')
+    expect(declarations('.regionBox')?.get('display')).toBe('flex')
+  })
+
   it('gives shell rail controls the same base anchor for their shared translation', () => {
     expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')

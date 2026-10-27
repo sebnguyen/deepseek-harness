@@ -64,12 +64,14 @@ const cover = (container: HTMLElement): HTMLElement | null => container.querySel
 describe('VscodeBody state lines', () => {
   it('shows the opening line before any answer and for a not-ready twin without detail', async () => {
     const first = view('s1', statusWith(ready('/wA')))
-    expect(first.container.querySelector('output')?.textContent).toBe(zh['state.opening'])
+    expect(first.container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(zh['state.opening'])
+    expect(first.container.querySelector('[data-surf-line="in"]')?.textContent).toBe(zh['boot.tip.0'])
     first.unmount()
 
     const slow = view('s2', statusWith({ ...ready('/wA'), ready: false, url: null, tkn: null }))
     await act(async () => {})
-    expect(slow.container.querySelector('output')?.textContent).toBe(zh['state.opening'])
+    expect(slow.container.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(zh['state.opening'])
+    expect(slow.container.querySelector('[data-surf-line="in"]')?.textContent).toBe(zh['boot.tip.0'])
     slow.unmount()
   })
 
