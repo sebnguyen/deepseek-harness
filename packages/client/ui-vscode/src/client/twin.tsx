@@ -24,13 +24,6 @@ import { PixelLoader, PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
 const BOOT_SETTLE_MS = 1_200
 
 /**
- * Keyboard-entry grace: a focus move into the frame landing within this many
- * milliseconds of a Tab keydown counts as the key's default action — the
- * user tabbing into the frame — never as an automated grab.
- */
-const TAB_ENTRY_GRACE_MS = 300
-
-/**
  * The body box: a flex item filling the dock area's row, kept positioned so
  * the boot cover's `inset: 0` resolves against it.
  */
@@ -123,38 +116,15 @@ export type TwinFrameProps = PropsLocale<'vscode'> & {
  * @returns the frame box.
  */
 export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
-  const hostRef = useRef<HTMLDivElement | null>(null)
-  const frameRef = useRef<HTMLIFrameElement | null>(null)
   // The src whose document has settled; anything else is still covered.
   const [settledSrc, setSettledSrc] = useState<string | null>(null)
   const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   const covered = settledSrc !== src
-  // The guard's listeners hold for the frame's whole life, so they read the
-  // cover through a ref instead of re-subscribing on every settle.
-  const coveredRef = useRef(covered)
-  useEffect(() => { coveredRef.current = covered }, [covered])
 
-  // Focus guard, holding for the frame's whole life — including every boot
-  // past the settle margin. The workbench auto-focuses its restored editor
-  // whenever its deferred restore lands, and focusing inside an iframe
-  // promotes browser-level focus to the <iframe> element, pulling the
-  // keyboard out of the composer. The frame is cross-origin, so all the
-  // parent can do is hand the focus back. While the boot cover is sealed no
-  // gesture can reach the frame, so every move is automated and handed back;
-  // after it lifts, a pointer inside the frame or a Tab just pressed marks
-  // the user's own entry, after which the frame legitimately owns the focus.
-  // A window blur that moved nothing (alt-tab away, then back) stands down.
-  const lastFocus = useRef<HTMLElement | null>(null)
-  const frameHolds = useRef(false)
-  const frameHovered = useRef(false)
-  const frameTabAt = useRef(Number.NEGATIVE_INFINITY)
-
-  // A changed source is a fresh, unentered document: an entry verified for
-  // the old one cannot authorize the new one, and the pending settle belongs
-  // to the document being replaced.
+  // A changed source is a fresh document: the element loads a new document,
+  // and the pending settle belongs to the one being replaced.
   useEffect(() => {
-    frameHolds.current = false
     // Re-seal the cover even when the source returns to a value that had
     // settled before: the element loads a new document either way.
     setSettledSrc(null)
@@ -163,82 +133,9 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
     }
   }, [src])
 
-  useEffect(() => {
-    // Seed the restore target with the focus the document already holds:
-    // focusin tracks only changes, and the composer's autofocus normally
-    // lands before this guard installs.
-    const held = document.activeElement
-    if (held instanceof HTMLElement && held !== document.body) lastFocus.current = held
-    const onFocusIn = (event: FocusEvent): void => {
-      const host = hostRef.current
-      if (!(event.target instanceof HTMLElement)) return
-      if (host !== null && host.contains(event.target)) return
-      frameHolds.current = false
-      lastFocus.current = event.target
-    }
-    const onPointerOver = (event: PointerEvent): void => {
-      if (event.target === frameRef.current) frameHovered.current = true
-    }
-    const onPointerOut = (event: PointerEvent): void => {
-      if (event.target === frameRef.current) frameHovered.current = false
-    }
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Tab') frameTabAt.current = performance.now()
-    }
-    // Automated grab: hand the focus back to whatever the document last
-    // held. A frame never keeps a focus it took itself; with nothing on
-    // record it drops the focus onto <body>.
-    const handBack = (thief: HTMLIFrameElement): void => {
-      const prior = lastFocus.current
-      if (prior !== null && prior.isConnected) {
-        prior.focus({ preventScroll: true })
-      } else {
-        thief.blur()
-      }
-    }
-    // A frame's own focus() surfaces here only as a window blur whose
-    // activeElement is the frame element — the same signal Menu.tsx uses.
-    const onBlur = (): void => {
-      const thief = document.activeElement
-      if (!(thief instanceof HTMLIFrameElement) || thief !== frameRef.current) return
-      // Under the sealed boot cover no gesture can reach the frame, so a
-      // focus move is automated by definition — on mount and on every
-      // reload. Hand it back and retire any entry the previous document
-      // earned: the new document has to earn its own.
-      if (coveredRef.current) {
-        frameHolds.current = false
-        handBack(thief)
-        return
-      }
-      if (frameHolds.current) return
-      // The user's own entry: the pointer rests inside the frame, or a Tab
-      // just landed. The frame owns the keyboard from here on.
-      if (frameHovered.current || performance.now() - frameTabAt.current < TAB_ENTRY_GRACE_MS) {
-        frameHolds.current = true
-        // A Tab arms exactly one move; the entry it explained consumes it.
-        frameTabAt.current = Number.NEGATIVE_INFINITY
-        return
-      }
-      handBack(thief)
-    }
-    window.addEventListener('focusin', onFocusIn)
-    window.addEventListener('pointerover', onPointerOver)
-    window.addEventListener('pointerout', onPointerOut)
-    window.addEventListener('keydown', onKeyDown)
-    window.addEventListener('blur', onBlur)
-    return () => {
-      window.removeEventListener('focusin', onFocusIn)
-      window.removeEventListener('pointerover', onPointerOver)
-      window.removeEventListener('pointerout', onPointerOut)
-      window.removeEventListener('keydown', onKeyDown)
-      window.removeEventListener('blur', onBlur)
-    }
-  }, [])
-
   return (
-    <div ref={hostRef} style={HOST_STYLE} data-twin-frame>
+    <div style={HOST_STYLE} data-twin-frame>
       <iframe
-        ref={frameRef}
         title="vscode"
         src={src}
         style={FRAME_STYLE}
