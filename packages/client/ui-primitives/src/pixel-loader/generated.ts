@@ -12,11 +12,14 @@
  * prefers-reduced-motion guard once per document.
  */
 
-/** The stable grid every face renders; the gap is expressed in these units. */
+/** The stable grid every face renders; the artwork is full-cell in these units. */
 export const PIXEL_LOADER_STABLE_GRID = 16
 
 /** One full sweep cycle, in seconds; every delay math follows it. */
 export const PIXEL_LOADER_PERIOD_S = 1.2
+
+/** The 20% cell gap as CSS: each full cell is clipped 10% off every side. */
+export const PIXEL_LOADER_CELL_CLIP = "inset(10%)"
 
 /** Shared sweep stylesheet: discrete opacity ladder + reduced-motion guard. */
 export const PIXEL_LOADER_CSS = `.dsh-pl{animation:dsh-pl-sweep 1.2s step-end infinite}

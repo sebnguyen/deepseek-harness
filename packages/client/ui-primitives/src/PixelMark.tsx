@@ -1,10 +1,7 @@
-import { PIXEL_LOADER_CELLS, PIXEL_LOADER_STABLE_GRID } from './pixel-loader/generated.ts'
+import { PIXEL_LOADER_CELL_CLIP, PIXEL_LOADER_CELLS, PIXEL_LOADER_STABLE_GRID } from './pixel-loader/generated.ts'
 import type { IconProps } from './icons/props.ts'
 
-/** Gap fraction and radius of one pixel, matching the loader's chunky face. */
-const INSET = 0.1
-const SIDE = 0.8
-const RX = 0.2
+/** The mark shares the loader's cells and the loader's 30% CSS cell gap. */
 
 /**
  * The DigitalOcean mark as a solid pixel silhouette: the same minted cells the
@@ -28,11 +25,11 @@ export function PixelMark({ size = 16, className }: IconProps) {
       {cells.map(([column, row], index) => (
         <rect
           key={`${column}-${row}-${index}`}
-          x={column + INSET}
-          y={row + INSET}
-          width={SIDE}
-          height={SIDE}
-          rx={RX}
+          x={column}
+          y={row}
+          width={1}
+          height={1}
+          clipPath={PIXEL_LOADER_CELL_CLIP}
         />
       ))}
     </svg>

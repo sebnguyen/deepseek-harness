@@ -10,7 +10,7 @@ describe('PixelLoader', () => {
     const { container } = render(<PixelLoader />)
     const svg = container.querySelector('svg')
     expect(svg?.getAttribute('viewBox')).toBe('0 0 16 16')
-    expect(svg?.getAttribute('width')).toBe('24')
+    expect(svg?.getAttribute('width')).toBe('32')
     expect(svg?.getAttribute('fill')).toBe('currentColor')
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
     expect((svg?.querySelectorAll('rect') ?? []).length).toBeGreaterThan(100)
@@ -48,14 +48,15 @@ describe('PixelLoader', () => {
     expect(pixelLoaderTwinkleInner()).toBe(pixelLoaderTwinkleInner())
   })
 
-  it('keeps one pixel scale and one 32% gap at every rendered size', () => {
-    // 12px and 24px render the same 16-grid geometry: 0.68-unit squares, never
-    // a sub-pixel gap retune.
+  it('keeps one pixel scale and one 20% CSS gap at every rendered size', () => {
+    // 12px and 24px render the same 16-grid geometry: full 1x1 cells clipped
+    // 10% per side, never a sub-pixel gap retune.
     const small = pixelLoaderInner()
     const large = pixelLoaderInner()
     expect(small).toBe(large)
-    expect(small).toContain('width="0.68"')
-    expect(small).not.toContain('width="0.5"')
+    expect(small).toContain('width="1"')
+    expect(small).toContain('clip-path="inset(10%)"')
+    expect(small).not.toContain('rx=')
     // Buckets keep their clockwise staggered delays.
     expect(small).toContain('animation-delay: calc(0.08s')
   })

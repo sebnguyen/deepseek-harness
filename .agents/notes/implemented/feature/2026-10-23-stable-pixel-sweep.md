@@ -15,11 +15,13 @@ generated assets did not use that one stable scale.
 ## Decision
 
 `design/pixel-do-loader-gen.mjs` now locks `GRID = 16`, derives the grid once
-through the 16x16 kernel, and emits one `PIXEL_LOADER_CELLS` array. The gap is a
-constant `INSET = 0.1` (20%) in viewBox units, so 12px and 168px render the same
-pixel scale and the same proportions. Every face — sweep and twinkle — uses the
-one grid. `PixelLoader` no longer takes a `grid` prop, renders
-`viewBox="0 0 16 16"`, and calls `pixelLoaderInner()` /
+through the 16x16 kernel, and emits one `PIXEL_LOADER_CELLS` array. Every lit
+cell is a full 1x1 rect at integer coordinates and the 20% gap is CSS — a
+`clip-path="inset(10%)"` presentation attribute on each cell, carried by
+`PIXEL_LOADER_CELL_CLIP` — so 12px and 168px render the same pixel scale and the
+same proportions without baking an inset or a radius into the geometry. Every
+face — sweep and twinkle — uses the one grid. `PixelLoader` no longer takes a
+`grid` prop, renders `viewBox="0 0 16 16"`, and calls `pixelLoaderInner()` /
 `pixelLoaderTwinkleInner()` without a size argument. The 24-grid cells, twinkle
 schedule, and `pixelLoaderGap` export are gone; `PIXEL_LOADER_CELLS_16` /
 `PIXEL_LOADER_TWINKLE_16` survive only as compatibility aliases. The engine

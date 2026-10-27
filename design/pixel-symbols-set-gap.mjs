@@ -1,9 +1,9 @@
-// Retune the 16x16 symbol set's per-cell gap and regenerate every catalog that
-// embeds the geometry. The gap is a fraction of a cell; the default is 32%
-// (0.68 cell inset 0.16), the value the gap scrubber settled on. The corner
-// radius is left at the artwork's own 0.10.
+// Ship the 16x16 symbol set as full-cell geometry and regenerate every catalog
+// that embeds it. The gap is no longer baked into the artwork: each lit cell is
+// a 1x1 rect at integer coordinates with no corner radius, and the gap comes
+// from `PIXEL_SYMBOL_GAP_CSS`, which clips half the gap off every side of a cell.
 //
-// Run: node design/pixel-symbols-set-gap.mjs [--gap 0.32]
+// Run: node design/pixel-symbols-set-gap.mjs [--gap 0.20]
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -14,67 +14,61 @@ const SYMBOLS_TS = join(ROOT, 'packages', 'client', 'ui-primitives', 'src', 'pix
 const UITOOL_TS = join(ROOT, 'packages', 'client', 'ui-tool', 'src', 'client', 'tool', 'pixel-symbols.generated.ts')
 
 const at = process.argv.indexOf('--gap')
-const GAP = at === -1 ? 0.32 : Number(process.argv[at + 1])
+const GAP = at === -1 ? 0.20 : Number(process.argv[at + 1])
 if (!(GAP > 0 && GAP < 1)) throw new Error(`gap must be in (0,1), got ${GAP}`)
-const INSET = GAP / 2
-const SIDE = 1 - GAP
-const inset = INSET.toFixed(2)
-const side = SIDE.toFixed(2)
+
+const pct = Math.round(GAP * 100)
+const insetPct = Number(((GAP / 2) * 100).toFixed(2))
 
 const FILES = { add: 'add-bound', adjust: 'adjust-bound', ask: 'Ask-question-bound', attach: 'attatch-bound', bash: 'bash-bounded', check: 'check-bounded', clock: 'clock-bound', close: 'cross-bounded', context: 'context-injection-bounded', copy: 'copy-bound', error: 'error-bound', 'folder-add': 'folder-add', 'folder-close': 'folder-close-bound', 'folder-open': 'folder-open-bound', fork: 'fork-bound', generic: 'generic-tool-bounded', 'image-read': 'image-read-bound', internet: 'Interet-bound', 'model-provider': 'model-provider-bound', 'narrate-mode': 'narrate-mode-bound', pause: 'paude-bound', 'quiet-mode': 'quiet-mode-bound', read: 'read_bounded', reload: 'reload-bound', send: 'Send-bound', setting: 'setting-bound', statistic: 'statistc-bound', think: 'think-bounded', 'thumb-down': 'thump-down-bound', 'thumb-up': 'thump-up-bound', todo: 'to-do-bound', token: 'token-bound', write: 'write_bounded' }
 
-function bodyOf(svg) {
-  return svg.replace(/^[\s\S]*?<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '')
+const HEADER = '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 16 16" fill="#0063f8">'
+
+/** Rebuild one asset as full-cell geometry: one 1x1 rect at each lit cell. */
+function fullCell(svg) {
+  const rects = [...svg.matchAll(/<rect x="([\d.]+)" y="([\d.]+)"/g)]
+    .map(([, x, y]) => `<rect x="${Math.round(Number(x))}" y="${Math.round(Number(y))}" width="1" height="1"/>`)
+  if (rects.length === 0) throw new Error('asset has no rects')
+  return `${HEADER}${rects.join('')}</svg>\n`
 }
 
-function regap(svg) {
-  let rects = 0
-  const out = svg.replace(/<rect x="([\d.]+)" y="([\d.]+)" width="[\d.]+" height="[\d.]+" rx="([\d.]+)"\/>/g, (_, x, y, rx) => {
-    rects += 1
-    const c = Math.round(Number(x))
-    const r = Math.round(Number(y))
-    return `<rect x="${(c + INSET).toFixed(2)}" y="${(r + INSET).toFixed(2)}" width="${side}" height="${side}" rx="${rx}"/>`
-  })
-  const declared = (svg.match(/<rect/g) ?? []).length
-  if (rects === 0 || rects !== declared) throw new Error(`rect rewrite missed (${rects}/${declared})`)
-  return out
+function bodyOf(svg) {
+  return svg.replace(/^[\s\S]*?<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '')
 }
 
 const names = Object.keys(FILES).sort()
 const bodies = new Map()
 for (const name of names) {
   const file = join(BOUNDED, FILES[name] + '.svg')
-  const next = regap(readFileSync(file, 'utf8'))
+  const next = fullCell(readFileSync(file, 'utf8'))
   writeFileSync(file, next)
-  bodies.set(name, bodyOf(next))
+  const body = bodyOf(next)
+  if (body.includes('rx=')) throw new Error(`${name}: corner radius leaked into geometry`)
+  bodies.set(name, body)
 }
 
 const rows = names.map((name) => `  ${JSON.stringify(name)}: { viewBox: "0 0 16 16", body: ${JSON.stringify(bodies.get(name))} },`).join('\n')
+const gapCss = `svg[data-glyph] rect{clip-path:inset(${insetPct}%)}`
 
-writeFileSync(SYMBOLS_TS, `// Generated from deepseek-harness/design/pixel-symbols/bounded/*.svg.
-// Geometry is the artwork's own (${side} cells inset ${inset}, rx 0.10 => the gapped
-// pixel look); only the ink colour is normalised to currentColor.
+function catalog(note) {
+  return `// Generated from deepseek-harness/design/pixel-symbols/bounded/*.svg.
+// Geometry is full-cell: one 1x1 rect per lit cell at integer coordinates and no
+// corner radius. The ${pct}% gap is CSS, not artwork.${note}
 
 export interface PixelSymbol { viewBox: string, body: string }
+
+/** ${pct}% inter-cell gap: each cell is clipped ${insetPct}% off every side. */
+export const PIXEL_SYMBOL_GAP_CSS = ${JSON.stringify(gapCss)}
 
 export const PIXEL_SYMBOLS = {
 ${rows}
 } as const
 
 export type PixelSymbolName = keyof typeof PIXEL_SYMBOLS
-`)
+`
+}
 
-writeFileSync(UITOOL_TS, `// Generated from deepseek-harness/design/pixel-symbols/bounded/*.svg.
-// 16-unit grid, gapped rects (${side} cells inset ${inset}, rx 0.10). Do not hand-edit.
+writeFileSync(SYMBOLS_TS, catalog(''))
+writeFileSync(UITOOL_TS, catalog('\n// Do not hand-edit.'))
 
-export interface PixelSymbol { viewBox: string, body: string }
-
-export const PIXEL_SYMBOLS = {
-${rows}
-} as const
-
-export type PixelSymbolName = keyof typeof PIXEL_SYMBOLS
-`)
-
-const pct = Math.round(GAP * 100)
-console.log(`rewrote ${names.length} assets + 2 catalogs at ${pct}% gap (inset ${inset}, side ${side})`)
+console.log(`rewrote ${names.length} assets + 2 catalogs at ${pct}% CSS gap (inset ${insetPct}%)`)

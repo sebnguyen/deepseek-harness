@@ -23,9 +23,11 @@
 //   ../.vscode-twin/dist/out/... same four files, when the staged dist exists
 //
 // Stable scale is the whole point: one 16x16 grid is sampled once through the
-// 16x16 kernel, and the gap is a fraction of the viewBox unit (0.32 of a cell).
-// Every rendered size therefore holds the same 16x16 pixelation and the same
-// proportions. There is no per-size grid switch and no sub-pixel gap tuning.
+// 16x16 kernel, and every lit cell is a full 1x1 rect at integer coordinates.
+// The 20% gap is CSS — each cell is clipped 10% off every side — so the artwork
+// carries no inset and no radius. Every rendered size therefore holds the same
+// 16x16 pixelation and the same proportions. There is no per-size grid switch
+// and no sub-pixel gap tuning.
 // The web sweep is a CSS animation: each 22.5-degree bucket of pixels is one
 // <g class="dsh-pl">. Every bucket's animation-delay carries its own clockwise
 // stagger (-k/16 of the cycle) added to the host-shifted sweep window
@@ -54,11 +56,13 @@ const F = 16
 const PERIOD = 1.2
 const DIM = 0.22
 const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM]
-// Per-cell inset at the 32% gap (a 0.68 cell in a 1-unit pitch): every face
-// renders the fattest legible pixels at every output size, never a size-tuned
-// gap. This is the value the mock's gap slider settles on.
-const INSET = 0.16
-const RX = Math.min(0.18, round2((1 - 2 * INSET) * 0.257))
+// Per-cell gap at the shared 20%: geometry stays full-cell and the gap is CSS,
+// so every face renders the same pixel scale at every output size. It rides a
+// presentation attribute rather than a <style> rule because the desktop splash
+// CSP (style-src 'self') forbids styles, and the same bytes must survive SMIL,
+// standalone SVG files, and <use> instantiation.
+const GAP_PCT = 20
+const CELL_CLIP = `inset(${GAP_PCT / 2}%)`
 
 // Twinkle recipe (idle brand mark, starting chat / boot / editor letterpress):
 // every pixel runs its own pop-and-fade cycle — duration and negative delay
@@ -104,10 +108,9 @@ function bucketsFor(cells, N) {
   return groups
 }
 
-function rectsFor(cells, inset, rx) {
-  const side = round2(1 - 2 * inset)
+function rectsFor(cells) {
   return cells.map(([c, r]) =>
-    `<rect x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"/>`).join('')
+    `<rect x="${c}" y="${r}" width="1" height="1" clip-path="${CELL_CLIP}"/>`).join('')
 }
 
 /** The sweep stylesheet shared by every document host. */
@@ -119,11 +122,11 @@ function styleBlock() {
 }
 
 /** CSS mode: per-bucket clockwise delays, shiftable through custom properties. */
-function innerCss(cells, inset, rx) {
+function innerCss(cells) {
   return cells.map((bucket, k) => {
     const begin = round2((k / F) * PERIOD)
     const delay = `calc(${begin}s + (var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) / 360deg * ${PERIOD}s)`
-    return `<g opacity="${DIM}" class="dsh-pl" style="animation-delay: ${delay}">${rectsFor(bucket, inset, rx)}</g>`
+    return `<g opacity="${DIM}" class="dsh-pl" style="animation-delay: ${delay}">${rectsFor(bucket)}</g>`
   }).join('')
 }
 
@@ -135,20 +138,18 @@ function twinkleStyleBlock() {
 }
 
 /** SMIL twinkle mode: per-pixel pop & fade through negative begin offsets, no styles at all. */
-function innerTwinkleSmil(flat, schedule, inset, rx) {
-  const side = round2(1 - 2 * inset)
+function innerTwinkleSmil(flat, schedule) {
   return flat.map(([c, r], i) => {
     const [delay, dur] = schedule[i]
-    return `<rect opacity="${DIM}" x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"><animate attributeName="opacity" values="${DIM};1;${DIM};${DIM}" keyTimes="0;0.09;0.62;1" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/></rect>`
+    return `<rect opacity="${DIM}" x="${c}" y="${r}" width="1" height="1" clip-path="${CELL_CLIP}"><animate attributeName="opacity" values="${DIM};1;${DIM};${DIM}" keyTimes="0;0.09;0.62;1" dur="${dur}s" begin="${delay}s" repeatCount="indefinite"/></rect>`
   }).join('')
 }
 
 /** CSS twinkle mode: one self-timed pop/fade rect per pixel; negative delays keep the field alive from first paint. */
-function innerTwinkle(flat, schedule, inset, rx) {
-  const side = round2(1 - 2 * inset)
+function innerTwinkle(flat, schedule) {
   return flat.map(([c, r], i) => {
     const [delay, dur] = schedule[i]
-    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${round2(c + inset)}" y="${round2(r + inset)}" width="${side}" height="${side}" rx="${rx}"/>`
+    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${c}" y="${r}" width="1" height="1" clip-path="${CELL_CLIP}"/>`
   }).join('')
 }
 
@@ -157,7 +158,7 @@ function stableSweepSvg(cells, { width, fill = 'currentColor' }) {
 <style>
 ${styleBlock()}
 </style>
-${innerCss(cells, INSET, RX)}
+${innerCss(cells)}
 </svg>
 `
 }
@@ -167,7 +168,7 @@ function stableTwinkleSvg(flat, schedule, { width, fill = 'currentColor' }) {
 <style>
 ${twinkleStyleBlock()}
 </style>
-${innerTwinkle(flat, schedule, INSET, RX)}
+${innerTwinkle(flat, schedule)}
 </svg>
 `
 }
@@ -209,11 +210,14 @@ writeFileSync(MODULE_OUT, `/**
  * prefers-reduced-motion guard once per document.
  */
 
-/** The stable grid every face renders; the gap is expressed in these units. */
+/** The stable grid every face renders; the artwork is full-cell in these units. */
 export const PIXEL_LOADER_STABLE_GRID = ${GRID}
 
 /** One full sweep cycle, in seconds; every delay math follows it. */
 export const PIXEL_LOADER_PERIOD_S = ${PERIOD}
+
+/** The ${GAP_PCT}% cell gap as CSS: each full cell is clipped ${GAP_PCT / 2}% off every side. */
+export const PIXEL_LOADER_CELL_CLIP = ${JSON.stringify(CELL_CLIP)}
 
 /** Shared sweep stylesheet: discrete opacity ladder + reduced-motion guard. */
 export const PIXEL_LOADER_CSS = \`${CSS}\`
@@ -236,10 +240,11 @@ export const PIXEL_LOADER_TWINKLE_16 = PIXEL_LOADER_TWINKLE
 
 // The idle splash logo twinkles (random dot pop & fade, stable 16-grid face); the
 // splash script toggles #spinner via hidden, an HTMLElement-only idiom, so the
-// SMIL svg rides inside a div because the CSP (style-src 'self') forbids
-// inline style elements/attributes.
+// SMIL svg rides inside a div because the CSP (style-src 'self') forbids inline
+// style elements/attributes. The cell gap is a clip-path presentation attribute,
+// which CSP does not classify as an inline style, so the same markup is legal here.
 writeFileSync(DESKTOP_OUT, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 ${GRID} ${GRID}" fill="currentColor" aria-hidden="true">
-${innerTwinkleSmil(flat, schedule, INSET, RX)}
+${innerTwinkleSmil(flat, schedule)}
 </svg></div>
 `)
 
@@ -248,7 +253,7 @@ ${innerTwinkleSmil(flat, schedule, INSET, RX)}
 const STARTUP_OUT = join(ROOT, 'apps/desktop/renderer/startup.html')
 const startup = readFileSync(STARTUP_OUT, 'utf8')
 writeFileSync(STARTUP_OUT, startup.replace(/<div id="spinner" aria-hidden="true">[\s\S]*?<\/svg><\/div>/, `<div id="spinner" aria-hidden="true"><svg width="64" height="64" viewBox="0 0 ${GRID} ${GRID}" fill="currentColor" aria-hidden="true">
-${innerTwinkleSmil(flat, schedule, INSET, RX)}
+${innerTwinkleSmil(flat, schedule)}
 </svg></div>`))
 
 // The vscode twin's empty-editor letterpress is the stable 16-grid twinkle
@@ -261,7 +266,7 @@ function letterpress(fill) {
 <style>
 ${TW_CSS}
 </style>
-${innerTwinkle(flat, schedule, INSET, RX)}
+${innerTwinkle(flat, schedule)}
 </svg>
 `
 }
@@ -370,8 +375,9 @@ const mock = `<!doctype html>
 
   <p class="note">
     One 16x16 grid is derived through the 16x16 coverage window and every face
-    prints it, so the pixel scale is identical at 12px and 168px. Rects are
-    inset 0.16 per cell (32% gaps) in viewBox units — no per-size gap widening.
+    prints it, so the pixel scale is identical at 12px and 168px. Each lit cell
+    is a full 1x1 rect and the 20% gap is a CSS clip-path (inset 10%) on that
+    cell, so the gap scales with the mark instead of being retuned per size.
     Each of the 16 bucket groups carries its own clockwise stagger on the shared
     step-end ladder (1.2s), so the light runs around the mark starting at 12
     o'clock. <code>fill="currentColor"</code> themes light/dark from CSS color.

@@ -1,4 +1,5 @@
 import {
+  PIXEL_LOADER_CELL_CLIP,
   PIXEL_LOADER_CELLS,
   PIXEL_LOADER_CSS,
   PIXEL_LOADER_PERIOD_S,
@@ -17,11 +18,13 @@ export interface PixelLoaderProps extends IconProps {
 function round2(n: number): number { return Math.round(n * 100) / 100 }
 
 /**
- * Stable pixel inset: 0.16 on each side leaves the 32% gap at every rendered
- * size. The gap is in viewBox units, so it scales with the mark instead of
- * being retuned per size; no 16/24 grid switch remains.
+ * One full 1x1 rect per lit cell; the 30% gap rides {@link PIXEL_LOADER_CELL_CLIP}
+ * on the cell itself, so the gap scales with the mark instead of being baked
+ * into the coordinates. No 16/24 grid switch remains.
  */
-const INSET = 0.16
+function cellRect(c: number, r: number): string {
+  return `<rect x="${c}" y="${r}" width="1" height="1" clip-path="${PIXEL_LOADER_CELL_CLIP}"/>`
+}
 
 /**
  * Build the sweep markup for one loader: one `<g class="dsh-pl">` per arc
@@ -33,13 +36,10 @@ const INSET = 0.16
  * @returns whitespace-free rect markup; geometry only, no style text.
  */
 export function pixelLoaderInner(): string {
-  const side = round2(1 - 2 * INSET)
-  const rx = Math.min(0.18, round2(side * 0.257))
   return PIXEL_LOADER_CELLS.map((bucket, k) => {
     const begin = round2((k / PIXEL_LOADER_CELLS.length) * PIXEL_LOADER_PERIOD_S)
     const delay = `calc(${begin}s + (var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) / 360deg * ${PIXEL_LOADER_PERIOD_S}s)`
-    const rects = bucket.map(([c, r]) =>
-      `<rect x="${round2(c + INSET)}" y="${round2(r + INSET)}" width="${side}" height="${side}" rx="${rx}"/>`).join('')
+    const rects = bucket.map(([c, r]) => cellRect(c, r)).join('')
     return `<g opacity="0.22" class="dsh-pl" style="animation-delay: ${delay}">${rects}</g>`
   }).join('')
 }
@@ -54,15 +54,13 @@ export function pixelLoaderInner(): string {
  * @returns whitespace-free rect markup; geometry only, no style text.
  */
 export function pixelLoaderTwinkleInner(): string {
-  const side = round2(1 - 2 * INSET)
-  const rx = Math.min(0.18, round2(side * 0.257))
   return PIXEL_LOADER_CELLS.flat().map(([c, r], i) => {
     // The minted schedule is index-aligned with the flattened cells; the
     // unchecked-index hole still deserves a live default rather than a crash.
     const entry = PIXEL_LOADER_TWINKLE[i]
     const delay = entry?.[0] ?? 0
     const dur = entry?.[1] ?? PIXEL_LOADER_PERIOD_S
-    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${round2(c + INSET)}" y="${round2(r + INSET)}" width="${side}" height="${side}" rx="${rx}"/>`
+    return `<rect class="dsh-pl-tw" style="animation-duration:${dur}s;animation-delay:${delay}s" x="${c}" y="${r}" width="1" height="1" clip-path="${PIXEL_LOADER_CELL_CLIP}"/>`
   }).join('')
 }
 

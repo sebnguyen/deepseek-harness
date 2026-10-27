@@ -12,6 +12,9 @@ const OUT = join(HERE, 'pixel-symbols-mockup.html')
 
 const FILES = { add: 'add-bound', adjust: 'adjust-bound', ask: 'Ask-question-bound', attach: 'attatch-bound', bash: 'bash-bounded', check: 'check-bounded', clock: 'clock-bound', close: 'cross-bounded', context: 'context-injection-bounded', copy: 'copy-bound', error: 'error-bound', 'folder-add': 'folder-add', 'folder-close': 'folder-close-bound', 'folder-open': 'folder-open-bound', fork: 'fork-bound', generic: 'generic-tool-bounded', 'image-read': 'image-read-bound', internet: 'Interet-bound', 'model-provider': 'model-provider-bound', 'narrate-mode': 'narrate-mode-bound', pause: 'paude-bound', 'quiet-mode': 'quiet-mode-bound', read: 'read_bounded', reload: 'reload-bound', send: 'Send-bound', setting: 'setting-bound', statistic: 'statistc-bound', think: 'think-bounded', 'thumb-down': 'thump-down-bound', 'thumb-up': 'thump-up-bound', todo: 'to-do-bound', token: 'token-bound', write: 'write_bounded' }
 
+/** The 20% gap as CSS: every full cell is clipped 10% off each side. */
+const gapped = (body) => body.replace(/<rect /g, '<rect clip-path="inset(10%)" ')
+
 function bodyOf(svg) {
   return svg.replace(/^[\s\S]*?<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '')
 }
@@ -20,28 +23,29 @@ const names = Object.keys(FILES).sort()
 const bodies = new Map(names.map((n) => [n, bodyOf(readFileSync(join(ROOT, 'bounded', FILES[n] + '.svg'), 'utf8'))]))
 
 function cellsOf(body) {
-  return [...body.matchAll(/<rect x="([\d.]+)" y="([\d.]+)"/g)].map((m) => [Math.round(Number(m[1]) - 0.16), Math.round(Number(m[2]) - 0.16)])
+  return [...body.matchAll(/<rect x="([\d.]+)" y="([\d.]+)"/g)].map((m) => [Math.round(Number(m[1])), Math.round(Number(m[2]))])
 }
 const cellsByName = Object.fromEntries(names.map((n) => [n, cellsOf(bodies.get(n))]))
 
 function symbol(name) {
-  return `<symbol id="s16-${name}" viewBox="0 0 16 16">${bodies.get(name)}</symbol>`
+  return `<symbol id="s16-${name}" viewBox="0 0 16 16">${gapped(bodies.get(name))}</symbol>`
 }
 function glyph(name, size) {
   return `<svg class="glyph" width="${size}" height="${size}" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><use href="#s16-${name}"/></svg>`
 }
 function full(name, size) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 16 16" fill="#0063f8" aria-hidden="true">${bodies.get(name)}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 16 16" fill="#0063f8" aria-hidden="true">${gapped(bodies.get(name))}</svg>`
 }
 
 // The DigitalOcean mark's stable grid, parsed from the shipped loader module so
-// the preview compares against the real 116-cell artwork (inset 0.16, rx 0.17).
+// the preview compares against the real 116-cell artwork, which now shares the
+// glyphs' full-cell geometry and CSS cell clip.
 const loaderSrc = readFileSync(join(HERE, '..', 'packages', 'client', 'ui-primitives', 'src', 'pixel-loader', 'generated.ts'), 'utf8')
 const cellsMatch = loaderSrc.match(/PIXEL_LOADER_CELLS:[^=]*=\s*(\[[\s\S]*?\])\s*\n/)
 if (!cellsMatch) throw new Error('PIXEL_LOADER_CELLS not found')
 const doCells = JSON.parse(cellsMatch[1]).flat()
 if (doCells.length < 100) throw new Error(`unexpected DO cell count: ${doCells.length}`)
-const doBody = doCells.map(([c, r]) => `<rect x="${c + 0.16}" y="${r + 0.16}" width="0.68" height="0.68" rx="0.17"/>`).join('')
+const doBody = doCells.map(([c, r]) => `<rect x="${c}" y="${r}" width="1" height="1" clip-path="inset(10%)"/>`).join('')
 
 function doGlyph(size) {
   return `<svg class="glyph do-glyph" width="${size}" height="${size}" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><use href="#do-mark"/></svg>`
@@ -50,22 +54,22 @@ function doGlyph(size) {
 const gallery = names.map((n) => `<div class="cell">${glyph(n, 64)}<span class="name">${n}</span></div>`).join('')
 const gallery16 = names.map((n) => `<div class="cell">${glyph(n, 16)}<span class="name">${n}</span></div>`).join('')
 const darkGallery = names.map((n) => `<div class="cell dark-cell">${glyph(n, 32)}</div>`).join('')
-const ladder = ['read', 'bash', 'error', 'send'].map((n) => `<div class="ladder-row"><span class="row-name">${n}</span>${[16, 32, 48, 64, 96, 128].map((s) => `<div class="step">${glyph(n, s)}<small>${s}px</small><small class="gap">${(s / 16 * 0.32).toFixed(2)}px gap</small></div>`).join('')}</div>`).join('')
+const ladder = ['read', 'bash', 'error', 'send'].map((n) => `<div class="ladder-row"><span class="row-name">${n}</span>${[16, 32, 48, 64, 96, 128].map((s) => `<div class="step">${glyph(n, s)}<small>${s}px</small><small class="gap">${(s / 16 * 0.20).toFixed(2)}px gap</small></div>`).join('')}</div>`).join('')
 const gapCards = [
-  [32, '32px', '2px cell · 0.64px gap'],
-  [48, '48px', '3px cell · 0.96px gap'],
-  [64, '64px', '4px cell · 1.28px gap'],
-  [96, '96px', '6px cell · 1.92px gap'],
+  [32, '32px', '2px cell · 0.40px gap'],
+  [48, '48px', '3px cell · 0.60px gap'],
+  [64, '64px', '4px cell · 0.80px gap'],
+  [96, '96px', '6px cell · 1.20px gap'],
 ].map(([size, label, note]) => `<div class="gap-card">${glyph('read', size)}<b>16 grid · ${label}</b><span>${note}</span></div>`).join('')
 
 const doPairs = [16, 64, 96].map((s) => `<div class="do-pair">
-  <div class="do-card">${doGlyph(s)}<b>DO mark · ${s}px</b><span>${s / 16}px cell · ${(s / 16 * 0.32).toFixed(2)}px gap · rx 0.17</span></div>
-  <div class="do-card">${glyph('read', s)}<b>read · ${s}px</b><span>${s / 16}px cell · ${(s / 16 * 0.32).toFixed(2)}px gap · rx 0.10</span></div>
+  <div class="do-card">${doGlyph(s)}<b>DO mark · ${s}px</b><span>${s / 16}px cell · full cell · CSS clip</span></div>
+  <div class="do-card">${glyph('read', s)}<b>read · ${s}px</b><span>${s / 16}px cell · ${(s / 16 * 0.20).toFixed(2)}px gap · CSS clip</span></div>
 </div>`).join('')
 
 const TUNER_SIZES = [16, 32, 48, 64, 80, 96, 112, 128]
 const tunerMark = (id, size, label) => `<div class="tuner-mark"><svg width="${size}" height="${size}" viewBox="0 0 16 16" fill="#0063f8" aria-label="${label}"><use href="#${id}"/></svg><span>${label}</span></div>`
-const tunerBlocks = TUNER_SIZES.map((s) => `<div class="tuner-block"><div class="tuner-block-head"><b>${s}px</b><span id="tuner-block-gap-${s}">${(0.32 * s / 16).toFixed(2)}px gap · ${s / 16}px cell</span></div><div class="tuner-grid" style="--ts:${s}px">${tunerMark('t-do', s, 'logo')}${names.map((n) => tunerMark('t16-' + n, s, n)).join('')}</div></div>`).join('')
+const tunerBlocks = TUNER_SIZES.map((s) => `<div class="tuner-block"><div class="tuner-block-head"><b>${s}px</b><span id="tuner-block-gap-${s}">${(0.20 * s / 16).toFixed(2)}px gap · ${s / 16}px cell</span></div><div class="tuner-grid" style="--ts:${s}px">${tunerMark('t-do', s, 'logo')}${names.map((n) => tunerMark('t16-' + n, s, n)).join('')}</div></div>`).join('')
 
 const demo = (size, label, tone, note) => `<div class="demo ${tone}" data-raster="${size}">
   <div class="native">${full('read', size)}</div>
@@ -158,7 +162,7 @@ const html = `<!doctype html>
   <header>
     <div class="eyebrow">Pixel symbols · one 16×16 grid</div>
     <h1>Render at whole multiples of 16px</h1>
-    <p class="lede">The grid is fixed at 16×16. 16, 32, 48, 64, 96 and 128 px all divide it into whole pixels; 18 px does not (1.125 px per cell), which is the softness the old chat mark had. The gap is 32% of each cell in viewBox units — the DigitalOcean mark's recipe — so it stays proportional at every multiple.</p>
+    <p class="lede">The grid is fixed at 16×16. 16, 32, 48, 64, 96 and 128 px all divide it into whole pixels; 18 px does not (1.125 px per cell), which is the softness the old chat mark had. The gap is 20% of each cell, applied by CSS (a 10% inset clip per side) on full-cell rects, so the artwork stays one 1×1 rect per lit cell.</p>
   </header>
 
   <section>
@@ -173,13 +177,13 @@ const html = `<!doctype html>
 
   <section>
     <h2>All 33 glyphs · 64px</h2>
-    <p class="hint">4px cells, 1.28px gaps — the DO mark's scale. Every glyph is the same 16×16 grid.</p>
+    <p class="hint">4px cells, 0.80px gaps — every glyph is the same 16×16 grid.</p>
     <div class="gallery">${gallery}</div>
   </section>
 
   <section>
     <h2>All 33 glyphs · 16px</h2>
-    <p class="hint">1px cells, 0.32px gaps — the shipping chat size, no magnification.</p>
+    <p class="hint">1px cells, 0.20px gaps — the shipping chat size, no magnification.</p>
     <div class="gallery gallery-16">${gallery16}</div>
   </section>
 
@@ -190,31 +194,31 @@ const html = `<!doctype html>
   </section>
 
   <section>
-    <h2>DO mark vs header mark — same 32% gap</h2>
-    <p class="hint">Both are 16×16 with a 0.68 cell inset 0.16 on each side: the gap is 0.32 units, 32% of a cell, at every size. The only difference is the corner: the DO mark uses rx 0.17, the header symbols rx 0.10.</p>
+    <h2>DO mark vs header mark</h2>
+    <p class="hint">Both the DO mark and the header symbols are full-cell 1×1 rects with the 20% gap in CSS, so neither carries an inset or a radius; the only difference is the cells each artwork lights.</p>
     <div class="do-pairs">${doPairs}</div>
   </section>
 
   <section>
     <h2>Gap tuner</h2>
-    <p class="hint">Drag the gap. 32% is the shipped default; 0% merges the cells, 40% turns them into a screen door. The two previews are 128px; below, <b>read</b> is rendered at every ×16 size from 16 to 128.</p>
+    <p class="hint">Drag the gap. 20% is the shipped default; 0% merges the cells, 40% turns them into a screen door. The two previews are 128px; below, <b>read</b> is rendered at every ×16 size from 16 to 128.</p>
     <div class="tuner">
       <div class="tuner-controls">
-        <label for="gap">Gap <b id="gap-readout">32%</b></label>
-        <input id="gap" type="range" min="0" max="40" step="1" value="32">
-        <div class="tuner-note" id="gap-note">2.56px at 128px · 1.28px at 64px</div>
+        <label for="gap">Gap <b id="gap-readout">20%</b></label>
+        <input id="gap" type="range" min="0" max="40" step="1" value="20">
+        <div class="tuner-note" id="gap-note">1.60px at 128px · 0.80px at 64px</div>
       </div>
       <div class="tuner-stage">
-        <div class="tuner-card"><svg id="tuner-do" width="128" height="128" viewBox="0 0 16 16" fill="#0063f8" aria-label="DO mark at the selected gap"><use href="#t-do"/></svg><b>DO mark · 128px</b><span>rx 0.17</span></div>
-        <div class="tuner-card"><svg id="tuner-read" width="128" height="128" viewBox="0 0 16 16" fill="#0063f8" aria-label="read at the selected gap"><use href="#t16-read"/></svg><b>read · 128px</b><span>rx 0.10</span></div>
+        <div class="tuner-card"><svg id="tuner-do" width="128" height="128" viewBox="0 0 16 16" fill="#0063f8" aria-label="DO mark at the selected gap"><use href="#t-do"/></svg><b>DO mark · 128px</b><span>full cell · CSS clip</span></div>
+        <div class="tuner-card"><svg id="tuner-read" width="128" height="128" viewBox="0 0 16 16" fill="#0063f8" aria-label="read at the selected gap"><use href="#t16-read"/></svg><b>read · 128px</b><span>full cell · CSS clip</span></div>
       </div>
       <div class="tuner-blocks">${tunerBlocks}</div>
     </div>
   </section>
 
   <section>
-    <h2>Gap scale — 32% of every cell</h2>
-    <p class="hint">Each cell is inset 0.16 and drawn 0.68 wide in the 16-unit viewBox, exactly like the DO mark. The gap is a constant fraction of the cell, so it grows with the render size instead of being re-tuned per size.</p>
+    <h2>Gap scale — 20% of every cell</h2>
+    <p class="hint">Each cell is a full 1×1 rect and CSS clips 10% off every side, so the gap is a constant fraction of the cell and grows with the render size instead of being re-tuned per size.</p>
     <div class="gap-row">${gapCards}</div>
   </section>
 
@@ -226,7 +230,7 @@ const html = `<!doctype html>
   <p class="note">Shipping rule: the 16×16 grid, rendered at 16/32/48/64/96/128 px. The chat mark uses 16 px; 18 px was the outlier. The 32×32 derivation in <code>bounded32/</code> is archived, not the shipping path. Rebuild this page with <code>node design/pixel-symbols-mockup.mjs</code>.</p>
 </div>
 
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${names.map((n) => symbol(n)).join('')}<symbol id="do-mark" viewBox="0 0 16 16">${doBody}</symbol>${names.map((n) => `<symbol id="t16-${n}" viewBox="0 0 16 16">${bodies.get(n)}</symbol>`).join('')}<symbol id="t-do" viewBox="0 0 16 16">${doBody}</symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${names.map((n) => symbol(n)).join('')}<symbol id="do-mark" viewBox="0 0 16 16">${doBody}</symbol>${names.map((n) => `<symbol id="t16-${n}" viewBox="0 0 16 16">${gapped(bodies.get(n))}</symbol>`).join('')}<symbol id="t-do" viewBox="0 0 16 16">${doBody}</symbol></defs></svg>
 <script>
   for (const card of document.querySelectorAll('[data-raster]')) {
     const svg = card.querySelector('svg')
@@ -248,23 +252,19 @@ const html = `<!doctype html>
   const TUNER_NAMES = ${JSON.stringify(names)};
   const TUNER_SIZES = ${JSON.stringify(TUNER_SIZES)};
 
-  function gapRects(cells, inset, rx) {
+  function clipRects(cells, gap) {
     let out = ''
+    const inset = (gap / 2).toFixed(2)
     for (let i = 0; i < cells.length; i++) {
-      const c = cells[i][0]
-      const r = cells[i][1]
-      const side = (1 - 2 * inset).toFixed(2)
-      out += '<rect x="' + (c + inset).toFixed(2) + '" y="' + (r + inset).toFixed(2) + '" width="' + side + '" height="' + side + '" rx="' + rx + '"/>'
+      out += '<rect x="' + cells[i][0] + '" y="' + cells[i][1] + '" width="1" height="1" clip-path="inset(' + inset + '%)"/>'
     }
     return out
   }
   function renderGap(gap) {
-    const inset = gap / 200
-    const doRx = Math.min(0.18, Math.round((1 - 2 * inset) * 0.257 * 100) / 100)
-    document.getElementById('t-do').innerHTML = gapRects(GAP_DO, inset, doRx)
+    document.getElementById('t-do').innerHTML = clipRects(GAP_DO, gap)
     for (let i = 0; i < TUNER_NAMES.length; i++) {
       const n = TUNER_NAMES[i]
-      document.getElementById('t16-' + n).innerHTML = gapRects(GAP_CELLS[n], inset, 0.10)
+      document.getElementById('t16-' + n).innerHTML = clipRects(GAP_CELLS[n], gap)
     }
     for (let i = 0; i < TUNER_SIZES.length; i++) {
       const s = TUNER_SIZES[i]
