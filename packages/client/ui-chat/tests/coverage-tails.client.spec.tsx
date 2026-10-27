@@ -27,9 +27,8 @@ describe('tails', () => {
       />,
     )
     expect(view.getByText('思考')).toBeTruthy()
-    // Keep-mounted Think bodies stay in the document, hidden until find.
-    const hiddenBody = view.container.querySelector('[hidden="until-found"]')
-    expect(hiddenBody?.textContent).toContain('thinking hard')
+    // A collapsed Think body is not mounted: expanding is what builds it.
+    expect(view.container.querySelector('[data-pce="reasoning"] .pce-body')).toBeNull()
     expect(view.getByText(/未知内容块/)).toBeTruthy()
     const stopped = render(
       <AssistantMarkdown

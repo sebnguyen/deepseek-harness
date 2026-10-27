@@ -51,10 +51,11 @@ interface MessageItemProps {
   readonly t: ChatNodeViewProps['t']
   readonly referenceLabels?: readonly string[]
   readonly skillNames?: readonly string[]
+  readonly location?: ChatConversationViewNode['location']
 }
 
 /** Legacy-node fixture adapter for the independently registered renderers. */
-function MessageItem({ node, t: translate, referenceLabels, skillNames }: MessageItemProps) {
+function MessageItem({ node, t: translate, referenceLabels, skillNames, location }: MessageItemProps) {
   const kind = node.kind === 'assistant' ? 'assistant-step-message' : node.kind
   const viewNode: ChatConversationViewNode = {
     key: `fixture:${node.kind}:${node.seq}`,
@@ -62,7 +63,7 @@ function MessageItem({ node, t: translate, referenceLabels, skillNames }: Messag
     id: String(node.seq),
     target: 'chat',
     anchorSeq: node.seq,
-    location: { kind: 'session' },
+    location: location ?? { kind: 'session' },
     visibility: 'visible',
     data: node.kind === 'assistant'
       ? {
@@ -198,6 +199,24 @@ describe('MessageItem arms', () => {
     expect(screen.queryByRole('button', { name: '编辑' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: '复制' }))
     expect(writeText).toHaveBeenCalledWith('hello bubble')
+  })
+
+  it('captions a user prompt with its turn immediately before the copy action', () => {
+    const location = {
+      kind: 'turn',
+      turn: { turn: 3, start: undefined, end: undefined, status: 'closed', steps: [] },
+    } as unknown as ChatConversationViewNode['location']
+    render(
+      <MessageItem t={t} location={location} node={{
+        kind: 'user', seq: 1, time: 1_000,
+        content: [{ type: 'text', text: 'third prompt' }] as never,
+        source: null,
+      }}
+      />,
+    )
+    const caption = screen.getByText('回合 - 3')
+    const copy = screen.getByRole('button', { name: '复制' })
+    expect(caption.compareDocumentPosition(copy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('user copy falls back to execCommand when clipboard.writeText is unavailable', () => {
@@ -358,9 +377,8 @@ describe('MessageItem arms', () => {
     )
     const disclosure = ctxView.getByRole('button', { name: /^上下文注入\s*fixture$/ })
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    const collapsedBody = ctxView.container.querySelector('[data-context-injection-body]')
-    expect(collapsedBody).not.toBeNull()
-    expect(collapsedBody?.closest('[hidden="until-found"]')).not.toBeNull()
+    // Collapsed mounts nothing; the recall icon can only live in the body.
+    expect(ctxView.container.querySelector('[data-context-injection-body]')).toBeNull()
     expect(ctxView.container.querySelector('svg')).not.toBeNull()
     expect(ctxView.container.querySelector('[data-context-recall-icon]')).toBeNull()
 
@@ -719,9 +737,7 @@ describe('MessageItem arms', () => {
     )
     expect(view.container.querySelector('[data-context-summary]')?.textContent)
       .toBe('bash pnpm test [status: completed]')
-    const collapsedBody = view.container.querySelector('[data-context-injection-body]')
-    expect(collapsedBody).not.toBeNull()
-    expect(collapsedBody?.closest('[hidden="until-found"]')).not.toBeNull()
+    expect(view.container.querySelector('[data-context-injection-body]')).toBeNull()
   })
 
   it('a notice without its account falls back to the opaque body', () => {
@@ -817,8 +833,8 @@ describe('MessageItem arms', () => {
       } as never}
       />,
     )
-    expect(view.container.querySelector('[data-context-recall-icon]')).not.toBeNull()
     fireEvent.click(view.getByRole('button', { name: /^跨会话召回\s*重构 loader, 修 CI$/ }))
+    expect(view.container.querySelector('[data-context-recall-icon]')).not.toBeNull()
     const rows = [...view.container.querySelectorAll('[data-context-recalls] li')].map(node => node.textContent)
     expect(rows).toEqual(['重构 loader保留 18 条 · 省略 42 条已截断', '修 CI保留 3 条 · 省略 0 条'])
     expect(view.container.querySelector('[data-context-text]')?.textContent).toBe('recalled material')
@@ -828,6 +844,7 @@ describe('MessageItem arms', () => {
     const unknownView = render(
       <MessageItem t={t} node={{ kind: 'unknown', seq: 4, type: 'surface/next', data: { x: 1 } } as never} />,
     )
+    fireEvent.click(unknownView.container.querySelector('[data-pce="unknown"] [role="button"]') as Element)
     expect(unknownView.getByText(/未知 surface 事件：surface\/next/)).toBeTruthy()
   })
 
@@ -1059,7 +1076,9 @@ describe('small branch tails', () => {
     )
     expect(view.container.querySelector('[data-glyph="check"]')).not.toBeNull()
     fireEvent.click(view.getByText('思考'))
-    expect(view.getByText('one-liner')).toBeTruthy()
+    // The body reveals the whole stream; the head already carries its excerpt.
+    expect(view.container.querySelector('[class*="thinkBody"]')?.textContent).toBe('one-liner')
+    expect(view.getAllByText('one-liner')).toHaveLength(2)
   })
 
   it('StatsPills omits the cache-hit segment when no input accounting exists at all', () => {

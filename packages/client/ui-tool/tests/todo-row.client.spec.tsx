@@ -89,6 +89,7 @@ describe('TodoRow', () => {
     const text = screen.getByText('1/5 已完成 · 写组件')
     const extra = screen.getByText('+2')
     expect(text.contains(extra)).toBe(false)
+    // The count follows the summary on the head's line.
     expect(container.textContent).toContain('1/5 已完成 · 写组件+2')
   })
 

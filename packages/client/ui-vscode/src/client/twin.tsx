@@ -14,7 +14,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
-import { DigitalOceanLogo, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PixelLoader, PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /**
  * Anti-flash wait: extra settle time after the twin document fires `load`
@@ -30,25 +30,29 @@ const BOOT_SETTLE_MS = 1_200
  */
 const TAB_ENTRY_GRACE_MS = 300
 
-/** The body box: fills the pane's content area (`.dockArea` is positioned). */
+/**
+ * The body box: a flex item filling the dock area's row, kept positioned so
+ * the boot cover's `inset: 0` resolves against it.
+ */
 const HOST_STYLE = {
-  position: 'absolute',
-  inset: '0',
+  position: 'relative',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minHeight: 0,
   display: 'block',
   overflow: 'hidden',
 } as const
 
-/** The frame fills the body; transparency keeps the glass compositing. */
+/** The frame fills the body and paints the twin's own dark sheet. */
 const FRAME_STYLE = {
   display: 'block',
   width: '100%',
   height: '100%',
   border: 'none',
-  // Transparent element + `allowtransparency` attribute: the two Chromium
-  // conditions for an iframe to composite over the host page, so the glass
-  // workbench (`?dshGlass=1`) floats on the harness shell behind it.
-  // Firefox is transparent by default and needs only the element style.
-  background: 'transparent',
+  // Opaque on purpose: the harness no longer paints an ocean behind the twin,
+  // and the frame must not composite over the page even when a stale
+  // `dshGlass` opt-in survives in the twin origin's session storage.
+  background: 'var(--dsw-alias-bg-base, #121618)',
 } as const
 
 /** The cover sits above the frame until the workbench settles. */
@@ -58,41 +62,41 @@ const COVER_STYLE = {
   zIndex: 1,
 } as const
 
-/** The boot hero: twinkle mark stacked on the wordmark, state line below. */
+/** The boot hero: pixel mark stacked on the wordmark, state line below. */
 const HERO_STYLE = {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'center',
   justifyContent: 'center',
-  gap: '14px',
+  gap: '16px',
   width: '100%',
   height: '100%',
   padding: '16px',
   boxSizing: 'border-box',
   background: 'var(--dsw-alias-bg-base, #121618)',
+  color: 'var(--dsw-alias-brand-primary, #7bb4bc)',
 } as const
 
 const WORDMARK_STYLE = {
   color: 'var(--dsw-alias-label-primary, #f7f8f8)',
-  fontSize: '12px',
+  fontSize: '16px',
+  lineHeight: '24px',
   fontWeight: 600,
-  letterSpacing: '0.06em',
-  textTransform: 'uppercase',
 } as const
 
 const DETAIL_STYLE = {
-  color: 'var(--dsw-alias-label-secondary, #a0a2a3)',
+  color: 'var(--dsw-alias-label-tertiary, #87898a)',
   fontSize: '12px',
+  lineHeight: '18px',
   textAlign: 'center',
   maxWidth: '32em',
 } as const
 
 /**
- * The seam the user watches every time the twin spawns: the DO twinkle mark
- * centered over the wordmark with the state line — the same loading canvas
- * the harness boot page paints, instead of a bare text line on stock chrome.
+ * The seam the user watches every time the twin spawns: the same pixel mark
+ * and type scale as the harness boot page, with the state line below.
  * @param line - the state line under the wordmark.
- * @param spinning - twinkle loader instead of the static mark.
+ * @param spinning - twinkle loader instead of the solid pixel mark.
  * @returns the hero element.
  */
 export function BootHero({ line, spinning = false }: { readonly line: string; readonly spinning?: boolean }): ReactNode {
@@ -100,7 +104,7 @@ export function BootHero({ line, spinning = false }: { readonly line: string; re
     <div style={HERO_STYLE}>
       {spinning
         ? <PixelLoader mode="twinkle" size={128} />
-        : <DigitalOceanLogo size={64} />}
+        : <PixelMark size={64} />}
       <div style={WORDMARK_STYLE}>DigitalOcean Harness</div>
       <output style={DETAIL_STYLE}>{line}</output>
     </div>
@@ -125,26 +129,40 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
   const [settledSrc, setSettledSrc] = useState<string | null>(null)
   const settleTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  // A changed source is a fresh document until its own `load` settles it.
-  useEffect(() => () => {
-    if (settleTimer.current !== undefined) clearTimeout(settleTimer.current)
-  }, [src])
-
   const covered = settledSrc !== src
+  // The guard's listeners hold for the frame's whole life, so they read the
+  // cover through a ref instead of re-subscribing on every settle.
+  const coveredRef = useRef(covered)
+  useEffect(() => { coveredRef.current = covered }, [covered])
 
   // Focus guard, holding for the frame's whole life — including every boot
   // past the settle margin. The workbench auto-focuses its restored editor
   // whenever its deferred restore lands, and focusing inside an iframe
   // promotes browser-level focus to the <iframe> element, pulling the
   // keyboard out of the composer. The frame is cross-origin, so all the
-  // parent can do is hand the focus back — and only on an automated grab: a
-  // pointer inside the frame or a Tab just pressed marks the user's own entry,
-  // after which the frame legitimately owns the focus. A window blur that
-  // moved nothing (alt-tab away, then back) stands down.
+  // parent can do is hand the focus back. While the boot cover is sealed no
+  // gesture can reach the frame, so every move is automated and handed back;
+  // after it lifts, a pointer inside the frame or a Tab just pressed marks
+  // the user's own entry, after which the frame legitimately owns the focus.
+  // A window blur that moved nothing (alt-tab away, then back) stands down.
   const lastFocus = useRef<HTMLElement | null>(null)
   const frameHolds = useRef(false)
   const frameHovered = useRef(false)
   const frameTabAt = useRef(Number.NEGATIVE_INFINITY)
+
+  // A changed source is a fresh, unentered document: an entry verified for
+  // the old one cannot authorize the new one, and the pending settle belongs
+  // to the document being replaced.
+  useEffect(() => {
+    frameHolds.current = false
+    // Re-seal the cover even when the source returns to a value that had
+    // settled before: the element loads a new document either way.
+    setSettledSrc(null)
+    return () => {
+      if (settleTimer.current !== undefined) clearTimeout(settleTimer.current)
+    }
+  }, [src])
+
   useEffect(() => {
     // Seed the restore target with the focus the document already holds:
     // focusin tracks only changes, and the composer's autofocus normally
@@ -167,11 +185,31 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Tab') frameTabAt.current = performance.now()
     }
+    // Automated grab: hand the focus back to whatever the document last
+    // held. A frame never keeps a focus it took itself; with nothing on
+    // record it drops the focus onto <body>.
+    const handBack = (thief: HTMLIFrameElement): void => {
+      const prior = lastFocus.current
+      if (prior !== null && prior.isConnected) {
+        prior.focus({ preventScroll: true })
+      } else {
+        thief.blur()
+      }
+    }
     // A frame's own focus() surfaces here only as a window blur whose
     // activeElement is the frame element — the same signal Menu.tsx uses.
     const onBlur = (): void => {
       const thief = document.activeElement
       if (!(thief instanceof HTMLIFrameElement) || thief !== frameRef.current) return
+      // Under the sealed boot cover no gesture can reach the frame, so a
+      // focus move is automated by definition — on mount and on every
+      // reload. Hand it back and retire any entry the previous document
+      // earned: the new document has to earn its own.
+      if (coveredRef.current) {
+        frameHolds.current = false
+        handBack(thief)
+        return
+      }
       if (frameHolds.current) return
       // The user's own entry: the pointer rests inside the frame, or a Tab
       // just landed. The frame owns the keyboard from here on.
@@ -181,15 +219,7 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
         frameTabAt.current = Number.NEGATIVE_INFINITY
         return
       }
-      // Automated grab: hand the focus back to whatever the document last
-      // held. A frame never keeps a focus it took itself; with nothing on
-      // record it drops the focus onto <body>.
-      const prior = lastFocus.current
-      if (prior !== null && prior.isConnected) {
-        prior.focus({ preventScroll: true })
-      } else {
-        thief.blur()
-      }
+      handBack(thief)
     }
     window.addEventListener('focusin', onFocusIn)
     window.addEventListener('pointerover', onPointerOver)
@@ -212,11 +242,6 @@ export function TwinFrame({ src, t }: TwinFrameProps): ReactNode {
         title="vscode"
         src={src}
         style={FRAME_STYLE}
-        // Chromium gate: without this attribute the iframe composites opaque
-        // even when both the element and the framed document are transparent.
-        // Spread because React's typed prop (`allowTransparency`) does not
-        // reach the DOM; unknown lowercase attributes pass through verbatim.
-        {...{ allowtransparency: 'true' }}
         // Clipboard delegation: the twin is cross-origin (its own loopback
         // port), so without this the permissions policy blocks the Clipboard
         // API inside the frame and the workbench shows its sticky "Unable to

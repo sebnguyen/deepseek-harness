@@ -35,13 +35,13 @@
   - img
   - img
   - text: Ask question waiting
-- status: Deep diving...
 - text: "Interjection: include the word BANANA in your final reply."
 - button "Copy":
   - img
 - text: "Interjection: include the word ORANGE in your final reply."
 - button "Copy":
   - img
+- status: Running…
 - region "Ready to continue?":
   - text: Checkpoint
   - heading "Ready to continue?" [level=2]

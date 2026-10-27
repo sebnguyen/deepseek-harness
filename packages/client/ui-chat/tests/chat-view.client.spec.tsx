@@ -527,33 +527,12 @@ describe('Chat node rendering', () => {
 })
 
 describe('ChatView', () => {
-  it('keeps the last tool-call purpose through purpose-less events until a younger purpose lands', () => {
-    const purposed = (callId: string, purpose: string): RunningToolCall => ({
-      ...runningCall(callId),
-      argsRaw: JSON.stringify({ command: `cmd-${callId}`, description: purpose }),
-    })
-    const h = makeHarness(
-      { nodes: [user(1, 'try')], runningCalls: [purposed('a', 'Searching the schema')] },
-      { running: true },
-    )
+  it('leaves the running turn to the composer sweep, not a status row', () => {
+    const h = makeHarness({ nodes: [user(1, 'try')] }, { running: true })
     const view = render(<h.ChatView {...h.props} />)
-    const status = () => view.getByRole('status')
-    expect(status().textContent).toBe('Searching the schema')
-
-    // The call leaving runningCalls (its completion event carries no purpose)
-    // does not drop the line back to the swimming label.
-    act(() => { h.set({ runningCalls: [] }) })
-    expect(status().textContent).toBe('Searching the schema')
-
-    // A younger purpose replaces the sticky one on sight.
-    act(() => { h.set({ runningCalls: [purposed('b', 'Reading the config')] }) })
-    expect(status().textContent).toBe('Reading the config')
-
-    // Turn end unmounts the row; the next turn starts from the swim label.
-    act(() => { h.set({ running: false, runningCalls: [] }) })
+    // The running affordance is the composer's sweep line (ui-conversation
+    // InputBar); the chat column must not carry a second live region.
     expect(view.queryByRole('status')).toBeNull()
-    act(() => { h.set({ running: true }) })
-    expect(status().textContent).toBe('游泳中…')
   })
 
   it('hands a windowless tool result to the Tool seat with an empty tool name', () => {
@@ -624,8 +603,43 @@ describe('ChatView', () => {
 
       readerScroll(scroller, 100)
 
-      expect(hitTest).toHaveBeenCalledTimes(1)
+      // Two bounded hit-tests per scroll sample: the paging anchor picks the
+      // semantic row, and the live-band recompute picks the centered key.
+      expect(hitTest).toHaveBeenCalledTimes(2)
       expect(h.chatScroll.read()?.anchorKey).toBe('fixture:user:1')
+    } finally {
+      if (originalHitTest !== undefined) {
+        Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
+      } else {
+        Reflect.deleteProperty(document, 'elementsFromPoint')
+      }
+    }
+  })
+
+  it('keeps the newest rows live when the band centres far from them', () => {
+    const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint')
+    const nodes = Array.from({ length: 400 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    const firstRow = view.container.querySelector('[data-chat-flow-key="fixture:user:1"]') as HTMLElement
+    // The hit test lands on the first row, so the band centres at the top of
+    // the transcript and the tail rows fall outside it.
+    Object.defineProperty(document, 'elementsFromPoint', {
+      configurable: true,
+      value: vi.fn((): Element[] => [firstRow]),
+    })
+    try {
+      installScrollMetrics(scroller, 4_000, 2_000)
+
+      readerScroll(scroller, 100)
+
+      // Rows far from the band sleep...
+      expect(view.queryByText('row 300')).toBeNull()
+      expect(view.queryByText('row 200')).toBeNull()
+      // ...but the newest rows stay mounted: the streaming output and the turn
+      // tail must not unmount under a reader parked in history.
+      expect(view.getByText('row 400')).toBeTruthy()
     } finally {
       if (originalHitTest !== undefined) {
         Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
@@ -752,8 +766,6 @@ describe('ChatView', () => {
     fireEvent.click(within(pendingBubble as HTMLElement).getByRole('button', { name: '复制' }))
     expect(writeText).toHaveBeenCalledWith('interrupt now')
     expect(within(pendingBubble as HTMLElement).queryByRole('button', { name: '在新对话中分支' })).toBeNull()
-    expect(view.getByRole('status').compareDocumentPosition(view.getByText('interrupt now'))
-      & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
 
     act(() => {
       h.setSession({ queue: [queued] })
@@ -1431,7 +1443,6 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     expect(view.getByTestId('tool-seat-r1')).toBeTruthy()
     expect(h.toolOwners[0]?.block).toMatchObject({ callId: 'r1', argsRaw: '{"command":"cmd-r1"}' })
-    expect(view.getByRole('status').textContent).toBe('深度求索中...')
   })
 
   it('keeps the Tool renderer mounted when a running call settles into log order', () => {

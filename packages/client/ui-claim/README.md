@@ -43,7 +43,8 @@ The control is a pure reader: `useProjection('claim')` delivers the host-compute
 ## Further Exploration
 
 - `@deepseek-ai/dsh-claim` (`packages/claim/claim`) — the claim domain: the `claim/*` events, the projection, and the settlement policy this surface reads.
-- [ui-chat](../ui-chat/README.md) — declares the `conversation.chat.turnStatus` slot and owns the turn tail.
+- [ui-chat](../ui-chat/README.md) — owns the turn tail.
+- [ui-conversation](../ui-conversation/README.md) — owns the composer; the chip mounts in its `conversation.input.right` slot.
 - [Client package map](../README.md) — adjacent browser UI packages.
 
 -----

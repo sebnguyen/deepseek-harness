@@ -35,7 +35,7 @@ Plugins add an icon component to the root-scoped `sidebar.panellist` list with a
 
 ### Collapse behavior
 
-During a live collapse, the expanded content fades out, the upper controls share one fade and leftward translation into the 56px rail, and the panel slides its own width down to the rail on the theme's 300ms ease-in-out curve; expansion runs the same slide in reverse. A page that starts collapsed renders the rail statically, and reduced-motion mode skips the slide and the fades. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation.
+During a live collapse, the expanded content fades out, the upper controls share one fade and leftward translation into the 56px rail, and the panel slides its own width down to the rail on the theme's 300ms ease-in-out curve. Expansion runs the same slide in reverse but holds the wide content concealed until the width lands, then enters it on one quick 120ms ease; a width retarget while it is still held (pinning a hover preview) restarts the hold, and a close cancels it. A page that starts collapsed or expanded renders its state statically, and reduced-motion mode skips the slide and the fades. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation. While collapsed, the rail opens a hover preview that closes only once the pointer and focus have both left the column, so neither a session click (which moves focus to the composer) nor a session drag dismisses the panel under the pointer.
 
 ### Scrollbars
 

@@ -1,7 +1,7 @@
 // Web e2e scenario: message IconActions + clocks. Cold-seeds a deterministic
 // completed-turn-tail fork case with an unchanged resume header (zero model
-// calls) and pins the settled conversation aria after the footers are
-// focus-revealed — the surface package jsdom tests cannot substitute for
+// calls) and pins the settled conversation aria with a footer action focused
+// — the surface package jsdom tests cannot substitute for
 // (docs/testing.md snapshot rule).
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -186,9 +186,9 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
       { timeout: 10_000 },
     ).toBe(2)
 
-    // Focus-reveal the footers (hover:hover keeps them opacity-hidden until
-    // hover/focus-within). Branch renders only under assistant answers — user
-    // bubbles carry none — and only a completed transcript tail enables it.
+    // The footers are always visible. Branch renders only under assistant
+    // answers — user bubbles carry none — and only a completed transcript
+    // tail enables it.
     const copyButtons = page.getByRole('button', { name: 'Copy' })
     await expect.poll(() => copyButtons.count(), { timeout: 10_000 }).toBeGreaterThanOrEqual(4)
     await copyButtons.first().focus()
@@ -209,8 +209,7 @@ describe('web e2e: message IconActions and clocks on settled history', () => {
     await page.getByRole('button', { name: /^Select model, current/ })
       .waitFor({ timeout: 10_000 })
     await page.getByText(/Hit \d+%/u).first().waitFor({ timeout: 10_000 })
-    // Keep a footer focused so opacity-hidden actions stay in the a11y tree
-    // as an active/focused control during the capture.
+    // Focus a footer action so the capture records it as an active control.
     await page.getByRole('button', { name: 'Copy' }).first().focus()
     const snapshot = (await captureStableAria(page, '[class*="centerCol"]', scaffold.workspaceCwd))
       .split(SEED_ID).join('{{seededId}}')

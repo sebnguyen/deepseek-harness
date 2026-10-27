@@ -15,6 +15,8 @@ export interface MessageIconActionsProps {
   text: string
   /** Unix epoch ms for the clock label; omitted for transient messages. */
   time?: number | undefined
+  /** 1-based Turn the message belongs to; renders `Turn - {turn}` before copy. */
+  turn?: number | undefined
   /** Clock before icons (user) or after (assistant). */
   clock: 'start' | 'end'
   /** Fork the session at this message; omission hides the branch action. */
@@ -43,7 +45,7 @@ export interface MessageIconActionsProps {
  * @returns The actions row element.
  */
 export function MessageIconActions({
-  text, time, clock, onBranch, branchUnavailable = false, className,
+  text, time, turn, clock, onBranch, branchUnavailable = false, className,
   extraActions, usageAction, t,
 }: MessageIconActionsProps) {
   const day = useCalendarDay()
@@ -82,6 +84,9 @@ export function MessageIconActions({
   return (
     <div className={className === undefined ? css.actions : `${css.actions} ${className}`}>
       {clock === 'start' ? clockEl : null}
+      {turn === undefined
+        ? null
+        : <span className={css.turn}>{t('message.turn', { turn })}</span>}
       <Tooltip label={copied ? t('copied') : t('copy')} side="bottom">
         <button type="button" className={css.action} aria-label={copied ? t('copied') : t('copy')} onClick={onCopy}>
           {copied ? <IconCheckOutline16 /> : <IconCopyOutline16 />}

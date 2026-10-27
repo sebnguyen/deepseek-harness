@@ -54,8 +54,8 @@ function MainPanel({ usePanelInfo, renderSlot }: Pick<PropsRuntime<'root'>, 'use
 
 /**
  * Right column grid item. Zero-width unless the occupant asked for a track; the
- * occupant's panel is positioned against the column's right edge, which never
- * moves, so it can hang over the centre when there is no track.
+ * occupant's panel packs against the column's right edge, which never moves,
+ * so it can hang over the centre when there is no track.
  */
 function RightbarColumn(props: { children?: ReactNode }) {
   return (

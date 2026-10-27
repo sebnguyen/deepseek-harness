@@ -53,7 +53,7 @@ describe('client apply', () => {
     } = {}
     const bodies: Record<string, unknown> = {}
     const injects: Record<string, () => unknown> = {}
-    const status = vi.fn()
+    const status = vi.fn(async (_sessionId: string, _signal: AbortSignal) => ({ ok: true, value: { enabled: true, ready: false, url: null, tkn: null, workspaceRoot: null, detail: '' } }))
     const openTabIn = vi.fn()
     const ctx = {
       remote: { ideBridge: { status } },
@@ -72,7 +72,7 @@ describe('client apply', () => {
     return { seen, bodies, injects, status, openTabIn, ctx: ctx as unknown as ClientContext }
   }
 
-  it('registers the type, dictionaries, body seat, and adoption hook', () => {
+  it('registers the type, dictionaries, body seat, and adoption hook', async () => {
     const { seen, bodies, injects, status, openTabIn, ctx } = fakeClient()
     clientApply(ctx)
     expect(seen.def).toBeDefined()
@@ -90,10 +90,20 @@ describe('client apply', () => {
     void (tabReg.inject() as { status: typeof status }).status('s1', new AbortController().signal)
     expect(status).toHaveBeenCalled()
 
-    // Adoption auto-opens the twin tab, and a thrown claim loses quietly.
+    // Adoption auto-opens the twin tab once the bridge says a twin exists,
+    // and a thrown claim loses quietly.
     seen.adopt?.('s1')
-    expect(openTabIn).toHaveBeenCalledWith('s1', VSCODE_KIND)
+    await vi.waitFor(() => { expect(openTabIn).toHaveBeenCalledWith('s1', VSCODE_KIND) })
     openTabIn.mockImplementation(() => { throw new Error('type not registered') })
     expect(() => { seen.adopt?.('s2') }).not.toThrow()
+  })
+
+  it('leaves the column to the dock when no twin is enabled', async () => {
+    const { seen, openTabIn, status, ctx } = fakeClient()
+    status.mockResolvedValue({ ok: true, value: { enabled: false, ready: false, url: null, tkn: null, workspaceRoot: null, detail: '' } })
+    clientApply(ctx)
+    seen.adopt?.('s1')
+    await new Promise((resolve) => { setTimeout(resolve, 0) })
+    expect(openTabIn).not.toHaveBeenCalled()
   })
 })

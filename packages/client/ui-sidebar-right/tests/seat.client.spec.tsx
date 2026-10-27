@@ -75,6 +75,7 @@ async function mountSeat(
   entryCount = 0,
   rememberedChoice?: boolean,
   frameOverride?: { openRightbar?: (track: boolean, fullscreen: boolean) => void; closeRightbar?: () => void },
+  otherChoice?: boolean,
 ) {
   const runtime = await SlotTestRuntime.create()
   runtimes.push(runtime)
@@ -93,8 +94,13 @@ async function mountSeat(
     'conversation.session.header.corner': { kind: 'single', scope: 'session' },
   })
   await runtime.sessions.add({ id: SESSION })
-  if (rememberedChoice !== undefined) {
-    localStorage.setItem(SIDEBAR_RIGHT_CHOICE_KEY, JSON.stringify({ bySession: { [SESSION]: rememberedChoice } }))
+  if (rememberedChoice !== undefined || otherChoice !== undefined) {
+    localStorage.setItem(SIDEBAR_RIGHT_CHOICE_KEY, JSON.stringify({
+      bySession: {
+        ...(rememberedChoice === undefined ? {} : { [SESSION]: rememberedChoice }),
+        ...(otherChoice === undefined ? {} : { [OTHER]: otherChoice }),
+      },
+    }))
   }
   const feature = await runtime.mount({ inject: [...inject], apply })
   const bodies = new Map<string, SidebarRightTabInfo>()
@@ -263,10 +269,12 @@ describe('RightbarSeat presentation', () => {
     const tab = h.open()
     const panel = element(h.view.container, '[data-sidebar-right-panel]')
     const body = element(h.view.container, '[data-tab-body]')
-    expect(panel.style.width).toBe('420px')
+    expect(panel.style.width).toBe('100%')
+    expect(panel.style.maxWidth).toBe('420px')
     fireEvent.click(element(h.view.container, '[data-sidebar-right-mode]'))
     expect(h.layout().mode).toBe('fullscreen')
     expect(panel.style.width).toBe('100%')
+    expect(panel.style.maxWidth).toBe('')
     expect(panel.dataset['sidebarRightPanel']).toBe('fullscreen')
     // Fullscreen covers the conversation, so the panel keeps its own close control.
     expect(h.view.container.querySelector('[data-sidebar-right-toggle]')).not.toBeNull()
@@ -274,7 +282,8 @@ describe('RightbarSeat presentation', () => {
     expect(h.frame.openRightbar).toHaveBeenLastCalledWith(true, true)
     expect(h.bodies.get(tab.id)?.sidebar).toEqual({ expanded: true, fullscreen: true })
     fireEvent.click(element(h.view.container, '[data-sidebar-right-mode]'))
-    expect(panel.style.width).toBe('420px')
+    expect(panel.style.width).toBe('100%')
+    expect(panel.style.maxWidth).toBe('420px')
     expect(element(h.view.container, '[data-tab-body]')).toBe(body)
     expect(h.frame.openRightbar).toHaveBeenLastCalledWith(true, false)
     // Normal presentation has no panel close control: the header toggle owns it.
@@ -529,6 +538,23 @@ describe('slot-owned useTabInfo', () => {
     expect(remaining.tab.signal.aborted).toBe(true)
     expect(otherInfo.tab.signal.aborted).toBe(true)
     expect(h.runtime.ctx.get('sidebarRight')).toBeUndefined()
+  })
+
+  it('switches to a session whose remembered rightbar is hidden without a panel or track', async () => {
+    const h = await mountSeat(1440, true, 0, true, undefined, false)
+    expect(h.view.container.querySelector('[data-sidebar-right-open]')).not.toBeNull()
+    h.frame.closeRightbar.mockClear()
+    await h.runtime.sessions.add({ id: OTHER })
+    await h.runtime.sessions.setCurrent(OTHER)
+    // The surface arrives collapsed: its page is materialized for reopening,
+    // but the panel carries no open state and the frame gives the track back.
+    expect(h.view.container.querySelector('[data-sidebar-right-panel]')).not.toBeNull()
+    expect(h.view.container.querySelector('[data-sidebar-right-open]')).toBeNull()
+    expect(h.view.container.querySelector('[data-sidebar-right-panel]')?.getAttribute('inert')).toBe('')
+    expect(h.frame.closeRightbar).toHaveBeenCalled()
+    await h.runtime.sessions.setCurrent(SESSION)
+    expect(h.view.container.querySelector('[data-sidebar-right-open]')).not.toBeNull()
+    expect(h.view.container.querySelector('[data-sidebar-right-panel]')?.getAttribute('inert')).toBe(null)
   })
 
   it('updates guide replacements through the same hook and guide boxes through framework injection', async () => {

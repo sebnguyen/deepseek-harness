@@ -80,8 +80,8 @@ export interface ToolCallOwnerProps {
   inspect?: (() => void) | undefined
   /**
    * Reveal the call's acted-on file in the session's explorer column. Absent
-   * when the composition omits ui-sidebar-files; file rows then keep the
-   * trajectory inspect chip.
+   * when the composition omits ui-sidebar-files; read cards then keep the
+   * trajectory Inspect chip.
    */
   revealFile?: ((path: string) => void) | undefined
 }

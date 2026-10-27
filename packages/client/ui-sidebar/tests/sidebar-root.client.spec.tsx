@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import type {
   SidebarFooterActionOwnerProps, SidebarRootComponentProps, SidebarSectionOwnerProps,
@@ -197,8 +197,83 @@ describe('SidebarRoot shell', () => {
   })
 })
 
+describe('SidebarRoot hover preview', () => {
+  /** Render the collapsed rail and enter it with the pointer, as hovering does. */
+  function hoverRail() {
+    const shell = mountShell({ collapsed: true, width: 56 })
+    const root = shell.container.firstElementChild as Element
+    fireEvent.pointerEnter(root)
+    return { root }
+  }
+
+  it('stays open when a click inside moves focus to the page', () => {
+    vi.useFakeTimers()
+    const { root } = hoverRail()
+    const starter = screen.getByRole('button', { name: 'New session' })
+    starter.focus()
+    // Opening a session refocuses the composer, which blurs the control the
+    // click left focused; the pointer never left the column.
+    fireEvent.focusOut(starter, { relatedTarget: null })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(false)
+  })
+
+  it('closes once the pointer and focus have both left', () => {
+    vi.useFakeTimers()
+    const { root } = hoverRail()
+    const starter = screen.getByRole('button', { name: 'New session' })
+    starter.focus()
+    fireEvent.pointerLeave(root)
+    fireEvent.focusOut(starter, { relatedTarget: null })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(true)
+  })
+
+  /** Mock the column box so a drag release point can be classified. */
+  function mockBox(root: Element): void {
+    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue({
+      left: 0, top: 0, right: 300, bottom: 600,
+    } as DOMRect)
+  }
+
+  it('keeps the preview through a drag that starts inside', () => {
+    vi.useFakeTimers()
+    const { root } = hoverRail()
+    const region = screen.getByTestId('region')
+    mockBox(root)
+    fireEvent.dragStart(region)
+    // Chromium cancels the pointer and fakes a leave at 0,0 while the pointer
+    // is still over the column.
+    fireEvent.pointerLeave(root, { clientX: 0, clientY: 0 })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(false)
+    fireEvent(region, new MouseEvent('dragend', { bubbles: true, clientX: 120, clientY: 200 }))
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(false)
+  })
+
+  it('closes when a drag releases outside the column', () => {
+    vi.useFakeTimers()
+    const { root } = hoverRail()
+    const region = screen.getByTestId('region')
+    mockBox(root)
+    fireEvent.dragStart(region)
+    fireEvent.pointerLeave(root, { clientX: 0, clientY: 0 })
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(false)
+    fireEvent(region, new MouseEvent('dragend', { bubbles: true, clientX: 500, clientY: 100 }))
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(root.hasAttribute('data-collapsed')).toBe(true)
+  })
+})
+
 describe('SidebarRoot width slide', () => {
   const restoreAnimate: (() => void)[] = []
+
+  /** Whether the shell's class list carries one CSS-module local. */
+  function hasClass(element: Element, local: string): boolean {
+    return [...element.classList].some(name => name.includes(local))
+  }
 
   afterEach(() => {
     while (restoreAnimate.length > 0) restoreAnimate.pop()?.()
@@ -243,6 +318,84 @@ describe('SidebarRoot width slide', () => {
     )
   })
 
+  it('holds the expanded content until the width slide lands, then fades it in', () => {
+    vi.useFakeTimers()
+    installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+    const root = shell.container.firstElementChild as Element
+
+    // A cold rail carries no hold; the hover expansion starts one.
+    expect(hasClass(root, 'contentHidden')).toBe(false)
+    fireEvent.pointerEnter(root)
+    expect(hasClass(root, 'contentHidden')).toBe(true)
+    expect(hasClass(root, 'contentIn')).toBe(false)
+
+    vi.advanceTimersByTime(299)
+    expect(hasClass(root, 'contentHidden')).toBe(true)
+
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(hasClass(root, 'contentHidden')).toBe(false)
+    expect(hasClass(root, 'contentIn')).toBe(true)
+  })
+
+  it('restarts the content hold when a hover preview pins to a wider edge', () => {
+    vi.useFakeTimers()
+    installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+    const root = shell.container.firstElementChild as Element
+
+    fireEvent.pointerEnter(root)
+    vi.advanceTimersByTime(100)
+    // Pin the preview: the width retargets from 264 to 300, so the hold
+    // starts over instead of revealing on the preview's clock.
+    shell.rerender({ collapsed: false, width: 300 })
+    vi.advanceTimersByTime(299)
+    expect(hasClass(root, 'contentHidden')).toBe(true)
+
+    act(() => { vi.advanceTimersByTime(1) })
+    expect(hasClass(root, 'contentHidden')).toBe(false)
+    expect(hasClass(root, 'contentIn')).toBe(true)
+  })
+
+  it('keeps revealed content visible when a hover preview pins open', () => {
+    vi.useFakeTimers()
+    installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+    const root = shell.container.firstElementChild as Element
+
+    fireEvent.pointerEnter(root)
+    act(() => { vi.advanceTimersByTime(300) })
+    expect(hasClass(root, 'contentIn')).toBe(true)
+
+    shell.rerender({ collapsed: false, width: 300 })
+    expect(hasClass(root, 'contentHidden')).toBe(false)
+    expect(hasClass(root, 'contentIn')).toBe(true)
+  })
+
+  it('cancels a pending reveal when the panel closes again', () => {
+    vi.useFakeTimers()
+    installAnimate(() => slideStub())
+    const shell = mountShell({ collapsed: true, width: 56 })
+    const root = shell.container.firstElementChild as Element
+
+    fireEvent.pointerEnter(root)
+    vi.advanceTimersByTime(100)
+    fireEvent.pointerLeave(root)
+    act(() => { vi.advanceTimersByTime(1_000) })
+
+    // The close canceled the enter, and the settled rail drops the hold.
+    expect(hasClass(root, 'contentIn')).toBe(false)
+    expect(hasClass(root, 'contentHidden')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+  })
+
+  it('shows the expanded content immediately without the width API', () => {
+    const shell = mountShell({ collapsed: true, width: 56 })
+
+    shell.rerender({ collapsed: false, width: 300 })
+    expect(hasClass(shell.container.firstElementChild as Element, 'contentHidden')).toBe(false)
+  })
+
   it('swaps the fold instantly under reduced motion', () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
     const animate = installAnimate(() => slideStub())
@@ -250,6 +403,7 @@ describe('SidebarRoot width slide', () => {
 
     shell.rerender({ collapsed: false, width: 300 })
     expect(animate).not.toHaveBeenCalled()
+    expect(hasClass(shell.container.firstElementChild as Element, 'contentHidden')).toBe(false)
   })
 
   it('keeps the slide when reduced motion is off', () => {

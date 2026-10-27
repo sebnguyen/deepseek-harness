@@ -43,7 +43,6 @@ export function ContextInjectionRow({ content, source, provenance, form, t }: Co
         summaryData="data-context-source"
         detailData="data-context-summary"
         state="ok"
-        keepMounted
         body={(
           <div className={css.body} data-context-injection-body data-context-form={rendered ?? undefined}>
             {provenance.role === 'recall' && (

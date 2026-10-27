@@ -4,6 +4,9 @@
 .fading>*{opacity:0;transition:opacity 150ms var(--ds-ease-in-out)}
 .wide{animation:wide-in 200ms var(--ds-ease-in-out)}
 @keyframes wide-in{from{opacity: 0;}}
+.contentHidden>*{opacity:0;pointer-events:none}
+.contentIn>*{animation:content-in 120ms var(--ds-ease-in-out)}
+@keyframes content-in{from{opacity: 0;}}
 .railIn .iconButton,.railIn .newSession,.railIn .panelList,.railIn .regionArea{animation:rail-in 150ms var(--ds-ease-in-out) backwards}
 .railIn .footArea{animation:rail-fade-in 150ms var(--ds-ease-in-out) backwards}
 @keyframes rail-in{from{opacity: 0;transform: translateX(49px);}}
@@ -48,7 +51,7 @@
 .footerActions{flex:none;margin-left:auto;display:flex}
 .collapsed .footArea{flex-direction:column;align-items:center;gap:6px}
 .collapsed .footerActions{margin-left:0}
-@media (prefers-reduced-motion:reduce){.wide,.fading>*,.railIn .iconButton,.railIn .newSession,.railIn .panelList,.railIn .footArea,.railIn .regionArea{transition:none;animation:none}
+@media (prefers-reduced-motion:reduce){.wide,.fading>*,.contentIn>*,.railIn .iconButton,.railIn .newSession,.railIn .panelList,.railIn .footArea,.railIn .regionArea{transition:none;animation:none}
 }
 .root[data-collapsed] > :not(.logoRow){visibility:hidden}
 .root[data-collapsed] .brandName{display:none}

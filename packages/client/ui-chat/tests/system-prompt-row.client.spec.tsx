@@ -28,11 +28,9 @@ describe('SystemPromptNodeView', () => {
 
     const disclosure = screen.getByRole('button', { name: 'System prompt' })
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    const body = container.querySelector('[data-system-prompt-body]')
-    expect(body).not.toBeNull()
-    expect(body?.closest('[hidden="until-found"]')).not.toBeNull()
-    expect(container.querySelector('[data-context-text]')?.textContent).toBe(text)
-    expect(container.querySelector('[hidden="until-found"] [data-context-text]')).not.toBeNull()
+    // A collapsed body is not mounted at all: expanding is what builds it.
+    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
+    expect(container.querySelector('[data-context-text]')).toBeNull()
     expect(screen.queryByRole('heading', { name: 'Agent rules' })).toBeNull()
 
     fireEvent.click(disclosure)
@@ -44,8 +42,7 @@ describe('SystemPromptNodeView', () => {
 
     fireEvent.click(disclosure)
     expect(disclosure.getAttribute('aria-expanded')).toBe('false')
-    expect(container.querySelector('[data-system-prompt-body]')).not.toBeNull()
-    expect(container.querySelector('[hidden="until-found"] [data-system-prompt-body]')).not.toBeNull()
+    expect(container.querySelector('[data-system-prompt-body]')).toBeNull()
   })
 
   it('titles an in-history prompt update as an update of the same row', () => {

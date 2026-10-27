@@ -1,8 +1,9 @@
 /**
  * The proposed chat element (pce) row chrome, shared by tool rows and chat
- * nodes: one transparent article whose head carries the kind's catalog glyph,
- * an 11px/650 identity with a mono meta line, the right-aligned state, and the
- * 14px toggle. The body is caller-owned and rendered only while expanded.
+ * nodes: one transparent article whose head carries the kind's 16px glyph, the
+ * kind and its description on one line, the elapsed/meta slot, the
+ * right-aligned state, and the toggle. The body is caller-owned and rendered
+ * only while expanded.
  */
 import { useState, type KeyboardEvent, type ReactNode } from 'react'
 import { PixelLoader } from '../PixelLoader.tsx'
@@ -21,29 +22,19 @@ export type PceKind
 /** Row outcome, matching the tool row's own state union. */
 export type PceState = 'running' | 'ok' | 'error' | 'stopped'
 
-/** An action riding the identity meta line (Inspect / Open). */
-export interface PceAction {
-  /** Localized action label. */
-  label: string
-  /** Invoked after the head's click is stopped. */
-  onClick: () => void
-  /** `open` selects the explorer-reveal icon; otherwise Inspect remains textual. */
-  kind?: 'open' | undefined
-}
-
 /** Everything the shared pce head needs from one row. */
 export interface PceRowProps {
   /** Element kind: selects the mark-colour class (`pce-<kind>`). */
   kind: PceKind
-  /** Catalog glyph shown in the 20px mark cell. */
+  /** Catalog glyph shown in the 16px mark cell. */
   glyph: PixelSymbolName
   /** Row title, localized by the owner. */
   title: string
-  /** Identity meta line's leading text (summary / path / first line). */
+  /** Description text (summary / path / first line); truncates as the row narrows. */
   summary?: string | null | undefined
-  /** Identity meta tail (duration, window, language). */
+  /** Elapsed/meta text in its own trailing slot (duration, window, language). */
   detail?: string | null | undefined
-  /** Optional trailing fragment kept outside the meta ellipsis (+2, +N -M). */
+  /** Optional fragment after the elapsed slot, kept outside the description ellipsis (+2, +N -M). */
   suffix?: string | null | undefined
   /** Row outcome; omitted = no state cell. */
   state?: PceState | undefined
@@ -51,8 +42,6 @@ export interface PceRowProps {
   stateLabel?: string | null | undefined
   /** Render the summary as an openable path button. */
   onOpenSummary?: (() => void) | undefined
-  /** Inspect/Open action in the meta line. */
-  action?: PceAction | null | undefined
   /** Collapsible head; false = always-open body and no toggle. */
   collapsible?: boolean | undefined
   /** Start expanded; ignored when not collapsible. */
@@ -79,7 +68,7 @@ export interface PceRowProps {
  * @returns the pce article.
  */
 export function PceRow({
-  kind, glyph, title, summary, detail, suffix, state, stateLabel, onOpenSummary, action,
+  kind, glyph, title, summary, detail, suffix, state, stateLabel, onOpenSummary,
   collapsible = true, defaultOpen = false, body, keepMounted = false, summaryData, detailData,
   summaryRole, className, headClassName,
 }: PceRowProps) {
@@ -141,21 +130,23 @@ export function PceRow({
       onClick={showToggle ? toggle : undefined}
       onKeyDown={showToggle ? toggleFromKeyboard : undefined}
     >
-      <span className="pce-mark" aria-hidden="true"><PixelGlyph name={glyph} size={24} /></span>
-      <span className="pce-identity">
-        {/* DOM keeps the kind first so the head's accessible name stays
-            "kind · description"; the stylesheet reverses the visual order so
-            the description leads and the kind sits under it, quiet. */}
-        {summaryText === null ? null : <span className="pce-identity-title">{title}</span>}
-        <strong>
-          {summaryNode ?? title}
-          {summaryText !== null && meta !== null ? ' · ' : null}
-          {meta === null ? null : (
-            <span data-pce-detail="" {...detailData === undefined ? {} : { [detailData]: '' }}>{meta}</span>
-          )}
-        </strong>
-      </span>
-      {trailing === null ? null : <span className="pce-identity-suffix">{trailing}</span>}
+      <span className="pce-mark" aria-hidden="true"><PixelGlyph name={glyph} size={16} /></span>
+      {/* The kind leads the line, the interpunct separates it from the
+          description, and the description truncates against the row. */}
+      <span className="pce-identity">{title}</span>
+      {summaryText === null ? null : <span className="pce-dot" aria-hidden="true">·</span>}
+      {summaryText === null ? null : <span className="pce-description">{summaryNode}</span>}
+      {meta === null && trailing === null
+        ? null
+        : (
+          <span className="pce-time">
+            {meta === null ? null : (
+              <span data-pce-detail="" {...detailData === undefined ? {} : { [detailData]: '' }}>{meta}</span>
+            )}
+            {meta !== null && trailing !== null ? ' ' : null}
+            {trailing}
+          </span>
+        )}
       {state === undefined ? null : (
         <span
           className={`pce-head-state is-${state}`}
@@ -165,20 +156,6 @@ export function PceRow({
             ? <PixelLoader size={16} mode="sweep" />
             : <PixelGlyph name={state === 'ok' ? 'check' : 'close'} size={16} />}
         </span>
-      )}
-      {action === undefined || action === null ? null : (
-        <button
-          type="button"
-          className="pce-action"
-          data-inspect-kind={action.kind ?? 'inspect'}
-          onClick={(event) => {
-            event.stopPropagation()
-            action.onClick()
-          }}
-          onKeyDown={(event) => { event.stopPropagation() }}
-        >
-          {action.label}
-        </button>
       )}
       {showToggle ? <span className="pce-toggle" aria-hidden="true">{expanded ? '▾' : '▸'}</span> : null}
     </div>

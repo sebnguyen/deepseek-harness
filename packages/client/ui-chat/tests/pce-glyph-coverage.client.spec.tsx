@@ -64,6 +64,35 @@ describe('pce glyph coverage', () => {
         {AFFORDANCE_GLYPHS.map(name => <PixelGlyph key={name} name={name} size={16} />)}
       </div>,
     )
+    // The mark cell is 16px; a glyph that asks for another edge would be the
+    // one oversized svg in the row (the stylesheet clamp is not the contract).
+    for (const mark of view.container.querySelectorAll('.pce-mark svg')) {
+      expect(mark.getAttribute('width'), 'mark glyph width').toBe('16')
+      expect(mark.getAttribute('height'), 'mark glyph height').toBe('16')
+    }
+    // Geometry is full-cell: every lit cell is a 1x1 rect at integer coordinates
+    // inside the 16-grid, and the gap is CSS rather than artwork. Reload used to
+    // carry its own inset guard here because the old artwork was full-bleed; the
+    // shipped cell set is now derived on that same grid, so the rule is checked
+    // for every symbol instead.
+    for (const [name, symbol] of Object.entries(PIXEL_SYMBOLS)) {
+      const rects = new DOMParser()
+        .parseFromString(`<svg>${symbol.body}</svg>`, 'image/svg+xml')
+        .querySelectorAll('rect')
+      expect(rects.length, `${name} has cells`).toBeGreaterThan(0)
+      for (const rect of rects) {
+        const x = Number(rect.getAttribute('x'))
+        const y = Number(rect.getAttribute('y'))
+        expect(Number.isInteger(x) && Number.isInteger(y), `${name} cell ${x},${y} sits on the grid`).toBe(true)
+        expect(x, `${name} cell x`).toBeGreaterThanOrEqual(0)
+        expect(x, `${name} cell x`).toBeLessThanOrEqual(15)
+        expect(y, `${name} cell y`).toBeGreaterThanOrEqual(0)
+        expect(y, `${name} cell y`).toBeLessThanOrEqual(15)
+        expect(rect.getAttribute('width'), `${name} cell width`).toBe('1')
+        expect(rect.getAttribute('height'), `${name} cell height`).toBe('1')
+        expect(rect.getAttribute('rx'), `${name} has no baked radius`).toBeNull()
+      }
+    }
     const found = new Set(
       [...view.container.querySelectorAll('[data-glyph]')].map(node => node.getAttribute('data-glyph')),
     )

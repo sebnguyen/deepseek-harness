@@ -484,6 +484,12 @@ describe('web e2e: shipped right Sidebar', () => {
       ])
       const closedColumns = (await geometry()).columns
       expect(closedColumns).not.toBe(normalColumns)
+      // The collapsed panel's off-edge box must not scroll the shell: `clip`
+      // leaves the frame with no scrollport, so a focus/scrollIntoView inside
+      // the hidden twin cannot shift the whole layout sideways.
+      await frame.evaluate((node) => { node.scrollLeft = 400 })
+      expect(await frame.evaluate(node => node.scrollLeft)).toBe(0)
+      expect(await column.locator('[data-sidebar-right-panel]').getAttribute('inert')).toBe('')
       await page.emulateMedia({ reducedMotion: 'no-preference' })
 
       // Pause the real CSS transition at its midpoint so host scheduling cannot

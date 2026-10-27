@@ -7,7 +7,7 @@
  */
 import { useMemo } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
-import { PceRow, PceToolMaster, PixelLoader, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { PceRow, PceToolMaster, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -110,9 +110,7 @@ function PceTerminal(props: {
         <span className={css.visuallyHidden}>
           {state === 'ok' ? t('terminal.done') : state === 'error' ? t('terminal.failed') : t('terminal.running')}
         </span>
-        {running && (
-          <span className="pce-running"><PixelLoader size={10} mode="sweep" />{t('terminal.running')}</span>
-        )}
+        {running && <span className="pce-running">{t('terminal.running')}</span>}
         {cwd !== undefined && <span className="pce-terminal-cwd">{cwd}</span>}
         {meta !== undefined && meta !== null && <span className="pce-terminal-meta">{meta}</span>}
         {inspect !== undefined && (

@@ -363,8 +363,15 @@ export function ConversationRoot({
   // only `.composerStack`: overlay:true renders those as siblings, and sticky
   // on the fallback alone would leave a business-owned takeover at the content
   // end off-screen when the user is not pinned to the floor.
+  //
+  // The running sweep rides the seat for the same reason: the seat holds every
+  // bottom element — the dock cards, the input bar, and a takeover — so the
+  // line stays on screen when an election hides the fallback.
   const composerSeat = (
     <div ref={seatResizeRef} className={css.composerSeat} data-composer-seat="">
+      {session?.running === true && (
+        <div className={css.composerSweep} role="status" aria-label={t('input.running')} />
+      )}
       {composer}
     </div>
   )

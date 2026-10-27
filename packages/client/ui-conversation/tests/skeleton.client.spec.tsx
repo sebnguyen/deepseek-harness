@@ -352,6 +352,27 @@ function mount(
   }
 }
 
+describe('Composer running sweep', () => {
+  it('hangs the sweep on the seat that holds every bottom element', () => {
+    const idle = mount(sessionSnapshotOf())
+    expect(idle.view.queryByRole('status')).toBeNull()
+    cleanup()
+
+    const running = mount(sessionSnapshotOf({ running: true }))
+    const band = running.view.getByRole('status', { name: '运行中…' })
+    expect(band.getAttribute('class')).toContain('composerSweep')
+    // A seat child, so the line spans the column rather than the input card and
+    // outlives an election that hides the chain fallback.
+    expect(band.parentElement?.hasAttribute('data-composer-seat')).toBe(true)
+    cleanup()
+
+    const takeover = mount(
+      sessionSnapshotOf({ running: true }), undefined, undefined, { overlayTakeover: true },
+    )
+    expect(takeover.view.getByRole('status', { name: '运行中…' })).toBeTruthy()
+  })
+})
+
 describe('Hero chrome', () => {
   it('renders the plain product headline and preview badge through the hero locale seat', () => {
     const view = render(<HeroShell t={makeTranslate(en, commonEn)} />)
@@ -494,6 +515,13 @@ describe('ConversationRoot resident composer', () => {
     const header = b.view.container.querySelector('header')
     expect(host).not.toBeNull()
     expect(header?.getAttribute('aria-hidden')).toBe('true')
+    // The right Sidebar's toggle rides the header corner seat. A blank Session
+    // keeps that seat mounted as a float beside the hidden header, so a Sidebar
+    // left open from the previous Session stays closable.
+    expect(b.slotCalls).toContain('conversation.session.header.corner')
+    const corner = b.view.container.querySelector('[data-conversation-header-corner]')
+    expect(corner).not.toBeNull()
+    expect(header?.contains(corner ?? null)).toBe(false)
     expect(b.view.getByText('DigitalOcean Harness')).toBeTruthy()
     expect(b.view.queryByTestId('view-chat')).toBeNull()
     // The same machine-backed textarea is live in the hero, and the

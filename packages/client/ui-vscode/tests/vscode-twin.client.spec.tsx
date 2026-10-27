@@ -113,7 +113,7 @@ describe('the workspace frame', () => {
     expect(mounted.container.querySelector('[data-twin-frame]')).not.toBeNull()
     const element = frame(mounted.container)
     expect(element?.getAttribute('allow')).toBe('clipboard-read; clipboard-write')
-    expect(element?.getAttribute('allowtransparency')).toBe('true')
+    expect(element?.getAttribute('allowtransparency')).toBeNull()
     mounted.unmount()
   })
 
@@ -154,7 +154,96 @@ describe('the workspace frame', () => {
     mounted.unmount()
   })
 
-  it('hands an automated focus grab back, and honors a pointed or tabbed entry', async () => {
+  it('bars a pointed or tabbed focus move while the boot cover is sealed', async () => {
+    vi.useFakeTimers()
+    const composer = document.createElement('div')
+    composer.tabIndex = 0
+    document.body.appendChild(composer)
+    try {
+      const mounted = view('b1', statusWith(ready('/wB')))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      const element = frame(mounted.container)
+      if (element === null) throw new Error('frame missing')
+
+      // The cover is still sealed: the pointerover a freshly inserted frame
+      // fires under a resting cursor, and a Tab describes a future entry.
+      // Neither grants the booting document the keyboard.
+      element.dispatchEvent(new Event('pointerover', { bubbles: true }))
+      composer.focus()
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      fireEvent.keyDown(window, { key: 'Tab' })
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      // The settle lifts the cover; the same pointed move now grants entry.
+      fireEvent.load(element)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
+      composer.focus()
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(element)
+      mounted.unmount()
+    } finally {
+      composer.remove()
+    }
+  })
+
+  it('retires the previous document entry when the source reloads', async () => {
+    vi.useFakeTimers()
+    const composer = document.createElement('div')
+    composer.tabIndex = 0
+    document.body.appendChild(composer)
+    try {
+      const mounted = view('r1', statusWith(ready('/wR')))
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      let element = frame(mounted.container)
+      if (element === null) throw new Error('frame missing')
+      fireEvent.load(element)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
+
+      // Enter the settled document once, then leave the frame's box while it
+      // keeps the keyboard: the verified hold outlives the pointer.
+      composer.focus()
+      element.dispatchEvent(new Event('pointerover', { bubbles: true }))
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(element)
+      element.dispatchEvent(new Event('pointerout', { bubbles: true }))
+      expect(document.activeElement).toBe(element)
+
+      // A new source replaces the document and re-seals the cover. The old
+      // entry retires with the old document, so the boot focus is denied
+      // even after the new document settles.
+      mounted.rerender(<VscodeBody {...props('r1', statusWith(ready('/wS')))} />)
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      element = frame(mounted.container)
+      if (element === null) throw new Error('frame missing')
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      fireEvent.load(element)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(composer)
+
+      // A fresh pointer entry belongs to the new document.
+      element.dispatchEvent(new Event('pointerover', { bubbles: true }))
+      element.focus()
+      fireEvent.blur(window)
+      expect(document.activeElement).toBe(element)
+      mounted.unmount()
+    } finally {
+      composer.remove()
+    }
+  })
+
+  it('hands an automated focus grab back after boot, and honors a pointed or tabbed entry', async () => {
     vi.useFakeTimers()
     const composer = document.createElement('div')
     composer.tabIndex = 0
@@ -164,6 +253,8 @@ describe('the workspace frame', () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(0) })
       const element = frame(mounted.container)
       if (element === null) throw new Error('frame missing')
+      fireEvent.load(element)
+      await act(async () => { await vi.advanceTimersByTimeAsync(1_300) })
 
       // No owner on record: the grab is dumped onto <body>, never kept.
       element.focus()

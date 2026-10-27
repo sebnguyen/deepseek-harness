@@ -156,7 +156,7 @@ function foreignAssistant(message: Message): AssistantMessage {
   for (const block of message.content) {
     switch (block.type) {
       case 'text': content.push({ type: 'text', text: block.text }); break
-      case 'reasoning': content.push({ type: 'thinking', thinking: block.text }); break
+      case 'reasoning': content.push({ type: 'thinking', thinking: block.text, thinkingSignature: 'reasoning_content' }); break
       case 'tool-call': content.push({
         type: 'toolCall',
         id: block.id,

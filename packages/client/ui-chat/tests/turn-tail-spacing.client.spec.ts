@@ -8,7 +8,9 @@ const read = (name: string): string =>
 
 describe('completed-turn spacing', () => {
   it('combines the flow and footer offsets around turn-tail content', () => {
-    expect(read('ChatView.module.css')).toMatch(/margin-top:\s*var\(--dsh-chat-flow-gap, 4px\)/)
+    // Spacing lives in the design layer's single 8px rhythm; the flow itself
+    // carries no gap variable for a kind to override.
+    expect(read('ChatView.module.css')).not.toContain('--dsh-chat-flow-gap')
     const tail = read('TurnTailNodeView.module.css')
     expect(tail).toMatch(/\.root\s*\{[^}]*gap:\s*16px/s)
     expect(tail).toMatch(/\.actions\s*\{[^}]*margin-top:\s*4px/s)

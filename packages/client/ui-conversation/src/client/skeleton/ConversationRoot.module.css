@@ -50,9 +50,23 @@
 }
 
 /* Blank hero/settling: keep the strict Session header mounted without taking
-   column space; the root-owned scrollport and composer remain below it. */
+   column space; the root-owned scrollport and composer remain below it. The
+   corner seat is drawn as a sibling float (below), so the right Sidebar's
+   toggle survives while this box is gone. */
 .headerHidden {
   display: none;
+}
+
+/* The header corner seat while the blank header is hidden: the right Sidebar
+   can still be open, and this seat is its only normal-mode close control.
+   Anchor where the full header's corner sits. */
+.headerCornerFloat {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
 }
 
 .titleRow {
@@ -302,6 +316,9 @@
 
 /* Common seat for the composer chain (fallback + elected overlay siblings). */
 .composerSeat {
+  /* The running sweep anchors here: this box holds every bottom element, so the
+     line spans the column and survives a fallback-hidden election. */
+  position: relative;
   display: flex;
   flex: none;
   flex-direction: column;
@@ -313,6 +330,66 @@
      elected overlay are siblings — and custom properties inherit down to
      whichever entry is mounted. */
   --dsh-composer-text-max-height: 336px;
+}
+
+/* Running signal: a pixel rule that sweeps back and forth along the top of the
+   composer column while a turn runs. It rides the seat — the element that holds
+   every bottom element — so the line spans the column's full width instead of
+   the card's cap, outranks a composer takeover, and its absolute positioning
+   keeps it out of the seat height published to the chat scroller. Cells are
+   4px squares on a 6px pitch; the 2px gap keeps the pixel grid's share as the
+   PixelLoader cells do. */
+.composerSweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  z-index: 1; /* over the chain output, whose entries position themselves */
+  overflow: hidden;
+  pointer-events: none;
+  background-image: repeating-linear-gradient(90deg,
+    color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent) 0 4px,
+    transparent 4px 6px);
+}
+
+/* The lit run carries the same 6px pattern as the track and only its mask
+   window travels, so cells light up in place instead of sliding out of phase
+   with the rule beneath. `alternate` returns the sweep: the row reads as a
+   scanner, not a one-shot wipe. */
+.composerSweep::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(90deg,
+    var(--dsw-alias-state-business-primary) 0 4px,
+    transparent 4px 6px);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 38%, #000 62%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 38%, #000 62%, transparent 100%);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 24% 100%;
+  mask-size: 24% 100%;
+  animation: composer-sweep 2.6s ease-in-out infinite alternate;
+}
+
+@keyframes composer-sweep {
+  from {
+    -webkit-mask-position: 0% 0;
+    mask-position: 0% 0;
+  }
+  to {
+    -webkit-mask-position: 100% 0;
+    mask-position: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composerSweep::after {
+    animation: none;
+    -webkit-mask-position: 50% 0;
+    mask-position: 50% 0;
+  }
 }
 
 /* Active phase: header is ordinary column chrome above the scrollport (not

@@ -49,7 +49,7 @@ set at 16 px (1 px per cell). Do not render these assets at 12–18 px.
 ## Regenerate and check
 
 ```sh
-cd deepseek-harness-oceanic
+cd deepseek-harness
 node design/pixel-symbols-gen.mjs            # uses ../material/; --refresh re-fetches
 node design/pixel-symbols-32-check.mjs       # exits nonzero if any asset drifts
 ```

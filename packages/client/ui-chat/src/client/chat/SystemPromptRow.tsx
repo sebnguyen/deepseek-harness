@@ -29,7 +29,6 @@ export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProp
         glyph="setting"
         title={t(update ? 'message.systemPromptUpdate' : 'message.systemPrompt')}
         state="ok"
-        keepMounted
         body={(
           <div className="pce-code" data-system-prompt-body>
             <div className="pce-code-body">

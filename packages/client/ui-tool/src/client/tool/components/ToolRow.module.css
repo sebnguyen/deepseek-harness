@@ -12,35 +12,11 @@
 }
 
 .row {
-  position: relative; /* sweep-glare overlay anchor */
+  position: relative;
   overflow: hidden;
 }
 
-/* Running sweep (deepsuite ShimmerText pattern): a fixed-width glare band —
-   theme background at 60% — glides over the row content from off-left to
-   off-right, washing glyphs and icon toward the background as it passes.
-   ease-out with a 10% end hold gives each pass a beat before the next. */
-.root[data-state='running'] .row::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 300px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    color-mix(in srgb, var(--dsw-alias-bg-base) 60%, transparent) 55%,
-    transparent 100%
-  );
-  animation: dsh-tool-row-sweep 2.6s ease-out infinite;
-  pointer-events: none;
-}
 
-@keyframes dsh-tool-row-sweep {
-  0% { left: -300px; }
-  90%, 100% { left: 100%; }
-}
 
 .leading {
   flex-shrink: 0;
@@ -193,11 +169,13 @@
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  margin: 4px 0 4px 4px;
-  padding: 7px 12px;
+  margin: 4px 0 0 4px;
+  padding: 0 12px;
   border: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-markdown-code-block);
-  font: var(--dsw-font-markdown-code-block-small);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .detachedDot {
@@ -263,10 +241,12 @@ button.detachedPath:hover {
 .ioCard {
   display: flex;
   flex-direction: column;
-  margin: 4px 0 4px 4px;
+  margin: 4px 0 0 4px;
   border: 0.5px solid var(--dsw-alias-border-l1);
   background: var(--dsw-alias-markdown-code-block);
-  font: var(--dsw-font-markdown-code-block-small);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 /* One card section (IN or OUT): the gutter-label grid, capped and scrolling
@@ -276,7 +256,7 @@ button.detachedPath:hover {
   grid-template-columns: max-content 1fr;
   column-gap: 14px;
   align-items: baseline;
-  padding: 12px 16px;
+  padding: 0 16px;
   max-height: 150px;
   overflow-y: auto;
 }
@@ -304,6 +284,10 @@ button.detachedPath:hover {
   top: 0;
   align-self: start;
   color: var(--dsw-alias-label-caption);
+  /* The IN/OUT gutter label is chrome, not payload: it stays on the small
+     code line while the section text reads the Think tier. */
+  font-size: 11px;
+  line-height: 16px;
 }
 
 /* l2 hairline between the IN and OUT sections, spanning the full card width
@@ -341,7 +325,9 @@ button.detachedPath:hover {
 .imageBody,
 .searchBody,
 .webBody {
-  margin: 4px 0 4px 4px;
+  /* Leading offset only: the row owns the space under its last card, so a
+     card must never add a second bottom offset. */
+  margin: 4px 0 0 4px;
 }
 
 /* The recovery footer for a capped search: the result text (its `Full … stored
@@ -377,25 +363,26 @@ button.detachedPath:hover {
   color: var(--dsw-alias-label-tertiary);
 }
 
-/* In-row code renders at the smaller code size (12/18) via each primitive's
-   rebindable content-font seam; standalone markdown code blocks keep 13/22. */
+/* In-row code rebinds the primitive's content-font seam to the row's Think
+   tier, so an expanded body matches the reasoning body; standalone markdown
+   code blocks keep their own code size. */
 .codeBody {
-  --dsl-code-block-content-font: var(--dsw-font-markdown-code-block-small);
+  --dsl-code-block-content-font: var(--dsh-content-font-size-secondary, 13px)/calc(20px + var(--dsh-content-font-delta-secondary, 0px)) var(--ds-font-family-code);
 }
 
 /* The terminal card scrolls its OUTPUT inside its own surface (same l1
    hairline as the IN/OUT card): the banner stays pinned and the scrollbar
    never rides over it. 224px = the 260px card cap minus the ~36px banner. */
 .terminalBody {
-  --dsl-terminal-font: var(--dsw-font-markdown-code-block-small);
-  --dsl-terminal-line-height: 18px;
+  --dsl-terminal-font: var(--dsh-content-font-size-secondary, 13px)/calc(20px + var(--dsh-content-font-delta-secondary, 0px)) var(--ds-font-family-code);
+  --dsl-terminal-line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   --dsl-terminal-output-max-height: 224px;
   border: 0.5px solid var(--dsw-alias-border-l1);
 }
 
 /* Visually hidden run-state label for assistive technology: the StateDot and
-   the running sweep are aria-hidden / colour-only, so the text carries the
-   running/failed/interrupted state to a screen reader. */
+   the row's state loader are aria-hidden / colour-only, so the text carries
+   the running/failed/interrupted state to a screen reader. */
 .visuallyHidden {
   position: absolute;
   width: 1px;

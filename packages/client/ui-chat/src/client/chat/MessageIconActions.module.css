@@ -1,6 +1,7 @@
 /* Shared message IconActions row (user + assistant). Parent modules own
-   layout offsets via the composed className. Earlier user-authored flow
-   rows gate visibility by recency; turn tails stay visible. */
+   layout offsets via the composed className. Every row is visible: the prompt
+   footer states its turn number and carries the copy action without a reveal
+   gate. */
 
 .actions {
   display: flex;
@@ -20,6 +21,16 @@
   white-space: nowrap;
 }
 
+/* The user prompt's Turn caption sits immediately before the copy action.
+   It reads the same secondary tier as the clock so the prompt footer keeps
+   one meta line at every Settings font size. */
+.turn {
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
+  color: var(--dsw-alias-label-tertiary);
+  white-space: nowrap;
+}
+
 /* The assistant tail's clock sits at the row end after the stat pills; the
    row's 8px flex gap spaces it, and it reads the secondary tier so it matches
    the pill labels beside it. */
@@ -28,28 +39,6 @@
   line-height: calc(24px + var(--dsh-content-font-delta, 0px));
   color: var(--dsw-alias-label-tertiary);
   white-space: nowrap;
-}
-
-/* Earlier user-authored flow rows reveal the complete actions row on hover
-   or focus-within; turn tails stay visible as their message's caption.
-   Opacity keeps layout stable, and devices without hover keep every row
-   visible. */
-@media (hover: hover) {
-  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
-    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
-  ) .actions {
-    opacity: 0;
-    transition: opacity 80ms ease;
-  }
-
-  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
-    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
-  ):hover .actions,
-  :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering']):has(
-    ~ :is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])
-  ):focus-within .actions {
-    opacity: 1;
-  }
 }
 
 .action {

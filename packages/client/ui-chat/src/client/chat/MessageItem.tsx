@@ -344,6 +344,12 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
   node, renderMessageImages, openFile, openSkill, t,
 }: ChatNodeViewProps<'user' | 'steering'>) {
   const data = node.data
+  const location = node.location
+  // Only the prompt carries the Turn caption; a steering message is a
+  // mid-Turn interjection, not the Turn's opening prompt.
+  const turn = node.kind === 'user' && (location.kind === 'turn' || location.kind === 'step')
+    ? location.turn.turn
+    : undefined
   return (
     <UserStyleBubble
       content={data.content}
@@ -356,6 +362,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
         <MessageIconActions
           text={text}
           time={data.time}
+          turn={turn}
           clock="start"
           className={css.actions}
           t={t}
@@ -418,7 +425,6 @@ export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNo
       glyph="add"
       title={t('message.unknownBlock')}
       state="stopped"
-      keepMounted
       body={(
         <div className={css.contextRow}>
           <JsonBlock

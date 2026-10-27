@@ -54,6 +54,11 @@ describe('chat flow font-size axis', () => {
     expect(declarationsFrom(actions, '.timeEnd')).toEqual(expect.arrayContaining([
       'font-size: var(--dsh-content-font-size-secondary, 13px)',
     ]))
+    // The user prompt's Turn caption rides the same meta line as the clock.
+    expect(declarationsFrom(actions, '.turn')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+    ]))
     expect(declarationsFrom(actions, '.action svg')).toEqual(expect.arrayContaining([
       'width: calc(15px + var(--dsh-content-font-delta, 0px))',
       'height: calc(15px + var(--dsh-content-font-delta, 0px))',
@@ -77,9 +82,9 @@ describe('chat flow font-size axis', () => {
   it('expanded bodies stay flat with the head so content reads as one column', () => {
     // The body is flush with the row: no indent under the mark, at any size.
     expect(declarationsFrom(read('ReasoningRow.module.css'), '.thinkBody'))
-      .toEqual(expect.arrayContaining(['padding: 4px 0']))
+      .toEqual(expect.arrayContaining(['padding: 0']))
     expect(declarationsFrom(read('MessageItem.module.css'), '.compactionBody'))
-      .toEqual(expect.arrayContaining(['padding: 4px 0']))
+      .toEqual(expect.arrayContaining(['padding: 0']))
     expect(declarationsFrom(read('ContextInjectionRow.module.css'), '.body'))
       .toEqual(expect.arrayContaining(['margin: 4px 0 0']))
   })
@@ -129,25 +134,24 @@ describe('chat flow font-size axis', () => {
     expect(narrow).toMatch(/\.root \+ \.root \{[^}]*margin-left: 0/)
   })
 
-  it('turn tails stay visible; only earlier user rows hide until hover or focus', () => {
-    // The tail captions its message and carries no reveal gate; the only
-    // opacity gate left is the user flow's sibling selector, under
-    // @media (hover: hover) so no-hover devices keep every row visible.
+  it('every message footer row stays visible without a reveal gate', () => {
+    // The prompt footer states the turn number and offers copy; the row
+    // carries no opacity rule and no hover or focus gate.
     const css = read('MessageIconActions.module.css')
     expect(css).not.toContain('data-actions-reveal')
-    expect(css).toMatch(/\) \.actions \{\s*opacity: 0/)
-    expect(css).toMatch(/\):focus-within \.actions \{\s*opacity: 1/)
-    // The caption offset rides the chat flow gap variable on the tail seat.
+    expect(css).not.toMatch(/opacity:\s*0\s*[;}]/)
+    expect(css).not.toContain('hover: hover')
+    // The row grid owns the spacing: every row, the tail included, ends with
+    // the same 8px margin and keeps no per-kind override.
     const flow = read('ChatView.module.css')
-    expect(flow).toMatch(/\.flowItem\[data-chat-flow-kind='turn-tail'\] \{\s*--dsh-chat-flow-gap: 2px/)
+    expect(flow).not.toContain('--dsh-chat-flow-gap')
   })
 
-  it('uses flow sibling selectors to reveal only the latest user-authored row', () => {
+  it('drops the flow sibling selector that gated the earlier user rows', () => {
     const css = read('MessageIconActions.module.css')
-    const userKinds = ":is([data-chat-flow-kind='user'], [data-chat-flow-kind='steering'])"
-    expect(css).toContain(`${userKinds}:has(\n    ~ ${userKinds}\n  ) .actions`)
-    expect(css).toContain('):hover .actions')
-    expect(css).toContain('):focus-within .actions')
+    expect(css).not.toContain(':has(')
+    expect(css).not.toContain('):hover .actions')
+    expect(css).not.toContain('):focus-within .actions')
   })
 
   it('the interrupted-turn tag stays fixed like the dense token variants', () => {

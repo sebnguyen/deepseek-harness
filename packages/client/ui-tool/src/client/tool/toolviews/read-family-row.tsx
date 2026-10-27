@@ -10,7 +10,7 @@ import type { ReactNode } from 'react'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
 import { readFramesRowModel } from '../models/frames-row-model.ts'
-import { fileRowChip, toolRowModel } from '../models/tool-call-model.ts'
+import { toolRowModel } from '../models/tool-call-model.ts'
 import { ToolRow, type ToolRowProps } from '../components/ToolRow.tsx'
 
 /** Full row props of a read-family toolview: the runtime share plus its locale seat. */
@@ -35,7 +35,7 @@ export type ReadFamilyCard = Pick<ToolRowProps, 'read' | 'image' | 'renderSlot' 
  * @returns the assembled ToolRow.
  */
 export function readFamilyRow(
-  { toolName, block, cwd, home, openFile, inspect, revealFile, t }: ReadFamilyRowProps,
+  { toolName, block, cwd, home, openFile, t }: ReadFamilyRowProps,
   card: ReadFamilyCard,
 ): ReactNode {
   const model = toolRowModel(toolName, block, cwd, home)
@@ -45,7 +45,6 @@ export function readFamilyRow(
   const frames = card.read !== undefined ? readFramesRowModel(block, cwd, home) : null
   const firstRead = frames?.items.find(item => item.kind === 'read')
   const filePath = frames === null ? model.filePath : frames.firstPath
-  const chip = fileRowChip(filePath, revealFile, inspect)
   return (
     <ToolRow
       t={t}
@@ -69,8 +68,6 @@ export function readFamilyRow(
         ? card.filePathLine
         : firstRead !== undefined && firstRead.kind === 'read' ? firstRead.read.line : undefined}
       onOpenFile={openFile}
-      inspect={chip.inspect}
-      inspectKind={chip.inspectKind}
     />
   )
 }

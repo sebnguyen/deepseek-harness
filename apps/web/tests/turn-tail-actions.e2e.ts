@@ -129,7 +129,7 @@ describe('web e2e: assistant IconActions wait for the turn to end', () => {
     expect(await page.locator('[data-turn-process]').count()).toBe(2)
     expect(await page.getByRole('button', { name: 'Bash Print alpha to stdout' }).isVisible()).toBe(false)
     await expect.poll(
-      () => page.getByRole('status').filter({ hasText: 'Swimming…' }).isVisible(),
+      () => page.getByRole('status', { name: 'Running…' }).isVisible(),
       { timeout: 10_000 },
     ).toBe(true)
     await page.locator('[data-streaming="true"]')

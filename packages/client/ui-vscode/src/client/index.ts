@@ -113,16 +113,27 @@ export function apply(ctx: ClientContext): void {
   )), 'ui-vscode: column surface election')
 
   // The twin is the harness's editor: mount it as soon as a session surface
-  // exists rather than waiting for a file-row click. The session-scoped path
-  // (`openTabIn`, not the mounted-session `openTab`) reaches every adopted
-  // session, and pages deduplicate within their pane, so a re-adoption
-  // opening twice is a no-op. A thrown claim (the type not registered yet)
-  // simply loses to the next adoption.
+  // exists rather than waiting for a file-row click. A disabled namespace is
+  // the "no viable twin, no mount" deployment (see VscodeBody): claiming the
+  // column anyway would show its unavailable line over the dock, so the
+  // adoption asks the bridge first and leaves the column to the dock when no
+  // twin is configured. The session-scoped path (`openTabIn`, not the
+  // mounted-session `openTab`) reaches every adopted session, and pages
+  // deduplicate within their pane, so a re-adoption opening twice is a no-op.
+  // A thrown claim (the type not registered yet) simply loses to the next
+  // adoption.
   ctx.effect(() => ctx.sidebarRight.onSessionAdopted((sessionId) => {
-    try {
-      ;(ctx.sidebarRight as unknown as { openTabIn(sessionId: string, kind: string): void })
-        .openTabIn(sessionId, VSCODE_KIND)
-    } catch {
-    }
+    const controller = new AbortController()
+    void remote.ideBridge.status(sessionId, controller.signal).then(
+      (result) => {
+        if (!result.ok || !result.value.enabled) return
+        try {
+          ;(ctx.sidebarRight as unknown as { openTabIn(sessionId: string, kind: string): void })
+            .openTabIn(sessionId, VSCODE_KIND)
+        } catch {
+        }
+      },
+      () => {},
+    )
   }), 'ui-vscode: auto-open twin on session adoption')
 }

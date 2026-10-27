@@ -1,13 +1,15 @@
-import { memo, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 import { JsonBlock } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ConversationLocationDataStore, ConversationTurnDataMap } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatNodeOwnerProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ChatNode } from '../contract/chat-nodes.ts'
-import { useChatRowWindow } from './row-window.tsx'
 import css from './ChatView.module.css'
 
 interface ChatNodeSeatProps extends ChatNodeOwnerProps {
   readonly nodeKey: string
+  readonly live: boolean
+  /** Measured content-box heights shared with ChatView's reserved heights. */
+  readonly heights: { current: Map<string, number> }
   readonly useChatNode: ChatViewSlotProps['useChatNode']
   readonly renderSlot: ChatViewSlotProps['renderSlot']
   readonly t: ChatViewSlotProps['t']
@@ -27,18 +29,26 @@ function turnOf(node: ChatNode | undefined): number | undefined {
   return location?.kind === 'turn' || location?.kind === 'step' ? location.turn.turn : undefined
 }
 
+export function measureContentBox(el: HTMLElement): number {
+  const st = getComputedStyle(el)
+  const box = el.getBoundingClientRect().height
+    - (parseFloat(st.paddingTop) || 0)
+    - (parseFloat(st.paddingBottom) || 0)
+    - (parseFloat(st.borderTopWidth) || 0)
+    - (parseFloat(st.borderBottomWidth) || 0)
+  return Math.max(0, box)
+}
+
 /** Subscribe to one stable node key and dispatch it to its keyed renderer. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
-  nodeKey, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
+  nodeKey, live, heights, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
   loadImage, renderMessageImages, fileMentions, renderSlot, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
   const turn = turnOf(routedNode)
-  // Viewport-window gating: the shell and its data-chat-* identity ride the
-  // scroll contract either way; content only mounts near the reader.
   const wrapperRef = useRef<HTMLDivElement | null>(null)
-  const { live, dormantHeight } = useChatRowWindow(nodeKey, wrapperRef)
+
   const owner = useMemo<ChatNodeOwnerProps | null>(() => node === undefined
     ? null
     : {
@@ -55,22 +65,27 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
     node, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
     loadImage, renderMessageImages, fileMentions,
   ])
+
+  // Measure whenever the content is committed: on mount and each time the row
+  // re-enters the live band. A dormant row never measures its own spacer, so
+  // it cannot overwrite a good reserved height with zero.
+  useEffect(() => {
+    if (!live) return
+    const el = wrapperRef.current
+    if (el === null) return
+    heights.current.set(nodeKey, measureContentBox(el))
+  }, [nodeKey, heights, live])
+
   if (routedNode === undefined || owner === null) return null
   const turnData = turnDataOf(routedNode)
-  // Runtime dispatch owns the correlation: every Node's discriminant is the
-  // keyed-slot entry passed alongside that same Node. TypeScript does not
-  // distribute an object containing a union into a union of objects itself.
   const routedOwner = { ...owner, node: routedNode } as RoutedChatNodeOwner
+  // A dormant row reserves its last measured height. An unmeasured row renders
+  // no spacer, so the shell collapses exactly like a declined row instead of
+  // leaving a stray row margin behind.
+  const reserved = heights.current.get(nodeKey) ?? 0
+
   return (
-    <div
-      ref={wrapperRef}
-      className={css.flowItem}
-      data-chat-anchor-key={routedNode.key}
-      data-chat-flow-key={routedNode.key}
-      data-chat-flow-kind={routedNode.kind}
-      data-chat-turn={turn}
-      data-row-dormant={live ? undefined : ''}
-    >
+    <div ref={wrapperRef} className={css.flowItem} data-chat-anchor-key={routedNode.key} data-chat-flow-key={routedNode.key} data-chat-flow-kind={routedNode.kind} data-chat-turn={turn}>
       {live ? (
         renderSlot('conversation.chat.node', routedOwner, {
           entryKey: routedNode.kind,
@@ -83,14 +98,9 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
             />
           ),
         })
-      ) : (
-        // Dormant row: identity stays queryable, geometry reserved. The
-        // data-row-dormant marker opts the shell out of the declined-row
-        // display:none rule, and the spacer child keeps the column's adjacent
-        // gap rule applying around windows the reader cannot see. Content
-        // remounts with the same subscriptions and live history.
-        <div aria-hidden="true" style={{ height: dormantHeight }} />
-      )}
+      ) : reserved > 0 ? (
+        <div aria-hidden="true" data-chat-flow-spacer="" style={{ height: reserved }} />
+      ) : null}
     </div>
   )
 })

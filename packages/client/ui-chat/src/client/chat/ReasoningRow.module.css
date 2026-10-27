@@ -50,16 +50,10 @@
 
 .thinkBody {
   /* Flat with the head: no indent under the mark. */
-  padding: 4px 0;
+  padding: 0;
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsh-content-font-size-secondary, 13px);
   line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .root[data-state='running'] .row::after {
-    animation: none;
-  }
 }

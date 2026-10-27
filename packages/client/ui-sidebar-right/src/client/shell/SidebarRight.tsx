@@ -332,6 +332,15 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
   const elected = surfaceKind !== undefined
   const chrome = <PanelChrome sessionId={sessionId} fullscreen={fullscreen} autoFullscreen={autoFullscreen} actions={actions} t={t} />
   const renderBody = bodiesFor(panel)
+  // A collapsed panel stays mounted for the slide, but it is out of reach: its
+  // off-edge box still holds the surface (the twin iframe), and a focused
+  // descendant would otherwise scroll the frame to that off-edge position.
+  useLayoutEffect(() => {
+    const element = panelRef.current
+    if (element === null) return
+    if (expanded) element.removeAttribute('inert')
+    else element.setAttribute('inert', '')
+  }, [expanded, panelRef])
   // The dock is the column's fallback, not its host: an entry that elects itself
   // replaces this subtree, so none of it — strip, split controls, explorer — is
   // mounted while a surface owns the column.
@@ -358,7 +367,10 @@ function SidebarPanel(panel: PanelProps & { width: number; panelRef: RefObject<H
     <div
       ref={panelRef}
       className={css.panel}
-      style={{ width: fullscreen ? '100%' : width }}
+      // Fill the column's slot, not the preferred width: a collapsed slot is
+      // 0, so the off-edge panel has no box for a focus or scroll to reach.
+      // The preferred width caps the fill and owns the track's preference.
+      style={{ width: '100%', maxWidth: fullscreen ? undefined : width }}
       data-sidebar-right-panel={fullscreen ? 'fullscreen' : 'push'}
       data-surface-owned={elected || undefined}
       data-sidebar-right-open={expanded || undefined}

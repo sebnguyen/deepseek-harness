@@ -63,6 +63,7 @@ html {
   --a-signal: #7BB4BC;
   --a-signal-2: #94C6CC;
   --a-foam: #94C6CC;
+  --a-deep: #0E4A7A;
   --a-rule: rgba(255, 255, 255, 0.08);
   --a-rule-2: rgba(255, 255, 255, 0.18);
   --a-err: #FCA5A5;
@@ -184,6 +185,11 @@ html body [data-dsh-shell] [class*='_sidebarCol'] {
 
 html body [data-dsh-shell] [data-rightbar-col] {
   border-left: 1px solid var(--a-rule);
+}
+
+/* Collapsed, the column is the frame edge, not a card: draw no stray rule. */
+html body [data-dsh-shell][data-rightbar-collapsed] [data-rightbar-col] {
+  border-left: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -413,6 +419,12 @@ html body [data-dsh-shell] [data-dsh-header] {
   -webkit-backdrop-filter: none;
 }
 
+/* A blank Session hides the strict header so the hero keeps the top of the
+   column; without this the box above still reserves its 64px. */
+html body [data-dsh-shell] [data-dsh-header][class*='_headerHidden'] {
+  display: none;
+}
+
 html body [data-dsh-shell] [data-dsh-header] [class*='_titleRow'] {
   width: 100%;
   max-width: calc(var(--a-measure) + 2 * var(--a-gutter));
@@ -568,8 +580,6 @@ html body [data-dsh-shell] [data-chat-window-root] {
 html body [data-dsh-shell] [data-chat-flow] {
   max-width: none;
   padding: 0 0 24px;
-  counter-reset: prompt;
-  --dsh-chat-flow-gap: 0px;
 }
 
 html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind] {
@@ -593,27 +603,15 @@ html body [data-dsh-shell] [data-chat-flow] > :not([data-chat-flow-kind]) {
    pasted stack trace look like a headline and wrapped every long line into a
    wall. A prompt is content: body size, normal weight, pre-wrap, and a panel
    with a signal rule on the leading edge so the turn boundary is still legible
-   without shouting. The index stays in the gutter, aligned to the first line.
+   without shouting. The turn number sits in the prompt's own footer, so the
+   gutter carries no index.
    -------------------------------------------------------------------------- */
 
-html body [data-dsh-shell] [data-chat-flow-kind='user'],
-html body [data-dsh-shell] [data-chat-flow-kind='steering'] {
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='user'],
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='steering'] {
   margin: 0;
   padding-top: 20px;
-  padding-bottom: 20px;
   border-top: 1px solid var(--a-rule);
-  counter-increment: prompt;
-}
-
-html body [data-dsh-shell] [data-chat-flow-kind='user']::before,
-html body [data-dsh-shell] [data-chat-flow-kind='steering']::before {
-  content: counter(prompt, decimal-leading-zero);
-  position: absolute;
-  left: max(0px, calc(var(--a-inset) - 34px));
-  top: 26px;
-  font: 400 10.5px/1 var(--a-mono);
-  letter-spacing: 0.06em;
-  color: var(--a-ink-3);
 }
 
 html body [data-dsh-shell] [class*='_userRow'] {
@@ -678,12 +676,6 @@ html body [data-dsh-shell] [class*='_fileName'] {
 html body [data-dsh-shell] [class*='_fileMeta'] {
   font: 400 11px/1.4 var(--a-ui);
   color: var(--a-ink-3);
-}
-
-/* Answers. */
-html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] {
-  padding-top: 8px;
-  padding-bottom: 8px;
 }
 
 html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'],
@@ -804,7 +796,8 @@ html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_bod
   color: var(--a-ink-3);
 }
 
-/* Work: a ruled ledger. */
+/* Work: a ruled ledger. A pce row is one head line and the hairline is the
+   separator; its spacing comes from the flow array's single gap below. */
 html body [data-dsh-shell] [data-chat-flow-kind='assistant-step-reason'],
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'],
 html body [data-dsh-shell] [data-chat-flow-kind='context'],
@@ -812,9 +805,28 @@ html body [data-dsh-shell] [data-chat-flow-kind='system-prompt'],
 html body [data-dsh-shell] [data-chat-flow-kind='command'],
 html body [data-dsh-shell] [data-chat-flow-kind='command-input'] {
   margin: 0;
-  padding-top: 5px;
-  padding-bottom: 5px;
   background: transparent;
+}
+
+/* One rhythm for every row: the flow array owns the gap and every row is
+   flush. Per-kind vertical padding (20px prompts, 8px answers, 3px ledger
+   rows) made two neighbouring rows disagree about the gap, so an expanded
+   tool card read as an extra bottom margin under the row. The prompt keeps
+   its 20px top inset above; every other row starts flush. */
+html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind] {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* A pce row draws a hairline under its head line, and that hairline is the
+   row's visual bottom. The head kept its own 8px bottom inset, which stacked on
+   the flow's gap, so reasoning and tool rows sat about 9px lower than a plain
+   answer line — the unevenness that survived the flow's single rhythm. The
+   hairline now sits at the bottom of the head line and the flow's gap is
+   the whole space after it. */
+html body [data-dsh-shell] [data-chat-flow-kind] .pce-head {
+  padding-bottom: 0;
 }
 
 html body [data-dsh-shell] [data-work-group] {
@@ -850,9 +862,12 @@ html body [data-dsh-shell] [data-chat-flow-kind='assistant-step-reason'] .body {
   color: var(--a-ink-2);
 }
 
+/* A tool row is one head line, so the row box is exactly that line's height.
+   The old 30px floor was a hit target from the chip era: with a ~20px pce head
+   it left empty space under the row, which read as a bottom margin the flow
+   array's gap did not explain. */
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] {
   border-top: 1px solid var(--a-rule);
-  min-height: 30px;
   padding-left: 0;
   border: 0;
   background: transparent;
@@ -886,7 +901,9 @@ html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] [class*
 /* Every expanded body kept the module's 4px left margin and its own 0.5px card,
    so the wrapper showed a sliver of fill on one side only. */
 html body [data-dsh-shell] [data-chat-flow-kind='tool-call'] [data-tool] [class*='_bodyWrap'] :is([class*='_codeBody'], [class*='_terminalBody'], [class*='_diffBody'], [class*='_readBody'], [class*='_imageBody'], [class*='_searchBody'], [class*='_webBody'], [class*='_ioCard'], [class*='_detached'], [class*='_searchRecovery']) {
-  margin: 4px 0;
+  /* Leading offset only: the row owns the space under its last card, so a card
+     must never add a second bottom offset. */
+  margin: 4px 0 0;
   border: 0;
   background: transparent;
 }
@@ -915,16 +932,6 @@ html body [data-dsh-shell] [class*='_turnErrorTitle'] {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--a-err);
-}
-
-html body [data-dsh-shell] [class*='_turnStatus'] {
-  margin-top: 12px;
-  font: 400 12px/1.6 var(--a-ui);
-  color: var(--a-ink-3);
-}
-
-html body [data-dsh-shell] [class*='_turnStatusSpinner'] {
-  color: var(--a-signal);
 }
 
 html body [data-dsh-shell] [class*='_turnRailButton'] {
@@ -1218,8 +1225,8 @@ html body [data-dsh-shell] [data-question-key] [class*='_eyebrow'] {
 }
 
 html body [data-dsh-shell] [data-question-key] [class*='_title'] {
-  font: 600 21px/1.3 var(--a-ui);
-  letter-spacing: -0.025em;
+  font: 500 16px/1.4 var(--a-ui);
+  letter-spacing: -0.01em;
   color: var(--a-ink);
 }
 
@@ -1295,6 +1302,11 @@ html body [data-dsh-shell] [data-sidebar-right-panel] {
   box-shadow: none;
 }
 
+/* Fullscreen is the viewport, not a ruled card at the frame edge. */
+html body [data-dsh-shell] [data-sidebar-right-panel='fullscreen'] {
+  border-left: 0;
+}
+
 html body [data-dsh-shell] [data-sidebar-right-panel] [class*='_panelBody'],
 html body [data-dsh-shell] [data-sidebar-right-panel] [class*='_dockArea'] {
   background: transparent;
@@ -1312,7 +1324,12 @@ html body [data-dsh-shell] :focus-visible {
   outline-offset: 2px;
 }
 
+/* The sheet draws a 10px bar (`::-webkit-scrollbar` below), so publish that
+   layout width too: the theme's 8px default survives as the token, and view
+   chrome that aligns itself beside the bar (the overlay composer seat) would
+   otherwise sit 2px off its Chat position. */
 html body * {
+  --dsh-scrollbar-width: 10px;
   scrollbar-width: thin;
   scrollbar-color: var(--a-rule-2) transparent;
 }
@@ -1388,72 +1405,66 @@ html body::after {
 /* --------------------------------------------------------------------------
    13. Tide — Rule 2 motion, scoped to what is actually changing
 
-   Only two motions survive, and both are bounded:
+   One motion survives, and it is bounded:
 
-   · surf-up   the blocks of an answer that is streaming right now. The
-               incremental parser freezes blocks with stable keys, so this
-               runs once per block — at most the two tail blocks — rather
-               than once per token or once per row in the transcript.
-   · breathe   the title of a tool that is running, a 4.2s swell between
-               surface grey and foam blue, 1.5px either side of the line.
-               Settled calls get a 480ms colour ease back to rest.
+   · surf-up   every arrival in the transcript: a pce row that mounts, an
+               answer's blocks, the characters an answer reveals as its text
+               arrives, and the turn's tail. The shape is the character swell
+               the answer's text already used — a rise from just under the
+               line, a fade up, and a warm from deep through foam to surface
+               ink. The keyframe lives in the primitives package
+               (`packages/client/ui-primitives/src/motion.css`), because a CSS
+               module localizes every animation name it sees, including one it
+               does not define, so no module could ever share it with the
+               rules here.
 
-   Nothing is animated on mount for the transcript at large: no entrance on
-   prompts, no entrance on tool rows, no entrance on old rows scrolling into view.
-   A streaming reply's markdown blocks surface as they freeze, character by
-   character; at rest document.getAnimations() is empty, which is the check that
-   matters.
+   A pce row mounts once per arrival in the reader's window, so its rise
+   tracks arrival, not a value update; the incremental parser freezes answer
+   blocks with stable keys, so a block surfaces once — at most the two tail
+   blocks — rather than once per token.
 
-   Geometry never changes: opacity, transform and colour only. A row is the
+   A running tool's title holds still: the row's leading mark and summary
+   already carry the call's state, so the title takes no motion of its own.
+   The streaming caret is gone: the live edge of an answer is the text
+   arriving, and a second motion on the same line read as a second signal.
+
+   Nothing else is animated on mount for the transcript at large: no
+   entrance on prompts and no entrance on plain message chrome. Every site
+   takes the theme's own duration and easing, so a rise is 240ms, and the
+   backwards fill drops every finished animation, so at rest
+   document.getAnimations() is empty, which is the check that matters.
+
+   Geometry never changes: opacity, offset and colour only. A row is the
    same height mid-animation as after it, so the scroll ledger in ChatView
    never sees growth it did not write.
    -------------------------------------------------------------------------- */
 
-@keyframes surf-up {
-  from {
-    opacity: 0;
-    transform: translateY(9px);
-    color: var(--a-ink-3);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-    color: var(--a-ink);
-  }
+/* An answer is the markdown surface, not a pce row, so the rise rides its
+   blocks. A settled answer mounts once, whole, when it arrives — replayed
+   from history, delivered in one piece, or woken back up by the row window —
+   and rises like the rows beside it. */
+html body [data-dsh-shell] [data-chat-flow-kind^='assistant-step'] [class*='_body'] > * {
+  position: relative;
+  animation: surf-up var(--a-dur) var(--a-ease) backwards;
 }
 
-@keyframes tide-breathe {
-  0%,
-  100% {
-    transform: translateY(-1.5px);
-    color: var(--a-ink-2);
-  }
-  50% {
-    transform: translateY(1.5px);
-    color: var(--a-foam);
-  }
+/* A pce row mounts the way an answer's characters surface: it rises from just
+   under its line, fades in, and warms from deep through foam to surface ink.
+   The row mounts near the reader (ChatNodeSeat's row window), so the rise
+   marks arrival; a value update re-renders in place and does not replay it.
+   The backwards fill drops the finished animation instead of holding a
+   forwards effect on every row, so at rest document.getAnimations() stays
+   empty. */
+html body [data-dsh-shell] .pce {
+  position: relative;
+  animation: surf-up var(--a-dur) var(--a-ease) backwards;
 }
 
-@keyframes tide-settle {
-  from {
-    color: var(--a-foam);
-  }
-  to {
-    color: var(--a-ink-2);
-  }
-}
-
-html body [data-dsh-shell] [data-streaming] [class*='_body'] > * {
-  animation: surf-up 620ms var(--a-ease) both;
-}
-
-html body [data-dsh-shell] [data-tool][data-state='running'] [class*='title'] {
-  animation: tide-breathe 4.2s ease-in-out infinite;
-  display: inline-block;
-}
-
-html body [data-dsh-shell] [data-tool][data-state='ok'] [class*='title'] {
-  animation: tide-settle 480ms var(--a-ease) both;
+/* Keep the collapsed keepMounted body from reserving space: hidden=until-found
+   leaves the box in layout, so the body's own padding would otherwise read as
+   a blank line under every collapsed row. */
+html body [data-dsh-shell] .pce-body[hidden] {
+  padding: 0;
 }
 
 /* Header: the session chrome reads as ruled segments, not bare words. */
@@ -1554,45 +1565,17 @@ html body [data-dsh-shell] [data-chat-flow-kind='steering'] {
   border-bottom: 0;
 }
 
-/* The live edge of a streaming answer: a caret that pulses with the stream.
-   One element, opacity only, and it exists exactly while text is arriving. */
-@keyframes tide-caret {
-  0%, 100% { opacity: 0.15; transform: translateY(0); }
-  50%      { opacity: 1;    transform: translateY(-1px); }
-}
 
-html body [data-dsh-shell] [data-streaming] [class*='_body'] > *:last-child::after {
-  content: '';
-  display: inline-block;
-  width: 6px;
-  height: 1em;
-  margin-left: 5px;
-  background: var(--a-foam);
-  vertical-align: text-bottom;
-  animation: tide-caret 1.6s ease-in-out infinite;
-}
 
 /* The turn tail (copy, thumbs, branch, usage, clock) waits for the reveal: while a
    reply is still sweeping its markdown root carries data-revealing, so the tail is
    out of sight and its entrance is held at frame zero. `visibility` rather than
    `display` so the box still holds the scroll position, and `animation-play-state`
    rather than a delay because only the renderer knows how long the sweep has left.
-   When the last character lands the gate lifts and the row raises in from just
-   below, fading up through foam to its own colour, in place. */
-@keyframes tail-raise {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-    color: var(--a-foam);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
+   When the last character lands the gate lifts and the row raises on the
+   shared motion, in place. */
 html body [data-dsh-shell] [data-chat-flow] > [data-chat-flow-kind='turn-tail'] {
-  animation: tail-raise var(--a-dur) var(--a-ease);
+  animation: surf-up var(--a-dur) var(--a-ease);
 }
 
 html body [data-dsh-shell] [data-chat-flow]:has([data-revealing='true']) > [data-chat-flow-kind='turn-tail'] {

@@ -1,8 +1,10 @@
 /**
  * Sidebar shell: column geometry and global panel navigation.
  * The floating panel slides between the 56px rail and its expanded width on
- * the theme's slow ease-in-out curve (Web Animations API below). At settle
- * the wide-only content unmounts and the upper controls enter the 56px rail
+ * the theme's slow ease-in-out curve (Web Animations API below). Expansion
+ * holds the wide content concealed for the whole slide and enters it after
+ * the width lands; a collapse fades the content out, then unmounts the
+ * wide-only content at settle while the upper controls enter the 56px rail
  * from the same horizontal offset (one icon each, same top-down order) on one
  * fade that ends with the slide. The floor only fades. The workspace/session
  * browsing region between global panel rows and the foot is the
@@ -83,7 +85,10 @@ const RAIL_WIDTH = 56
 /** Wide-content unmount delay; matches the 150ms wide-content fade-out. */
 const COLLAPSE_SETTLE_MS = 150
 
-/** The rail ↔ panel width slide; mirrors --ds-transition-duration-slow in ui-theme's base.css. */
+/**
+ * The rail ↔ panel width slide and the hold before the wide content enters;
+ * mirrors --ds-transition-duration-slow in ui-theme's base.css.
+ */
 const WIDTH_SLIDE_MS = 300
 
 /** The slide's curve; mirrors --ds-ease-in-out in ui-theme's base.css. */
@@ -122,6 +127,15 @@ export function SidebarRoot({
   const open = !collapsed || hovered
   const wide = open || (collapsed && !settled)
 
+  // Expansion keeps the wide content at zero opacity for the width slide and
+  // enters it on one quick fade after the width lands (module CSS
+  // .contentHidden/.contentIn). A cold expanded mount, reduced motion, and a
+  // DOM without Element.animate show it statically.
+  const [contentHidden, setContentHidden] = useState(false)
+  const [contentEntering, setContentEntering] = useState(false)
+  const contentHiddenRef = useRef(false)
+  const revealTimer = useRef<number | undefined>(undefined)
+
   // Freeze the content at its expanded width while it fades out (collapsed
   // && wide): the sliding column then clips it instead of reflowing it. The
   // rail layout (.collapsed styles) only applies once the fade settles.
@@ -145,6 +159,14 @@ export function SidebarRoot({
   const column = useRef<HTMLDivElement>(null)
   const [pointerInside, setPointerInside] = useState(false)
   const lingerTimer = useRef<number | undefined>(undefined)
+  // Raw pointer presence for the hover preview, flipped by the enter/leave
+  // events themselves: `pointerInside` is the scrollbar's linger state and
+  // stays true for SCROLLBAR_LINGER_MS after the pointer has left.
+  const pointerOver = useRef(false)
+  // A native drag (reordering a session) makes the browser cancel the pointer
+  // and fire a synthetic pointerleave at 0,0 while the pointer is still over
+  // the column; the preview holds through the drag and re-reads its release.
+  const dragging = useRef(false)
   const armLinger = (): void => {
     if (lingerTimer.current !== undefined) return
     lingerTimer.current = window.setTimeout(() => {
@@ -204,16 +226,48 @@ export function SidebarRoot({
       ? element.getBoundingClientRect().width
       : from
     running?.cancel()
-    if (previous.open === open && previous.collapsed === collapsed) return
-    if (start === target || typeof element.animate !== 'function') return
-    if (typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const foldChanged = previous.open !== open || previous.collapsed !== collapsed
+    const reduced = typeof window.matchMedia === 'function'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const canSlide = foldChanged && start !== target
+      && typeof element.animate === 'function' && !reduced
+
+    if (!open) {
+      // A close cancels a pending reveal; the rail itself stays visible.
+      window.clearTimeout(revealTimer.current)
+      revealTimer.current = undefined
+    } else if (!previous.open && !canSlide) {
+      // No width motion: the content is already at its final place.
+      contentHiddenRef.current = false
+      setContentHidden(false)
+      setContentEntering(false)
+    } else if (canSlide && (!previous.open || contentHiddenRef.current)) {
+      // Hold the content until the width lands; a retarget while it is still
+      // held (pinning a hover preview) restarts the hold for the new edge.
+      if (!previous.open) {
+        contentHiddenRef.current = true
+        setContentHidden(true)
+        setContentEntering(false)
+      }
+      window.clearTimeout(revealTimer.current)
+      revealTimer.current = window.setTimeout(() => {
+        revealTimer.current = undefined
+        contentHiddenRef.current = false
+        setContentHidden(false)
+        setContentEntering(true)
+      }, WIDTH_SLIDE_MS)
+    }
+
+    if (!canSlide) return
     widthSlide.current = element.animate(
       [{ width: `${start}px` }, { width: `${target}px` }],
       { duration: WIDTH_SLIDE_MS, easing: WIDTH_SLIDE_EASING },
     )
   }, [open, collapsed, openWidth])
-  useEffect(() => () => { widthSlide.current?.cancel() }, [])
+  useEffect(() => () => {
+    widthSlide.current?.cancel()
+    window.clearTimeout(revealTimer.current)
+  }, [])
 
   const buildVersion = localBuildVersion()
 
@@ -226,24 +280,51 @@ export function SidebarRoot({
       ref={column}
       className={clsx(
         css.root, !wide && css.collapsed, !wide && everWide.current && css.railIn,
-        collapsed && wide && !hovered && css.fading, !pointerInside && css.quietBars,
+        collapsed && wide && !hovered && css.fading,
+        wide && contentHidden && css.contentHidden,
+        wide && contentEntering && css.contentIn,
+        !pointerInside && css.quietBars,
       )}
       data-dsh-sidebar=""
       data-sidebar-collapsed={!wide || undefined}
       style={{ width: open ? openWidth : RAIL_WIDTH }}
       data-collapsed={open ? undefined : true}
       onPointerEnter={() => {
+        pointerOver.current = true
         cancelLinger()
         setPointerInside(true)
         setHovered(true)
       }}
       onPointerLeave={(event) => {
+        // A native drag takes the pointer: the browser fires pointercancel and
+        // a synthetic leave at 0,0 while the pointer is still over the column.
+        if (dragging.current) return
+        pointerOver.current = false
         armLinger()
         // Focus inside (a keyboard user in the panel) holds it open.
         if (!event.currentTarget.contains(document.activeElement)) setHovered(false)
       }}
       onBlur={(event) => {
+        // The preview closes when the pointer AND focus have left. A click on
+        // non-focusable content inside (a session row) moves focus to the page,
+        // and opening a session then refocuses the composer; focus leaving is
+        // not by itself the user leaving while the pointer still rests here.
+        if (pointerOver.current) return
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setHovered(false)
+      }}
+      onDragStart={() => { dragging.current = true }}
+      onDragEnd={(event) => {
+        dragging.current = false
+        // A release outside the column is a real leave the browser suppressed
+        // during the drag. Browsers without a release point report 0,0; if
+        // that lands outside, the next real pointer move re-enters and reopens.
+        const rect = event.currentTarget.getBoundingClientRect()
+        const releasedInside = event.clientX >= rect.left && event.clientX < rect.right
+          && event.clientY >= rect.top && event.clientY < rect.bottom
+        if (releasedInside) return
+        pointerOver.current = false
+        armLinger()
+        setHovered(false)
       }}
     >
       {/* body of the panel */}

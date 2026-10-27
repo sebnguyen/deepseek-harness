@@ -1,4 +1,4 @@
-.root {
+ .root {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -42,107 +42,33 @@
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-}
-
-/* `hidden="until-found"` retains a zero-height box so browser find can reveal
-   its subtree. Direct Chat Node Seats and auxiliary rows share one flow;
-   hidden and empty Seats do not contribute spacing. */
-.column > :not([hidden]):not(.flowItem:empty)
-  ~ :not([hidden]):not(.flowItem:empty) {
-  margin-top: var(--dsh-chat-flow-gap, 4px);
+  /* One global gap between flow rows. Dormancy does not fight it: a dormant
+     row keeps the geometry of the live one (a spacer of the measured height),
+     and a row that renders nothing at all is display:none, so it takes no
+     flex item slot and no phantom gap. */
+  gap: 8px;
 }
 
 /* Settled-flow identity boundary and the row window's mount unit: shells
-   stay mounted with their data-chat-* identity and a reserved height while
-   row-window.ts gates content rendering by viewport proximity (340px is the
-   shared estimate). Row-window dormancy alone owns virtualization and height
-   reservation; do not layer content-visibility on top, since its intrinsic-
-   size estimate resolves into real layout on mount/scroll and shifts the
-   already-mounted chat. */
+   stay mounted with their data-chat-* identity. Row virtualization is now
+   handled by node-count band computation in ChatView (no IntersectionObserver). */
 .flowItem {
   min-width: 0;
-}
-
-/* The completed-turn tail captions the message above it, so it rides a
-   caption offset instead of the 4px gap that separates messages. */
-.flowItem[data-chat-flow-kind='turn-tail'] {
-  --dsh-chat-flow-gap: 2px;
 }
 
 /* A keyed renderer may intentionally decline its row after dispatch (the
    completed-turn tail does this when it owns neither actions nor extensions,
    the span boundaries once their step settles). An empty flex item must not
-   consume the column gap; the slot shell around a declined view counts as
-   empty too, so multi-step turns stack no blank 4px gaps. Dormant row-window
-   shells are not declined rows: their only child is the height-reserving
-   spacer, which is itself empty, so the `:has` arm would otherwise collapse
-   the row out of flow — and an element without a box never intersects the
-   observer again, permanently clipping chained `Load earlier` pages. */
-.flowItem:not([data-row-dormant]):empty,
-.flowItem:not([data-row-dormant]):has(> *:only-child:empty) {
+   consume the column gap. A dormant row's spacer is also childless but does
+   reserve measured height, so it opts out of this collapse. */
+.flowItem:empty,
+.flowItem:has(> *:only-child:empty:not([data-chat-flow-spacer])) {
   display: none;
 }
 
 
 /* Selection still sets data-selected for details linkage; no outline —
    tool rows match Think chrome (no selected ring). */
-
-/* Turn activity keeps the former loader's one-line footprint. A pale
-   brand-blue band sweeps from left to right; reduced-motion keeps it static. */
-.turnStatus {
-  align-self: flex-start;
-  /* Caps the fit-content row at the column width so .turnStatusText's
-     ellipsis constraint actually engages on long purposes. */
-  max-width: 100%;
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  height: calc(26px + var(--dsh-content-font-delta, 0px));
-  font: var(--dsw-font-s-strong-14);
-  /* The status line reads at the body size: the fixed 14 token supplies the
-     family/weight, the axis supplies the size. At default that is 14px text
-     on a 22px line inside a 26px row; both box heights shift by the same
-     delta, preserving the 8px (22 − 14) leading and the 4px (26 − 22) row
-     padding at every size. */
-  font-size: var(--dsh-content-font-size, 14px);
-  line-height: calc(22px + var(--dsh-content-font-delta, 0px));
-  white-space: nowrap;
-  color: var(--dsw-alias-label-secondary);
-}
-
-.turnStatusSpinner {
-  flex: none;
-  width: 24px;
-  height: 24px;
-  margin-right: 8px;
-  color: var(--dsw-alias-brand-primary);
-}
-
-/* The purpose line rides the tool sweep's character: on every header change
-   the keyed span replays a short slide-fade from the loader's dim end-state. */
-.turnStatusText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  animation: turn-status-in 240ms ease-out;
-}
-
-@keyframes turn-status-in {
-  from {
-    opacity: 0.22;
-    transform: translateX(8px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .turnStatusText {
-    animation: none;
-  }
-}
 
 .hint {
   color: var(--dsw-alias-label-tertiary);

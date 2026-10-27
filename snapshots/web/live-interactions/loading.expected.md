@@ -19,7 +19,7 @@
 - button "Copy":
   - img
 - paragraph: partial
-- status: Deep diving...
+- status: Running…
 - textbox "Message or run a task, / commands, @ files or sessions"
 - button "Add files or run commands":
   - img

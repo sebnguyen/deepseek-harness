@@ -1,0 +1,45 @@
+/* The chat surface's one entrance motion.
+
+   Every arrival in the transcript rides it: a pce row that mounts, an
+   answer's blocks, the characters an answer reveals as its text arrives, and
+   the turn's tail. The shape is the character swell the answer's text already
+   used — the element rises from just under the line, fades up, and warms from
+   deep through foam to surface ink.
+
+   `top` rather than `transform`, because the character spans are non-replaced
+   inline boxes and a transform does not apply to them; a target has to be
+   positioned for the offset to paint.
+
+   The keyframe lives in a global stylesheet because a CSS module localizes
+   every animation name it sees, including one it does not define, so a module
+   could neither share this keyframe with the app's rules nor name the app's.
+   The rules that say which elements arrive live in the app's theme. */
+
+@keyframes surf-up {
+  0% {
+    opacity: 0;
+    color: var(--a-deep, #0E4A7A);
+    top: var(--a-surf-rise, var(--a-tail-rise, 5px));
+  }
+
+  55% {
+    opacity: 1;
+    color: var(--a-foam, #7FD1FF);
+    top: 0;
+  }
+
+  100% {
+    opacity: 1;
+    color: var(--a-ink, currentColor);
+    top: 0;
+  }
+}
+
+/* The characters an answer reveals as its text arrives. MarkdownText marks
+   exactly the characters that arrived in the current chunk and gives every
+   delta its own span, so the motion runs once per arrival over the new
+   characters only — never over the whole trailing block. */
+[data-tail] {
+  position: relative;
+  animation: surf-up var(--a-tail-dur, var(--a-dur, 220ms)) var(--a-tail-ease, var(--a-ease, ease-in-out)) backwards;
+}

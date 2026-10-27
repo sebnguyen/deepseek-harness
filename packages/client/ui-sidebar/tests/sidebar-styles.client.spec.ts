@@ -58,6 +58,15 @@ describe('SidebarRoot.module.css', () => {
     expect(css).toMatch(/@keyframes rail-fade-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
   })
 
+  it('holds the expanded content until the width slide lands, then enters it fast', () => {
+    expect(declarations('.contentHidden>*')?.get('opacity')).toBe('0')
+    expect(declarations('.contentHidden>*')?.get('pointer-events')).toBe('none')
+    expect(declarations('.contentIn>*')?.get('animation')).toBe(
+      'content-in 120ms var(--ds-ease-in-out)',
+    )
+    expect(css).toMatch(/@keyframes content-in\s*\{\s*from\s*\{\s*opacity: 0;\s*}\s*}/)
+  })
+
   it('gives shell rail controls the same base anchor for their shared translation', () => {
     expect(declarations('.collapsed .logoRow')?.get('justify-content')).toBe('flex-start')
     expect(declarations('.collapsed .newSession')?.get('align-self')).toBe('flex-start')

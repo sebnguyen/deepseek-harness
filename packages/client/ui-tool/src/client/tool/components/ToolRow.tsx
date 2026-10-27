@@ -57,8 +57,6 @@ export interface ToolRowProps {
   filePath?: string | undefined
   filePathLine?: number | undefined
   onOpenFile?: ((path: string, options?: OpenFileOptions) => void) | undefined
-  inspect?: (() => void) | undefined
-  inspectKind?: string | undefined
   frames?: FramesRowModel | undefined
 }
 
@@ -203,7 +201,7 @@ function FramesStack(props: {
 export function ToolRow({
   t, variant, toolName, title, summary, summarySuffix, bodyRaw, output, askQuestion,
   errorSummary, terminal, diff, read, image, renderSlot, loadImage, search, web, todos,
-  state, filePath, filePathLine, onOpenFile, inspect, inspectKind, frames,
+  state, filePath, filePathLine, onOpenFile, frames,
   pceKind, glyph,
 }: ToolRowProps) {
   const terminalLabels = useMemo(() => terminalBlockLabels(t), [t])
@@ -327,11 +325,6 @@ export function ToolRow({
         state={state}
         stateLabel={pceStateLabel(state, t)}
         onOpenSummary={fileLink ? () => openPath(filePath) : undefined}
-        action={inspect === undefined ? null : {
-          label: t(inspectKind === 'open' ? 'row.open' : 'row.inspect'),
-          onClick: inspect,
-          kind: inspectKind === 'open' ? 'open' : undefined,
-        }}
         body={body}
       />
     </div>

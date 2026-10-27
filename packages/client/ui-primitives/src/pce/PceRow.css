@@ -32,11 +32,6 @@
   cursor: pointer;
 }
 
-.pce-head:hover .pce-identity strong,
-.pce-head:focus-visible .pce-identity strong {
-  color: var(--dsw-alias-label-primary);
-}
-
 .pce-head.is-collapsible:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: 2px;
@@ -48,8 +43,10 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
+  align-self: center;
   border: 0;
   background: transparent;
+  color: var(--pce-kind-color, currentColor);
   font: 700 9px/1 var(--ds-font-family-code);
   /* Quiet by default: the kind's colour is the hover reward. */
   opacity: .55;
@@ -70,68 +67,107 @@
   height: 16px;
 }
 
-.pce-read .pce-mark { color: #63b3ff; }
-.pce-file-mutation .pce-mark { color: #f7b955; }
-.pce-bash .pce-mark { color: #53d6a1; }
-.pce-tool-generic .pce-mark { color: #ff8b9a; }
-.pce-reasoning .pce-mark { color: #b59cff; }
-.pce-context .pce-mark { color: #67d8e8; }
-.pce-system-prompt .pce-mark { color: var(--dsw-alias-label-secondary); }
-.pce-compaction .pce-mark,
-.pce-manual-compaction .pce-mark { color: #f7b955; }
-.pce-inbox .pce-mark,
-.pce-user .pce-mark,
-.pce-goal-input .pce-mark,
-.pce-retry .pce-mark { color: #63b3ff; }
-.pce-steering .pce-mark,
-.pce-assistant .pce-mark,
-.pce-subcalls .pce-mark,
-.pce-workflow-run .pce-mark { color: #b59cff; }
-.pce-search .pce-mark,
-.pce-web .pce-mark,
-.pce-read-image .pce-mark,
-.pce-turn-tail .pce-mark { color: #67d8e8; }
-.pce-todo .pce-mark,
-.pce-step-boundary .pce-mark { color: #53d6a1; }
-.pce-ask .pce-mark,
-.pce-max-tokens .pce-mark { color: #f7b955; }
-.pce-turn-error .pce-mark { color: #ff8b9a; }
-.pce-command .pce-mark,
-.pce-unknown .pce-mark { color: var(--dsw-alias-label-secondary); }
+/* One kind colour per row, read by the mark and by the identity's hover. */
+.pce-read { --pce-kind-color: #63b3ff; }
+.pce-file-mutation { --pce-kind-color: #f7b955; }
+.pce-bash { --pce-kind-color: #53d6a1; }
+.pce-tool-generic { --pce-kind-color: #ff8b9a; }
+.pce-reasoning { --pce-kind-color: #b59cff; }
+.pce-context { --pce-kind-color: #67d8e8; }
+.pce-system-prompt { --pce-kind-color: var(--dsw-alias-label-secondary); }
+.pce-compaction,
+.pce-manual-compaction { --pce-kind-color: #f7b955; }
+.pce-inbox,
+.pce-user,
+.pce-goal-input,
+.pce-retry { --pce-kind-color: #63b3ff; }
+.pce-steering,
+.pce-assistant,
+.pce-subcalls,
+.pce-workflow-run { --pce-kind-color: #b59cff; }
+.pce-search,
+.pce-web,
+.pce-read-image,
+.pce-turn-tail { --pce-kind-color: #67d8e8; }
+.pce-todo,
+.pce-step-boundary { --pce-kind-color: #53d6a1; }
+.pce-ask,
+.pce-max-tokens { --pce-kind-color: #f7b955; }
+.pce-turn-error { --pce-kind-color: #ff8b9a; }
+.pce-command,
+.pce-unknown { --pce-kind-color: var(--dsw-alias-label-secondary); }
 
+/* The kind is the quiet leading label on the head's line: the mono face sits
+   a tier under the description, so the row reads "kind · description". It
+   stays quiet until the head is hovered. */
 .pce-identity {
-  min-width: 0;
-  display: flex;
-  flex-direction: column-reverse;
-  /* Two 16px lines: the text block is exactly two marks tall, so the glyph
-     and the copy sit on one grid. */
-  gap: 0;
+  /* The kind never truncates: it keeps its full width, and the description
+     gives way instead. */
+  flex: 0 0 auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  /* A tier under the description: the kind is the quiet label, not the row's
+     content. It still rides the font-size axis, one step below the
+     description, so a larger Settings font-size moves both lines together. */
+  font-size: calc(11px + var(--dsh-content-font-delta-secondary, 0px));
+  font-weight: 600;
+  line-height: calc(16px + var(--dsh-content-font-delta-secondary, 0px));
+  white-space: nowrap;
+  transition: color .14s ease;
 }
 
-.pce-identity strong {
+/* The interpunct between the kind and the description. */
+.pce-dot {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
+  font: 11px/1 var(--ds-font-family-code);
+}
+
+.pce-head:hover .pce-identity,
+.pce-head:focus-visible .pce-identity {
+  color: var(--pce-kind-color, var(--dsw-alias-label-secondary));
+}
+
+.pce-description {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 16px;
+  /* The row label rides the Think tier, so a larger Settings font-size moves
+     it with the reasoning head instead of leaving it pinned at 13px. */
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(16px + var(--dsh-content-font-delta-secondary, 0px));
   font-weight: 400;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition: color .14s ease;
 }
 
-.pce-identity-title {
+.pce-head:hover .pce-description,
+.pce-head:focus-visible .pce-description {
+  color: var(--dsw-alias-label-primary);
+}
+
+/* Elapsed/meta slot after the description: duration, read window/language, or
+   the trailing count. It must not be swallowed by the description ellipsis. */
+.pce-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 50%;
+  margin-left: auto;
   overflow: hidden;
-  color: var(--dsw-alias-label-tertiary);
-  font: 11px/16px var(--ds-font-family-code);
+  color: var(--dsw-alias-label-caption);
+  font: 11px/1.35 var(--ds-font-family-code);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.pce-identity-suffix {
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-caption);
-  font: 11px/1.35 var(--ds-font-family-code);
-  white-space: nowrap;
+/* The elapsed slot already owns the push; a following state sits beside it. */
+.pce-time + .pce-head-state {
+  margin-left: 0;
 }
 
 /* Openable path riding the identity meta line. */
@@ -164,10 +200,22 @@
   align-items: center;
   gap: 5px;
   flex: 0 0 auto;
+  align-self: center;
   margin-left: auto;
   color: var(--dsw-alias-label-secondary);
   font: 700 8px/1.2 var(--ds-font-family-code);
   white-space: nowrap;
+  /* Quiet by default, like the mark: the outcome colour is the hover reward.
+     The sweep still runs while running, so motion carries the state at rest. */
+  opacity: .55;
+  filter: grayscale(1);
+  transition: opacity .14s ease, filter .14s ease;
+}
+
+.pce-head:hover .pce-head-state,
+.pce-head:focus-visible .pce-head-state {
+  opacity: 1;
+  filter: none;
 }
 
 .pce-head-state > svg {
@@ -188,12 +236,17 @@
   border: 0;
 }
 
+.pce-head-state.is-ok {
+  color: var(--dsw-alias-state-success-primary);
+}
+
 .pce-head-state.is-error {
   color: var(--dsw-alias-state-error-primary);
 }
 
+/* Running rides the DigitalOcean state blue/teal through the shared sweep. */
 .pce-head-state.is-running {
-  color: var(--dsw-alias-brand-primary);
+  color: var(--dsw-alias-state-business-primary);
 }
 
 .pce-head-state.is-stopped {
@@ -203,12 +256,16 @@
 .pce-toggle {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
-  margin-left: 3px;
   color: var(--dsw-alias-label-secondary);
-  font: 700 9px/1 var(--ds-font-family-code);
+  font: 700 12px/1 var(--ds-font-family-code);
+}
+
+.pce-head:hover .pce-toggle,
+.pce-head:focus-visible .pce-toggle {
+  color: var(--dsw-alias-label-primary);
 }
 
 .pce-action {
@@ -229,9 +286,42 @@
 .pce-body {
   min-width: 0;
   flex: 0 1 auto;
-  padding: 6px 0 0;
+  padding: 0;
   overflow: visible;
 }
+
+/* `hidden="until-found"` keeps the element's box in layout
+   (content-visibility: hidden hides the content, not the padding), so a
+   collapsed keepMounted body still reserved its expanded top gap.
+   Collapsed means no body box. */
+.pce-body[hidden] {
+  padding: 0;
+}
+
+/* The pce body is flush with its head; the flow array's gap is the only
+   space between rows. Cards that bring their own markdown-body margins
+   (CodeBlock, ReadBlock, TerminalBlock, ToolMaster, image bodies) must not
+   add a tool-specific offset.
+   The sibling rules below still own the 6px between stacked code blocks. */
+.pce .pce-body > * {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/* Shared primitives that render inside a pce body (read, diff, terminal and
+   the master/detail preview) rebound to the same Think tier. Their standalone
+   markdown defaults are the 11px code block, one tier under the body text
+   around them, so the body would otherwise mix 13px prose with 11px code. */
+.pce .pce-body {
+  --dsl-terminal-font: var(--dsh-content-font-size-secondary, 13px)/calc(20px + var(--dsh-content-font-delta-secondary, 0px)) var(--ds-font-family-code);
+  --dsl-terminal-line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
+  --dsl-code-block-content-font: var(--dsh-content-font-size-secondary, 13px)/calc(20px + var(--dsh-content-font-delta-secondary, 0px)) var(--ds-font-family-code);
+}
+
+/* Expanded-body content reads the Think tier: the same size and 20px line box
+   as the reasoning body, so a pce body and a Think body sit on one grid.
+   Banner labels, the line-number gutter, the table header and the meta/action
+   controls stay on the dense chrome sizes. */
 
 /* ---------- code / terminal blocks ---------- */
 
@@ -320,7 +410,7 @@
 }
 
 .pce-code-body {
-  padding: 5px 0;
+  padding: 0;
 }
 
 .pce-line {
@@ -329,7 +419,9 @@
   min-width: 0;
   padding: 1px 7px;
   color: var(--dsw-alias-label-secondary);
-  font: 8px/1.55 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -356,6 +448,9 @@
   min-width: 14px;
   flex: 0 0 auto;
   color: var(--dsw-alias-label-caption);
+  /* Chrome: the line number keeps the dense code tier while the payload
+     grows to the Think size. */
+  font-size: 11px;
   text-align: right;
 }
 
@@ -382,21 +477,23 @@
 
 .pce-result,
 .pce-notice {
-  padding: 8px 9px;
+  padding: 0 9px;
   border: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-secondary);
-  font-size: 9px;
-  line-height: 1.55;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .pce-error {
-  padding: 8px 9px;
+  padding: 0 9px;
   border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 38%, transparent);
   background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent);
   color: var(--dsw-alias-state-error-primary);
-  font: 8.5px/1.5 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -405,9 +502,11 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 7px;
+  padding: 0 7px;
   border: 1px solid var(--dsw-alias-border-l1);
-  font: 8px/1.55 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-detached-path {
@@ -529,7 +628,9 @@
   flex-direction: column;
   gap: 4px;
   color: var(--dsw-alias-label-secondary);
-  font: 8.5px/1.4 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-todos .is-done {
@@ -543,8 +644,8 @@
 .pce-ask p {
   margin: 0 0 6px;
   color: var(--dsw-alias-label-primary);
-  font-size: 9.5px;
-  line-height: 1.5;
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-options {
@@ -556,7 +657,9 @@
   padding: 3px 6px;
   border: 1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-secondary);
-  font: 7.5px/1.2 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-options .is-picked {
@@ -648,14 +751,17 @@
   gap: 7px;
   align-items: center;
   min-width: 0;
-  padding: 6px 9px;
+  padding: 0 9px;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
-  font: 11px/1.4 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-thead {
   color: var(--dsw-alias-label-caption);
   font-size: 7px;
+  line-height: 1.4;
   letter-spacing: .08em;
   background: color-mix(in srgb, var(--dsw-alias-label-primary) 3%, transparent);
 }
@@ -701,7 +807,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  margin-top: 8px;
+  /* The body already supplies the 6px gap under the head; the table starts
+     on that same line instead of adding an 8px tool-specific offset. */
+  margin-top: 0;
 }
 
 .pce-tool-table {
@@ -761,7 +869,7 @@
 }
 
 .pce-tool-master.is-preview-open .pce-tool-preview {
-  padding-top: 10px;
+  padding-top: 0;
   border-top-color: var(--dsw-alias-border-l1);
   opacity: 1;
 }
@@ -778,10 +886,12 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 0 0 7px;
+  padding: 0;
   border-bottom: 1px solid var(--dsw-alias-border-l1);
   color: var(--dsw-alias-label-caption);
-  font: 11px/1.3 var(--ds-font-family-code);
+  font-family: var(--ds-font-family-code);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
 }
 
 .pce-tool-preview-kind {
@@ -796,7 +906,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
-  font: 600 8.5px/1.2 var(--ds-font-family-code);
+  font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -830,7 +940,7 @@
 
 .pce-tool-preview-body {
   min-width: 0;
-  padding-top: 7px;
+  padding-top: 0;
   /* The preview window owns its scroll: a long diff or transcript cannot
      stretch the row past a screenful. */
   max-height: 320px;

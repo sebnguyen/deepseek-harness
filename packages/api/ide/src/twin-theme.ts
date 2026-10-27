@@ -31,7 +31,7 @@ export const VSCODE_THEME_EXTENSION_ID = 'dsh.do-harness'
 export const VSCODE_THEME_EXTENSION_VERSION = '0.0.1'
 export const VSCODE_THEME_DIR_NAME = `${VSCODE_THEME_EXTENSION_ID}-${VSCODE_THEME_EXTENSION_VERSION}`
 
-/** Workbench colors, walking the harness bluish scale like the app chrome. */
+/** Workbench colors, walking the harness Atlas sheet like the app chrome. */
 export const DO_THEME_COLORS: Record<string, string> = {
   // Base ink for every widget the sub-grounds don't paint explicitly.
   'foreground': '#f7f8f8',
@@ -59,12 +59,9 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'titleBar.activeBackground': '#121618',
   'titleBar.activeForeground': '#f7f8f8',
   'titleBar.inactiveForeground': '#a2a4a5',
-  // The shell is one ruled sheet now: the react frame and this workbench are
-  // flush regions separated by hairlines, so the fork's floating-card mode
-  // (glass gutters over the harness ocean) is off, and widgets cast nothing.
-  'modernUI.shellBackground': '#121618',
-  'modernUI.inactiveShellBackground': '#121618',
-  'surface.border': '#ffffff14',
+  // The shell is one ruled sheet: the workbench and the harness are flush
+  // regions separated by hairlines, the fork's floating-card mode is off, and
+  // widgets cast nothing. No modernUI surface tokens ride the theme.
   // Editor chrome sits on markdown-code-block bluish-900 like harness code.
   'editor.background': '#171c1e',
   'editor.foreground': '#f7f8f8',
@@ -73,7 +70,7 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'editorCursor.foreground': '#7bb4bc',
   'editorGroup.border': '#ffffff14',
   'editorGroupHeader.background': '#121618',
-  'editorLineNumber.foreground': '#738484',
+  'editorLineNumber.foreground': '#87898a',
   'editorLineNumber.activeForeground': '#f7f8f8',
   'editorWidget.background': '#252a2b',
   'editorWidget.border': '#ffffff14',
@@ -117,7 +114,7 @@ export const DO_THEME_COLORS: Record<string, string> = {
   'scrollbarSlider.activeBackground': '#ffffff38',
   'textLink.foreground': '#94c6cc',
   'textLink.activeForeground': '#7bb4bc',
-  'widget.shadow': 'transparent',
+  'widget.shadow': '#00000000',
   // Terminal adopts the editor well and the shiki-flavored ANSI row.
   'terminal.background': '#171c1e',
   'terminal.foreground': '#f7f8f8',

@@ -60,11 +60,12 @@
   line-height: 20px;
 }
 
+/* The running mark is the DigitalOcean pixel sweep at its natural 16px (the
+   StateDot default). The box sizes to the mark instead of pinning a 10px
+   square, so the logo cannot spill onto the count label beside it. */
 .activitySlot {
   display: inline-flex;
   flex: none;
-  width: 10px;
-  height: 10px;
 }
 
 .trigger:hover,

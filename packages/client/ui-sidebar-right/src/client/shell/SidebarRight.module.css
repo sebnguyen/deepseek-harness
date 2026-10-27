@@ -22,23 +22,22 @@
  * frame's z-layer tokens, ui-theme base.css).
  */
 .panel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  /* In flow: the panel fills the right column's slot (100%, capped by its
+     preferred width) and the column packs it against its edge (left when
+     swapped). A zero-width collapsed slot therefore gives the panel no box to
+     overflow or scroll to; `flex: none` keeps the fill stable while the track
+     animates. Fullscreen remains fixed because it must cover the viewport. */
+  position: relative;
+  flex: none;
   z-index: var(--dsh-z-panel);
   display: flex;
   flex-direction: column;
   min-width: 0;
-  /* The frame's right-hand floating card: the same ground as the
-     conversation, wrapped in ui-theme's elevation pair (hairline stroke + soft
-     shadow) instead of the old 0.5px left rule. Content is clipped to the panel
-     box; dockkit menus portal out, so nothing clips that must escape. */
+  /* The frame's right-hand region: one ruled sheet flush with the column edge,
+     not a floating card. Content is clipped to the panel box; dockkit menus
+     portal out, so nothing clips that must escape. */
   background: var(--dsw-alias-bg-base);
   overflow: hidden;
-  box-shadow: var(--dsw-elevation-panel);
-  backdrop-filter: var(--dsh-glass-blur);
-  -webkit-backdrop-filter: var(--dsh-glass-blur);
   transform: translateX(100%);
   visibility: hidden;
   transition:
@@ -52,10 +51,10 @@
   transition: transform var(--ds-transition-duration-slow) var(--ds-ease-in-out);
 }
 
-/* A surface owns the column's whole card: its body mounts the workbench frame
-   here, and the card's own surface would sit behind the transparent workbench
-   as a second, flat fill with square corners. While a surface owns the column
-   the panel drops its chrome, so the workbench paints its own page. */
+/* A surface owns the column's whole region: its body mounts the workbench
+   frame here, and the workbench paints its own opaque sheet. While a surface
+   owns the column the panel drops its ground, so nothing double-fills behind
+   the frame. */
 .panel[data-surface-owned] {
   background: transparent;
   box-shadow: none;
@@ -73,16 +72,10 @@
 
 /*
  * Swapped frame (data-rightbar-swapped on the frame element): the IDE panel
- * sits between the workspace sidebar and the conversation, so it anchors to
- * its column's left edge — the frame edge it glides against no longer moves
- * — and slides out to the left when hidden, mirroring the stock right-edge
- * presentation.
+ * sits between the workspace sidebar and the conversation; the column packs
+ * it against its left edge (ui-layout's swapped rule), and it slides out to
+ * the left when hidden, mirroring the stock right-edge presentation.
  */
-:global([data-rightbar-swapped]) .panel {
-  right: auto;
-  left: 0;
-}
-
 :global([data-rightbar-swapped]) .panel:not([data-sidebar-right-open]) {
   transform: translateX(-100%);
 }
@@ -154,20 +147,21 @@
   min-width: 0;
 }
 
-/* The panel's presentation switch (and the fullscreen collapse control),
-   floating over the twin's own workbench chrome while the tab strip itself
-   yields (a mounted vscode tab hides it). A card wall is 20; the twin's
-   in-iframe stacking is its own document, so a modest level over the pane
-   content suffices. */
+/* The panel's presentation switch (and the fullscreen collapse control) sit
+   on the twin's top-right corner as a flat ruled seat while the tab strip
+   itself yields. The twin's in-iframe stacking is its own document, so a
+   modest level over the pane content suffices. */
 .panelChromeFloat {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0;
+  right: 0;
   z-index: var(--dsh-z-panel-chrome);
   display: flex;
-  gap: 4px;
+  gap: 2px;
   padding: 2px;
-  background: var(--dsw-alias-bg-opaque-translucent-l1, var(--dsw-alias-bg-overlay, var(--dsw-alias-bg-base)));
+  background: var(--dsw-alias-bg-base);
+  border-left: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
 }
 
 .unavailable {

@@ -5,7 +5,7 @@ import { diffCardModel } from '../models/diff-card-model.ts'
 import { searchCardModel } from '../models/search-card-model.ts'
 import { terminalCardModel, terminalFailed } from '../models/terminal-card-model.ts'
 import { webCardModel } from '../models/web-card-model.ts'
-import { fileRowChip, toolRowModel, type ToolRowVariant } from '../models/tool-call-model.ts'
+import { toolRowModel, type ToolRowVariant } from '../models/tool-call-model.ts'
 import { ToolRow } from '../components/ToolRow.tsx'
 
 const VARIANT_PCE: Record<ToolRowVariant, { kind: PceKind; glyph: PixelSymbolName }> = {
@@ -23,7 +23,7 @@ export interface GenericToolCardProps extends ToolCallOwnerProps {
   t: ToolTreeProps['t']
 }
 
-export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect, revealFile, t }: GenericToolCardProps) {
+export function GenericToolCard({ toolName, block, cwd, home, openFile, t }: GenericToolCardProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const terminal = terminalCardModel(block, cwd)
   const read = readCardModel(block, cwd, home)
@@ -36,7 +36,6 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect,
     ? 'error'
     : model.state
   const singleFile = model.filePath !== undefined
-  const chip = fileRowChip(model.filePath, revealFile, inspect)
   return (
     <ToolRow
       t={t}
@@ -60,8 +59,6 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, inspect,
       state={state}
       filePath={model.filePath}
       onOpenFile={singleFile ? openFile : undefined}
-      inspect={chip.inspect}
-      inspectKind={chip.inspectKind}
     />
   )
 }

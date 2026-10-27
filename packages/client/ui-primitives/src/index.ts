@@ -2,6 +2,11 @@
  * Cordis-free React primitives styled only through `--dsw-*` tokens.
  */
 
+// The shared entrance motion, in a global stylesheet: a CSS module localizes
+// every animation name it sees, so no module could share a keyframe with the
+// app's rules.
+import './motion.css'
+
 export { StateDot } from './StateDot.tsx'
 export type { StateDotState } from './StateDot.tsx'
 export { DisclosureRow } from './DisclosureRow.tsx'
@@ -34,7 +39,7 @@ export { PIXEL_SYMBOLS } from './pixel-symbols/symbols.ts'
 export type { PixelSymbol, PixelSymbolName } from './pixel-symbols/symbols.ts'
 export type { PixelGlyphProps } from './PixelGlyph.tsx'
 export { PceRow } from './pce/PceRow.tsx'
-export type { PceAction, PceKind, PceRowProps, PceState } from './pce/PceRow.tsx'
+export type { PceKind, PceRowProps, PceState } from './pce/PceRow.tsx'
 export { PceToolMaster } from './pce/PceToolMaster.tsx'
 export type { PceToolMasterProps, PceToolRow } from './pce/PceToolMaster.tsx'
 export type { PixelLoaderProps } from './PixelLoader.tsx'

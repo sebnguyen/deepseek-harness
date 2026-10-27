@@ -7,6 +7,11 @@
   grid-template-rows: 100%;
   height: 100%;
   overflow: hidden;
+  /* Clip, not scroll: the hidden right panel's off-edge box still holds the
+     surface (the twin iframe), and a focused descendant would otherwise set
+     the frame's scroll offset and shift the whole shell sideways. `clip`
+     keeps the same paint clipping without a scrollport. */
+  overflow: clip;
   box-sizing: border-box;
   /* Floating-window treatment: the three columns are cards floating on the
      frame's base fill — an 8px outer inset and an 8px gap leave the ground
@@ -121,14 +126,17 @@
 }
 
 /*
- * The right column never clips: its occupant anchors a fixed-width panel to the
- * column's right edge (the frame's edge, which never moves) and lets the track
- * decide whether the centre makes room. With no track the panel hangs over the
- * centre from a zero-width column, and while the track animates the panel stays
- * where it is. The occupant draws its own left border.
+ * The right column never clips: it packs its occupant's panel against the
+ * column's right edge (the frame's edge, which never moves) and lets the
+ * track decide whether the centre makes room. The panel fills the slot, so a
+ * zero-width collapsed track gives it zero width; `flex-end` keeps the edge
+ * pinned while the track animates. Swapped, the same packing anchors to the
+ * column's left edge. The occupant draws its own left border.
  */
 .rightbarCol {
   position: relative;
+  display: flex;
+  justify-content: flex-end;
   grid-column: 3;
   grid-row: 1;
   min-width: 0;
@@ -143,6 +151,7 @@
 
 .frame[data-rightbar-swapped] .rightbarCol {
   grid-column: 2;
+  justify-content: flex-start;
 }
 
 .overlayLayer {

@@ -3,16 +3,26 @@
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { Button, IconChevronDownOutline14, Modal, PixelLoader } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
-import type { ChatSnapshot, RunningToolCall } from '../contract/snapshot.ts'
+import type { ChatSnapshot } from '../contract/snapshot.ts'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
-import { ChatNodeSeat } from './ChatNodeSeat.tsx'
+import { ChatNodeSeat, measureContentBox } from './ChatNodeSeat.tsx'
 import css from './ChatView.module.css'
 import { followScrollport, type FollowHandle } from './follow-scroll.ts'
 
 const FOLLOW_THRESHOLD = 24
 const SCROLL_SAMPLE_INTERVAL_MS = 500
+/** Live band: rows kept rendered on each side of the row at the viewport
+ *  centre. A hundred and fifty rows above and a hundred and fifty below is
+ *  at most 301 live rows. A node count, never a pixel estimate — every row
+ *  outside the band holds a measured spacer instead of its content. */
+const LIVE_BAND_NODES = 150
+/** The newest rows stay live whatever the reader looks at. They are the only
+ *  rows that change on their own — the streaming output and the turn tail —
+ *  so a reader parked in history must not unmount them: a remount restarts
+ *  the tail's count-up and reads as a flicker. */
+const PIN_TAIL_NODES = 8
 
 /** Active column host when present; otherwise the view-local scroller. */
 function scrollerOf(from: HTMLElement): HTMLElement {
@@ -125,82 +135,14 @@ function observedRpcIds(
   return observed
 }
 
-/** Matches the harness purpose field (`description`) inside a tool call's raw arguments. */
-const PURPOSE_RE = /"description"\s*:\s*"((?:[^"\\]|\\.)*)"/
-
-/**
- * @param argsRaw - raw tool-call argument text.
- * @returns the purpose string, when the event carries the field.
- */
-function extractPurpose(argsRaw: string): string | null {
-  const match = PURPOSE_RE.exec(argsRaw)
-  if (match === null) return null
-  try {
-    return JSON.parse(`"${match[1]}"`) as string
-  } catch {
-    return match[1] ?? null
-  }
-}
-
-/**
- * Latest tool event purpose, newest call first; sub-calls (dispatched code
- * runtime) win over their parent when younger.
- * @param calls - in-flight tool calls from the chat snapshot.
- * @returns the newest purpose, or null when none carries the field.
- */
-function latestToolPurpose(calls: readonly RunningToolCall[]): string | null {
-  for (let i = calls.length - 1; i >= 0; i--) {
-    const call = calls[i]
-    if (call === undefined) continue
-    for (let j = call.subCalls.length - 1; j >= 0; j--) {
-      const sub = call.subCalls[j]
-      if (sub !== undefined && 'argsRaw' in sub) {
-        const purpose = extractPurpose(sub.argsRaw)
-        if (purpose !== null) return purpose
-      }
-    }
-    const own = extractPurpose(call.argsRaw)
-    if (own !== null) return own
-  }
-  return null
-}
-
-/** Turn-level activity row: the stock pixel DO loader rides alongside the
- * last tool-call purpose, which sticks through events that carry none (call
- * completions, streaming gaps) — the row mounts only while the turn runs, so
- * the stickiness resets on turn end. Slides and fades in on every change.
- * Falls back to the deep-diving label while a tool call is in flight
- * without a purpose, and to the swimming label before any call starts. */
-function TurnStatus({ t, purpose, busy }: {
-  /** The owning view's locale seat. */
-  t: ChatViewSlotProps['t']
-  /** Latest tool-call purpose, or null while nothing carries one. */
-  purpose: string | null
-  /** Whether any tool call is still in flight. */
-  busy: boolean
-}) {
-  // Same-component adjust-during-render: the last purpose-carrying tool call
-  // keeps the line until a younger purpose lands, instead of letting the
-  // latest event erase it back to the swim label.
-  const [lastPurpose, setLastPurpose] = useState<string | null>(null)
-  if (purpose !== null && purpose !== lastPurpose) setLastPurpose(purpose)
-  const text = purpose ?? lastPurpose
-  return (
-    <div className={css.turnStatus} role="status" aria-live="polite">
-      <PixelLoader className={css.turnStatusSpinner} />
-      {/* Keyed by the text so a change remounts the span and replays the sweep. */}
-      <span key={text ?? ''} className={css.turnStatusText}>{text ?? (busy ? t('chat.deepDiving') : t('chat.swimming'))}</span>
-    </div>
-  )
-}
-
-type ChatNodeListProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey'> & {
+type ChatNodeListProps = Omit<ComponentProps<typeof ChatNodeSeat>, 'nodeKey' | 'live'> & {
   readonly order: readonly string[]
+  readonly liveKeys: ReadonlySet<string>
 }
 
-const ChatNodeList = memo(function ChatNodeList({ order, ...seatProps }: ChatNodeListProps) {
+const ChatNodeList = memo(function ChatNodeList({ order, liveKeys, ...seatProps }: ChatNodeListProps) {
   return order.map(nodeKey => (
-    <ChatNodeSeat key={nodeKey} nodeKey={nodeKey} {...seatProps} />
+    <ChatNodeSeat key={nodeKey} nodeKey={nodeKey} live={liveKeys.has(nodeKey)} {...seatProps} />
   ))
 })
 
@@ -215,11 +157,7 @@ export function ChatView({
   t,
 }: ChatViewSlotProps) {
   const order = useChat(s => s.order)
-  const runningCalls = useChat(s => s.legacy.runningCalls)
   const nodeStore = useChat(s => s.nodes)
-  // Scanning the in-flight calls once per publication beats re-running the regex
-  // fold in JSX on every ChatView render while any turn runs.
-  const turnPurpose = useMemo(() => latestToolPurpose(runningCalls), [runningCalls])
   const inbox = useSession(s => s.queue)
   // Workspace root off the session list row: path summaries display relative to it.
   const cwd = useSessions(s => s.byId[sessionId]?.cwd)
@@ -291,6 +229,18 @@ export function ChatView({
   // restores it and normalizes a floor-clamped position back to following.
   const [atBottom, setAtBottom] = useState(() => chatScroll.read() === null)
   const atBottomRef = useRef(atBottom)
+  const [liveKeys, setLiveKeys] = useState<Set<string>>(() => new Set(order))
+  // The scroll-sample effect mounts once, so every input the band computation
+  // reads is mirrored into a ref instead of closed over a mount-time value.
+  const orderRef = useRef<readonly string[]>(order)
+  orderRef.current = order
+  const liveKeysRef = useRef<ReadonlySet<string>>(liveKeys)
+  liveKeysRef.current = liveKeys
+  const loadingOlderRef = useRef(loadingOlder)
+  loadingOlderRef.current = loadingOlder
+  // Measured content heights keyed by node: the only thing a dormant row
+  // reserves. Written when a row mounts and when it leaves the live band.
+  const rowHeightsRef = useRef(new Map<string, number>())
   const scrollSamplePendingRef = useRef(false)
 
   /** Last position delivered or written on the main thread. */
@@ -318,7 +268,94 @@ export function ChatView({
   const lastSteeringId = pendingSteering[pendingSteering.length - 1]?.id ?? null
   const lastSubmissionId = visibleSubmissions[visibleSubmissions.length - 1]?.requestId ?? null
   const followSig = `${openState}:${firstSeq}:${lastKey}:${order.length}:${running ? 1 : 0}:${lastSteeringId ?? ''}:${lastSubmissionId ?? ''}`
+  const effectiveLiveKeys = liveKeys.size === 0 && order.length > 0 ? new Set(order) : liveKeys
 
+  // Compute liveKeys from the row at the viewport centre: a node-count band,
+  // never an estimate. Reads refs because the scroll sample mounts once.
+  const recomputeLiveKeys = useCallback(() => {
+    // Suppress during prepend (Load Earlier) — liveKeys changes would swap
+    // content↔spacer mid-prepend, changing scrollHeight and breaking anchor.
+    if (loadingOlderRef.current || anchorRef.current !== null) return
+    const local = listRef.current
+    if (local === null) return
+    const order = orderRef.current
+    const scrollport = scrollerOf(local)
+    if (typeof document.elementsFromPoint !== 'function') {
+      // jsdom / no hit-testing: all nodes live.
+      setLiveKeys(new Set(order))
+      return
+    }
+    const rect = scrollport.getBoundingClientRect()
+    const cx = rect.left + rect.width / 2
+    const cy = rect.top + rect.height / 2
+    // Walk through all elements at this point (topmost-first). Overlays like
+    // the to-bottom button may be first, so check each for a row ancestor.
+    let centeredKey: string | null = null
+    for (const el of document.elementsFromPoint(cx, cy)) {
+      if (!(el instanceof HTMLElement)) continue
+      const anchor = el.closest<HTMLElement>('[data-chat-flow-key]')
+      if (anchor !== null && local.contains(anchor)) {
+        centeredKey = anchor.dataset.chatFlowKey ?? null
+        break
+      }
+    }
+    // Fallback: rows are in document order, so binary-search the one whose
+    // band contains the centre. Bounded at log(rows) rect reads.
+    if (centeredKey === null) {
+      const rows = local.querySelectorAll<HTMLElement>('[data-chat-flow-key]')
+      let lo = 0
+      let hi = rows.length - 1
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1
+        const row = rows[mid]
+        if (row === undefined) break
+        const r = row.getBoundingClientRect()
+        if (r.bottom < cy) lo = mid + 1
+        else if (r.top > cy) hi = mid - 1
+        else {
+          centeredKey = row.dataset.chatFlowKey ?? null
+          break
+        }
+      }
+    }
+    if (centeredKey === null) {
+      // No hit — keep previous liveKeys (don't overwrite with empty).
+      return
+    }
+    const centeredIndex = order.indexOf(centeredKey)
+    if (centeredIndex < 0) return
+    // Band of LIVE_BAND_NODES rows on each side of the centred row: a hundred
+    // and fifty above and a hundred and fifty below, so the live set is at
+    // most three hundred rows.
+    const half = LIVE_BAND_NODES
+    const start = Math.max(0, centeredIndex - half)
+    const end = Math.min(order.length, centeredIndex + half + 1)
+    const next = new Set(order.slice(start, end))
+    // The newest rows are pinned: the streaming output and the turn tail stay
+    // mounted even when the reader is parked far away in history.
+    for (const key of order.slice(Math.max(0, order.length - PIN_TAIL_NODES))) {
+      next.add(key)
+    }
+    if (next.size === 0 && order.length > 0) {
+      setLiveKeys(new Set(order))
+      return
+    }
+    // Measure before the swap: the leaving rows still render their content, so
+    // each spacer reserves the height that row actually had.
+    const leaving = new Set<string>()
+    for (const key of liveKeysRef.current) if (!next.has(key)) leaving.add(key)
+    if (leaving.size > 0) {
+      for (const row of local.querySelectorAll<HTMLElement>('[data-chat-flow-key]')) {
+        const key = row.dataset.chatFlowKey
+        if (key === undefined || !leaving.has(key)) continue
+        rowHeightsRef.current.set(key, measureContentBox(row))
+      }
+    }
+    setLiveKeys((prev) => {
+      if (prev.size === next.size && [...next].every(k => prev.has(k))) return prev
+      return next
+    })
+  }, [])
   const stopFollow = (): void => {
     followHandleRef.current?.stop()
     followHandleRef.current = null
@@ -434,6 +471,19 @@ export function ChatView({
     }
   })
 
+  // New arrivals join the live set until the next scroll sample narrows the
+  // band around the centered key (recomputeLiveKeys runs on scroll sample,
+  // so this effect never widens what a scroll just narrowed).
+  useEffect(() => {
+    setLiveKeys((prev) => {
+      const missing = order.filter(k => !prev.has(k))
+      if (missing.length === 0) return prev
+      const next = new Set(prev)
+      for (const k of missing) next.add(k)
+      return next
+    })
+  }, [order])
+
   const onScrollRef = useRef(() => {})
   onScrollRef.current = () => {
     const local = listRef.current
@@ -492,6 +542,7 @@ export function ChatView({
       // The sampled pass publishes through setAtBottom/setActiveTurn; no
       // blank slate re-render rides the 500ms cadence anymore.
       onScrollRef.current()
+      recomputeLiveKeys()
     }
     const onScroll = (): void => {
       scrollSamplePendingRef.current = true
@@ -599,6 +650,8 @@ export function ChatView({
           )}
           <ChatNodeList
             order={order}
+            liveKeys={effectiveLiveKeys}
+            heights={rowHeightsRef}
             useChatNode={useChatNode}
             cwd={cwd}
             openFile={requestOpenFile}
@@ -615,9 +668,7 @@ export function ChatView({
           {/* No pending placeholders: questions (ui-user-questions) and approvals
               (ApprovalPanel) both take over the composer, so a flow card would
               double-render the same wait. */}
-          {/* Turn-level loading signal: rides the whole running turn (first-token
-              wait, tool execution, streaming) so it never flickers per step. */}
-          {running && <TurnStatus t={t} purpose={turnPurpose} busy={runningCalls.length > 0} />}
+          {/* The running turn shows on the composer's sweep line, not as a row here. */}
           {pendingSteering.map(item => (
             <PendingSteeringBubble
               key={item.id}
