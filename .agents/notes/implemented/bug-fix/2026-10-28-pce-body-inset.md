@@ -8,7 +8,7 @@ An expandable pce row draws its head line and then places the caller's body
 flush against it. The body cards carry no vertical margin of their own — the
 port zeroed them so a card could never add space below its row — so an expanded
 read, diff, terminal or search box touched the head's hairline above and the
-next flow row's top below. The collapsed row is one line on a 4px flow rhythm;
+next flow row's top below. The collapsed row is one line on a 6px flow rhythm;
 the expanded row read as a single unbroken block.
 
 ## Decision
@@ -23,7 +23,8 @@ collapsible row's open branch renders its body. A collapsed keepMounted body
 never carries the inset even while its box is still in the document, and the
 always-open command bodies (`collapsible={false}`) stay flush with their head.
 
-The flow array's 4px gap remains the only space between rows, and the body's
+The flow array's 6px gap remains the shared rhythm (the assistant body and
+prompt stack carry the documented 6px exception), and the body's
 own boundary is where the row ends. The hidden reset also zeroes margin and
 padding (in `PceRow.css` and in the atlas override) as a second guard, because
 `content-visibility: hidden` leaves the element's box in layout.
@@ -69,11 +70,11 @@ height is measured rather than assumed.
   and the collapsed retry body compute zero margin and carry no marker; a
   toggled bash row computes `margin-top: 8px` / `margin-bottom: 8px`, grows
   from 20px to 109px, and returns to 20px with no body on collapse. In the
-  bench's flow the next row starts 4px below the body's margin box.
+  bench's flow the next row starts 6px below the body's margin box.
 
 ## Related
 
 - [One 8px rhythm for transcript rows](../simplification/2026-10-26-chat-row-spacing-8px.md)
   — the flow gap this internal inset sits inside.
-- [Transcript node rows keep no outer margin](2026-10-28-node-row-margin-cleanup.md)
+- [Transcript node rows keep one gap and two deliberate margins](2026-10-28-node-row-margin-cleanup.md)
   — the cleanup that removed the per-row margins around this inset.

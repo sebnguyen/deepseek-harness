@@ -18,6 +18,9 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* The assistant node keeps its own breathing room inside the flow gap. */
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 
 /* Wide markdown tables (the renderer's ≥4-column md-table-wide hook) span

@@ -1,55 +1,55 @@
-# Agent Note: transcript node rows keep no outer margin
+# Agent Note: transcript node rows keep one gap and two deliberate margins
 
 Status: implemented
 
 ## Problem
 
-The transcript's flow gap is the only space between rows, but several node roots
-still carried the spacing of the old per-kind rhythm: every pce head reserved
-8px under its line, the prompt stack carried 6px above and below, the
-assistant/reasoning body carried 6px, an unknown-block root carried 4px, and the
-turn-tail actions carried 4px. The app hid the pce head padding behind an atlas
-override, so the bench and any consumer outside the shell saw taller rows, and
-the other offsets applied everywhere. Rows read as having uneven leftover
-margins even though the flow gap was one value.
+The transcript's flow gap is the shared rhythm, but the gap had been tightened
+to 4px and the first cleanup pass removed every node's outer margin at once. The result read
+as too tightly packed: consecutive pce rows, the assistant answer and the
+prompt/steering rows all sat on the same 4px line, and the answer and prompt
+bodies lost the small inset that separated them from their neighbours.
 
 ## Decision
 
-Each row owner is flush at its top and bottom; the flow gap is the only
-inter-row space. The pce head's base padding is 0, and the prompt stack,
-assistant/reasoning body, unknown-block root, and turn-tail actions carry no
-vertical margin. Content spacing inside a row is unchanged: the assistant body
-keeps its 16px block gap, the answer's action footer keeps its 16px top margin,
-and the prompt row keeps its deliberate atlas 20px top inset.
+- The flow array's gap is 6px again; it is the shared space between rows.
+- The assistant/reasoning body keeps a deliberate 6px top and bottom margin.
+- The user and steering prompt stack keeps a deliberate 6px top and bottom
+  margin.
+- The pce head, an unknown-block root and the turn-tail actions stay flush; the
+  plain pce rows do not get the old 8px head padding back.
+
+Content spacing inside a row is unchanged: the assistant body keeps its 16px
+block gap, the answer's action footer keeps its 16px top margin, and the prompt
+row keeps its deliberate atlas 20px top inset.
 
 ## Alternatives considered
 
-- **Keep the per-component margins and rely on atlas to override them.** atlas
-  is scoped to `[data-dsh-shell]`; the bench and other consumers (a twin, a
-  preview) do not get the override, so the same component renders different row
-  geometry.
-- **Add compensating negative margins to the flow item.** That keeps the old
-  offsets in the component and makes the flow own knowledge of each node's
-  interior; the next owner would have to know them too.
-- **Move all outer spacing into the flow gap and drop the atlas prompt inset.**
-  The 20px prompt inset is a deliberate turn boundary; the cleanup removes only
-  the extra per-row margins around it.
+- **One 6px gap with no node margins.** That is the first cleanup; it read too
+  tightly packed because the answer and prompt lost their own breathing room.
+- **Give every node a top and bottom margin.** That restores the uneven
+  per-kind rhythm the cleanup removed; only the assistant body and prompt stack
+  asked for the extra space.
+- **Go back to the 8px rhythm.** The user asked for 6px; the gap is now one
+  value and the two deliberate margins sit inside it.
 
 ## Consequences
 
-Rows shrink to their content: pce rows are a 20px head line (16px for the
-single-line notices), the prompt is bubble + 6px gap + actions, reasoning is its
-head line, and the turn tail is its action strip. The 4px flow gap now reads
-evenly across consecutive node kinds. The cost is that a row kind can no longer
-tune its own outer breathing room; it must use an internal gap or ask the flow
-owner.
+With the bench's 20px pce head line, pce rows stay 20px (16px for the
+single-line notices), the prompt row is 76px of content plus 12px of margins,
+reasoning is 20px plus 12px, the answer is 50px plus 12px, the always-open
+command is 40px and the turn tail is 28px. The flow gap is 6px everywhere; the
+assistant and prompt rows read as separate bands while the plain work rows stay
+flush. The cost is two deliberate per-kind exceptions in a rhythm that is
+otherwise one gap.
 
 ## Testing
 
-- `packages/client/ui-chat/tests/node-row-margins.client.spec.ts` pins the flush
-  pce head, prompt stack, assistant body, unknown-block root, and turn-tail
-  actions.
-- The live ChatView bench measured every row: flow gap 4px, zero margin and
-  padding on each flow item and node root; pce heads 20px, unknown-surface rows
-  24px, reasoning 20px, answer 50px and turn tail 28px. Expanded pce bodies kept
-  only the 8px inset, and no descendant carried a non-zero vertical margin.
+- `packages/client/ui-chat/tests/node-row-margins.client.spec.ts` pins the 6px
+  prompt/assistant margins and the flush pce head, unknown-block root and
+  turn-tail actions.
+- `packages/client/ui-chat/tests/chat-flow-row-styles.client.spec.ts` pins the
+  6px column gap.
+- The live ChatView bench measured flow gap 6px; prompt and assistant rows 12px
+  taller than their content; pce heads 20px, unknown-surface rows 24px and turn
+tail 28px. Expanded pce bodies kept only the 8px inset.

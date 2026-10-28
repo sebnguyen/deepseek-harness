@@ -54,7 +54,7 @@ describe('chat flow-row dormant shells', () => {
 
   it('spaces flow rows with one container gap, not per-row margins', () => {
     const column = /(?:^|[{}])\s*(\.column\s*\{[^}]*)\}/.exec(css)
-    expect(column?.[1]).toMatch(/gap:\s*4px/)
+    expect(column?.[1]).toMatch(/gap:\s*6px/)
     expect(css).not.toMatch(/\.column\s*>\s*\*\s*\{[^}]*margin-bottom/)
   })
 

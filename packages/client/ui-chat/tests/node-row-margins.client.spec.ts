@@ -1,8 +1,9 @@
 /**
- * Transcript node rows must not carry their own outer vertical margin. The
- * flow gap is the only inter-row space; the expanded pce body's 8px inset is
- * the one intentional exception. Content spacing inside a row (markdown block
- * gaps, the answer action footer) is not row spacing and stays.
+ * The 6px flow gap is the shared transcript rhythm. The assistant/reasoning
+ * body and the prompt stack deliberately add 6px above and below themselves;
+ * the pce head, an unknown-block root and the turn-tail actions stay flush.
+ * Content spacing inside a row (markdown block gaps, the answer action footer)
+ * is not row spacing and stays.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -23,14 +24,16 @@ describe('transcript node row outer spacing', () => {
     expect(head).toMatch(/padding:\s*0\s*;/)
   })
 
-  it('keeps the prompt stack flush', () => {
+  it('gives the prompt stack a deliberate top and bottom margin', () => {
     const stack = declarations(read('../src/client/chat/MessageItem.module.css'), '.userStack')
-    expect(stack).not.toMatch(/margin-(top|bottom)/)
+    expect(stack).toContain('margin-top: 6px')
+    expect(stack).toContain('margin-bottom: 6px')
   })
 
-  it('keeps the assistant and reasoning bodies flush', () => {
+  it('gives the assistant and reasoning body a deliberate top and bottom margin', () => {
     const body = declarations(read('../src/client/chat/AssistantMarkdown.module.css'), '.body')
-    expect(body).not.toMatch(/margin-(top|bottom)/)
+    expect(body).toContain('margin-top: 6px')
+    expect(body).toContain('margin-bottom: 6px')
   })
 
   it('keeps an unknown-block root flush', () => {
