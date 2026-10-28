@@ -1,9 +1,9 @@
 /**
- * The 6px flow gap is the shared transcript rhythm. The assistant/reasoning
- * body and the prompt stack deliberately add 6px above and below themselves;
- * the pce head, an unknown-block root and the turn-tail actions stay flush.
- * Content spacing inside a row (markdown block gaps, the answer action footer)
- * is not row spacing and stays.
+ * The 8px flow gap is the shared transcript rhythm. The assistant message body
+ * and the prompt stack deliberately add 6px above and below themselves; the
+ * Think row, the pce head, an unknown-block root and the turn-tail actions stay
+ * flush. Content spacing inside a row (markdown block gaps, the answer action
+ * footer) is not row spacing and stays.
  */
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -30,10 +30,15 @@ describe('transcript node row outer spacing', () => {
     expect(stack).toContain('margin-bottom: 6px')
   })
 
-  it('gives the assistant and reasoning body a deliberate top and bottom margin', () => {
-    const body = declarations(read('../src/client/chat/AssistantMarkdown.module.css'), '.body')
-    expect(body).toContain('margin-top: 6px')
-    expect(body).toContain('margin-bottom: 6px')
+  it('insets the assistant message body but not the Think row', () => {
+    const css = read('../src/client/chat/AssistantMarkdown.module.css')
+    const body = declarations(css, '.body')
+    expect(body).not.toMatch(/margin-(top|bottom)/)
+    const inset = declarations(css, '.body[data-inset]')
+    expect(inset).toContain('margin-top: 6px')
+    expect(inset).toContain('margin-bottom: 6px')
+    const view = read('../src/client/chat/AssistantNodeView.tsx')
+    expect(view).toContain("inset={node.kind === 'assistant-step-message'}")
   })
 
   it('keeps an unknown-block root flush', () => {

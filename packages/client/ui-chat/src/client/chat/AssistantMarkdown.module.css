@@ -18,7 +18,12 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  /* The assistant node keeps its own breathing room inside the flow gap. */
+}
+
+/* Only the assistant answer row gets the inset. The Think row shares this body
+   (AssistantNodeView passes inset only for assistant-step-message), so it
+   stays flush with the flow gap. */
+.body[data-inset] {
   margin-top: 6px;
   margin-bottom: 6px;
 }

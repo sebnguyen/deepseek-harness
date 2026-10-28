@@ -51,6 +51,7 @@ export const AssistantNodeView = memo(function AssistantNodeView({
       interrupted={data.status === 'interrupted'}
       renderMessageImages={renderMessageImages}
       mentions={mentions}
+      inset={node.kind === 'assistant-step-message'}
       t={t}
     />
   )

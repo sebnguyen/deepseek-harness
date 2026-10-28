@@ -33,13 +33,15 @@ export interface AssistantMarkdownProps {
   renderMessageImages: ChatNodeOwnerProps['renderMessageImages']
   /** Resolved prose file mentions for this Assistant's closing turn. */
   mentions?: MarkdownFileMentions | undefined
+  /** Add the 6px transcript inset: the answer row, not the Think row. */
+  inset?: boolean | undefined
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
 
 /** Reasoning block as the Think variant summary row (figma 39:28304). */
 export const AssistantMarkdown = memo(function AssistantMarkdown({
-  blocks, streaming, interrupted, renderMessageImages, mentions, t,
+  blocks, streaming, interrupted, renderMessageImages, mentions, t, inset = false,
 }: AssistantMarkdownProps) {
   // Stable per locale revision (t identity changes on switch): a fresh object
   // per render would rebuild MarkdownText's component table every chunk.
@@ -145,7 +147,7 @@ export const AssistantMarkdown = memo(function AssistantMarkdown({
   }
   return (
     <div className={css.root} data-streaming={streaming || undefined}>
-      <div className={css.body}>
+      <div className={css.body} data-inset={inset ? '' : undefined}>
         {rendered}
         {interrupted && <span className={css.stopped}>{t('message.stopped')}</span>}
       </div>
