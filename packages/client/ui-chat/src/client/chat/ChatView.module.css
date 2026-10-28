@@ -46,7 +46,7 @@
      row keeps the geometry of the live one (a spacer of the measured height),
      and a row that renders nothing at all is display:none, so it takes no
      flex item slot and no phantom gap. */
-  gap: 6px;
+  gap: 4px;
 }
 
 /* Settled-flow identity boundary and the row window's mount unit: shells
