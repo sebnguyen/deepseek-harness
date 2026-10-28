@@ -175,7 +175,7 @@ export function PceRow({
         : <span className="pce-state-text">{stateLabel}</span>}
       {head}
       {expanded
-        ? <div className="pce-body" key="open" data-pce-expanded="">{content}</div>
+        ? <div className="pce-body" key="open" data-pce-expanded={showToggle ? '' : undefined}>{content}</div>
         : keepMounted && expandable
           ? (
             <div

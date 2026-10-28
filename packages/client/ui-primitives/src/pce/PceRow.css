@@ -290,11 +290,11 @@
   overflow: visible;
 }
 
-/* The inset belongs to the expanded body only. The keepMounted body stays in
-   the document while collapsed, so a margin on `.pce-body` itself would
-   reserve space there before the hidden reset (and for any consumer that
-   renders the box without `hidden`); `data-pce-expanded` is emitted only by
-   PceRow's open branch. */
+/* The inset belongs to the toggled-open body only. The keepMounted body stays
+   in the document while collapsed, and an always-open body (`collapsible={false}`,
+   the command rows) renders its content with no expand action at all, so a
+   margin on `.pce-body` itself would reserve space in both. `data-pce-expanded`
+   is emitted only by PceRow's open branch when the row has a toggle. */
 .pce-body[data-pce-expanded] {
   margin: 8px 0;
 }
