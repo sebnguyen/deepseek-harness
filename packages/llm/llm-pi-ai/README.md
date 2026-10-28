@@ -85,7 +85,7 @@ Each profile may set a `retryPolicy`; omission uses normal mode with five retrie
 | `requestImagePixelBudget` | `4,194,304` | Total-pixel budget for each deterministic request image |
 | `requestImageMaxBytes` | `1 MiB` | Encoded-byte target for each request image before base64 expansion |
 | `maxRequestImageBytes` | `20 MiB` | Aggregate base64 image-payload bound with oldest-first offload |
-| `firstTokenTimeoutMs` | `5,000` | Maximum time before the first streamed chunk arrives; later reads use the five-minute `streamIdleTimeoutMs` default |
+| `firstTokenTimeoutMs` | `20,000` | Maximum time before the first streamed chunk arrives; later reads use the five-minute `streamIdleTimeoutMs` default |
 | `retryPolicy` | normal, 5 retries | Provider-owned retry policy executed by `dsh-llm-retry` |
 
 `clientCert` and `clientKey` present a PEM pair on TLS for that route's model requests and its model listing. A profile that sets only one is refused when it resolves, and a file that cannot be read fails the request with `INVALID_CONFIG`. The public `digitalocean` route does not set them; its endpoint remains `https://inference.do-ai.run/v1`.

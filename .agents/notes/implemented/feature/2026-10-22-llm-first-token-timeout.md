@@ -10,11 +10,11 @@ Status: implemented
 
 `idleWatchdog` accepts an optional `FirstDemandTimeout`: a shorter interval and code for the first iterator demand. The first `next()` is armed with that interval, the first value switches later demands to the ordinary idle interval, and `pulse()` does not extend a pending first demand because transport activity without a value is not progress toward the first token.
 
-Both remote adapters expose `firstTokenTimeoutMs` with a five-second default: `llm-deepseek` on its connection config and `llm-pi-ai` on each provider profile. Each adapter passes `LLM_FIRST_TOKEN_TIMEOUT` to the watchdog and translates that expiry to `LlmError` code `TIMEOUT` with a message naming the configured interval. The provider retry policy decides whether the attempt retries. The field accepts the same positive finite bounds as `streamIdleTimeoutMs`, and the `sdk-minimal` bundle mirrors its two-day idle interval so its unbounded posture is unchanged.
+Both remote adapters expose `firstTokenTimeoutMs`: `llm-deepseek` defaults it to five seconds on its connection config, and `llm-pi-ai` defaults it to 20 seconds on each provider profile so a gateway route that needs longer than five seconds for its first chunk is not cut off. Each adapter passes `LLM_FIRST_TOKEN_TIMEOUT` to the watchdog and translates that expiry to `LlmError` code `TIMEOUT` with a message naming the configured interval. The provider retry policy decides whether the attempt retries. The field accepts the same positive finite bounds as `streamIdleTimeoutMs`, and the `sdk-minimal` bundle mirrors its two-day idle interval so its unbounded posture is unchanged.
 
 ## Alternatives considered
 
-**Reuse `streamIdleTimeoutMs` for the first read.** Rejected: a healthy provider may take longer to produce the first chunk than to produce later ones, and one interval cannot be both the five-second first-token bound and the five-minute mid-stream stall bound.
+**Reuse `streamIdleTimeoutMs` for the first read.** Rejected: a healthy provider may take longer to produce the first chunk than to produce later ones, and one interval cannot be both the first-token bound and the five-minute mid-stream stall bound.
 
 **Wrap each adapter read in `AbortSignal.timeout`.** Rejected: two independent timers would race for the same abort reason and duplicate the watchdog's disposal and classification logic.
 
@@ -22,6 +22,6 @@ Both remote adapters expose `firstTokenTimeoutMs` with a five-second default: `l
 
 ## Consequences
 
-A request that produces no chunk within five seconds now fails with `TIMEOUT` and may retry, so a provider that is merely slow can spend more total wall time than one unbounded wait. Deployments with legitimately slow first tokens raise `firstTokenTimeoutMs`; the timeout stays an operator-owned configuration field rather than a hardcoded constant.
+A request that produces no chunk within the adapter's first-token interval now fails with `TIMEOUT` and may retry, so a provider that is merely slow can spend more total wall time than one unbounded wait. Deployments with legitimately slow first tokens raise `firstTokenTimeoutMs`; the timeout stays an operator-owned configuration field rather than a hardcoded constant.
 
-`packages/util/timeout/tests/timeout.spec.ts` pins the first-demand interval, its code, the switch to the idle interval, and that pulses do not extend it. Both adapter specs pin the timeout message, the five-second default, and the rejected configuration bounds.
+`packages/util/timeout/tests/timeout.spec.ts` pins the first-demand interval, its code, the switch to the idle interval, and that pulses do not extend it. Both adapter specs pin the timeout message, the adapter's first-token default, and the rejected configuration bounds.

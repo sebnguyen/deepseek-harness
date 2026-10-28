@@ -978,7 +978,7 @@ describe('provider profile lifecycle', () => {
     expect(() => resolveProfiles({
       openai: { firstTokenTimeoutMs: MAX_TIMER_DELAY_MS + 1 },
     })).toThrow(/firstTokenTimeoutMs.*no greater/)
-    expect(resolveProfiles({ openai: {} }).get('openai')?.firstTokenTimeoutMs).toBe(5_000)
+    expect(resolveProfiles({ openai: {} }).get('openai')?.firstTokenTimeoutMs).toBe(20_000)
   })
 })
 
