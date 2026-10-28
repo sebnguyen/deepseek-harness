@@ -9,21 +9,27 @@ export interface TurnTokenUsageRoute {
   readonly model: string
 }
 
-/** Exact provider-reported token accounting for every attempt in one completed Turn. */
+/** Exact provider-reported token accounting for the reporting attempts in one completed Turn. */
 export interface TurnTokenUsage {
-  /** Sum of uncached prompt input across all attempts. */
+  /** Sum of uncached prompt input across all reporting attempts. */
   readonly uncachedInputTokens: number
   readonly outputTokens: number
-  /** Exact aggregate prompt plus output total across all attempts. */
+  /** Exact aggregate prompt plus output total across all reporting attempts. */
   readonly totalTokens: number
-  /** Present only when every attempt reported the bucket. */
+  /** Present only when every reporting attempt reported the bucket. */
   readonly cacheReadTokens?: number
-  /** Present only when every attempt reported the bucket. */
+  /** Present only when every reporting attempt reported the bucket. */
   readonly cacheWriteTokens?: number
-  /** Output subset, present only when every attempt reported it. */
+  /** Output subset, present only when every reporting attempt reported it. */
   readonly reasoningTokens?: number
-  /** Present only when every billed attempt has provider/model attribution. */
+  /** Present only when every reporting attempt has provider/model attribution. */
   readonly routes?: readonly TurnTokenUsageRoute[]
+  /**
+   * Attempts that settled without a provider usage sample, so the totals cover
+   * only the reporting attempts; present only when at least one stayed
+   * unreported.
+   */
+  readonly unreportedAttempts?: number
 }
 
 interface NormalizedAttempt {
@@ -55,6 +61,9 @@ type AttemptState =
     readonly step: number
     readonly by: 'message' | 'retry'
   }
+
+/** What closing an open attempt did with its usage sample. */
+type AttemptClose = 'reported' | 'unreported' | 'invalid'
 
 function isCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0
@@ -123,7 +132,10 @@ function normalizeUsage(usage: TokenUsage, route?: TurnTokenUsageRoute): Normali
   }
 }
 
-function aggregateAttempts(attempts: readonly NormalizedAttempt[]): TurnTokenUsage | undefined {
+function aggregateAttempts(
+  attempts: readonly NormalizedAttempt[],
+  unreportedAttempts: number,
+): TurnTokenUsage | undefined {
   if (attempts.length === 0) return undefined
   const inputTokens = safeSum(attempts.map(attempt => attempt.inputTokens))
   const outputTokens = safeSum(attempts.map(attempt => attempt.outputTokens))
@@ -154,6 +166,7 @@ function aggregateAttempts(attempts: readonly NormalizedAttempt[]): TurnTokenUsa
     ...cacheReadTokens === undefined ? {} : { cacheReadTokens },
     ...cacheWriteTokens === undefined ? {} : { cacheWriteTokens },
     ...reasoningTokens === undefined ? {} : { reasoningTokens },
+    ...unreportedAttempts === 0 ? {} : { unreportedAttempts },
     ...routes === undefined ? {} : { routes },
   }
 }
@@ -170,10 +183,13 @@ function sameAttempt(
  * Fold one complete Turn's durable attempt lifecycle into exact token accounting.
  *
  * No attempt is inferred from a usage sample. Any missing lifecycle boundary,
- * incomplete attempt usage, unsafe count, or contradictory exact total makes
- * the whole disclosure unavailable.
+ * unsafe count, or contradictory exact total makes the whole disclosure
+ * unavailable. An attempt that settles without any usage sample adds nothing to
+ * the totals and is counted in `unreportedAttempts`: its tokens stay
+ * unattributed rather than guessed.
  * @param events - Turn-local durable events from `turn/start` through `turn/end`.
- * @returns exact aggregate usage, or undefined when it cannot be proven.
+ * @returns exact aggregate usage across the reporting attempts, or undefined
+ * when it cannot be proven.
  */
 export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnTokenUsage | undefined {
   let state: AttemptState = { kind: 'idle' }
@@ -181,13 +197,15 @@ export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnToken
   let turn: number | undefined
   let sawEnd = false
   let invalid = false
+  let unreportedAttempts = 0
 
-  const closeOpen = (route?: TurnTokenUsageRoute): boolean => {
-    if (state.kind !== 'open' || state.sample === undefined) return false
+  const closeOpen = (route?: TurnTokenUsageRoute): AttemptClose => {
+    if (state.kind !== 'open') return 'invalid'
+    if (state.sample === undefined) return 'unreported'
     const normalized = normalizeUsage(state.sample, route)
-    if (normalized === undefined) return false
+    if (normalized === undefined) return 'invalid'
     attempts.push(normalized)
-    return true
+    return 'reported'
   }
 
   for (const event of events) {
@@ -232,8 +250,12 @@ export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnToken
       }
       const sample: TokenUsage | undefined = streamUsage(event.data.stream) ?? state.sample
       state = { kind: 'open', turn, step: event.data.step, ...(sample === undefined ? {} : { sample }) }
-      if (!closeOpen()) invalid = true
-      else state = { kind: 'finishClosed', turn, step: event.data.step }
+      const closed = closeOpen()
+      if (closed === 'invalid') invalid = true
+      else {
+        if (closed === 'unreported') unreportedAttempts += 1
+        state = { kind: 'finishClosed', turn, step: event.data.step }
+      }
       continue
     }
     if (event.type === 'assistant/message') {
@@ -245,8 +267,12 @@ export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnToken
       }
       const sample = event.data.usage ?? streamUsage(event.data.stream)
       if (sample !== undefined) state = { ...state, sample }
-      if (!closeOpen(messageRoute(event.data.message))) invalid = true
-      else state = { kind: 'settled', turn, step: event.data.step, by: 'message' }
+      const closed = closeOpen(messageRoute(event.data.message))
+      if (closed === 'invalid') invalid = true
+      else {
+        if (closed === 'unreported') unreportedAttempts += 1
+        state = { kind: 'settled', turn, step: event.data.step, by: 'message' }
+      }
       continue
     }
     if (event.type === 'llm/retry') {
@@ -255,7 +281,12 @@ export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnToken
         invalid = true
         continue
       }
-      if (state.kind === 'settled' || (state.kind === 'open' && !closeOpen())) invalid = true
+      if (state.kind === 'settled') invalid = true
+      else if (state.kind === 'open') {
+        const closed = closeOpen()
+        if (closed === 'invalid') invalid = true
+        else if (closed === 'unreported') unreportedAttempts += 1
+      }
       if (!invalid) state = { kind: 'settled', turn, step: event.data.step, by: 'retry' }
       continue
     }
@@ -265,10 +296,14 @@ export function deriveTurnTokenUsage(events: readonly SessionEvent[]): TurnToken
         invalid = true
         continue
       }
-      if (state.kind === 'open' && !closeOpen()) invalid = true
+      if (state.kind === 'open') {
+        const closed = closeOpen()
+        if (closed === 'invalid') invalid = true
+        else if (closed === 'unreported') unreportedAttempts += 1
+      }
       if (!invalid) state = { kind: 'idle' }
     }
   }
 
-  return invalid || !sawEnd || state.kind !== 'idle' ? undefined : aggregateAttempts(attempts)
+  return invalid || !sawEnd || state.kind !== 'idle' ? undefined : aggregateAttempts(attempts, unreportedAttempts)
 }

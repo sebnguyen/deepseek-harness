@@ -177,6 +177,12 @@ export function TurnUsagePanel({ usage, t, active = true }: TurnUsagePanelProps)
                 </span>
               )}
             </dd>
+            {usage.unreportedAttempts !== undefined && (
+              <>
+                <dt>{t('message.turnUsage.unreported')}</dt>
+                <dd>{formatExactTokens(usage.unreportedAttempts, t)}</dd>
+              </>
+            )}
           </dl>
         </div>,
         document.body,

@@ -74,7 +74,7 @@ export interface TurnTokenUsageRoute {
   readonly model: string
 }
 
-/** Exact provider-reported token accounting for every attempt in one completed Turn. */
+/** Exact provider-reported token accounting for the reporting attempts in one completed Turn. */
 export interface TurnTokenUsage {
   /** Sum of uncached prompt input across all attempts. */
   readonly uncachedInputTokens: number
@@ -87,8 +87,14 @@ export interface TurnTokenUsage {
   readonly cacheWriteTokens?: number
   /** Output subset, present only when every attempt reported it. */
   readonly reasoningTokens?: number
-  /** Present only when every billed attempt has provider/model attribution. */
+  /** Present only when every reporting attempt has provider/model attribution. */
   readonly routes?: readonly TurnTokenUsageRoute[]
+  /**
+   * Attempts that settled without a provider usage sample, so the totals cover
+   * only the reporting attempts; present only when at least one stayed
+   * unreported.
+   */
+  readonly unreportedAttempts?: number
 }
 
 /** Turn-local footer row that owns actions and optional feature contributions. */

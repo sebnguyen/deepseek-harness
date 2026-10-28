@@ -48,7 +48,7 @@ When the composition provides `ctx.sessionProjections`, token-meter registers th
 
 `contextBreakdown` classifies the last nonempty surviving `system/message` in surface order as `systemTokens`; empty dormant nodes contribute nothing, and no nonempty system means zero. `messageTokens` includes every other visible node, including superseded prompts. Their sum always equals `measure().nodes[].heuristicTokens`, including after unmetered replacements, compaction, and per-node prompt clearing. `toolsTokens` follows the latest `request/header`. All three use the fixed heuristic, not route image pricing or file-handle projection; they are approximate composition, not billing or `projectedTokens`.
 
-`deriveTurnTokenUsage(events)` folds one complete turn into exact per-attempt and whole-turn usage for browser consumers. It returns no result when lifecycle evidence is missing, counts are unsafe, or exact totals conflict; each corresponding aggregate appears only when every participating attempt reports its optional cache, reasoning, or route value.
+`deriveTurnTokenUsage(events)` folds one complete turn into exact per-attempt and whole-turn usage for browser consumers. It returns no result when lifecycle evidence is missing, a reported count is unsafe, or exact totals conflict; an attempt that settles without any usage sample adds nothing to the totals and is counted in `unreportedAttempts`, and each corresponding aggregate appears only when every reporting attempt reports its optional cache, reasoning, or route value.
 
 ### Composition
 

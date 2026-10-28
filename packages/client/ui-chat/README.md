@@ -36,7 +36,7 @@ Each nonempty appended `system/message` owns a collapsed prompt row, including a
 <a id="turn-token-usage"></a>
 ## Turn token usage
 
-A completed Turn shows an expandable usage row only when the loaded window includes `turn/start` and every started model attempt reports safe, exact usage. The row omits unavailable optional buckets. Incomplete or contradictory accounting hides the complete disclosure instead of presenting a partial total.
+A completed Turn shows an expandable usage row when the loaded window includes `turn/start` and every reporting model attempt carries safe, exact usage. The row omits unavailable optional buckets, and a turn whose attempts settled without a usage sample shows its reported subtotal with that attempt count in the dialog. Missing lifecycle evidence or contradictory accounting hides the disclosure instead of presenting a partial total.
 
 <a id="completed-turn-footer"></a>
 ## Completed-turn footer

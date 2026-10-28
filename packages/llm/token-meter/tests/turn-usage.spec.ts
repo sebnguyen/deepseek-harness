@@ -146,7 +146,44 @@ describe('deriveTurnTokenUsage', () => {
     expect(result).toMatchObject({ totalTokens: 170 })
   })
 
-  it('fails closed for missing lifecycle or missing attempt usage', () => {
+  it('derives the reported subtotal when a failed attempt reports no usage', () => {
+    const errorFinish: readonly StreamChunk[] = [
+      { type: 'finish', reason: { kind: 'error', failure: { code: 'HTTP', message: 'failed' } } },
+    ]
+    const events = completeAttempt(
+      attempt(3, errorFinish),
+      event(4, 'llm/retry', { turn: 1, step: 1 }),
+      event(5, 'llm/retry-started', { turn: 1, step: 1, retry: 1 }),
+      message(6, usage()),
+    )
+    expect(deriveTurnTokenUsage(events)).toEqual({
+      uncachedInputTokens: 100,
+      outputTokens: 20,
+      totalTokens: 170,
+      cacheReadTokens: 50,
+      routes: [{ provider: 'deepseek', model: 'deepseek-chat' }],
+      unreportedAttempts: 1,
+    })
+  })
+
+  it('counts every unreported attempt and keeps a turn with no reported sample hidden', () => {
+    const errorFinish: readonly StreamChunk[] = [
+      { type: 'finish', reason: { kind: 'error', failure: { code: 'HTTP', message: 'failed' } } },
+    ]
+    expect(deriveTurnTokenUsage(completeAttempt(
+      attempt(3, errorFinish),
+      event(4, 'llm/retry', { turn: 1, step: 1 }),
+      event(5, 'llm/retry-started', { turn: 1, step: 1, retry: 1 }),
+      attempt(6, errorFinish),
+      event(7, 'llm/retry', { turn: 1, step: 1 }),
+      event(8, 'llm/retry-started', { turn: 1, step: 1, retry: 2 }),
+      message(9, usage()),
+    ))).toMatchObject({ totalTokens: 170, unreportedAttempts: 2 })
+
+    expect(deriveTurnTokenUsage(completeAttempt(attempt(3, errorFinish)))).toBeUndefined()
+  })
+
+  it('fails closed for missing lifecycle or a turn with no reported usage', () => {
     expect(deriveTurnTokenUsage([
       event(1, 'turn/start', { turn: 1 }),
       message(2, usage()),
@@ -362,7 +399,7 @@ describe('deriveTurnTokenUsage', () => {
       event(2, 'step/start', { turn: 1, step: 1 }),
       attempt(3, [{ type: 'usage', usage: usage() }], 2),
     ]],
-    ['error finish without usage', [
+    ['error finish without a step end', [
       event(1, 'turn/start', { turn: 1 }),
       event(2, 'step/start', { turn: 1, step: 1 }),
       attempt(3, [{

@@ -66,6 +66,21 @@ describe('TurnUsagePanel', () => {
     expect(view.queryByText('Cached input')).toBeNull()
     expect(view.queryByText('Cache write')).toBeNull()
     expect(view.queryByText(/reasoning/)).toBeNull()
+    expect(view.queryByText('Unreported attempts')).toBeNull()
+  })
+
+  it('discloses attempts that settled without a usage sample', () => {
+    const usage: TurnTokenUsage = {
+      uncachedInputTokens: 100,
+      outputTokens: 20,
+      totalTokens: 120,
+      unreportedAttempts: 2,
+    }
+    const view = render(<TurnUsagePanel usage={usage} t={t} />)
+
+    fireEvent.click(view.getByRole('button'))
+    const details = view.getByRole('dialog').querySelector('[data-turn-usage-details]') as HTMLElement
+    expect(details.textContent).toContain('Unreported attempts2')
   })
 
   it('keeps a partial cache hit below 100 in the dialog and closes on Escape or outside pointerdown', () => {
