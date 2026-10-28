@@ -68,10 +68,12 @@ height is measured rather than assumed.
 - Chromium against the live ChatView bench: the two always-open command bodies
   and the collapsed retry body compute zero margin and carry no marker; a
   toggled bash row computes `margin-top: 8px` / `margin-bottom: 8px`, grows
-  from 28px to 117px, and returns to 28px with no body on collapse. In the
+  from 20px to 109px, and returns to 20px with no body on collapse. In the
   bench's flow the next row starts 4px below the body's margin box.
 
 ## Related
 
 - [One 8px rhythm for transcript rows](../simplification/2026-10-26-chat-row-spacing-8px.md)
   — the flow gap this internal inset sits inside.
+- [Transcript node rows keep no outer margin](2026-10-28-node-row-margin-cleanup.md)
+  — the cleanup that removed the per-row margins around this inset.

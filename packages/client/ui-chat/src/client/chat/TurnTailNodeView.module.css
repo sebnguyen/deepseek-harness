@@ -5,8 +5,7 @@
 }
 
 .actions {
-  /* With tail content, this adds to the root gap; without it, the Chat flow's
-     preceding-item offset supplies the other 16px. */
-  margin-top: 4px;
+  /* The root's 16px gap owns content-to-actions; the flow gap owns the row
+     boundary. */
   margin-left: -6px;
 }
