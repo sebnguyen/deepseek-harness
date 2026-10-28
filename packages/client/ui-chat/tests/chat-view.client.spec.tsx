@@ -484,6 +484,13 @@ function frameClock() {
   }
 }
 
+/** The flow row a fixture user node mounts. */
+function rowForSeq(container: HTMLElement, seq: number): HTMLElement {
+  const row = container.querySelector<HTMLElement>(`[data-chat-flow-key="fixture:user:${seq}"]`)
+  if (row === null) throw new Error(`row ${seq} missing`)
+  return row
+}
+
 describe('Chat node rendering', () => {
 
   it('threads the injected file-mention vocabulary into the closing prose only', () => {
@@ -771,6 +778,54 @@ describe('ChatView', () => {
     expect(view.getByText('later')).toBeTruthy()
   })
 
+  it('admits the rows a fling lands on before any sample runs', () => {
+    const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint')
+    const nodes = Array.from({ length: 400 }, (_, index) => user(index + 1, `row ${index + 1}`))
+    const h = makeHarness({ nodes })
+    const view = render(<h.ChatView {...h.props} />)
+    const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
+    installScrollMetrics(scroller, 40_000, 700)
+    const clock = frameClock()
+    // A layout to search: 100px rows, a 700px scrollport at the top of the flow.
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+    rect.mockImplementation(function (this: HTMLElement): DOMRect {
+      if (this === scroller) return box(0, 700)
+      const key = this.dataset.chatFlowKey
+      if (key === undefined) return box(0, 0)
+      const seq = Number(key.slice(key.lastIndexOf(':') + 1))
+      // Rects are port-relative, so they move with the scroll position.
+      const offset = scroller.scrollTop
+      return box((seq - 1) * 100 - offset, seq * 100 - offset)
+    })
+    Object.defineProperty(document, 'elementsFromPoint', {
+      configurable: true,
+      value: vi.fn((): Element[] => [rowForSeq(view.container, 300)]),
+    })
+    try {
+      // A sample parks the band at the tail; the head stays spacers.
+      readerScroll(scroller, 39_000)
+      expect(view.queryByText('row 1')).toBeNull()
+
+      // A fling to the head: only `scroll` fires — no sample, no timer — and the
+      // viewport is admitted on the next frame.
+      scroller.scrollTop = 0
+      fireEvent.scroll(scroller)
+      act(() => { clock.settle() })
+      expect(view.queryByText('row 1')).not.toBeNull()
+      // Additive: the band did not move, so the rows in between stay dormant.
+      expect(view.queryByText('row 150')).toBeNull()
+      // Swept in, not delivered: the arrival rise stays suppressed.
+      expect(rowForSeq(view.container, 1).hasAttribute('data-chat-flow-woke')).toBe(true)
+    } finally {
+      rect.mockRestore()
+      if (originalHitTest !== undefined) {
+        Object.defineProperty(document, 'elementsFromPoint', originalHitTest)
+      } else {
+        Reflect.deleteProperty(document, 'elementsFromPoint')
+      }
+    }
+  })
+
   it('releases history the reader scrolled far past', () => {
     const originalHitTest = Object.getOwnPropertyDescriptor(document, 'elementsFromPoint')
     const nodes = Array.from({ length: 1_200 }, (_, index) => user(index + 1, `row ${index + 1}`))
@@ -778,22 +833,17 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const scroller = view.container.querySelector('[class*="scroll"]') as HTMLDivElement
     installScrollMetrics(scroller, 60_000, 800)
-    const rowFor = (seq: number): HTMLElement => {
-      const row = view.container.querySelector<HTMLElement>(`[data-chat-flow-key="fixture:user:${seq}"]`)
-      if (row === null) throw new Error(`row ${seq} missing`)
-      return row
-    }
-    const hitRow = rowFor(900)
+    const hitRow = rowForSeq(view.container, 900)
     Object.defineProperty(document, 'elementsFromPoint', {
       configurable: true,
       value: vi.fn((): Element[] => [hitRow]),
     })
     try {
       readerScroll(scroller, 20_000)
-      // Centre 899 → band top 799, past the 200-row margin plus a 200-row chunk,
-      // so the prefix is released at the row 200 above the band.
+      // Centre 899 → band top 824, past the 150-row margin plus a 200-row chunk,
+      // so the prefix is released at the row 150 above the band.
       expect(h.evictBefore).toHaveBeenCalledTimes(1)
-      expect(h.evictBefore.mock.calls[0]?.[0]).toBe(600)
+      expect(h.evictBefore.mock.calls[0]?.[0]).toBe(675)
 
       // The reader row is held while the release settles: a second sample at the
       // same band must not ask again for a window already on its way out.
@@ -1228,9 +1278,12 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
     expect(statuses.map(status => status.textContent)).toEqual([
-      '本轮运行失败API 密钥无效AUTH',
-      '本轮运行失败plugin exploded',
+      '本轮运行失败·API 密钥无效AUTH',
+      '本轮运行失败·plugin exploded',
     ])
+    // One row per failure: the head owns the message and there is no second copy.
+    expect(view.getAllByText('API 密钥无效')).toHaveLength(1)
+    expect(view.getAllByText('plugin exploded')).toHaveLength(1)
   })
 
   it('renders the max-tokens notice with localized guidance, distinct from turn errors', () => {
@@ -1238,8 +1291,9 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
     expect(statuses.map(status => status.textContent)).toEqual([
-      '已达到输出 token 上限回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。',
+      '已达到输出 token 上限·回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。',
     ])
+    expect(view.getAllByText('回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。')).toHaveLength(1)
     expect(view.queryByText('本轮运行失败')).toBeNull()
   })
 
@@ -2060,17 +2114,21 @@ describe('ChatView', () => {
       fireEvent(scroller, new Event('scrollend'))
       expect(view.getByLabelText('回到底部')).toBeTruthy()
       const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      const save = vi.spyOn(h.chatScroll, 'save')
       try {
-        act(() => { vi.advanceTimersByTime(500) })
+        act(() => { vi.advanceTimersByTime(250) })
         rect.mockClear()
+        save.mockClear()
         scroller.scrollTop = 400
         fireEvent.scroll(scroller)
         scroller.scrollTop = 300
         fireEvent.scroll(scroller)
-        act(() => { vi.advanceTimersByTime(499) })
-        expect(rect).not.toHaveBeenCalled()
+        act(() => { vi.advanceTimersByTime(249) })
+        // Geometry is read per frame now by the viewport admission; the sample is
+        // still throttled, and its position save is what proves it has not run.
+        expect(save).not.toHaveBeenCalled()
         act(() => { vi.advanceTimersByTime(1) })
-        expect(rect).toHaveBeenCalled()
+        expect(save).toHaveBeenCalled()
         rect.mockClear()
         scroller.scrollTop = 200
         fireEvent.scroll(scroller)
@@ -2081,10 +2139,11 @@ describe('ChatView', () => {
         fireEvent.scroll(scroller)
         view.unmount()
         rect.mockClear()
-        act(() => { vi.advanceTimersByTime(500) })
+        act(() => { vi.advanceTimersByTime(250) })
         expect(rect).not.toHaveBeenCalled()
       } finally {
         rect.mockRestore()
+        save.mockRestore()
       }
     } finally {
       vi.useRealTimers()

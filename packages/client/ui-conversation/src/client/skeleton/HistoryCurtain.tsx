@@ -12,6 +12,8 @@ const LINE_HOLD_MS = 3200
 /**
  * Cheeky but true DigitalOcean stack lines. The literal status lives on the
  * status label, so the rotating copy can be playful without carrying state.
+ * Keep this deck in step with the boot page's BOOT_TIPS and the vscode
+ * namespace's boot.tip.* lines; all three rotate the same thirty sentences.
  */
 const LOADING_LINES = [
   'session.surf.0',
@@ -24,6 +26,26 @@ const LOADING_LINES = [
   'session.surf.7',
   'session.surf.8',
   'session.surf.9',
+  'session.surf.10',
+  'session.surf.11',
+  'session.surf.12',
+  'session.surf.13',
+  'session.surf.14',
+  'session.surf.15',
+  'session.surf.16',
+  'session.surf.17',
+  'session.surf.18',
+  'session.surf.19',
+  'session.surf.20',
+  'session.surf.21',
+  'session.surf.22',
+  'session.surf.23',
+  'session.surf.24',
+  'session.surf.25',
+  'session.surf.26',
+  'session.surf.27',
+  'session.surf.28',
+  'session.surf.29',
 ] as const satisfies readonly ConversationKey[]
 
 /** Props for {@link HistoryCurtain}. */
@@ -54,15 +76,15 @@ export function HistoryCurtain({ t }: HistoryCurtainProps) {
       data-history-curtain=""
     >
       <PixelLoader size={128} className={css.mark} />
+      <div className={css.wordmark} aria-hidden="true">{t('hero.headline')}</div>
       <SurfText
         className={css.tips}
         messages={LOADING_LINES.map(key => t(key))}
         interval={LINE_HOLD_MS}
         font={{
           family: 'var(--dsw-font-family)',
-          size: 'var(--dsh-content-font-size, 14px)',
-          weight: 500,
-          letterSpacing: '0.01em',
+          size: '12px',
+          lineHeight: '18px',
         }}
       />
     </div>

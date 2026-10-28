@@ -336,47 +336,80 @@
   --dsh-composer-text-max-height: 336px;
 }
 
-/* Running signal: a pixel rule that sweeps back and forth along the top of the
-   composer column while a turn runs. It rides the seat — the element that holds
-   every bottom element — so the line spans the column's full width instead of
-   the card's cap, outranks a composer takeover, and its absolute positioning
-   keeps it out of the seat height published to the chat scroller. Cells are
-   4px squares on a 6px pitch; the 2px gap keeps the pixel grid's share as the
-   PixelLoader cells do. */
+/* Running signal: a pixel rule across the seam at the top of the composer
+   column while a turn runs. It rides the seat — the element that holds every
+   bottom element — so it spans the column instead of the card's cap, and its
+   absolute positioning keeps it out of the seat height published to the chat
+   scroller. Cells are 8px squares on the shared 20% pixel gap: the mark grid
+   clips every cell 10% off each side (`PIXEL_LOADER_CELL_CLIP`, `GAP_PCT` in
+   design/pixel-do-loader-gen.mjs), so an 8px square rides a 10px pitch. */
 .composerSweep {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
+  height: 8px;
   z-index: 1; /* over the chain output, whose entries position themselves */
   overflow: hidden;
   pointer-events: none;
   background-image: repeating-linear-gradient(90deg,
-    color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent) 0 4px,
-    transparent 4px 6px);
+    color-mix(in srgb, var(--dsw-alias-state-business-primary) 22%, transparent) 0 8px,
+    transparent 8px 10px);
 }
 
-/* The lit run carries the same 6px pattern as the track and only its mask
-   window travels, so cells light up in place instead of sliding out of phase
-   with the rule beneath. `alternate` returns the sweep: the row reads as a
-   scanner, not a one-shot wipe. */
+/* The lit run is the track's OWN cell pattern, anchored to the band, and the
+   light is a stepped window over it. One grid for both layers is the point: a
+   block carrying its own grid drifted out of phase with the track, and wherever
+   the two disagreed the gaps read thinner and travelled as a visible grate. The
+   window is a stepped ladder, one plateau per cell, so a square holds one level
+   and drops to the next when a boundary crosses it. */
 .composerSweep::after {
   content: '';
   position: absolute;
   inset: 0;
   background-image: repeating-linear-gradient(90deg,
-    var(--dsw-alias-state-business-primary) 0 4px,
-    transparent 4px 6px);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 38%, #000 62%, transparent 100%);
-  mask-image: linear-gradient(90deg, transparent 0%, #000 38%, #000 62%, transparent 100%);
+    var(--dsw-alias-state-business-primary) 0 8px,
+    transparent 8px 10px);
+  -webkit-mask-image: linear-gradient(90deg,
+    transparent 0 10px,
+    rgb(0 0 0 / 18%) 10px 20px,
+    rgb(0 0 0 / 34%) 20px 30px,
+    rgb(0 0 0 / 50%) 30px 40px,
+    rgb(0 0 0 / 68%) 40px 50px,
+    rgb(0 0 0 / 85%) 50px 60px,
+    #000 60px 180px,
+    rgb(0 0 0 / 85%) 180px 190px,
+    rgb(0 0 0 / 68%) 190px 200px,
+    rgb(0 0 0 / 50%) 200px 210px,
+    rgb(0 0 0 / 34%) 210px 220px,
+    rgb(0 0 0 / 18%) 220px 230px,
+    transparent 230px 240px);
+  mask-image: linear-gradient(90deg,
+    transparent 0 10px,
+    rgb(0 0 0 / 18%) 10px 20px,
+    rgb(0 0 0 / 34%) 20px 30px,
+    rgb(0 0 0 / 50%) 30px 40px,
+    rgb(0 0 0 / 68%) 40px 50px,
+    rgb(0 0 0 / 85%) 50px 60px,
+    #000 60px 180px,
+    rgb(0 0 0 / 85%) 180px 190px,
+    rgb(0 0 0 / 68%) 190px 200px,
+    rgb(0 0 0 / 50%) 200px 210px,
+    rgb(0 0 0 / 34%) 210px 220px,
+    rgb(0 0 0 / 18%) 220px 230px,
+    transparent 230px 240px);
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
-  -webkit-mask-size: 24% 100%;
-  mask-size: 24% 100%;
-  animation: composer-sweep 2.6s ease-in-out infinite alternate;
+  -webkit-mask-size: 240px 100%;
+  mask-size: 240px 100%;
+  -webkit-mask-position: 0 0;
+  mask-position: 0 0;
+  animation: composer-sweep 1s ease-in-out infinite alternate;
 }
 
+/* A mask-position percentage resolves against the band minus the window, so
+   `100%` is the whole travel: the window's right edge meets the band's right
+   edge instead of stalling a window-width short. */
 @keyframes composer-sweep {
   from {
     -webkit-mask-position: 0% 0;

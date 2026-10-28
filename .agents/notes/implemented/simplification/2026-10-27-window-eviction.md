@@ -10,7 +10,7 @@ The loaded window was, in practice, the whole session. Dormancy and the warm-ope
 
 The view releases the prefix it has scrolled far past, and the released history stays one Load Earlier away.
 
-- `ChatView`'s existing scroll sample computes the band top. When it sits more than `EVICT_MARGIN_NODES + EVICT_CHUNK_NODES` (200 + 200 rows) below the flow head, the sample captures the reader's row and top and calls `evictBefore` with the seq of the row 200 above the band.
+- `ChatView`'s existing scroll sample computes the band top. When it sits more than `EVICT_MARGIN_NODES + EVICT_CHUNK_NODES` (150 + 200 rows) below the flow head, the sample captures the reader's row and top and calls `evictBefore` with the seq of the row 150 above the band.
 - `Session.evictBefore(seq)` snaps forward to a `turn/start` — a turn is projected from its whole event range, so a half-evicted turn is a broken projection, not a shorter window — then moves `baseSeq`, sets `hasMore = true`, trims the transport's head cursor, and replaces the event window. The assembler rebuilds from the shorter window through its existing `replace` path.
 - The layout pass that drops the rows restores the reader's row from the captured top, so nothing moves under the reader. Measured heights are kept for released keys, so paging them back reserves exact geometry and needs no mount to measure.
 

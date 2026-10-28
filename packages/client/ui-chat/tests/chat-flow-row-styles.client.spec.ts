@@ -54,11 +54,22 @@ describe('chat flow-row dormant shells', () => {
 
   it('spaces flow rows with one container gap, not per-row margins', () => {
     const column = /(?:^|[{}])\s*(\.column\s*\{[^}]*)\}/.exec(css)
-    expect(column?.[1]).toMatch(/gap:\s*8px/)
+    expect(column?.[1]).toMatch(/gap:\s*6px/)
     expect(css).not.toMatch(/\.column\s*>\s*\*\s*\{[^}]*margin-bottom/)
   })
 
   it('does not use data-row-dormant marker (removed in redesign)', () => {
     expect(readChat('ChatNodeSeat.tsx')).not.toContain('data-row-dormant')
+  })
+
+  it('prompts and steers keep the answer body size on a narrow shell', () => {
+    const bubble = /\[data-dsh-bubble\]\s*\{([^{}]*)\}/.exec(atlas)?.[1] ?? ''
+    expect(bubble).toContain('font-size: 15.5px')
+    const answerStart = atlas.indexOf("[data-chat-flow-kind^='assistant-step'] [class*='_body']")
+    expect(answerStart).toBeGreaterThan(-1)
+    expect(atlas.slice(answerStart, atlas.indexOf('}', answerStart))).toContain('font-size: 15.5px')
+    // The narrow-shell media query must not raise only the prompt/steer panel.
+    const narrow = /@media \(max-width: 900px\) \{([\s\S]*?)\n\}/.exec(atlas)?.[1] ?? ''
+    expect(narrow).not.toMatch(/\[data-dsh-bubble\][^{}]*\{[^{}]*font-size/)
   })
 })

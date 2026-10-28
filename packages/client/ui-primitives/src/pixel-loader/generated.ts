@@ -4,26 +4,27 @@
  * [column,row] cells: {@link PIXEL_LOADER_CELLS}, derived by the hard-downsample
  * pipeline in design/downsample.mjs from the product logo path
  * (website/public/favicon.svg): one 16x16 coverage window per cell keeps the
- * mark true to the vector. The clockwise order lights the buckets
- * 12-o'clock-first. Renderers turn buckets into rect markup (see ui-primitives
- * PixelLoader): one `<g class="dsh-pl">` per bucket, its `animation-delay`
- * the bucket's step plus the host-shifted sweep window; the shared stylesheet
- * {@link PIXEL_LOADER_CSS} carries the step-end ladder and the
- * prefers-reduced-motion guard once per document.
+ * mark true to the vector. The clockwise order lights the cells
+ * 12-o'clock-first, one square at a time: {@link PIXEL_LOADER_SWEEP_PHASE}
+ * carries each cell's own phase, so a renderer (see ui-primitives PixelLoader)
+ * emits one self-timed rect per cell instead of flipping a whole arc bucket;
+ * the shared stylesheet {@link PIXEL_LOADER_CSS} carries the step-end ladder
+ * and the prefers-reduced-motion guard once per document.
  */
 
 /** The stable grid every face renders; the artwork is full-cell in these units. */
 export const PIXEL_LOADER_STABLE_GRID = 16
 
 /** One full sweep cycle, in seconds; every delay math follows it. */
-export const PIXEL_LOADER_PERIOD_S = 1.2
+export const PIXEL_LOADER_PERIOD_S = 1
 
 /** The 20% cell gap as CSS: each full cell is clipped 10% off every side. */
 export const PIXEL_LOADER_CELL_CLIP = "inset(10%)"
 
-/** Shared sweep stylesheet: discrete opacity ladder + reduced-motion guard. */
-export const PIXEL_LOADER_CSS = `.dsh-pl{animation:dsh-pl-sweep 1.2s step-end infinite}
-@keyframes dsh-pl-sweep{0%{opacity:1}6.25%{opacity:0.87}12.5%{opacity:0.74}18.75%{opacity:0.61}25%{opacity:0.48}31.25%{opacity:0.35}37.5%{opacity:0.22}100%{opacity:0.22}}
+/** Shared sweep stylesheet: one animated conic mask + reduced-motion guard. */
+export const PIXEL_LOADER_CSS = `@property --dsh-pl-sweep{syntax:"<angle>";inherits:false;initial-value:0deg}
+.dsh-pl{mask-image:conic-gradient(from calc(var(--dsh-pl-sweep) + var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) at 50% 50%,rgb(0 0 0 / 1) 0deg,rgb(0 0 0 / 0.92) 8deg,rgb(0 0 0 / 0.62) 18deg,rgb(0 0 0 / 0.34) 30deg,rgb(0 0 0 / 0.22) 44deg,rgb(0 0 0 / 0.22) 180deg,rgb(0 0 0 / 0.24) 210deg,rgb(0 0 0 / 0.29) 240deg,rgb(0 0 0 / 0.39) 270deg,rgb(0 0 0 / 0.54) 300deg,rgb(0 0 0 / 0.74) 330deg,rgb(0 0 0 / 1) 360deg);-webkit-mask-image:conic-gradient(from calc(var(--dsh-pl-sweep) + var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) at 50% 50%,rgb(0 0 0 / 1) 0deg,rgb(0 0 0 / 0.92) 8deg,rgb(0 0 0 / 0.62) 18deg,rgb(0 0 0 / 0.34) 30deg,rgb(0 0 0 / 0.22) 44deg,rgb(0 0 0 / 0.22) 180deg,rgb(0 0 0 / 0.24) 210deg,rgb(0 0 0 / 0.29) 240deg,rgb(0 0 0 / 0.39) 270deg,rgb(0 0 0 / 0.54) 300deg,rgb(0 0 0 / 0.74) 330deg,rgb(0 0 0 / 1) 360deg);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:dsh-pl-sweep 1s linear infinite}
+@keyframes dsh-pl-sweep{from{--dsh-pl-sweep:0deg}to{--dsh-pl-sweep:360deg}}
 @media (prefers-reduced-motion: reduce){.dsh-pl{animation:none}}`
 
 /** Shared twinkle stylesheet: per-pixel pop & fade with a reduced-motion guard (idle brand mark). */
@@ -36,6 +37,11 @@ export const PIXEL_LOADER_TWINKLE: readonly (readonly [number, number])[] = [[-1
 
 /** Stable 16x16 grid buckets: every sweep face, every rendered size. */
 export const PIXEL_LOADER_CELLS: readonly (readonly (readonly [number, number])[])[] = [[[7,0],[8,0],[7,1],[8,1],[7,2],[8,2]],[[9,0],[10,0],[9,1],[10,1],[11,1],[9,2],[10,2],[11,2],[10,3]],[[12,1],[12,2],[13,2],[11,3],[12,3],[13,3],[14,3],[11,4],[12,4]],[[13,4],[14,4],[12,5],[13,5],[14,5],[15,5],[13,6],[14,6],[15,6]],[[13,7],[14,7],[15,7],[13,8],[14,8],[15,8]],[[13,9],[14,9],[15,9],[12,10],[13,10],[14,10],[15,10],[13,11],[14,11]],[[11,11],[12,11],[11,12],[12,12],[13,12],[14,12],[12,13],[13,13],[12,14]],[[10,12],[9,13],[10,13],[11,13],[9,14],[10,14],[11,14],[9,15],[10,15]],[[7,11],[7,12],[8,13],[8,14],[8,15]],[[6,10],[7,10],[6,11],[5,12],[6,12],[4,13],[4,14]],[[5,10],[5,11],[1,12],[2,12],[3,13],[3,14]],[[1,11],[2,11]],[[0,7],[1,7],[2,7]],[[1,4],[2,4],[0,5],[1,5],[2,5],[3,5],[0,6],[1,6],[2,6]],[[3,1],[2,2],[3,2],[1,3],[2,3],[3,3],[4,3],[3,4],[4,4]],[[5,0],[6,0],[4,1],[5,1],[6,1],[4,2],[5,2],[6,2],[5,3]]]
+
+/** Per-cell clockwise phase in [0,1), parallel to `PIXEL_LOADER_CELLS` flattened. */
+export const PIXEL_LOADER_SWEEP_PHASE: readonly number[] = [0.99,0.01,0.99,0.01,0.99,0.01,0.03,0.05,0.04,0.06,0.08,0.04,0.07,0.09,0.08,0.1,0.11,0.13,0.11,0.13,0.14,0.15,0.13,0.14,0.16,0.17,0.17,0.18,0.19,0.2,0.21,0.21,0.22,0.24,0.24,0.24,0.26,0.26,0.26,0.29,0.29,0.28,0.33,0.32,0.31,0.3,0.34,0.33,0.38,0.36,0.39,0.38,0.36,0.35,0.39,0.38,0.4,0.42,0.46,0.43,0.41,0.46,0.44,0.42,0.47,0.45,0.52,0.52,0.49,0.49,0.49,0.59,0.53,0.56,0.58,0.55,0.59,0.58,0.63,0.6,0.65,0.64,0.61,0.6,0.67,0.66,0.76,0.76,0.76,0.83,0.84,0.8,0.81,0.82,0.83,0.78,0.79,0.79,0.9,0.88,0.89,0.85,0.86,0.88,0.89,0.86,0.88,0.95,0.97,0.92,0.94,0.96,0.91,0.93,0.96,0.92]
+/** The solid mark as one path: every cell an inset square subpath, gap in geometry. */
+export const PIXEL_MARK_PATH = "M5.1 0.1h0.8v0.8h-0.8zM6.1 0.1h0.8v0.8h-0.8zM7.1 0.1h0.8v0.8h-0.8zM8.1 0.1h0.8v0.8h-0.8zM9.1 0.1h0.8v0.8h-0.8zM10.1 0.1h0.8v0.8h-0.8zM3.1 1.1h0.8v0.8h-0.8zM4.1 1.1h0.8v0.8h-0.8zM5.1 1.1h0.8v0.8h-0.8zM6.1 1.1h0.8v0.8h-0.8zM7.1 1.1h0.8v0.8h-0.8zM8.1 1.1h0.8v0.8h-0.8zM9.1 1.1h0.8v0.8h-0.8zM10.1 1.1h0.8v0.8h-0.8zM11.1 1.1h0.8v0.8h-0.8zM12.1 1.1h0.8v0.8h-0.8zM2.1 2.1h0.8v0.8h-0.8zM3.1 2.1h0.8v0.8h-0.8zM4.1 2.1h0.8v0.8h-0.8zM5.1 2.1h0.8v0.8h-0.8zM6.1 2.1h0.8v0.8h-0.8zM7.1 2.1h0.8v0.8h-0.8zM8.1 2.1h0.8v0.8h-0.8zM9.1 2.1h0.8v0.8h-0.8zM10.1 2.1h0.8v0.8h-0.8zM11.1 2.1h0.8v0.8h-0.8zM12.1 2.1h0.8v0.8h-0.8zM13.1 2.1h0.8v0.8h-0.8zM1.1 3.1h0.8v0.8h-0.8zM2.1 3.1h0.8v0.8h-0.8zM3.1 3.1h0.8v0.8h-0.8zM4.1 3.1h0.8v0.8h-0.8zM5.1 3.1h0.8v0.8h-0.8zM10.1 3.1h0.8v0.8h-0.8zM11.1 3.1h0.8v0.8h-0.8zM12.1 3.1h0.8v0.8h-0.8zM13.1 3.1h0.8v0.8h-0.8zM14.1 3.1h0.8v0.8h-0.8zM1.1 4.1h0.8v0.8h-0.8zM2.1 4.1h0.8v0.8h-0.8zM3.1 4.1h0.8v0.8h-0.8zM4.1 4.1h0.8v0.8h-0.8zM11.1 4.1h0.8v0.8h-0.8zM12.1 4.1h0.8v0.8h-0.8zM13.1 4.1h0.8v0.8h-0.8zM14.1 4.1h0.8v0.8h-0.8zM0.1 5.1h0.8v0.8h-0.8zM1.1 5.1h0.8v0.8h-0.8zM2.1 5.1h0.8v0.8h-0.8zM3.1 5.1h0.8v0.8h-0.8zM12.1 5.1h0.8v0.8h-0.8zM13.1 5.1h0.8v0.8h-0.8zM14.1 5.1h0.8v0.8h-0.8zM15.1 5.1h0.8v0.8h-0.8zM0.1 6.1h0.8v0.8h-0.8zM1.1 6.1h0.8v0.8h-0.8zM2.1 6.1h0.8v0.8h-0.8zM13.1 6.1h0.8v0.8h-0.8zM14.1 6.1h0.8v0.8h-0.8zM15.1 6.1h0.8v0.8h-0.8zM0.1 7.1h0.8v0.8h-0.8zM1.1 7.1h0.8v0.8h-0.8zM2.1 7.1h0.8v0.8h-0.8zM13.1 7.1h0.8v0.8h-0.8zM14.1 7.1h0.8v0.8h-0.8zM15.1 7.1h0.8v0.8h-0.8zM13.1 8.1h0.8v0.8h-0.8zM14.1 8.1h0.8v0.8h-0.8zM15.1 8.1h0.8v0.8h-0.8zM13.1 9.1h0.8v0.8h-0.8zM14.1 9.1h0.8v0.8h-0.8zM15.1 9.1h0.8v0.8h-0.8zM5.1 10.1h0.8v0.8h-0.8zM6.1 10.1h0.8v0.8h-0.8zM7.1 10.1h0.8v0.8h-0.8zM12.1 10.1h0.8v0.8h-0.8zM13.1 10.1h0.8v0.8h-0.8zM14.1 10.1h0.8v0.8h-0.8zM15.1 10.1h0.8v0.8h-0.8zM1.1 11.1h0.8v0.8h-0.8zM2.1 11.1h0.8v0.8h-0.8zM5.1 11.1h0.8v0.8h-0.8zM6.1 11.1h0.8v0.8h-0.8zM7.1 11.1h0.8v0.8h-0.8zM11.1 11.1h0.8v0.8h-0.8zM12.1 11.1h0.8v0.8h-0.8zM13.1 11.1h0.8v0.8h-0.8zM14.1 11.1h0.8v0.8h-0.8zM1.1 12.1h0.8v0.8h-0.8zM2.1 12.1h0.8v0.8h-0.8zM5.1 12.1h0.8v0.8h-0.8zM6.1 12.1h0.8v0.8h-0.8zM7.1 12.1h0.8v0.8h-0.8zM10.1 12.1h0.8v0.8h-0.8zM11.1 12.1h0.8v0.8h-0.8zM12.1 12.1h0.8v0.8h-0.8zM13.1 12.1h0.8v0.8h-0.8zM14.1 12.1h0.8v0.8h-0.8zM3.1 13.1h0.8v0.8h-0.8zM4.1 13.1h0.8v0.8h-0.8zM8.1 13.1h0.8v0.8h-0.8zM9.1 13.1h0.8v0.8h-0.8zM10.1 13.1h0.8v0.8h-0.8zM11.1 13.1h0.8v0.8h-0.8zM12.1 13.1h0.8v0.8h-0.8zM13.1 13.1h0.8v0.8h-0.8zM3.1 14.1h0.8v0.8h-0.8zM4.1 14.1h0.8v0.8h-0.8zM8.1 14.1h0.8v0.8h-0.8zM9.1 14.1h0.8v0.8h-0.8zM10.1 14.1h0.8v0.8h-0.8zM11.1 14.1h0.8v0.8h-0.8zM12.1 14.1h0.8v0.8h-0.8zM8.1 15.1h0.8v0.8h-0.8zM9.1 15.1h0.8v0.8h-0.8zM10.1 15.1h0.8v0.8h-0.8z"
 
 /** Compatibility alias for the one grid; new code should use {@link PIXEL_LOADER_CELLS}. */
 export const PIXEL_LOADER_CELLS_16 = PIXEL_LOADER_CELLS

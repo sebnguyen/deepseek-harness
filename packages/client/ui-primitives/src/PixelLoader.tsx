@@ -6,6 +6,7 @@ import {
   PIXEL_LOADER_STABLE_GRID,
   PIXEL_LOADER_TWINKLE,
   PIXEL_LOADER_TWINKLE_CSS,
+  PIXEL_MARK_PATH,
 } from './pixel-loader/generated.ts'
 import type { IconProps } from './icons/props.ts'
 
@@ -15,33 +16,15 @@ export interface PixelLoaderProps extends IconProps {
   mode?: 'sweep' | 'twinkle' | undefined
 }
 
-function round2(n: number): number { return Math.round(n * 100) / 100 }
-
 /**
- * One full 1x1 rect per lit cell; the 30% gap rides {@link PIXEL_LOADER_CELL_CLIP}
- * on the cell itself, so the gap scales with the mark instead of being baked
- * into the coordinates. No 16/24 grid switch remains.
- */
-function cellRect(c: number, r: number): string {
-  return `<rect x="${c}" y="${r}" width="1" height="1" clip-path="${PIXEL_LOADER_CELL_CLIP}"/>`
-}
-
-/**
- * Build the sweep markup for one loader: one `<g class="dsh-pl">` per arc
- * bucket, each `animation-delay` that bucket's clockwise stagger added to
- * the host-shifted sweep window (`--dsh-boot-arc` /
- * `--dsh-pixel-loader-boost`). Hosts place the
- * result inside their own `<svg viewBox="0 0 16 16">` and call
- * {@link installPixelLoaderStyles} once.
- * @returns whitespace-free rect markup; geometry only, no style text.
+ * Build the sweep markup for one loader: a single static path for the whole mark,
+ * lit by the animated conic mask the shared stylesheet installs. One node, one
+ * animation, no per-cell timing. Hosts place the result inside their own
+ * `<svg viewBox="0 0 16 16">` and call {@link installPixelLoaderStyles} once.
+ * @returns whitespace-free markup; geometry and class only, no style text.
  */
 export function pixelLoaderInner(): string {
-  return PIXEL_LOADER_CELLS.map((bucket, k) => {
-    const begin = round2((k / PIXEL_LOADER_CELLS.length) * PIXEL_LOADER_PERIOD_S)
-    const delay = `calc(${begin}s + (var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) / 360deg * ${PIXEL_LOADER_PERIOD_S}s)`
-    const rects = bucket.map(([c, r]) => cellRect(c, r)).join('')
-    return `<g opacity="0.22" class="dsh-pl" style="animation-delay: ${delay}">${rects}</g>`
-  }).join('')
+  return `<path class="dsh-pl" d="${PIXEL_MARK_PATH}"/>`
 }
 
 /**

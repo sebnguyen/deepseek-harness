@@ -25,7 +25,7 @@ The snapshot carries a stamp: the column's `--dsh-chat-content-width`, its font 
 
 ## Consequences
 
-- A warm open mounts the band (at most 201 rows plus the pinned tail) instead of the whole window; the rest is a spacer with its measured height.
+- A warm open mounts the band (at most 151 rows plus the pinned tail) instead of the whole window; the rest is a spacer with its measured height.
 - A cold open — the first after a reload, or after a width, font, or window change — still mounts everything, because a height can only be learned by measuring. Making that tolerable needs progressive measurement from the anchor outward, which is not built.
 - A remembered height that has gone stale (a disclosure toggled elsewhere, an image that finished loading) offsets the flow by that delta until the row mounts again and remeasures; the shift is bounded to that row.
 - The arrival effect now adds only keys the flow has never seen. It previously added every key missing from the live set, so any append re-woke the whole transcript until the next sample narrowed the band again.

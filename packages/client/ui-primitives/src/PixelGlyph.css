@@ -1,0 +1,6 @@
+/* The pixel symbols are full-cell geometry: clipping each cell by 10% on every
+   side leaves the design's 20% inter-cell gap. A stylesheet rule replaces the
+   per-glyph <style> element, whose CSS text otherwise joined the row's text. */
+svg[data-glyph] rect {
+  clip-path: inset(10%);
+}

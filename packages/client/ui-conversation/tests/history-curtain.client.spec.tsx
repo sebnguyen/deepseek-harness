@@ -26,13 +26,23 @@ describe('HistoryCurtain', () => {
     expect(status.querySelector('svg')?.getAttribute('viewBox')).toBe('0 0 16 16')
     expect(status.querySelector('svg')?.getAttribute('width')).toBe('128')
     expect(status.querySelector('svg')?.getAttribute('height')).toBe('128')
+    expect(status.textContent).toContain(zh['hero.headline'])
     expect(status.querySelector('[data-surf-line="in"]')?.textContent)
-      .toBe('提示：App Platform 可以在每次推送分支时重新部署。')
+      .toBe(zh['session.surf.0'])
     act(() => { vi.advanceTimersByTime(3200) })
     expect(status.querySelector('[data-surf-line="in"]')?.textContent)
-      .toBe('Droplet 就是带 IP 的浪花。')
+      .toBe(zh['session.surf.1'])
     expect(status.querySelector('[data-surf-line="out"]')?.textContent)
-      .toBe('提示：App Platform 可以在每次推送分支时重新部署。')
+      .toBe(zh['session.surf.0'])
+  })
+
+  it('rotates through the full thirty-tip deck', () => {
+    const view = render(<HistoryCurtain t={t} />)
+    act(() => { vi.advanceTimersByTime(140) })
+    const status = view.getByRole('status')
+    act(() => { vi.advanceTimersByTime(3200 * 29) })
+    expect(status.querySelector('[data-surf-line="in"]')?.textContent)
+      .toBe(zh['session.surf.29'])
   })
 
   it('never paints when the history opens inside the flash window', () => {

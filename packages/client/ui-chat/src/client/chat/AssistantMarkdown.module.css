@@ -18,6 +18,8 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  margin-top: 6px;
+  margin-bottom: 6px;
 }
 
 /* Wide markdown tables (the renderer's ≥4-column md-table-wide hook) span

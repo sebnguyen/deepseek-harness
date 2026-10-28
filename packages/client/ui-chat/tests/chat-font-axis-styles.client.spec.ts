@@ -11,6 +11,10 @@ import { describe, expect, it } from 'vitest'
 const read = (name: string): string =>
   readFileSync(fileURLToPath(new URL(`../src/client/chat/${name}`, import.meta.url)), 'utf8')
 
+/** A stylesheet owned by the sibling primitive package the row chrome comes from. */
+const readPrimitive = (name: string): string =>
+  readFileSync(fileURLToPath(new URL(`../../ui-primitives/src/${name}`, import.meta.url)), 'utf8')
+
 function declarationsFrom(source: string, selector: string): string[] {
   const declarationText = source.replace(/\/\*[\s\S]*?\*\//g, ' ')
   const rule = new RegExp(`(?:^|[{}])\\s*${selector.replace(/[.[\]():*+^$\\]/g, '\\$&')}\\s*\\{([^{}]*)\\}`).exec(declarationText)
@@ -65,17 +69,21 @@ describe('chat flow font-size axis', () => {
     ]))
   })
 
-  it('compaction rows follow the axis like the disclosure rows they mirror', () => {
-    const css = read('MessageItem.module.css')
-    for (const selector of ['.compactionTitle', '.compactionSummary', '.compactionBody']) {
-      expect(declarationsFrom(css, selector)).toEqual(expect.arrayContaining([
-        'font-size: var(--dsh-content-font-size-secondary, 13px)',
-        'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
-      ]))
-    }
-    expect(declarationsFrom(css, '.compactionLeading svg')).toEqual(expect.arrayContaining([
-      'width: calc(14px + var(--dsh-content-font-delta, 0px))',
-      'height: calc(14px + var(--dsh-content-font-delta, 0px))',
+  it('compaction rows follow the axis through the shared pce head', () => {
+    // The marker body keeps the secondary tier; the head and its description
+    // are the shared pce row's, which ride the same secondary axis.
+    expect(declarationsFrom(read('MessageItem.module.css'), '.compactionBody')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(24px + var(--dsh-content-font-delta, 0px))',
+    ]))
+    const pce = readPrimitive('pce/PceRow.css')
+    expect(declarationsFrom(pce, '.pce-identity')).toEqual(expect.arrayContaining([
+      'font-size: calc(11px + var(--dsh-content-font-delta-secondary, 0px))',
+      'line-height: calc(16px + var(--dsh-content-font-delta-secondary, 0px))',
+    ]))
+    expect(declarationsFrom(pce, '.pce-description')).toEqual(expect.arrayContaining([
+      'font-size: var(--dsh-content-font-size-secondary, 13px)',
+      'line-height: calc(16px + var(--dsh-content-font-delta-secondary, 0px))',
     ]))
   })
 

@@ -13,22 +13,24 @@ furniture: it takes flow height, so every turn start and end shifts the tail,
 and it reports an interval the composer already owns — the primary button flips
 to Stop (`input.stop`) for exactly the same span.
 
-The ask was a pixelated line sweeping back and forth on top of the input box's
-container: the running signal should ride the composer, not the conversation.
+The ask was a line sweeping back and forth on top of the input box's container:
+the running signal should ride the composer, not the conversation.
 
 ## Decision
 
-`ConversationRoot` renders `.composerSweep` while `running`: a 4px pixel rule
+`ConversationRoot` renders `.composerSweep` while `running`: a pixel rule
 across the composer column's full width at the top edge of `.composerSeat` —
 the element that holds every bottom element, from the `conversation.input.dock`
 cards through the input bar to a business `conversation.composer` takeover. The
-line therefore never sits inside the input box, never narrows to the card's
+signal therefore never sits inside the input box, never narrows to the card's
 `--dsh-composer-card-max-width` cap, and stays on screen when an election hides
-the chain fallback. A 4px cell on a 6px pitch keeps the pixel grid's gap; a
-second layer with the identical pattern carries a travelling mask window, so the
-lit cells light up in place instead of sliding out of phase with the rule
-beneath, and `animation-direction: alternate` returns the sweep.
-`prefers-reduced-motion` parks the window without dropping the line.
+the chain fallback. A dim strip of 8px cells on the shared 20% pixel gap (a 10px
+pitch) marks the seam, and the light is a stepped window over that same anchored
+cell pattern — one grid, so the two cannot grate — one plateau per cell, so a
+square holds a level until a boundary crosses it. The window travels
+`mask-position` from 0% to 100% over 1s with `ease-in-out`, and
+`animation-direction: alternate` returns it. `prefers-reduced-motion` parks the
+window mid-band instead of dropping the signal.
 
 Absolute positioning keeps the band out of the layout: the composer seat
 measures itself and publishes `--dsh-composer-height`, so an in-flow band would

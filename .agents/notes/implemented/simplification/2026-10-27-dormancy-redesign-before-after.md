@@ -11,7 +11,7 @@ Shipped in `ChatView.tsx`, `ChatNodeSeat.tsx`, `ChatView.module.css`:
   ancestor inside the list (overlays such as the to-bottom button sit on top).
   When no row answers, a binary search over the ordered rows compares rects —
   `log(rows)` reads, not a linear scan. No estimates anywhere.
-- **Band** is `LIVE_BAND_NODES = 100`: a hundred rows on each side
+- **Band** is `LIVE_BAND_NODES = 75`: seventy-five rows on each side
   of the row under the viewport centre, so at most 301 live rows.
 - **The newest rows are pinned** (`PIN_TAIL_NODES = 8`) whatever the reader
   looks at. They are the only rows that change on their own — the streaming

@@ -870,17 +870,15 @@ describe('MessageItem arms', () => {
     expect(row.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('a marker whose cited summary event fell outside the window is not expandable', () => {
+  it('a marker whose cited summary event fell outside the window has no disclosure', () => {
     const view = render(<MessageItem t={t} node={{
       kind: 'compaction', seq: 6, time: 1_000, summary: null,
       summaryEventSeq: null, shadowedItemCount: null, shadowedTokenCount: null,
     }} />)
-    const row = view.getByRole('button', { name: /上下文已压缩/ })
-    expect(row).toHaveProperty('disabled', true)
-    expect(row.getAttribute('aria-expanded')).toBeNull()
+    // No body to disclose: the pce head renders no button and no toggle.
+    expect(view.queryByRole('button')).toBeNull()
+    expect(view.container.querySelector('[aria-expanded]')).toBeNull()
     expect(view.getByText('压缩摘要不可用')).toBeTruthy()
-    fireEvent.click(row) // a disabled control stays collapsed
-    expect(row.getAttribute('aria-expanded')).toBeNull()
   })
 
   it('collapses retry details behind the durable model retry status', () => {

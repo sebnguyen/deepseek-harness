@@ -10,7 +10,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: 12px;
   padding: 24px;
   color: var(--dsw-alias-brand-primary);
   background: var(--dsw-alias-bg-base);
@@ -21,9 +21,18 @@
   flex: none;
 }
 
-.tips {
-  max-width: 100%;
+.wordmark {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
   color: var(--dsw-alias-label-primary);
+  text-align: center;
+}
+
+.tips {
+  max-width: 420px;
+  min-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
   text-align: center;
 }
 

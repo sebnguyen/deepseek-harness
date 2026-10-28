@@ -13,19 +13,41 @@ const TIP_HOLD_MS = 3200
 /**
  * DigitalOcean stack tips for the boot wait. The boot page runs before the
  * locale service exists, so this pre-locale surface carries its own English
- * copy (matching the client's default locale).
+ * copy (matching the client's default locale). Keep this deck aligned with the
+ * conversation namespace's `session.surf.*` lines and the vscode `boot.tip.*`
+ * lines; all three rotate the same thirty bare sentences.
  */
 const BOOT_TIPS = [
-  'Tip: App Platform can redeploy on every push to your branch.',
+  'App Platform can redeploy on every push to your branch.',
   'Droplets are just waves with an IP address.',
-  'Tip: Spaces speaks S3, so existing SDKs just work.',
+  'Spaces speaks S3, so existing SDKs just work.',
   'DOKS manages the control plane; you just ride the pods.',
-  'Tip: Floating IPs move between Droplets; DNS stays put.',
+  'Floating IPs move between Droplets; DNS stays put.',
   'A VPC is a reef wall for your Droplets.',
-  'Tip: Volumes outlive the Droplet that mounts them.',
-  'Tip: Load Balancers can terminate TLS at the edge.',
+  'Volumes outlive the Droplet that mounts them.',
+  'Load Balancers can terminate TLS at the edge.',
   'Functions: a wave that only exists when called.',
-  'Tip: Managed databases take the daily backup off your plate.',
+  'Managed databases take the daily backup off your plate.',
+  'A Droplet\'s metadata service hands cloud-init its first instructions.',
+  'The doctl CLI can list every Droplet in one command.',
+  'Cloud Firewalls can follow tags, so new Droplets inherit the rules.',
+  'Snapshots freeze a Droplet image before the next big change.',
+  'Spaces lifecycle rules can retire old objects without a cron job.',
+  'A Spaces CDN edge keeps static assets close to the reader.',
+  'Container Registry keeps the image next to the cluster that pulls it.',
+  'DOKS node pools let one cluster carry different Droplet sizes.',
+  'GPU Droplets put the accelerator on the same private network.',
+  'Managed database read-only replicas take the reporting load.',
+  'Trusted sources keep a managed database off the public internet.',
+  'Load Balancer health checks pull a bad Droplet out of rotation.',
+  'A Floating IP can move to a replacement Droplet without a DNS edit.',
+  'Volume snapshots let you roll back a disk without rebuilding the Droplet.',
+  'Monitoring alert policies can warn you before the disk fills.',
+  'Uptime checks watch a URL from several regions at once.',
+  'Projects group Droplets, databases, and Spaces in one place.',
+  'Tags are the handle Firewalls and scripts use to find a Droplet.',
+  'Terraform\'s DigitalOcean provider turns the fleet into one plan.',
+  'A Droplet\'s user-data script runs once, on first boot.',
 ] as const
 
 /** Create a div with one module class and optional text. */

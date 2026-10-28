@@ -13,7 +13,7 @@ describe('PixelLoader', () => {
     expect(svg?.getAttribute('width')).toBe('32')
     expect(svg?.getAttribute('fill')).toBe('currentColor')
     expect(svg?.getAttribute('aria-hidden')).toBe('true')
-    expect((svg?.querySelectorAll('rect') ?? []).length).toBeGreaterThan(100)
+    expect((svg?.querySelectorAll('path') ?? []).length).toBe(1)
     const host = document.head.querySelector('[data-dsh-pixel-loader-style]')
     expect(host?.textContent).toContain('dsh-pl-sweep')
     expect(host?.textContent).toContain('prefers-reduced-motion')
@@ -48,16 +48,19 @@ describe('PixelLoader', () => {
     expect(pixelLoaderTwinkleInner()).toBe(pixelLoaderTwinkleInner())
   })
 
-  it('keeps one pixel scale and one 20% CSS gap at every rendered size', () => {
-    // 12px and 24px render the same 16-grid geometry: full 1x1 cells clipped
-    // 10% per side, never a sub-pixel gap retune.
+  it('keeps one pixel scale and one 20% gap at every rendered size', () => {
+    // 12px and 24px render the same 16-grid geometry: the gap is baked into
+    // every subpath (0.1 inset per side = an 0.8 cell), never a sub-pixel retune.
     const small = pixelLoaderInner()
     const large = pixelLoaderInner()
     expect(small).toBe(large)
-    expect(small).toContain('width="1"')
-    expect(small).toContain('clip-path="inset(10%)"')
+    expect(small).toContain('class="dsh-pl"')
+    expect(small).toContain('h0.8v0.8h-0.8z')
+    expect(small).not.toContain('clip-path')
     expect(small).not.toContain('rx=')
-    // Buckets keep their clockwise staggered delays.
-    expect(small).toContain('animation-delay: calc(0.08s')
+    // One static path under one animated conic mask: no per-cell delays and no
+    // rotating group ride the markup.
+    expect((small.match(/<path/g) ?? []).length).toBe(1)
+    expect(small).not.toContain('animation-delay')
   })
 })

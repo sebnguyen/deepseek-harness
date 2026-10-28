@@ -4,9 +4,10 @@ import { BootPage } from '../src/boot-page.ts'
 
 const pages: BootPage[] = []
 
-/** First two boot tips, kept local so a copy change is deliberate. */
-const FIRST_TIP = 'Tip: App Platform can redeploy on every push to your branch.'
+/** First, second, and last boot tips, kept local so a copy change is deliberate. */
+const FIRST_TIP = 'App Platform can redeploy on every push to your branch.'
 const SECOND_TIP = 'Droplets are just waves with an IP address.'
+const LAST_TIP = 'A Droplet\'s user-data script runs once, on first boot.'
 
 afterEach(() => {
   for (const page of pages) page.dispose()
@@ -30,7 +31,10 @@ describe('BootPage', () => {
     expect(el.textContent).toContain('DigitalOcean Harness')
     const spinner = el.querySelector<HTMLElement>('[data-dsh-boot-spinner]')
     expect(spinner?.nextElementSibling?.textContent).toContain('DigitalOcean Harness')
-    expect(spinner?.querySelectorAll('rect').length).toBeGreaterThan(100)
+    // The loader is one authored path lit by the shared conic mask; the old
+    // per-cell rect markup is gone.
+    expect(spinner?.querySelector('svg path.dsh-pl')?.getAttribute('d')).toContain('M')
+    expect(document.head.querySelector('[data-dsh-pixel-loader-style]')).not.toBeNull()
     const tips = el.querySelector<HTMLElement>('[data-dsh-boot-tips]')
     expect(tips?.getAttribute('aria-label')).toBe('Loading plugins…')
     expect(tips?.querySelector('[data-surf-line="in"]')?.textContent).toBe(FIRST_TIP)
@@ -43,6 +47,15 @@ describe('BootPage', () => {
     vi.advanceTimersByTime(3200)
     expect(el.querySelector('[data-surf-line="in"]')?.textContent).toBe(SECOND_TIP)
     expect(el.querySelector('[data-surf-line="out"]')?.textContent).toBe(FIRST_TIP)
+  })
+
+  it('rotates through the full thirty-tip deck and wraps', () => {
+    vi.useFakeTimers()
+    const { el } = mount()
+    vi.advanceTimersByTime(3200 * 29)
+    expect(el.querySelector('[data-surf-line="in"]')?.textContent).toBe(LAST_TIP)
+    vi.advanceTimersByTime(3200)
+    expect(el.querySelector('[data-surf-line="in"]')?.textContent).toBe(FIRST_TIP)
   })
 
   it('keeps the sweep and tips while entries are active or loading', () => {

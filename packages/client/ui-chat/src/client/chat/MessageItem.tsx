@@ -2,7 +2,7 @@ import { Fragment, memo, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import type { PendingSubmission } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, PceRow, projectUserText, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
+import { fileExtension, FileTypeIcon, fileSizeText, JsonBlock, PceRow, projectUserText } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatNodeOwnerProps, ChatNodeViewProps, ChatViewSlotProps } from '../contract/slots.ts'
 import type { ModelRetryNode, TurnErrorNode, UserMessageNode } from '../contract/snapshot.ts'
 import { CompactionItem } from './CompactionItem.tsx'
@@ -135,24 +135,18 @@ function TurnErrorItem({ node, t }: {
   t: ChatViewSlotProps['t']
 }) {
   return (
-    <PceRow
-      kind="turn-error"
-      glyph="error"
-      title={t('message.turnError')}
-      summary={failureMessage(node.message, node.code, t)}
-      state="error"
-      collapsible={false}
-      body={(
-        <div className={css.turnErrorRow} role="status">
-          <StateDot state="error" className={css.turnErrorDot} />
-          <div className={css.turnErrorCopy}>
-            <span className={css.turnErrorTitle}>{t('message.turnError')}</span>
-            <span className={css.turnErrorMessage}>{failureMessage(node.message, node.code, t)}</span>
-          </div>
-          {node.code !== undefined && <code className={css.turnErrorCode}>{node.code}</code>}
-        </div>
-      )}
-    />
+    <div role="status">
+      <PceRow
+        kind="turn-error"
+        glyph="error"
+        title={t('message.turnError')}
+        summary={failureMessage(node.message, node.code, t)}
+        suffix={node.code}
+        state="error"
+        collapsible={false}
+        body={null}
+      />
+    </div>
   )
 }
 
@@ -161,23 +155,17 @@ function TurnMaxTokensItem({ t }: {
   t: ChatViewSlotProps['t']
 }) {
   return (
-    <PceRow
-      kind="max-tokens"
-      glyph="token"
-      title={t('message.maxTokens')}
-      summary={t('message.maxTokens.hint')}
-      state="stopped"
-      collapsible={false}
-      body={(
-        <div className={css.turnErrorRow} role="status">
-          <StateDot state="warning" className={css.turnErrorDot} />
-          <div className={css.turnErrorCopy}>
-            <span className={css.maxTokensTitle}>{t('message.maxTokens')}</span>
-            <span className={css.turnErrorMessage}>{t('message.maxTokens.hint')}</span>
-          </div>
-        </div>
-      )}
-    />
+    <div role="status">
+      <PceRow
+        kind="max-tokens"
+        glyph="token"
+        title={t('message.maxTokens')}
+        summary={t('message.maxTokens.hint')}
+        state="stopped"
+        collapsible={false}
+        body={null}
+      />
+    </div>
   )
 }
 

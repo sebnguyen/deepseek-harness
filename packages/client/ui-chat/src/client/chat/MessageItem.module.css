@@ -15,8 +15,11 @@
   flex-direction: column;
   align-items: stretch;
   gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 6px;
   min-width: 0;
 }
+
 .bubble {
   /* The bubble always spans the column and reads left-aligned; prompts of
      any length wrap at the transcript width. border-box keeps width:100%
@@ -123,48 +126,6 @@
 .retryDetailLabel {
   color: var(--dsw-alias-label-secondary);
 }
-
-.turnErrorRow {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: start;
-  padding: 0;
-  font-size: var(--dsh-content-font-size-secondary, 13px);
-  line-height: calc(20px + var(--dsh-content-font-delta-secondary, 0px));
-}
-
-.turnErrorDot {
-  margin-top: 5px;
-}
-
-.turnErrorCopy {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.turnErrorTitle {
-  margin-right: 6px;
-  color: var(--dsw-alias-state-error-primary);
-  font-weight: 600;
-}
-
-.turnErrorMessage {
-  color: var(--dsw-alias-label-secondary);
-}
-
-.turnErrorCode {
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-markdown-code-block-small);
-}
-
-.maxTokensTitle {
-  margin-right: 6px;
-  color: var(--dsw-alias-state-warn-primary);
-  font-weight: 600;
-}
-
-
 
 .attachmentRow {
   display: flex;

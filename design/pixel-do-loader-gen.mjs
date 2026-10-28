@@ -59,9 +59,8 @@ const COVERAGE = 0.5
 // o'clock first), matching the approved mock: the light runs around the mark.
 const GRID = 16
 const F = 16
-const PERIOD = 1.2
+const PERIOD = 1
 const DIM = 0.22
-const LADDER = [1, 0.87, 0.74, 0.61, 0.48, 0.35, DIM]
 // Per-cell gap at the shared 20%: geometry stays full-cell and the gap is CSS,
 // so every face renders the same pixel scale at every output size. It rides a
 // presentation attribute rather than a <style> rule because the desktop splash
@@ -115,20 +114,17 @@ const TWIN_DIST = join(ROOT, '../.vscode-twin/dist')
 
 function round2(n) { return Math.round(n * 100) / 100 }
 
+/** A cell's clockwise fraction of the sweep, 12 o'clock first. */
+function phaseFor(c, r, N) {
+  const angle = Math.atan2(r + 0.5 - N / 2, c + 0.5 - N / 2) * 180 / Math.PI
+  return ((((angle + 90) % 360) + 360) % 360) / 360
+}
+
 /** Bucket derived cells into F clockwise sweep groups of [col,row]. */
 function bucketsFor(cells, N) {
   const groups = Array.from({ length: F }, () => [])
-  for (const [c, r] of cells) {
-    const angle = Math.atan2(r + 0.5 - N / 2, c + 0.5 - N / 2) * 180 / Math.PI
-    const f = ((((angle + 90) % 360) + 360) % 360) / 360
-    groups[Math.round(f * F) % F].push([c, r])
-  }
+  for (const [c, r] of cells) groups[Math.round(phaseFor(c, r, N) * F) % F].push([c, r])
   return groups
-}
-
-function rectsFor(cells) {
-  return cells.map(([c, r]) =>
-    `<rect x="${c}" y="${r}" width="1" height="1" clip-path="${CELL_CLIP}"/>`).join('')
 }
 
 /** Cell rects with the gap in geometry, for rasterizers that ignore CSS clip-path. */
@@ -137,21 +133,65 @@ function solidRectsFor(cells) {
     `<rect x="${c + CELL_INSET}" y="${r + CELL_INSET}" width="${CELL_SIDE}" height="${CELL_SIDE}"/>`).join('')
 }
 
-/** The sweep stylesheet shared by every document host. */
-function styleBlock() {
-  const steps = LADDER.map((value, i) => `${round2((i / F) * 100)}%{opacity:${value}}`).join('')
-  return `.dsh-pl{animation:dsh-pl-sweep ${PERIOD}s step-end infinite}
-@keyframes dsh-pl-sweep{${steps}100%{opacity:${DIM}}}
-@media (prefers-reduced-motion: reduce){.dsh-pl{animation:none}}`
+/**
+ * The same solid mark as one path: every cell an inset square subpath. One node
+ * per rendered mark instead of one rect per cell, with the shared 20% gap baked
+ * into the geometry (no per-cell clip-path presentation attributes).
+ */
+function solidPath(cells) {
+  return cells.map(([c, r]) =>
+    `M${round2(c + CELL_INSET)} ${round2(r + CELL_INSET)}h${CELL_SIDE}v${CELL_SIDE}h-${CELL_SIDE}z`).join('')
 }
 
-/** CSS mode: per-bucket clockwise delays, shiftable through custom properties. */
+/** Arc inside which the light falls from full to the dim floor ahead of the head. */
+const HEAD_DEG = 44
+/** Arc the light lingers through after the head has passed. */
+const TAIL_DEG = 180
+
+/**
+ * The sweep as one smooth conic with a shaped alpha profile instead of a cut at
+ * the head. Every angle's brightness is a function of its deviation from the
+ * current sweep angle: brightest at the head, a short fall on the side the head
+ * is heading into, and a long eased decay behind it. A cell walks the profile
+ * from 360deg down to 0deg as the head arrives, so the long rise toward 360deg is
+ * the tail it fades through after being swept and the short fall just past 0deg
+ * is the soft leading edge. Interpolated stops keep it a gradient: no per-cell
+ * plateaus and nothing to quantise.
+ */
+function sweepConicStops() {
+  const stops = [[0, 1], [8, 0.92], [18, 0.62], [30, 0.34], [HEAD_DEG, DIM]]
+  const hold = 360 - TAIL_DEG
+  if (hold > HEAD_DEG) stops.push([hold, DIM])
+  for (let i = 1; i < 6; i += 1) {
+    const t = i / 6
+    stops.push([360 - TAIL_DEG * (1 - t), round2(DIM + (1 - DIM) * t ** 2.2)])
+  }
+  const list = stops
+    .sort((a, b) => a[0] - b[0])
+    .map(([deg, alpha]) => `rgb(0 0 0 / ${alpha}) ${round2(deg)}deg`)
+  // The head itself closes the turn at 360deg, where the peak meets itself.
+  list.push('rgb(0 0 0 / 1) 360deg')
+  return list.join(',')
+}
+
+/**
+ * The sweep stylesheet shared by every document host: the static mark is masked
+ * by one animated conic gradient, so a spinning mark costs one node and one
+ * animation instead of one animation per cell. `--dsh-pl-sweep` is a registered
+ * angle, so the gradient's `from` turns smoothly; the host shift still poses the
+ * start through `--dsh-boot-arc` / `--dsh-pixel-loader-boost`.
+ */
+function styleBlock() {
+  const from = 'calc(var(--dsh-pl-sweep) + var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg)'
+  const mask = `conic-gradient(from ${from} at 50% 50%,${sweepConicStops()})`
+  return `@property --dsh-pl-sweep{syntax:"<angle>";inherits:false;initial-value:0deg}
+.dsh-pl{mask-image:${mask};-webkit-mask-image:${mask};-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;animation:dsh-pl-sweep ${PERIOD}s linear infinite}
+@keyframes dsh-pl-sweep{from{--dsh-pl-sweep:0deg}to{--dsh-pl-sweep:360deg}}
+@media (prefers-reduced-motion: reduce){.dsh-pl{animation:none}}`
+}
+/** CSS mode: one static path for the whole mark; the conic mask lights it. */
 function innerCss(cells) {
-  return cells.map((bucket, k) => {
-    const begin = round2((k / F) * PERIOD)
-    const delay = `calc(${begin}s + (var(--dsh-boot-arc, 72deg) - var(--dsh-pixel-loader-boost, 0) * 360deg) / 360deg * ${PERIOD}s)`
-    return `<g opacity="${DIM}" class="dsh-pl" style="animation-delay: ${delay}">${rectsFor(bucket)}</g>`
-  }).join('')
+  return `<path class="dsh-pl" d="${solidPath(cells.flat())}"/>`
 }
 
 /** The twinkle stylesheet shared by every document host that idles the mark. */
@@ -221,11 +261,11 @@ ${solidRectsFor(cells)}
 `
 }
 
-const CSS = styleBlock()
-const TW_CSS = twinkleStyleBlock()
 const flat = deriveCells(LOGO_D, GRID, COVERAGE)
 const cells = bucketsFor(flat, GRID)
 const schedule = twinkleSchedule(flat.length, 0xD0CE16)
+const CSS = styleBlock()
+const TW_CSS = twinkleStyleBlock()
 
 const sweep96 = stableSweepSvg(cells, { width: 96 })
 const sweep16 = stableSweepSvg(cells, { width: 16 })
@@ -252,12 +292,12 @@ writeFileSync(MODULE_OUT, `/**
  * [column,row] cells: {@link PIXEL_LOADER_CELLS}, derived by the hard-downsample
  * pipeline in design/downsample.mjs from the product logo path
  * (website/public/favicon.svg): one 16x16 coverage window per cell keeps the
- * mark true to the vector. The clockwise order lights the buckets
- * 12-o'clock-first. Renderers turn buckets into rect markup (see ui-primitives
- * PixelLoader): one \`<g class="dsh-pl">\` per bucket, its \`animation-delay\`
- * the bucket's step plus the host-shifted sweep window; the shared stylesheet
- * {@link PIXEL_LOADER_CSS} carries the step-end ladder and the
- * prefers-reduced-motion guard once per document.
+ * mark true to the vector. The clockwise order lights the cells
+ * 12-o'clock-first, one square at a time: {@link PIXEL_LOADER_SWEEP_PHASE}
+ * carries each cell's own phase, so a renderer (see ui-primitives PixelLoader)
+ * emits one self-timed rect per cell instead of flipping a whole arc bucket;
+ * the shared stylesheet {@link PIXEL_LOADER_CSS} carries the step-end ladder
+ * and the prefers-reduced-motion guard once per document.
  */
 
 /** The stable grid every face renders; the artwork is full-cell in these units. */
@@ -269,7 +309,7 @@ export const PIXEL_LOADER_PERIOD_S = ${PERIOD}
 /** The ${GAP_PCT}% cell gap as CSS: each full cell is clipped ${GAP_PCT / 2}% off every side. */
 export const PIXEL_LOADER_CELL_CLIP = ${JSON.stringify(CELL_CLIP)}
 
-/** Shared sweep stylesheet: discrete opacity ladder + reduced-motion guard. */
+/** Shared sweep stylesheet: one animated conic mask + reduced-motion guard. */
 export const PIXEL_LOADER_CSS = \`${CSS}\`
 
 /** Shared twinkle stylesheet: per-pixel pop & fade with a reduced-motion guard (idle brand mark). */
@@ -280,6 +320,11 @@ export const PIXEL_LOADER_TWINKLE: readonly (readonly [number, number])[] = ${JS
 
 /** Stable 16x16 grid buckets: every sweep face, every rendered size. */
 export const PIXEL_LOADER_CELLS: readonly (readonly (readonly [number, number])[])[] = ${JSON.stringify(cells)}
+
+/** Per-cell clockwise phase in [0,1), parallel to \`PIXEL_LOADER_CELLS\` flattened. */
+export const PIXEL_LOADER_SWEEP_PHASE: readonly number[] = ${JSON.stringify(cells.flat().map(([c, r]) => round2(phaseFor(c, r, GRID))))}
+/** The solid mark as one path: every cell an inset square subpath, gap in geometry. */
+export const PIXEL_MARK_PATH = ${JSON.stringify(solidPath(flat))}
 
 /** Compatibility alias for the one grid; new code should use {@link PIXEL_LOADER_CELLS}. */
 export const PIXEL_LOADER_CELLS_16 = PIXEL_LOADER_CELLS

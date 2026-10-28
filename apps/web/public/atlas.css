@@ -928,20 +928,6 @@ html body [data-dsh-shell] [class*='_retrySummary'] {
   color: var(--a-ink-2);
 }
 
-html body [data-dsh-shell] [class*='_turnErrorRow'] {
-  padding: 10px 12px;
-  border: 0;
-  border-left: 2px solid var(--a-err);
-  background: color-mix(in oklab, var(--a-err) 6%, transparent);
-}
-
-html body [data-dsh-shell] [class*='_turnErrorTitle'] {
-  font: 500 10px/1.5 var(--a-ui);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--a-err);
-}
-
 html body [data-dsh-shell] [class*='_turnRailButton'] {
   width: 18px;
   height: 16px;
@@ -1404,10 +1390,6 @@ html body::after {
   html body [data-dsh-shell] [data-dsh-hero] [class*='_titleGroup'] span {
     font-size: 32px;
   }
-
-  html body [data-dsh-shell] [data-dsh-bubble] {
-    font-size: 20px;
-  }
 }
 
 /* --------------------------------------------------------------------------
@@ -1469,9 +1451,10 @@ html body [data-dsh-shell] .pce {
 }
 
 /* Keep the collapsed keepMounted body from reserving space: hidden=until-found
-   leaves the box in layout, so the body's own padding would otherwise read as
-   a blank line under every collapsed row. */
+   leaves the box in layout, so the body's own margin and padding would
+   otherwise read as a blank line under every collapsed row. */
 html body [data-dsh-shell] .pce-body[hidden] {
+  margin: 0;
   padding: 0;
 }
 

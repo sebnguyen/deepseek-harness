@@ -166,7 +166,6 @@ export function PceRow({
       data-pce={kind}
       data-variant={kind}
       data-state={state}
-      aria-label={`${title} redesigned chat element`}
     >
       {/* The mark is the visible signal; the localized state rides a
           visually-hidden span on the article so the toggle's accessible name
@@ -176,7 +175,7 @@ export function PceRow({
         : <span className="pce-state-text">{stateLabel}</span>}
       {head}
       {expanded
-        ? <div className="pce-body" key="open">{content}</div>
+        ? <div className="pce-body" key="open" data-pce-expanded="">{content}</div>
         : keepMounted && expandable
           ? (
             <div

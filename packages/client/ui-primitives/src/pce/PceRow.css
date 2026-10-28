@@ -290,18 +290,28 @@
   overflow: visible;
 }
 
+/* The inset belongs to the expanded body only. The keepMounted body stays in
+   the document while collapsed, so a margin on `.pce-body` itself would
+   reserve space there before the hidden reset (and for any consumer that
+   renders the box without `hidden`); `data-pce-expanded` is emitted only by
+   PceRow's open branch. */
+.pce-body[data-pce-expanded] {
+  margin: 8px 0;
+}
+
 /* `hidden="until-found"` keeps the element's box in layout
-   (content-visibility: hidden hides the content, not the padding), so a
-   collapsed keepMounted body still reserved its expanded top gap.
-   Collapsed means no body box. */
+   (content-visibility: hidden hides the content, not the margin or padding),
+   so a collapsed keepMounted body zeroes both as a second guard. Collapsed
+   means no body box. */
 .pce-body[hidden] {
+  margin: 0;
   padding: 0;
 }
 
-/* The pce body is flush with its head; the flow array's gap is the only
-   space between rows. Cards that bring their own markdown-body margins
-   (CodeBlock, ReadBlock, TerminalBlock, ToolMaster, image bodies) must not
-   add a tool-specific offset.
+/* The body owns the row's internal vertical inset; the flow array's gap is
+   the only space between rows. Cards that bring their own markdown-body
+   margins (CodeBlock, ReadBlock, TerminalBlock, ToolMaster, image bodies)
+   must not add a tool-specific offset.
    The sibling rules below still own the 6px between stacked code blocks. */
 .pce .pce-body > * {
   margin-top: 0;

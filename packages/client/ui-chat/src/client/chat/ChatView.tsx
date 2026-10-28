@@ -2,6 +2,7 @@
 // otherwise this view owns it. Each row subscribes to one stable node key.
 
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from 'react'
+import { flushSync } from 'react-dom'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { Button, IconChevronDownOutline14, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ChatViewSlotProps, OpenFileOptions } from '../contract/slots.ts'
@@ -12,12 +13,14 @@ import css from './ChatView.module.css'
 import { followScrollport, type FollowHandle } from './follow-scroll.ts'
 
 const FOLLOW_THRESHOLD = 24
-const SCROLL_SAMPLE_INTERVAL_MS = 500
+const SCROLL_SAMPLE_INTERVAL_MS = 250
 /** Live band: rows kept rendered on each side of the row at the viewport
- *  centre. A hundred rows above and a hundred below is at most 201 live rows. A
- *  node count, never a pixel estimate — every row outside the band holds a
- *  measured spacer instead of its content. */
-const LIVE_BAND_NODES = 100
+ *  centre. Seventy-five rows above and seventy-five below is at most 151 live
+ *  rows. A node count, never a pixel estimate. The rows the reader can actually
+ *  see are admitted per frame by their own path, so this band is the preventive
+ *  buffer in front of it — the margin a fling has to cross before the next
+ *  admission — not the thing that keeps the viewport rendered. */
+const LIVE_BAND_NODES = 75
 /** The newest rows stay live whatever the reader looks at. They are the only
  *  rows that change on their own — the streaming output and the turn tail —
  *  so a reader parked in history must not unmount them: a remount restarts
@@ -63,6 +66,50 @@ function flowTop(row: HTMLElement, scrollport: HTMLElement): number {
 /** The live band a warm open mounts: the band around the remembered anchor (the
  *  tail when there is none) plus the pinned tail. A node count, like every other
  *  band decision — no geometry is needed to know which rows to mount. */
+/** Keys of the rows whose box intersects the scrollport: the rows the reader is
+ *  actually looking at. Two binary searches over the rendered rows, so the cost
+ *  is a handful of rect reads (≈20 µs) rather than an estimate of how many rows
+ *  fit — rows differ in height, so no fixed count is honest. */
+function visibleRowKeys(list: HTMLElement, scrollport: HTMLElement): string[] {
+  const rows = list.querySelectorAll<HTMLElement>('[data-chat-flow-key]')
+  const port = scrollport.getBoundingClientRect()
+  // The composer is sticky inside the scrollport, so it overlays the bottom of
+  // the transcript: the visible band ends at its top edge. pagingAnchor reads
+  // the same bound, so both captures agree on what the reader can see.
+  const composer = scrollport.querySelector<HTMLElement>('[data-composer-seat]')
+  const composerTop = composer?.getBoundingClientRect().top
+  const visibleBottom = composerTop === undefined ? port.bottom : Math.min(port.bottom, composerTop)
+  if (rows.length === 0 || port.height <= 0 || visibleBottom <= port.top) return []
+  const bottomOf = (index: number): number =>
+    rows[index]?.getBoundingClientRect().bottom ?? Number.NEGATIVE_INFINITY
+  const topOf = (index: number): number =>
+    rows[index]?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+  // First row whose bottom passes the port top.
+  let lo = 0
+  let hi = rows.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1
+    if (bottomOf(mid) <= port.top) lo = mid + 1
+    else hi = mid
+  }
+  const first = lo
+  // Last row whose top precedes the visible bottom.
+  lo = 0
+  hi = rows.length - 1
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1
+    if (topOf(mid) >= visibleBottom) hi = mid - 1
+    else lo = mid
+  }
+  const last = lo
+  const keys: string[] = []
+  for (let index = first; index <= last; index += 1) {
+    const key = rows[index]?.dataset.chatFlowKey
+    if (key !== undefined && key !== '') keys.push(key)
+  }
+  return keys
+}
+
 function bandAround(order: readonly string[], anchorKey: string | undefined): Set<string> {
   const anchored = anchorKey === undefined ? -1 : order.indexOf(anchorKey)
   const pivot = anchored < 0 ? order.length - 1 : anchored
@@ -298,6 +345,10 @@ export function ChatView({
   orderRef.current = order
   const liveKeysRef = useRef<ReadonlySet<string>>(liveKeys)
   liveKeysRef.current = liveKeys
+  /** Frame carrying a viewport admission; at most one in flight. */
+  const admitFrameRef = useRef<number | null>(null)
+  /** One follow-up frame per scroll event, after an admission grew the set. */
+  const admitAgainRef = useRef(false)
   /** Keys that became live because the band moved onto them. Sticky: a row that
    *  wakes twice is a wake both times, and the marker only matters for the mount
    *  that follows it. */
@@ -306,6 +357,45 @@ export function ChatView({
   const markWoke = useCallback((next: ReadonlySet<string>): void => {
     for (const key of next) if (!liveKeysRef.current.has(key)) wokeKeysRef.current.add(key)
   }, [])
+  /** Admit the rows the reader is looking at, the moment they are looking at
+   *  them. The band sample runs on a clock, so a fling outruns it and lands on
+   *  spacers; this asks the scrollport instead. Union, so nothing departs and
+   *  nothing is measured. Returns whether the live set actually grew. */
+  const admitViewport = useCallback((): boolean => {
+    if (loadingOlderRef.current || anchorRef.current !== null) return false
+    const local = listRef.current
+    /* v8 ignore next -- ref-null guard: only scheduled while mounted. */
+    if (local === null) return false
+    const current = liveKeysRef.current
+    const missing = visibleRowKeys(local, scrollerOf(local)).filter(key => !current.has(key))
+    if (missing.length === 0) return false
+    // Render inside this frame: the rows the reader is over must be in the DOM
+    // for the paint that follows this measurement, not in a later task. Anything
+    // deferred here is a frame of spacer under the reader.
+    flushSync(() => {
+      markWoke(new Set(missing))
+      setLiveKeys((prev) => {
+        const union = new Set([...prev, ...missing])
+        if (union.size === prev.size) return prev
+        return union
+      })
+    })
+    return true
+  }, [markWoke])
+  /** One admission per frame: a fling fires scroll events far faster than
+   *  content can mount, and every admission is a commit. A commit moves layout,
+   *  so one follow-up frame re-checks the viewport after it — latched per scroll
+   *  event, so a commit that lands late cannot spin. */
+  const scheduleAdmit = useCallback((): void => {
+    if (admitFrameRef.current !== null) return
+    admitFrameRef.current = window.requestAnimationFrame(() => {
+      admitFrameRef.current = null
+      if (!admitViewport()) return
+      if (admitAgainRef.current) return
+      admitAgainRef.current = true
+      scheduleAdmit()
+    })
+  }, [admitViewport])
   const loadingOlderRef = useRef(loadingOlder)
   loadingOlderRef.current = loadingOlder
   // Measured content heights keyed by node: the only thing a dormant row
@@ -392,7 +482,12 @@ export function ChatView({
     }
     const rect = scrollport.getBoundingClientRect()
     const cx = rect.left + rect.width / 2
-    const cy = rect.top + rect.height / 2
+    // The centred row must be one the reader can see: the composer overlays the
+    // bottom of the scrollport, so the centre is clamped above its top edge.
+    const composer = scrollport.querySelector<HTMLElement>('[data-composer-seat]')
+    const composerTop = composer?.getBoundingClientRect().top
+    const visibleBottom = composerTop === undefined ? rect.bottom : Math.min(rect.bottom, composerTop)
+    const cy = Math.min(rect.top + rect.height / 2, visibleBottom - 1)
     // Walk through all elements at this point (topmost-first). Overlays like
     // the to-bottom button may be first, so check each for a row ancestor.
     let centeredKey: string | null = null
@@ -441,6 +536,11 @@ export function ChatView({
     for (const key of order.slice(Math.max(0, order.length - PIN_TAIL_NODES))) {
       next.add(key)
     }
+    // A band step must never take content from under the reader: the viewport is
+    // admitted by its own path, so every committed set contains it. Without this
+    // a sample would drop the rows the fling just admitted and re-admit them a
+    // tick later, churning mounts at the sample cadence.
+    for (const key of visibleRowKeys(local, scrollport)) next.add(key)
     if (next.size === 0 && order.length > 0) {
       markWoke(new Set(order))
       setLiveKeys(new Set(order))
@@ -712,11 +812,19 @@ export function ChatView({
       if (sampleTimer !== undefined) window.clearTimeout(sampleTimer)
       sampleTimer = undefined
       // The sampled pass publishes through setAtBottom/setActiveTurn; no
-      // blank slate re-render rides the 500ms cadence anymore.
+      // blank slate re-render rides the sample cadence anymore.
       onScrollRef.current()
       recomputeLiveKeys()
     }
     const onScroll = (): void => {
+      // The urgent path first: rows the reader can see must not wait for the
+      // current sample. At the floor the pinned tail is already live, so only a
+      // reader parked away from it can be looking at a spacer — and a pinned
+      // delivery must not read row geometry.
+      if (!atBottomRef.current) {
+        admitAgainRef.current = false
+        scheduleAdmit()
+      }
       scrollSamplePendingRef.current = true
       if (atBottomRef.current) {
         // A follow in flight records every write it makes into the ledger, so a
@@ -738,6 +846,11 @@ export function ChatView({
       el.removeEventListener('scrollend', sample)
       stopFollow()
       if (sampleTimer !== undefined) window.clearTimeout(sampleTimer)
+      if (admitFrameRef.current !== null) {
+        window.cancelAnimationFrame(admitFrameRef.current)
+        admitFrameRef.current = null
+      }
+      admitAgainRef.current = false
       scrollSamplePendingRef.current = false
     }
   }, [])

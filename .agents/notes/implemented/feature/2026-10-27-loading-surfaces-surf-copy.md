@@ -23,15 +23,17 @@ probe.
 
 The curtain holds for 140 ms before painting, so a history window already in
 memory never flashes it. It centers the 128 px `PixelLoader` sweep (the
-DigitalOcean pixel mark) above a `SurfText` run that rotates ten short
-DigitalOcean stack tips — Droplets, App Platform, Spaces, DOKS, Floating IPs,
-VPC, Volumes, Load Balancers, Functions, and managed databases — every 3.2 s.
-Each arriving line rides the existing `surf-up` keyframe from `motion.css`;
-the departing line runs the new `surf-out` keyframe (fade plus sink). Both
-lines share one grid cell, so the copy swaps in place without reflowing the
-mark.
+DigitalOcean pixel mark), the 26/32 wt500 wordmark, and a `SurfText` run that
+rotates thirty short DigitalOcean stack tips — Droplets, App Platform, Spaces,
+DOKS, Floating IPs, VPC, Volumes, Load Balancers, Functions, managed databases,
+Container Registry, Monitoring, Uptime, Projects, tags, Terraform, and
+cloud-init — every 3.2 s. The tips are bare sentences; there is no `Tip:`
+prefix. Each arriving line rides the existing `surf-up` keyframe from
+`motion.css`; the departing line runs the new `surf-out` keyframe (fade plus
+sink). Both lines share one grid cell, so the copy swaps in place without
+reflowing the mark.
 
-The lines are `aria-hidden`; the status keeps the stable
+The wordmark and tip lines are `aria-hidden`; the status keeps the stable
 `conversation` namespace's `session.loadingHistory` label. Screen readers and
 the e2e `captureStableAria` helper therefore see one stable status while the
 visible tip changes — a rotating live region would otherwise make the ARIA
@@ -98,9 +100,17 @@ transcript box and the right boundary.
 ## Consequences
 
 The history round-trip, the app boot, and the VS Code cover now share the flat
-sweep and rotating stack copy, and every literal status stays on an accessible
-label. The bought side: per-host locale ownership duplicates the tip copy (the
-pre-locale boot page carries its English array; the conversation and vscode
-namespaces carry their own dictionaries), a fast open shows nothing at all,
-and the rotating lines are not announced (by design). `SurfText` stays reusable
-wherever an ordered list of short lines should swap in place.
+sweep, the 26/32 wt500 wordmark, and the thirty-line rotating stack copy, and
+every literal status stays on an accessible label. The bought side: per-host
+locale ownership duplicates the tip copy (the pre-locale boot page carries its
+English array; the conversation and vscode namespaces carry their own
+dictionaries), so each deck change is a three-file edit; a fast open shows
+nothing at all, and the rotating lines are not announced (by design). `SurfText`
+stays reusable wherever an ordered list of short lines should swap in place.
+
+## Testing
+
+- `pnpm exec vitest run packages/client/web/tests/boot-page.client.spec.ts packages/client/ui-conversation/tests/history-curtain.client.spec.tsx packages/client/ui-conversation/tests/skeleton.client.spec.tsx packages/client/ui-vscode/tests/vscode-twin.client.spec.tsx` — 43 tests pass; the boot deck wraps after thirty lines, the curtain carries the wordmark and rotates through `session.surf.29`, and the twin keeps its `boot.tip.0` line.
+- `pnpm run typecheck:contracts-ready` — the typed conversation and vscode dictionaries accept all thirty keys in both locales, and the curtain/twin key arrays resolve to the same set.
+- A deck cross-check reads `BOOT_TIPS`, `session.surf.*`, and `boot.tip.*`: all three surfaces carry the same 30 bare lines, and each key set runs 0..29 without a gap.
+- `pnpm exec tsx scripts/verify-client-ui-i18n.ts` still reports the pre-existing hard-coded strings in other client files (including the twin's wordmark and iframe title); the new curtain wordmark goes through `hero.headline`, and the new tip copy lives only in the dictionaries.
