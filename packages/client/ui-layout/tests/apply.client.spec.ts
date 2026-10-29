@@ -79,7 +79,7 @@ describe('ui-layout client apply', () => {
     expect(inject).toEqual(['slots', 'theme', 'locale'])
   })
 
-  it('provides ctx.layout and declares the four root-scoped frame slots', async () => {
+  it('provides ctx.layout and declares the five root-scoped frame slots', async () => {
     const { ctx, slots } = await bench()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -87,6 +87,7 @@ describe('ui-layout client apply', () => {
     expect(slots.entries('root')).toHaveLength(1)
     expect(slots.spec('sidebar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('main')).toEqual({ kind: 'keyed', scope: 'root' })
+    expect(slots.spec('layout.mode')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('rightbar')).toEqual({ kind: 'single', scope: 'root' })
     expect(slots.spec('shell.overlay')).toEqual({ kind: 'list', scope: 'root' })
   })
@@ -102,6 +103,7 @@ describe('ui-layout client apply', () => {
     expect(handle.create()).toBe(instance)
     const layout = ctx.get('layout') as LayoutController
     expect(() => { layout.selectPanel('missing' as MainPanelId) }).toThrow('main panel "missing" is not registered')
+    layout.toggleSidebar()
     layout.toggleSidebar()
     expect(instance.getSnapshot().layoutInfo.sidebar).toBe(0)
     const host = rendererHost()
@@ -159,6 +161,7 @@ describe('ui-layout client apply', () => {
     expect(slots.entries('root')).toHaveLength(0)
     expect(slots.spec('sidebar')).toBeUndefined()
     expect(slots.spec('main')).toBeUndefined()
+    expect(slots.spec('layout.mode')).toBeUndefined()
     expect(slots.spec('rightbar')).toBeUndefined()
     expect(slots.spec('shell.overlay')).toBeUndefined()
     expect(host.root.getSnapshot().hooks.panelInfo).toBeUndefined()

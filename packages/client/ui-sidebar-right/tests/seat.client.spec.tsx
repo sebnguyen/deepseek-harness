@@ -86,6 +86,12 @@ async function mountSeat(
   const pin = vi.fn<(address: string, signal: AbortSignal) => void>()
   runtime.ctx.provide('layout', frame as never)
   runtime.ctx.provide('resources', { pin } as never)
+  runtime.ctx.provide('layoutMode', {
+    info: {
+      getSnapshot: () => ({ phase: 'active', mode: 'default' }),
+      subscribe: () => () => {},
+    },
+  } as never)
   const locale = new LocaleRuntime(runtime.ctx)
   runtime.ctx.provide('locale', locale)
   runtime.slots.installLocale(locale)

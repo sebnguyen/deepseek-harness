@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 /** Frame interactions with a real store and explicitly driven browser measurements. */
+import type { ReactNode } from 'react'
 import type { GlobalStandardProps, RenderOpts } from '@deepseek-ai/dsh-client-ui-slots'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { AppFrame } from '../src/client/AppFrame.tsx'
 import type { AppFrameProps } from '../src/client/AppFrame.tsx'
-import type { MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
+import type { LayoutModeInfo, MainPanelId, RightbarOwnerProps, SidebarOwnerProps } from '../src/client/index.ts'
 import { createLayoutStore } from '../src/client/stores.ts'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { SIDEBAR_DEFAULT } from '../src/client/columns.ts'
 import type { WorkspaceSnapshot } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -64,11 +66,10 @@ function resize(width: number): void {
   })
 }
 
-function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' | 'collapsed' = 'open') {
+function mountFrame(windowWidth = frameWidth, sidebar: 'open' | 'collapsed' = 'open') {
   vi.stubGlobal('innerWidth', windowWidth)
   const instance = createLayoutStore().create()
-  // Legacy requests the chat-first order; the store default is IDE-first.
-  if (order === 'legacy') instance.actions.toggleSwap()
+  const modeStore = createSnapshotStore<LayoutModeInfo>({ phase: 'active', mode: 'default' })
   const slotCalls: { key: string; props: object; options: RenderOpts | undefined }[] = []
   const renderSlot: AppFrameProps['renderSlot'] = (key, owner, options) => {
     slotCalls.push({ key, props: owner, options })
@@ -78,12 +79,19 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' 
     const panel = key === 'sidebar' && width !== undefined
       ? { 'data-sidebar-panel': '', style: { width } }
       : {}
+    const children = key === 'layout.mode'
+      ? (owner as unknown as { renderConversation: () => ReactNode }).renderConversation()
+      : null
     return (
       <div
         data-testid={`${key}-content`}
-        data-entry-key={(owner as { entryKey?: string }).entryKey ?? options?.entryKey}
+        data-entry-key={key === 'layout.mode'
+          ? (owner as { mode?: string }).mode
+          : (owner as { entryKey?: string }).entryKey ?? options?.entryKey}
         {...panel}
-      />
+      >
+        {children}
+      </div>
     )
   }
   const useSessions: AppFrameProps['useSessions'] = sel => sel({
@@ -106,6 +114,7 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' 
     ...(workspacesReady ? {} : { state: 'loading' as const, phase: 'pending' as const }),
   }
   const useStore = bindSnapshotSelector(instance)
+  const useLayoutMode = bindSnapshotSelector(modeStore)
   const usePanelInfo = bindSnapshotSelector({
     getSnapshot: () => instance.getSnapshot().panelInfo,
     subscribe: listener => instance.subscribe(listener),
@@ -117,6 +126,7 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' 
       renderSlot={renderSlot}
       useSessions={useSessions}
       usePanelInfo={usePanelInfo}
+      useLayoutMode={useLayoutMode}
       useSessionPendingInteraction={useSessionPendingInteraction}
       useResource={useResource}
       useWorkspaces={sel => sel(workspaceState)}
@@ -129,7 +139,7 @@ function mountFrame(windowWidth = frameWidth, order?: 'legacy', sidebar: 'open' 
   if (sidebar === 'open') act(() => { instance.actions.setSidebar(SIDEBAR_DEFAULT) })
   const frame = utils.container.firstElementChild as HTMLElement
   return {
-    ...utils, instance, frame, slotCalls,
+    ...utils, instance, modeStore, frame, slotCalls,
     rerenderFrame: () => { utils.rerender(element()) },
     rightOwner: () => slotCalls.findLast(c => c.key === 'rightbar')!.props as RightbarOwnerProps,
     sidebarOwner: () => slotCalls.findLast(c => c.key === 'sidebar')!.props as SidebarOwnerProps,
@@ -233,7 +243,7 @@ describe('AppFrame', () => {
   })
 
   it('starts with the sidebar collapsed at its rail', () => {
-    const { frame, sidebarOwner, getByTestId } = mountFrame(frameWidth, undefined, 'collapsed')
+    const { frame, sidebarOwner, getByTestId } = mountFrame(frameWidth, 'collapsed')
     expect(tracks(frame)).toEqual([56, 0])
     expect(sidebarOwner()).toEqual({ collapsed: true, width: 56 })
     expect(getByTestId('sidebar-content')).toBeTruthy()
@@ -251,6 +261,21 @@ describe('AppFrame', () => {
     expect(sidebarOwner()).toEqual({ collapsed: false, width: 280 })
     expect(rightOwner()).toEqual({ width: 1160, viewportWidth: 1920, canShow: true })
     expect(slotCalls.find(c => c.key === 'main')).toEqual({ key: 'main', props: {}, options: { entryKey: 'conversation' } })
+  })
+
+  it('renders the active layout.mode entry in place of the normal columns', () => {
+    const b = mountFrame()
+    b.slotCalls.length = 0
+    act(() => { b.modeStore.set({ phase: 'active', mode: 'turbo' }) })
+    b.rerenderFrame()
+    expect(b.frame.style.gridTemplateColumns).toBe('minmax(0, 1fr)')
+    expect(b.slotCalls.some(c => c.key === 'layout.mode')).toBe(true)
+    expect(b.slotCalls.some(c => c.key === 'sidebar')).toBe(false)
+    expect(b.slotCalls.some(c => c.key === 'rightbar')).toBe(false)
+    expect(b.slotCalls.find(c => c.key === 'main')).toEqual({ key: 'main', props: {}, options: { entryKey: 'conversation' } })
+    const mode = b.getByTestId('layout.mode-content')
+    expect(mode.getAttribute('data-entry-key')).toBe('turbo')
+    expect(mode.querySelector('[data-testid="main-content"]')).toBeTruthy()
   })
 
   it('renders the main, sidebar, and root-scoped rightbar outlets without a current Session', () => {
@@ -434,10 +459,10 @@ describe('AppFrame right panel presentation', () => {
   })
 
   it('preserves normal tracks through fullscreen and hides the outer resize handle', () => {
-    const { frame, instance, rightOwner } = mountFrame(undefined, 'legacy')
+    const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
     expect(tracks(frame)).toEqual([280, 1160])
-    expect(handleFor(frame, 'rightbar').style.left).toBe('748px')
+    expect(handleFor(frame, 'rightbar').style.left).toBe('760px')
     act(() => { instance.actions.openRightbar(true, true) })
     expect(tracks(frame)).toEqual([280, 1160])
     expect(rightOwner().width).toBe(1160)
@@ -445,7 +470,7 @@ describe('AppFrame right panel presentation', () => {
     expect(frame.querySelector('[data-side="rightbar"]')).toBeNull()
     act(() => { instance.actions.openRightbar(true, false) })
     expect(tracks(frame)).toEqual([280, 1160])
-    expect(handleFor(frame, 'rightbar').style.left).toBe('748px')
+    expect(handleFor(frame, 'rightbar').style.left).toBe('760px')
     expect(frame.dataset.rightbarFullscreen).toBeUndefined()
     act(() => { instance.actions.closeRightbar() })
     expect(tracks(frame)).toEqual([280, 0])
@@ -477,7 +502,7 @@ describe('AppFrame right panel presentation', () => {
   })
 
   it('keeps resolved panel width independent of the requested track', () => {
-    const { frame, instance, rightOwner } = mountFrame(undefined, 'legacy')
+    const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(false, false) })
     resize(1100)
     expect(tracks(frame)).toEqual([280, 0])
@@ -510,23 +535,23 @@ describe('AppFrame pointer resizing', () => {
   })
 
   it('starts a conceded right drag at its actual width, shared by panel and track', () => {
-    const { frame, instance, rightOwner } = mountFrame(undefined, 'legacy')
+    const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.openRightbar(true, false) })
     resize(1100)
     const handle = handleFor(frame, 'rightbar')
     expect(rightOwner().width).toBe(545)
     expect(tracks(frame)[1]).toBe(545)
-    expect(handle.style.left).toBe('543px')
+    expect(handle.style.left).toBe('555px')
     drag(handle, 543, 553)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(535)
     expect(rightOwner().width).toBe(535)
     expect(tracks(frame)[1]).toBe(535)
-    expect(handle.style.left).toBe('553px')
+    expect(handle.style.left).toBe('565px')
   })
 
   it('widens to the 70% limit and shrinks to 300px through pointer input', () => {
     frameWidth = 3000
-    const { frame, instance, rightOwner } = mountFrame(undefined, 'legacy')
+    const { frame, instance, rightOwner } = mountFrame()
     act(() => { instance.actions.toggleSidebar(); instance.actions.openRightbar(true, false) })
     drag(handleFor(frame, 'rightbar'), 1650, 0)
     expect(rightOwner().width).toBe(2100)
@@ -602,43 +627,47 @@ describe('AppFrame pointer resizing', () => {
 })
 
 describe('AppFrame swapped layout', () => {
-  it('defaults to IDE-first: the rightbar track sits between sidebar and center', () => {
+  it('defaults to chat-first: the rightbar track sits at the frame edge', () => {
     const { frame, getByTestId } = mountFrame()
-    expect(frame.dataset.rightbarSwapped).toBe('true')
-    expect(frame.style.gridTemplateColumns).toBe('280px 0px minmax(0, 1fr)')
+    expect(frame.dataset.rightbarSwapped).toBeUndefined()
+    expect(frame.style.gridTemplateColumns).toBe('56px minmax(0, 1fr) 0px')
     const rightbar = getByTestId('rightbar-content')
     const main = getByTestId('main-content')
-    expect(main.compareDocumentPosition(rightbar) & Node.DOCUMENT_POSITION_PRECEDING).not.toBe(0)
+    expect(main.compareDocumentPosition(rightbar) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
   })
 
-  it('restores the chat-first order on toggleSwap', () => {
+  it('flips to IDE-first on toggleSwap', () => {
     const { frame, instance } = mountFrame()
-    act(() => { instance.actions.toggleSwap() })
     expect(frame.dataset.rightbarSwapped).toBeUndefined()
-    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
+    expect(frame.style.gridTemplateColumns).toBe('56px minmax(0, 1fr) 0px')
     act(() => { instance.actions.toggleSwap() })
     expect(frame.dataset.rightbarSwapped).toBe('true')
-    expect(frame.style.gridTemplateColumns).toBe('280px 0px minmax(0, 1fr)')
+    expect(frame.style.gridTemplateColumns).toBe('56px 0px minmax(0, 1fr)')
+    act(() => { instance.actions.toggleSwap() })
+    expect(frame.dataset.rightbarSwapped).toBeUndefined()
+    expect(frame.style.gridTemplateColumns).toBe('56px minmax(0, 1fr) 0px')
   })
 
   it('positions the rightbar handle in the gap right of the IDE track and widens with +dx', () => {
     const { frame, instance, rightOwner } = mountFrame()
+    act(() => { instance.actions.toggleSwap() })
     act(() => { instance.actions.openRightbar(true, false) })
-    expect(frame.style.gridTemplateColumns).toBe('280px 1160px minmax(0, 1fr)')
-    expect(handleFor(frame, 'rightbar').style.left).toBe('1460px')
-    drag(handleFor(frame, 'rightbar'), 1460, 1560)
+    expect(frame.style.gridTemplateColumns).toBe('56px 1160px minmax(0, 1fr)')
+    expect(handleFor(frame, 'rightbar').style.left).toBe('1440px')
+    drag(handleFor(frame, 'rightbar'), 1440, 1540)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(1260)
     expect(rightOwner().width).toBe(1240)
   })
 
   it('keeps the swapped handle in the gap when the panel hangs over without a track', () => {
     const { frame, instance, rightOwner } = mountFrame()
+    act(() => { instance.actions.toggleSwap() })
     act(() => { instance.actions.openRightbar(false, false) })
     resize(1100)
     expect(tracks(frame)).toEqual([280, 0])
     expect(rightOwner().width).toBe(545)
-    expect(handleFor(frame, 'rightbar').style.left).toBe('845px')
-    drag(handleFor(frame, 'rightbar'), 845, 835)
+    expect(handleFor(frame, 'rightbar').style.left).toBe('825px')
+    drag(handleFor(frame, 'rightbar'), 825, 815)
     expect(instance.getSnapshot().layoutInfo.rightbar).toBe(535)
     expect(rightOwner().width).toBe(535)
   })

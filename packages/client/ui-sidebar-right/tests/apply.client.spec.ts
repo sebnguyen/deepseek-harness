@@ -61,10 +61,26 @@ async function boot() {
   }
   const layout = { openRightbar: vi.fn(), closeRightbar: vi.fn() }
   const resources = { pin: vi.fn<(address: string, signal: AbortSignal) => void>() }
+  const mode = { phase: 'active', mode: 'default' }
+  const modeListeners = new Set<() => void>()
+  const layoutMode = {
+    info: {
+      getSnapshot: () => mode,
+      subscribe: (listener: () => void) => {
+        modeListeners.add(listener)
+        return () => { modeListeners.delete(listener) }
+      },
+    },
+  }
+  const setMode = (next: { phase: string; mode: string }): void => {
+    Object.assign(mode, next)
+    for (const listener of modeListeners) listener()
+  }
   ctx.provide('slots', slots as never)
   ctx.provide('locale', locale as never)
   ctx.provide('layout', layout as never)
   ctx.provide('resources', resources as never)
+  ctx.provide('layoutMode', layoutMode as never)
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
   const seat = (name: string): Recorded => {
@@ -76,7 +92,7 @@ async function boot() {
     if (entry.inject === undefined) throw new Error(`expected ${entry.name} to inject`)
     return entry.inject(SESSION)
   }
-  return { ctx, registered, dictionaries, layout, resources, fiber, seat, injectedOf }
+  return { ctx, registered, dictionaries, layout, resources, fiber, seat, injectedOf, setMode }
 }
 
 describe('ui-sidebar-right apply', () => {
@@ -113,6 +129,16 @@ describe('ui-sidebar-right apply', () => {
     // Both seats read one store: the button only needs to know whether the panel is expanded.
     expect(seat('rightbar.session').store).toBeDefined()
     expect(seat('conversation.session.header.corner').store).toBe(seat('rightbar.session').store)
+  })
+
+  it('registers the corner toggle only in the default mode', async () => {
+    const { registered, setMode } = await boot()
+    const hasToggle = (): boolean => registered.some(entry => entry.name === 'conversation.session.header.corner')
+    expect(hasToggle()).toBe(true)
+    setMode({ phase: 'active', mode: 'turbo' })
+    expect(hasToggle()).toBe(false)
+    setMode({ phase: 'active', mode: 'default' })
+    expect(hasToggle()).toBe(true)
   })
 
   it('hands the panel seat the frame report, the service binding, the opens, the observable registry, and the Tab domain', async () => {

@@ -54,7 +54,7 @@ describe('OpenInAppController availability', () => {
 })
 
 describe('OpenInAppController launching', () => {
-  it('restores the chosen app from the open-in-app storage key', () => {
+  it('restores the chosen app from the open-in-app storage key', async () => {
     const values = new Map<string, string>()
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
@@ -63,6 +63,9 @@ describe('OpenInAppController launching', () => {
     const controller = new OpenInAppController(async () => jsonResponse({ apps: [] }))
     controller.choose('cursor')
     expect(controller.choice.getSnapshot()).toBe('cursor')
+    // Persistence writes coalesce into the next microtask (no rAF in tests);
+    // drain it before asserting the storage write landed.
+    await new Promise<void>((resolve) => { queueMicrotask(() => { resolve() }) })
     expect(values.get('dsh.open-in-app.choice')).toBe('"cursor"')
     const reloaded = new OpenInAppController(async () => jsonResponse({ apps: [] }))
     expect(reloaded.choice.getSnapshot()).toBe('cursor')

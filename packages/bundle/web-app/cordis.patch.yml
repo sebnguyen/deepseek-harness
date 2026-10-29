@@ -611,6 +611,16 @@
     - id: ui-layout
       name: '@deepseek-ai/dsh-client-ui-layout'
 
+    # Generic alternate-mode host: one layout.mode seat plus the keyed
+    # layout.mode.entry roster. Feature plugins register modes here.
+    - id: ui-layout-mode
+      name: '@deepseek-ai/dsh-client-ui-layout-mode'
+
+    # Turbo mode: one layout.mode.entry with a dynamic tiling canvas beside
+    # the shared sidebar; each tile pins its own Session.
+    - id: ui-turbo
+      name: '@deepseek-ai/dsh-client-ui-turbo'
+
     # Center-column carousel: eager prev/next conversation panes that wrap
     # the keyed `main` slot and slide between sessions.
 

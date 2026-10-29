@@ -728,6 +728,22 @@ describe('recency eviction (keep last N scopes)', () => {
     })
     expect(b.svc.scope(sid('ev-5'))).toBeDefined()
   })
+
+  it('retains a listed session outside the recency cap until the release runs', async () => {
+    const b = bench(undefined, 5)
+    const rows = evRows(7)
+    await feedList(b, rows)
+    const release = b.svc.retain(sid('ev-6'))
+    await vi.waitFor(() => { expect(b.svc.binding(sid('ev-6'))).toBeDefined() })
+    // Moving the stage does not evict the retained binding.
+    b.svc.open(sid('ev-0'))
+    await vi.waitFor(() => {
+      expect(b.svc.binding(sid('ev-0'))?.session.getSnapshot().openState).toBe('open')
+    })
+    expect(b.svc.binding(sid('ev-6'))).toBeDefined()
+    release()
+    await vi.waitFor(() => { expect(b.svc.binding(sid('ev-6'))).toBeUndefined() })
+  })
 })
 
 describe('current selection (migrated from ui-layout, arbitrated into the list snapshot)', () => {

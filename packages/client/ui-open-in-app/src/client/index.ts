@@ -10,6 +10,7 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout-mode/client'
 import { OPEN_IN_APP_ICON_PREFIX } from '@deepseek-ai/dsh-host-open-in-app/shared'
 import { OpenInAppController } from './controller.ts'
 import { OpenInAppAction, type OpenInAppActionInjected } from './OpenInAppAction.tsx'
@@ -25,7 +26,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export type { OpenInAppActionInjected, OpenInAppActionProps } from './OpenInAppAction.tsx'
 
 /** Required services for locale registration and the header-slot contribution. */
-export const inject = ['sessions', 'slots', 'locale']
+export const inject = ['sessions', 'slots', 'locale', 'layoutMode']
 
 /**
  * Client plugin body: register the dictionaries and the header split button.
@@ -35,19 +36,40 @@ export function apply(ctx: ClientContext): void {
   const controller = new OpenInAppController()
   void controller.load()
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'open-in-app: dictionaries')
-  ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
-    name: 'conversation.session.header.utilities',
-    id: 'open-in-app',
-    order: -10,
-    locale: NS,
-    inject: (): OpenInAppActionInjected => ({
-      hooks: {
-        openInAppApps: controller.apps,
-        openInAppChoice: controller.choice,
-      },
-      launch: (appId, path) => controller.launch(appId, path),
-      choose: (appId) => { controller.choose(appId) },
-      iconUrl: appId => `${OPEN_IN_APP_ICON_PREFIX}/${appId}`,
-    }),
-  }, OpenInAppAction))
+
+  // The split button belongs to the normal shell. Turbo and any other alternate
+  // mode render the same conversation surface but must not register it.
+  ctx.effect(() => {
+    let dispose: (() => void) | undefined
+    const sync = (): void => {
+      const mode = ctx.layoutMode.info.getSnapshot()
+      const wanted = mode.phase === 'active' && mode.mode === 'default'
+      if (wanted && dispose === undefined) {
+        dispose = ctx.slots.inject('conversation.session.header.utilities', () => ctx.slots.register({
+          name: 'conversation.session.header.utilities',
+          id: 'open-in-app',
+          order: -10,
+          locale: NS,
+          inject: (): OpenInAppActionInjected => ({
+            hooks: {
+              openInAppApps: controller.apps,
+              openInAppChoice: controller.choice,
+            },
+            launch: (appId, path) => controller.launch(appId, path),
+            choose: (appId) => { controller.choose(appId) },
+            iconUrl: appId => `${OPEN_IN_APP_ICON_PREFIX}/${appId}`,
+          }),
+        }, OpenInAppAction))
+      } else if (!wanted && dispose !== undefined) {
+        dispose()
+        dispose = undefined
+      }
+    }
+    const off = ctx.layoutMode.info.subscribe(sync)
+    sync()
+    return () => {
+      off()
+      dispose?.()
+    }
+  }, 'open-in-app: default-mode header contribution')
 }

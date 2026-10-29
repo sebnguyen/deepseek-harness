@@ -163,6 +163,10 @@ function bench(over?: BenchOptions) {
     if (key === 'conversation.input.model') return over?.modelEntry ?? null
     return null
   }) as never
+  const sessions = createSnapshotStore<SessionListState>({
+    ids: [], byId: {}, current: SID, phase: 'ready',
+    subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined, jobOutputBySession: {},
+  })
   const props: InputBarProps = {
     usePanelInfo: selector => selector({ activePanelId: null }),
     sessionId: SID,
@@ -171,10 +175,7 @@ function bench(over?: BenchOptions) {
     useConversation: bindSnapshotSelector(createSnapshotStore(conversationFixture())),
     useSessionPendingInteraction: bindSnapshotSelector(createSnapshotStore(new Map())),
     useResource,
-    useSessions: bindSnapshotSelector(createSnapshotStore<SessionListState>({
-      ids: [], byId: {}, current: undefined, phase: 'ready',
-      subagentsByParent: {}, jobsBySession: {}, currentAddress: undefined, jobOutputBySession: {},
-    })),
+    useSessions: bindSnapshotSelector(sessions),
     useWorkspaces: bindSnapshotSelector(createSnapshotStore({
       items: [], archivedSessionIds: [], state: 'idle', phase: 'ready', error: null,
     })),
@@ -239,7 +240,7 @@ function bench(over?: BenchOptions) {
   const button = view.container.querySelector<HTMLButtonElement>(`button[aria-label="${primaryLabel}"]`)!
   const interruptButton = view.container.querySelector<HTMLButtonElement>('button[aria-label="停止生成"]')
   return {
-    view, textarea, button, interruptButton, props, sink, shell, wiring: shell, session, stop, removeAttachment, slotCalls,
+    view, textarea, button, interruptButton, props, sink, shell, wiring: shell, session, sessions, stop, removeAttachment, slotCalls,
     menuLauncher, busyEnter,
     steerQueue: over?.steerQueue,
     get placeholder() { return placeholderOf(view.container) },
@@ -1189,10 +1190,21 @@ describe('running and lock semantics', () => {
   })
 
   it('a session switch refocuses the editable surface with preventScroll', () => {
-    const { view, textarea, props } = bench({ draft: 'line one' })
+    const { view, textarea, props, sessions } = bench({ draft: 'line one' })
+    const focused: (boolean | undefined)[] = []
+    textarea.focus = (options?: FocusOptions) => { focused.push(options?.preventScroll) }
+    act(() => { sessions.update((draft) => { draft.current = 's2' as SessionId }) })
+    act(() => { view.rerender(<InputBar {...props} sessionId={'s2' as SessionId} />) })
+    expect(focused).toEqual([true])
+  })
+
+  it('a background Turbo cell does not steal focus until its Session becomes current', () => {
+    const { view, textarea, props, sessions } = bench({ draft: 'line one' })
     const focused: (boolean | undefined)[] = []
     textarea.focus = (options?: FocusOptions) => { focused.push(options?.preventScroll) }
     act(() => { view.rerender(<InputBar {...props} sessionId={'s2' as SessionId} />) })
+    expect(focused).toEqual([])
+    act(() => { sessions.update((draft) => { draft.current = 's2' as SessionId }) })
     expect(focused).toEqual([true])
   })
 

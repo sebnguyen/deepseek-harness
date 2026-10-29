@@ -154,6 +154,16 @@
   justify-content: flex-start;
 }
 
+/* Alternate-mode surface: the registered mode owns the full frame area and
+   its own inner grid; the default three-column children are not rendered. */
+.modeLayer {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+}
+
 .overlayLayer {
   position: absolute;
   inset: 0;

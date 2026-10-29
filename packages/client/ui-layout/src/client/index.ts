@@ -7,6 +7,7 @@
  * selection belongs to the Session Controller. A second effect seats the theme
  * presenter, which projects ctx.theme snapshots onto document.body.
  */
+import type { ReactNode } from 'react'
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -32,6 +33,17 @@ export type { LayoutInfo } from './stores.ts'
 /** Selector hook over root-scoped panel selection. */
 export type UsePanelInfo = SnapshotSelectorHook<PanelInfo>
 
+/** Shell-mode state owned by ui-layout-mode and read by the frame. */
+export interface LayoutModeInfo {
+  /** `choosing` blocks the shell behind the mode chooser; `active` pins the choice. */
+  phase: 'choosing' | 'active'
+  /** Active mode id; `default` renders the normal three-column frame. */
+  mode: string
+}
+
+/** Selector hook over the shell-mode state. */
+export type UseLayoutMode = SnapshotSelectorHook<LayoutModeInfo>
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     /** The outward face only; the concrete service stays inside this plugin. */
@@ -43,6 +55,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface GlobalStandardProps {
     /** Subscribe to the selected main panel independently of parent renders. */
     usePanelInfo: UsePanelInfo
+    /**
+     * Subscribe to the shell-mode state provided by ui-layout-mode. Optional:
+     * a composition without the mode host still boots into the default shell.
+     */
+    useLayoutMode?: UseLayoutMode
   }
 
   interface SlotMap {
@@ -70,6 +87,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * wraps the render.
      */
     'main': { kind: 'keyed'; scope: 'root' }
+    /**
+     * Alternate shell mode host. The default three-column frame is not an entry;
+     * `ui-layout-mode` owns the mode state, the chooser, and the roster, and
+     * registers the single host. The frame renders the host instead of the
+     * normal columns and hands it the keyed `main` conversation renderer.
+     */
+    'layout.mode': { kind: 'single'; scope: 'root'; owner: LayoutModeOwnerProps }
     /**
      * The right column: a track the centre makes room for, or nothing. OCCUPIED
      * by the right Sidebar, which uses the resolved column width in normal
@@ -110,6 +134,21 @@ export interface SidebarOwnerProps {
   collapsed: boolean
   /** Rendered column width in px (SIDEBAR_COLLAPSED when collapsed). */
   width: number
+}
+
+/**
+ * Alternate-mode owner share: the one conversation renderer the frame exposes.
+ * The mode owns its chrome and decides where (and how often) to call it.
+ */
+export interface LayoutModeOwnerProps {
+  /** Active generic mode id; `default` never reaches the host. */
+  mode: string
+  /** `choosing` before the window's mode is pinned; `active` after. */
+  phase: LayoutModeInfo['phase']
+  /** Render the keyed `main` conversation entry, without the normal panel selection. */
+  renderConversation: () => ReactNode
+  /** Render the shell's single sidebar, when the mode wants it beside its surface. */
+  renderSidebar: () => ReactNode
 }
 
 /** Right column owner share: resolved normal geometry and opening eligibility. */
@@ -164,6 +203,7 @@ export function apply(ctx: ClientContext): void {
       children: {
         'sidebar': { kind: 'single', scope: 'root' },
         'main': { kind: 'keyed', scope: 'root' },
+        'layout.mode': { kind: 'single', scope: 'root' },
         'rightbar': { kind: 'single', scope: 'root' },
         'shell.overlay': { kind: 'list', scope: 'root' },
       },

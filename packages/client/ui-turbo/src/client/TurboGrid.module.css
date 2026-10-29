@@ -1,0 +1,266 @@
+.root {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--dsw-alias-bg-base);
+}
+
+/* Mirror the default shell: the frame reserves only the 56px rail, while the
+   panel itself overhangs the conversation. The sidebar owns its own width
+   animation, so the expanded panel must not consume canvas space. */
+.sidebar {
+  position: relative;
+  z-index: var(--dsh-z-sidebar);
+  box-sizing: border-box;
+  flex: none;
+  width: 56px;
+  min-height: 0;
+  border-right: 1px solid var(--dsw-alias-border-l3);
+}
+
+.sidebar :global([data-dsh-sidebar]) {
+  position: absolute;
+  inset: 0 auto 0 0;
+  height: 100%;
+}
+
+.canvas {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.mosaic {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: transparent;
+}
+
+.tile {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.tile[data-drop]::after {
+  content: 'Split here';
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  border: 2px solid var(--dsw-alias-state-business-primary);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary) 18%, transparent);
+  color: var(--dsw-alias-label-primary);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tile[data-drop='left']::after { content: 'Split left'; inset: 0 50% 0 0; }
+.tile[data-drop='right']::after { content: 'Split right'; inset: 0 0 0 50%; }
+.tile[data-drop='top']::after { content: 'Split above'; inset: 0 0 50% 0; }
+.tile[data-drop='bottom']::after { content: 'Split below'; inset: 50% 0 0 0; }
+
+.empty,
+.zero {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 20px;
+  color: var(--dsw-alias-label-secondary);
+}
+
+.emptyMark {
+  color: var(--dsw-alias-label-secondary);
+}
+
+.emptyTitle {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+.emptyButton {
+  padding: 8px 12px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 6px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-button-elevated-fill);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.emptyButton:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-button-floating-hover);
+}
+
+.conversation {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* A cell is a layout root, not a flex row that shrink-wraps its only child.
+   Without flex:1 the conversation root sizes to max-content inside the tile,
+   so the atlas 640px measure is centered in that partial width and the rest
+   of the tile reads as one dead gap. */
+.conversation [data-phase] {
+  flex: 1;
+  min-width: 0;
+}
+
+.controls {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+}
+
+.controlButton {
+  height: 20px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.controlButton:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.notice {
+  position: absolute;
+  bottom: 14px;
+  left: 50%;
+  z-index: 50;
+  padding: 6px 12px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 999px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-base);
+  box-shadow: var(--dsw-elevation-panel);
+  font-size: 11px;
+  transform: translateX(-50%);
+}
+
+/* The library renders a preview inside every window; our window body is opaque
+   and owns the real content, so the preview only duplicates the title. */
+.canvas :global(.mosaic-window > .mosaic-preview) {
+  display: none;
+}
+
+/* react-mosaic global surface, kept inside the canvas scope. The atlas shell
+   has no outer gutter, so the library's 3px root inset goes as well. */
+.canvas :global(.mosaic) {
+  background: transparent;
+}
+
+.canvas :global(.mosaic-root) {
+  inset: 0;
+}
+
+.canvas :global(.mosaic-tile) {
+  margin: 0;
+}
+
+.canvas :global(.mosaic-zero-state) {
+  inset: 0;
+}
+
+/* Flat pane chrome: a tile is a ruled region, not a floating card. */
+.canvas :global(.mosaic-window) {
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--dsw-alias-bg-base);
+  box-shadow: none;
+}
+
+.canvas :global(.mosaic-window-toolbar) {
+  display: flex;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--dsw-alias-border-l3);
+  background: var(--dsw-alias-bg-base);
+  box-shadow: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.canvas :global(.mosaic-window-title) {
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.canvas :global(.mosaic-window-controls) {
+  gap: 2px;
+}
+
+.canvas :global(.mosaic-default-control) {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  color: var(--dsw-alias-label-tertiary);
+  background: transparent;
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.canvas :global(.mosaic-default-control:hover) {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.canvas :global(.mosaic-window-body) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--dsw-alias-bg-base);
+}
+
+.canvas :global(.mosaic-split) {
+  background: transparent;
+}
+
+.canvas :global(.mosaic-split-line) {
+  background: var(--dsw-alias-border-l3);
+}
+
+.canvas :global(.mosaic-split:hover) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .canvas :global(.mosaic-split) {
+    transition: none;
+  }
+}

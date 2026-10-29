@@ -22,6 +22,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-slots'
 import { computeColumns, rightbarDefaultWidth, SIDEBAR_AUTO_COLLAPSE, SIDEBAR_COLLAPSED, SIDEBAR_DEFAULT, sidebarWidth } from './columns.ts'
 import { DocumentTitle } from './DocumentTitle.tsx'
+import type { UseLayoutMode } from './index.ts'
 import type { createLayoutStore } from './stores.ts'
 import css from './AppFrame.module.css'
 
@@ -33,10 +34,13 @@ const FRAME_INSET = 0
 const FRAME_GAP = 0
 const GAP_CENTER = FRAME_INSET + FRAME_GAP / 2
 
+const FALLBACK_LAYOUT_MODE = { phase: 'active', mode: 'default' } as const
+const useFallbackLayoutMode: UseLayoutMode = selector => selector(FALLBACK_LAYOUT_MODE)
+
 /** Full composed props: runtime share + child-slot render share + store share. */
 export type AppFrameProps =
   & PropsRuntime<'root'>
-  & PropsRenderSlots<'sidebar' | 'main' | 'rightbar' | 'shell.overlay'>
+  & PropsRenderSlots<'sidebar' | 'main' | 'layout.mode' | 'rightbar' | 'shell.overlay'>
   & PropsStore<ReturnType<typeof createLayoutStore>>
   & PropsLocale<'common'>
 
@@ -136,11 +140,15 @@ export function AppFrame({
   useStore,
   useSessions,
   usePanelInfo,
+  useLayoutMode,
   actions,
   renderSlot,
   t,
 }: AppFrameProps) {
   const layoutInfo = useStore(state => state.layoutInfo)
+  const layoutMode = (useLayoutMode ?? useFallbackLayoutMode)(state => state)
+  const mode = layoutMode.mode
+  const defaultMode = layoutMode.phase === 'active' && mode === 'default'
   /* Swapped track order (per-frame default for this product build): the right
      column's occupant — the IDE/vscode pane — sits between the sidebar and the
      center conversation, so the frame reads sidebar | IDE | chat. Widths solve
@@ -211,18 +219,35 @@ export function AppFrame({
     actions.setRightbar(swapped ? rightbarBase.current + dx : rightbarBase.current - dx)
   }, [actions, swapped])
   const productTitle = process.env.DSH_CLIENT_TITLE ?? t('brand.localBuild')
-  const sidebar = useMemo(() => renderSlot('sidebar', {
+  const renderConversation = useCallback(
+    () => renderSlot('main', {}, { entryKey: 'conversation' }),
+    [renderSlot],
+  )
+  const renderSidebar = useCallback(
+    () => renderSlot('sidebar', { collapsed: sidebarCollapsed, width: cols.sidebar }),
+    [renderSlot, sidebarCollapsed, cols.sidebar],
+  )
+  const modeContent = useMemo(
+    () => defaultMode ? null : renderSlot('layout.mode', {
+      mode,
+      phase: layoutMode.phase,
+      renderConversation,
+      renderSidebar,
+    }),
+    [defaultMode, layoutMode.phase, mode, renderConversation, renderSidebar, renderSlot],
+  )
+  const sidebar = useMemo(() => defaultMode ? renderSlot('sidebar', {
     collapsed: sidebarCollapsed,
     width: cols.sidebar,
-  }), [renderSlot, sidebarCollapsed, cols.sidebar])
-  const main = useMemo(() => (
+  }) : null, [defaultMode, renderSlot, sidebarCollapsed, cols.sidebar])
+  const main = useMemo(() => defaultMode ? (
     <MainPanel usePanelInfo={usePanelInfo} renderSlot={renderSlot} />
-  ), [usePanelInfo, renderSlot])
-  const rightbar = useMemo(() => renderSlot('rightbar', {
+  ) : null, [defaultMode, usePanelInfo, renderSlot])
+  const rightbar = useMemo(() => defaultMode ? renderSlot('rightbar', {
     width: normal.rightbar,
     viewportWidth: viewport,
     canShow: normal.rightbar > 0,
-  }), [renderSlot, normal.rightbar, viewport])
+  }) : null, [defaultMode, renderSlot, normal.rightbar, viewport])
   const overlays = useMemo(() => renderSlot('shell.overlay', {}), [renderSlot])
 
   return (
@@ -233,9 +258,11 @@ export function AppFrame({
       style={{
         /* The sidebar track is always the collapsed rail: the expanded panel
            floats over the centre, so opening it never reflows the chat. */
-        gridTemplateColumns: swapped
-          ? `${SIDEBAR_COLLAPSED}px ${cols.rightbar}px minmax(0, 1fr)`
-          : `${SIDEBAR_COLLAPSED}px minmax(0, 1fr) ${cols.rightbar}px`,
+        gridTemplateColumns: defaultMode
+          ? (swapped
+            ? `${SIDEBAR_COLLAPSED}px ${cols.rightbar}px minmax(0, 1fr)`
+            : `${SIDEBAR_COLLAPSED}px minmax(0, 1fr) ${cols.rightbar}px`)
+          : 'minmax(0, 1fr)',
       }}
       data-rightbar-swapped={swapped || undefined}
       data-sidebar-collapsed={sidebarCollapsed || undefined}
@@ -250,46 +277,54 @@ export function AppFrame({
         useSessions={useSessions}
         usePanelInfo={usePanelInfo}
       />
-      {/* The rail is an empty, permanent 56px column. The seat shares that
-          column so the panel's inline width overhangs the centre instead of
-          consuming a track (see AppFrame.module.css). */}
-      <div className={css.sidebarRail} aria-hidden />
-      <div className={css.sidebarSeat}>{sidebar}</div>
-      {swapped
-        ? (
-          <>
-            <RightbarColumn>
-              {rightbar}
-            </RightbarColumn>
-            <CenterColumn>{main}</CenterColumn>
-          </>
-        )
-        : (
-          <>
-            <CenterColumn>{main}</CenterColumn>
-            <RightbarColumn>
-              {rightbar}
-            </RightbarColumn>
-          </>
-        )}
+      {defaultMode ? (
+        <>
+          {/* The rail is an empty, permanent 56px column. The seat shares that
+              column so the panel's inline width overhangs the centre instead of
+              consuming a track (see AppFrame.module.css). */}
+          <div className={css.sidebarRail} aria-hidden />
+          <div className={css.sidebarSeat}>{sidebar}</div>
+          {swapped
+            ? (
+              <>
+                <RightbarColumn>
+                  {rightbar}
+                </RightbarColumn>
+                <CenterColumn>{main}</CenterColumn>
+              </>
+            )
+            : (
+              <>
+                <CenterColumn>{main}</CenterColumn>
+                <RightbarColumn>
+                  {rightbar}
+                </RightbarColumn>
+              </>
+            )}
+          {/* The collapsed rail is fixed-width: no resize handle while closed. */}
+          {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar + GAP_CENTER} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
+          {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
+            /* Swapped, the handle centers on the gap right of the IDE track (one
+               more inter-card gap than the sidebar handle, which sits one gap
+               earlier — hence the extra FRAME_GAP); stock it centers on the gap
+               left of the track (frame edge anchored). */
+            <DragHandle
+              side="rightbar"
+              left={swapped ? cols.sidebar + normal.rightbar + GAP_CENTER + FRAME_GAP : viewport - normal.rightbar - GAP_CENTER}
+              onStart={onRightbarStart}
+              onDrag={onRightbarDrag}
+              onEnd={onDragEnd}
+            />
+          )}
+        </>
+      ) : (
+        <div className={css.modeLayer} data-layout-mode={layoutMode.phase === 'choosing' ? 'choosing' : mode}>
+          {modeContent}
+        </div>
+      )}
       <div className={css.overlayLayer} data-shell-overlay>
         {overlays}
       </div>
-      {/* The collapsed rail is fixed-width: no resize handle while closed. */}
-      {!sidebarCollapsed && <DragHandle side="sidebar" left={cols.sidebar + GAP_CENTER} onStart={onSidebarStart} onDrag={onSidebarDrag} onEnd={onDragEnd} />}
-      {layoutInfo.rightbarShown && !layoutInfo.rightbarFullscreen && normal.rightbar > 0 && (
-        /* Swapped, the handle centers on the gap right of the IDE track (one
-           more inter-card gap than the sidebar handle, which sits one gap
-           earlier — hence the extra FRAME_GAP); stock it centers on the gap
-           left of the track (frame edge anchored). */
-        <DragHandle
-          side="rightbar"
-          left={swapped ? cols.sidebar + normal.rightbar + GAP_CENTER + FRAME_GAP : viewport - normal.rightbar - GAP_CENTER}
-          onStart={onRightbarStart}
-          onDrag={onRightbarDrag}
-          onEnd={onDragEnd}
-        />
-      )}
     </div>
   )
 }

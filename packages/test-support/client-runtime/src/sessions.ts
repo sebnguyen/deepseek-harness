@@ -404,6 +404,10 @@ export class TestSessions implements ISessions {
    * @param id - session id.
    * @returns sessionId + behavior face + scoped ctx, or undefined when unknown.
    */
+  retain(_id: string): () => void {
+    return () => {}
+  }
+
   binding(id: string): SessionBinding | undefined {
     const record = this.records.get(id as SessionId)
     if (record === undefined) return undefined

@@ -21,7 +21,7 @@ describe('createLayoutStore', () => {
         rightbarTrack: false,
         rightbarFullscreen: false,
         rightbarInstant: false,
-        swapped: true,
+        swapped: false,
       },
     })
   })
@@ -71,9 +71,9 @@ describe('createLayoutStore', () => {
     actions.closeRightbar()
     expect(store.getSnapshot().layoutInfo.rightbarInstant).toBe(true)
     actions.toggleSwap()
-    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: false, rightbarInstant: false })
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: true, rightbarInstant: false })
     actions.toggleSwap()
-    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: true, sidebar: 400 })
+    expect(store.getSnapshot().layoutInfo).toMatchObject({ swapped: false, sidebar: 400 })
   })
 
   it('clears the manual override only when crossing 1024px', () => {

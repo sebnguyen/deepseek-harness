@@ -5,6 +5,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -19,7 +20,11 @@ afterEach(() => {
 })
 
 /** Boot the browser half over a real slot tree that declares the header list. */
-async function bench(): Promise<{ ctx: Context; fiber: ReturnType<Context['plugin']> }> {
+async function bench(): Promise<{
+  ctx: Context
+  fiber: ReturnType<Context['plugin']>
+  mode: SnapshotStore<{ phase: 'choosing' | 'active'; mode: string }>
+}> {
   const ctx = new Context()
   await ctx.plugin(SlotRegistry).await()
   ctx.slots.register({
@@ -30,9 +35,13 @@ async function bench(): Promise<{ ctx: Context; fiber: ReturnType<Context['plugi
   } as never, () => null)
   ctx.provide('sessions', {})
   ctx.provide('locale', new LocaleRuntime(ctx))
+  const mode = createSnapshotStore<{ phase: 'choosing' | 'active'; mode: string }>({
+    phase: 'active', mode: 'default',
+  })
+  ctx.provide('layoutMode', { info: mode, select: vi.fn() })
   const fiber = ctx.plugin({ inject: [...inject], apply })
   await fiber.await()
-  return { ctx, fiber }
+  return { ctx, fiber, mode }
 }
 
 function headerEntryIds(ctx: Context): (string | undefined)[] {
@@ -41,7 +50,7 @@ function headerEntryIds(ctx: Context): (string | undefined)[] {
 
 describe('open-in-app browser half', () => {
   it('declares the services it binds', () => {
-    expect(inject).toEqual(['sessions', 'slots', 'locale'])
+    expect(inject).toEqual(['sessions', 'slots', 'locale', 'layoutMode'])
   })
 
   it('registers the header split button, and fiber teardown removes it (HMR safety)', async () => {
@@ -52,6 +61,15 @@ describe('open-in-app browser half', () => {
     expect(entry?.options).toMatchObject({ id: 'open-in-app' })
     await fiber.dispose()
     expect(headerEntryIds(ctx)).not.toContain('open-in-app')
+  })
+
+  it('withdraws the header split button outside the default mode', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ apps: [] }), { status: 200 })))
+    const { ctx, fiber, mode } = await bench()
+    expect(headerEntryIds(ctx)).toContain('open-in-app')
+    mode.set({ phase: 'active', mode: 'turbo' })
+    await vi.waitFor(() => { expect(headerEntryIds(ctx)).not.toContain('open-in-app') })
+    await fiber.dispose()
   })
 
   it('injects the controller face: availability sources, launch carrier, choice, and icon URLs', async () => {

@@ -26,6 +26,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type { ILayout } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type {} from '@deepseek-ai/dsh-client-ui-layout-mode/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from './contract/slots.ts'
@@ -75,7 +76,7 @@ export type { OpenContentIntent } from './stores.ts'
 const NS = 'sidebarRight'
 
 /** Required browser services: the slot registry, the frame's panel actions, copy, and the resource model. */
-export const inject = ['slots', 'layout', 'locale', 'resources']
+export const inject = ['slots', 'layout', 'locale', 'resources', 'layoutMode']
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -187,12 +188,33 @@ export function apply(ctx: ClientContext): void {
     // The toggle shares the panel's store: it only needs to know whether the
     // panel is expanded, and to flip it. The header's corner seat is its own
     // place, past the utilities, so the button keeps one footprint in both
-    // states and moves nothing else in the row.
-    const disposeToggle = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
-      name: 'conversation.session.header.corner',
-      locale: NS,
-      store,
-    }, SidebarToggle))
+    // states and moves nothing else in the row. Alternate modes (Turbo) render
+    // the same conversation surface without a right-sidebar column, so the
+    // toggle would control a panel that is not mounted; only the default shell
+    // registers it.
+    const disposeToggle = ctx.effect(() => {
+      let dispose: (() => void) | undefined
+      const sync = (): void => {
+        const info = ctx.layoutMode.info.getSnapshot()
+        const wanted = info.phase === 'active' && info.mode === 'default'
+        if (wanted && dispose === undefined) {
+          dispose = ctx.slots.inject('conversation.session.header.corner', () => ctx.slots.register({
+            name: 'conversation.session.header.corner',
+            locale: NS,
+            store,
+          }, SidebarToggle))
+        } else if (!wanted && dispose !== undefined) {
+          dispose()
+          dispose = undefined
+        }
+      }
+      const off = ctx.layoutMode.info.subscribe(sync)
+      sync()
+      return () => {
+        off()
+        dispose?.()
+      }
+    }, 'ui-sidebar-right: default-mode header toggle')
     // Stage two for the guide: it declares the chain child it hosts and reads
     // the registry's entry boxes, which an ordinary type has no reason to do.
     const guideInjected: GuideInjected = {

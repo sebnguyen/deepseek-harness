@@ -42,7 +42,7 @@ import css from './InputBar.module.css'
 export type InputBarProps = ComposerBarProps
 
 export const InputBar = memo(function InputBar({
-  useSession, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
+  useSession, useSessions, useInput, inputActions, keyboard, addFiles, removeAttachment, resolveDraftAttachments,
   retryFileUpload,
   toggleCommandMenu, stop, command, t,
   renderSlot, useBusyEnter, useFileUploads, useNotices, useLexicon, useMenuLauncher,
@@ -51,6 +51,7 @@ export const InputBar = memo(function InputBar({
   placeholder, accessory,
 }: InputBarProps) {
   const input = useInput(s => s)
+  const currentSession = useSessions(s => s.current)
   const notice = useNotices(s => s)
   const busyEnter = useBusyEnter(s => s)
   void useLexicon // hook seat stays bound by the inject compartment; text-ref decoration rides the shell's editor transforms
@@ -207,13 +208,17 @@ export const InputBar = memo(function InputBar({
   // scroll walk (preventScroll inside), so the reveal in our own scrollport
   // is ours to perform — switching to a longer draft otherwise leaves the
   // caret (restored at the draft's end) off screen.
+  // Only the Session that is current owns the composer: a Turbo cell pinned to
+  // another Session keeps its input mounted without stealing focus. The normal
+  // shell always renders the current Session, so this gate is inert there.
   useEffect(() => {
     if (locked || editor === null) return
+    if (sessionId === undefined || sessionId !== currentSession) return
     // Lexical's focus() restores the editor selection but never calls the DOM
     // focus itself; preventScroll keeps the conversation scrollport still.
     editor.getRootElement()?.focus({ preventScroll: true })
     editor.focus(() => { revealSelection() })
-  }, [locked, sessionId, editor])
+  }, [locked, sessionId, currentSession, editor])
 
   // A persisted draft arrives AFTER the unlock effect: ConversationSession
   // adopts it in its own mount effect, and a parent's mount effect runs after

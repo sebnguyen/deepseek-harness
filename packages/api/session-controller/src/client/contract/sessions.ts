@@ -120,4 +120,13 @@ export interface ISessions {
    * @returns binding, or undefined for a session neither listed nor already scoped.
    */
   binding(id: SessionId): SessionBinding | undefined
+  /**
+   * Retain a live binding for a listed Session outside the current selection
+   * and the recency window. Refcounted; the returned idempotent disposer
+   * releases one hold. Modes that render several Sessions at once (pinned
+   * cells, carousels) use this to keep each displayed binding addressable.
+   * @param id - listed session id.
+   * @returns idempotent release.
+   */
+  retain(id: SessionId): () => void
 }

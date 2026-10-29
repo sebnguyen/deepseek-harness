@@ -230,6 +230,8 @@ export class ClientSessions implements ISessions {
   private readonly recentCap: number
   /** The N most-recent listed session ids retained as eligible (ranked by updatedAt desc). */
   private keptSessionIds = new Set<SessionId>()
+  /** Refcounted feature holds that keep a listed session eligible outside recency. */
+  private readonly retainedSessionIds = new Map<SessionId, number>()
 
   /**
    * @param ctx - client root context (scope fibers mount under it).
@@ -531,6 +533,33 @@ export class ClientSessions implements ISessions {
   }
 
   /**
+   * Retain a live binding for a listed Session outside the current selection
+   * and the recency window. Refcounted; the returned idempotent disposer
+   * releases one hold. The scope is materialized immediately so the caller can
+   * render the binding on the same tick as the retain.
+   * @param id - listed session id.
+   * @returns idempotent release.
+   */
+  retain(id: SessionId): () => void {
+    if (this.list.getSnapshot().byId[id] === undefined) return () => {}
+    this.retainedSessionIds.set(id, (this.retainedSessionIds.get(id) ?? 0) + 1)
+    this.resolve(id)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      const count = this.retainedSessionIds.get(id)
+      if (count === undefined) return
+      if (count > 1) {
+        this.retainedSessionIds.set(id, count - 1)
+        return
+      }
+      this.retainedSessionIds.delete(id)
+      this.pruneScopes()
+    }
+  }
+
+  /**
    * Move the stage to the list's current session: sweep teardowns deferred
    * behind the previous occupant and pull the new occupant's history window.
    * Staging IS the open signal — the window opens ⟺ the session is on stage
@@ -587,10 +616,10 @@ export class ClientSessions implements ISessions {
     return record
   }
 
-  /** The one aliveness predicate shared by scope mint and prune: host-listed-within-recency-cap or currently staged. */
+  /** The one aliveness predicate shared by scope mint and prune: staged, within the recency cap, or explicitly retained. */
   private eligible(id: SessionId): boolean {
     const { current } = this.list.getSnapshot()
-    return current === id || this.keptSessionIds.has(id)
+    return current === id || this.keptSessionIds.has(id) || this.retainedSessionIds.has(id)
   }
 
   /** Project the manager's list snapshot into the store (title derivation is display-only). */

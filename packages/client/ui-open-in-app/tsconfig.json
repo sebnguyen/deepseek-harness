@@ -27,6 +27,12 @@
       "path": "../ui-conversation"
     },
     {
+      "path": "../ui-layout"
+    },
+    {
+      "path": "../ui-layout-mode"
+    },
+    {
       "path": "../ui-primitives"
     },
     {
