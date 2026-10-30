@@ -17,7 +17,7 @@ export type PceKind
     | 'tool-generic' | 'read' | 'file-mutation' | 'bash' | 'search' | 'web' | 'todo' | 'ask'
     | 'read-image' | 'subcalls' | 'workflow-run' | 'command' | 'manual-compaction'
     | 'compaction' | 'retry' | 'turn-error' | 'max-tokens' | 'turn-tail' | 'unknown'
-    | 'step-boundary' | 'inbox' | 'goal-input'
+    | 'step-boundary' | 'inbox' | 'goal-input' | 'present'
 
 /** Row outcome, matching the tool row's own state union. */
 export type PceState = 'running' | 'ok' | 'error' | 'stopped'
@@ -28,6 +28,11 @@ export interface PceRowProps {
   kind: PceKind
   /** Catalog glyph shown in the 16px mark cell. */
   glyph: PixelSymbolName
+  /**
+   * Render the row's pixel marks: the leading kind glyph and the trailing state
+   * glyph or loader. False in a dense alternate shell that mounts many chats.
+   */
+  marks?: boolean | undefined
   /** Row title, localized by the owner. */
   title: string
   /** Description text (summary / path / first line); truncates as the row narrows. */
@@ -70,7 +75,7 @@ export interface PceRowProps {
 export function PceRow({
   kind, glyph, title, summary, detail, suffix, state, stateLabel, onOpenSummary,
   collapsible = true, defaultOpen = false, body, keepMounted = false, summaryData, detailData,
-  summaryRole, className, headClassName,
+  summaryRole, className, headClassName, marks = true,
 }: PceRowProps) {
   const [open, setOpen] = useState(collapsible ? defaultOpen : true)
   const expandable = body !== null
@@ -130,11 +135,10 @@ export function PceRow({
       onClick={showToggle ? toggle : undefined}
       onKeyDown={showToggle ? toggleFromKeyboard : undefined}
     >
-      <span className="pce-mark" aria-hidden="true"><PixelGlyph name={glyph} size={16} /></span>
-      {/* The kind leads the line, the interpunct separates it from the
-          description, and the description truncates against the row. */}
+      {marks ? <span className="pce-mark" aria-hidden="true"><PixelGlyph name={glyph} size={16} /></span> : null}
+      {/* The kind leads the line and the head's gap separates it from the
+          description, which truncates against the row. */}
       <span className="pce-identity">{title}</span>
-      {summaryText === null ? null : <span className="pce-dot" aria-hidden="true">·</span>}
       {summaryText === null ? null : <span className="pce-description">{summaryNode}</span>}
       {meta === null && trailing === null
         ? null
@@ -147,7 +151,7 @@ export function PceRow({
             {trailing}
           </span>
         )}
-      {state === undefined ? null : (
+      {state === undefined || !marks ? null : (
         <span
           className={`pce-head-state is-${state}`}
           aria-hidden="true"
@@ -167,9 +171,10 @@ export function PceRow({
       data-variant={kind}
       data-state={state}
     >
-      {/* The mark is the visible signal; the localized state rides a
-          visually-hidden span on the article so the toggle's accessible name
-          stays the row's own identity and the state is never colour-only. */}
+      {/* The state mark is the visible signal when marks render; the localized
+          state rides a visually-hidden span on the article so the toggle's
+          accessible name stays the row's own identity and the state is never
+          colour-only. */}
       {state === undefined || stateLabel === undefined || stateLabel === null
         ? null
         : <span className="pce-state-text">{stateLabel}</span>}

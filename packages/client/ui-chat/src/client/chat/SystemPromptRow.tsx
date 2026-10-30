@@ -10,6 +10,8 @@ export interface SystemPromptRowProps {
   text: string
   /** True when the prompt replaced an earlier one from this position in the history. */
   update?: boolean
+  /** Suppress the PCE row marks in a dense alternate shell. */
+  rowMarks?: boolean | undefined
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
 }
@@ -21,7 +23,7 @@ export interface SystemPromptRowProps {
  * @param props - Complete prompt text, whether it is an update, and the locale seat.
  * @returns The system-prompt pce row.
  */
-export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProps) {
+export function SystemPromptRow({ text, update = false, t, rowMarks }: SystemPromptRowProps) {
   return (
     <div className={css.root}>
       <PceRow
@@ -29,6 +31,7 @@ export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProp
         glyph="setting"
         title={t(update ? 'message.systemPromptUpdate' : 'message.systemPrompt')}
         state="ok"
+        marks={rowMarks !== false}
         body={(
           <div className="pce-code" data-system-prompt-body>
             <div className="pce-code-body">
@@ -43,7 +46,7 @@ export function SystemPromptRow({ text, update = false, t }: SystemPromptRowProp
 
 /** System-prompt keyed Chat renderer. */
 export const SystemPromptNodeView = memo(function SystemPromptNodeView({
-  node, t,
-}: Pick<ChatNodeViewProps<'system-prompt'>, 'node' | 't'>) {
-  return <SystemPromptRow text={node.data.text} update={node.data.update === true} t={t} />
+  node, t, rowMarks,
+}: Pick<ChatNodeViewProps<'system-prompt'>, 'node' | 't' | 'rowMarks'>) {
+  return <SystemPromptRow text={node.data.text} update={node.data.update === true} t={t} rowMarks={rowMarks} />
 })

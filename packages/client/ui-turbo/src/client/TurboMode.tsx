@@ -17,7 +17,7 @@ type TurboModeProps =
 /** Render the Turbo mode. */
 export function TurboMode({
   renderConversation, renderSidebar, useSessions, PinnedSessionProvider,
-  createSession, openSession, retainSession, t,
+  createSession, openSession, clearSession, retainSession, t,
 }: TurboModeProps) {
   return (
     <div className={css.root}>
@@ -28,6 +28,7 @@ export function TurboMode({
         PinnedSessionProvider={PinnedSessionProvider}
         createSession={createSession}
         openSession={openSession}
+        clearSession={clearSession}
         retainSession={retainSession}
         t={t}
       />

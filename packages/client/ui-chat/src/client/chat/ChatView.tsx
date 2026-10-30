@@ -33,6 +33,10 @@ const PIN_TAIL_NODES = 8
 const EVICT_MARGIN_NODES = LIVE_BAND_NODES * 2
 const EVICT_CHUNK_NODES = 200
 
+/** Default shell state when the composition installs no layout-mode host. */
+const FALLBACK_LAYOUT_MODE = { phase: 'active', mode: 'default' } as const
+const useFallbackLayoutMode: NonNullable<ChatViewSlotProps['useLayoutMode']> = select => select(FALLBACK_LAYOUT_MODE)
+
 /** Active column host when present; otherwise the view-local scroller. */
 function scrollerOf(from: HTMLElement): HTMLElement {
   return (from.closest('[data-conversation-scroll]')) ?? from
@@ -252,7 +256,7 @@ const ChatNodeList = memo(function ChatNodeList({ order, liveKeys, wokeKeys, ...
  * ordered business Node crosses the keyed renderer seat.
  */
 export function ChatView({
-  useSession, useChat, useChatNode, useSessions, renderSlot,
+  useSession, useChat, useChatNode, useSessions, useLayoutMode, renderSlot,
   sessionId, openFile, openSkill, loadOlder, loadImage, openView, chatScroll, chatHeights, evictBefore, forkAt,
   revealFile, fileMentions,
   t,
@@ -266,6 +270,10 @@ export function ChatView({
   const openState = useSession(s => s.openState)
   const openError = useSession(s => s.openError)
   const hasMore = useSession(s => s.hasMore)
+  // An alternate shell (Turbo) mounts several full chats at once; the rows drop
+  // their decorative pixel marks there to keep the DOM and mount work bounded.
+  const layoutMode = (useLayoutMode ?? useFallbackLayoutMode)(state => state)
+  const rowMarks = layoutMode.phase !== 'active' || layoutMode.mode === 'default'
   const loadingOlder = useSession(s => s.loadingOlder)
   const inspectCall = useCallback((callId: string) => {
     openView('trajectory', callId)
@@ -936,6 +944,7 @@ export function ChatView({
             order={order}
             liveKeys={effectiveLiveKeys}
             wokeKeys={wokeKeysRef.current}
+            rowMarks={rowMarks}
             heights={rowHeightsRef}
             useChatNode={useChatNode}
             cwd={cwd}

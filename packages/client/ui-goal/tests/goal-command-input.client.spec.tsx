@@ -153,6 +153,22 @@ describe('goal command input projection', () => {
     expect([...bubble.querySelectorAll('[data-ref-chip]')].map(chip => chip.textContent)).toEqual(['/goal'])
   })
 
+  it('omits the pixel row marks when the surrounding shell suppresses them', () => {
+    const t = makeTranslate(zh, commonZh)
+    const props = {
+      node: {
+        key: 'goal-command-input:dense',
+        data: { commandId: 'command-goal', text: '/goal ship it', time: 1_700_000_000_000 },
+      },
+      rowMarks: false,
+      t,
+    } as unknown as Parameters<typeof GoalCommandInputView>[0]
+    const view = render(<GoalCommandInputView {...props} />)
+    const bubble = view.getByRole('group', { name: '指令输入' })
+    expect(bubble.querySelector('.pce-mark')).toBeNull()
+    expect(bubble.querySelector('.pce-head-state')).toBeNull()
+  })
+
   it('decorates only the leading command token: a /goal inside the objective stays plain', () => {
     const t = makeTranslate(zh, commonZh)
     const props = {

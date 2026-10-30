@@ -78,6 +78,7 @@
 .pce-compaction,
 .pce-manual-compaction { --pce-kind-color: #f7b955; }
 .pce-inbox,
+.pce-present,
 .pce-user,
 .pce-goal-input,
 .pce-retry { --pce-kind-color: #63b3ff; }
@@ -101,10 +102,14 @@
    a tier under the description, so the row reads "kind · description". It
    stays quiet until the head is hovered. */
 .pce-identity {
-  /* The kind never truncates: it keeps its full width, and the description
-     gives way instead. */
+  /* A fixed label column starts every row's dot and description at the same
+     x. The `ch` unit keeps the column tied to the kind's own font, so the
+     Settings font-size axis moves it with the type; a longer localized kind
+     truncates with an ellipsis. */
   flex: 0 0 auto;
+  width: 9ch;
   overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--dsw-alias-label-tertiary);
   font-family: var(--ds-font-family-code);
   /* A tier under the description: the kind is the quiet label, not the row's
@@ -115,13 +120,6 @@
   line-height: calc(16px + var(--dsh-content-font-delta-secondary, 0px));
   white-space: nowrap;
   transition: color .14s ease;
-}
-
-/* The interpunct between the kind and the description. */
-.pce-dot {
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-caption);
-  font: 11px/1 var(--ds-font-family-code);
 }
 
 .pce-head:hover .pce-identity,

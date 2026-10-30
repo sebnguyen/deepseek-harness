@@ -56,6 +56,12 @@ export interface UiWorkspace {
    */
   connectWorkspace(workspaceId: WorkspaceId): Promise<SessionId>
   /**
+   * Resolve the Workspace a New Session inherits when none is named: the
+   * current Session's Workspace, otherwise the most recently used one.
+   * @returns the inherited Workspace, or undefined when no listed Workspace can be chosen.
+   */
+  defaultWorkspaceId(): WorkspaceId | undefined
+  /**
    * Start a New Session flow and navigate to its Session.
    * @param workspaceId - explicit target; absent inherits the current or most recent Workspace.
    */
@@ -176,17 +182,21 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     if (!navigation.aborted) this.openSession(childId)
   }
 
-  startSession(workspaceId?: WorkspaceId): void {
+  defaultWorkspaceId(): WorkspaceId | undefined {
     const workspace = this.workspaces.list.getSnapshot()
     const sessions = this.sessions.list.getSnapshot()
     const current = sessions.current
     const currentWorkspaceId = current === undefined
       ? undefined
       : workspace.items.find(item => item.sessionIds.includes(current))?.workspaceId
-    const recent = workspace.phase === 'ready' && sessions.phase === 'ready'
+    if (currentWorkspaceId !== undefined) return currentWorkspaceId
+    return workspace.phase === 'ready' && sessions.phase === 'ready'
       ? recentWorkspace(workspace.items, sessions.byId)
       : undefined
-    const target = workspaceId ?? currentWorkspaceId ?? recent
+  }
+
+  startSession(workspaceId?: WorkspaceId): void {
+    const target = workspaceId ?? this.defaultWorkspaceId()
     if (target === undefined) {
       this.sessions.clear()
       this.ctx.layout.selectPanel(null)

@@ -55,10 +55,11 @@ function failureMessage(
   return code === 'AUTH' ? t('message.failure.auth') : message
 }
 
-function ModelRetryItem({ node, active, t }: {
+function ModelRetryItem({ node, active, t, rowMarks }: {
   node: ModelRetryNode
   active: boolean
   t: ChatViewSlotProps['t']
+  rowMarks?: boolean | undefined
 }) {
   // Anchor the host-scheduled delay to this browser's first render of the
   // retry node. Host event time and Date.now() may belong to different clocks.
@@ -111,6 +112,7 @@ function ModelRetryItem({ node, active, t }: {
         state={active ? 'running' : 'ok'}
         stateLabel={active ? t('message.retry.active') : null}
         summaryRole="status"
+        marks={rowMarks !== false}
         keepMounted
         body={(
           <div className={css.retryDetails}>
@@ -130,9 +132,10 @@ function ModelRetryItem({ node, active, t }: {
 }
 
 /** Persistent, turn-positioned feedback for a terminal failure. */
-function TurnErrorItem({ node, t }: {
+function TurnErrorItem({ node, t, rowMarks }: {
   node: TurnErrorNode
   t: ChatViewSlotProps['t']
+  rowMarks?: boolean | undefined
 }) {
   return (
     <div role="status">
@@ -143,6 +146,7 @@ function TurnErrorItem({ node, t }: {
         summary={failureMessage(node.message, node.code, t)}
         suffix={node.code}
         state="error"
+        marks={rowMarks !== false}
         collapsible={false}
         body={null}
       />
@@ -151,8 +155,9 @@ function TurnErrorItem({ node, t }: {
 }
 
 /** Persistent, turn-positioned notice for a turn ended at the output-token cap. */
-function TurnMaxTokensItem({ t }: {
+function TurnMaxTokensItem({ t, rowMarks }: {
   t: ChatViewSlotProps['t']
+  rowMarks?: boolean | undefined
 }) {
   return (
     <div role="status">
@@ -162,6 +167,7 @@ function TurnMaxTokensItem({ t }: {
         title={t('message.maxTokens')}
         summary={t('message.maxTokens.hint')}
         state="stopped"
+        marks={rowMarks !== false}
         collapsible={false}
         body={null}
       />
@@ -361,7 +367,7 @@ export const UserMessageNodeView = memo(function UserMessageNodeView({
 })
 
 /** Injected-context keyed Chat renderer. */
-export const ContextMessageNodeView = memo(function ContextMessageNodeView({ node, t }: ChatNodeViewProps<'context'>) {
+export const ContextMessageNodeView = memo(function ContextMessageNodeView({ node, t, rowMarks }: ChatNodeViewProps<'context'>) {
   const data = node.data
   return (
     <ContextInjectionRow
@@ -370,40 +376,42 @@ export const ContextMessageNodeView = memo(function ContextMessageNodeView({ nod
       provenance={data.provenance}
       form={data.form}
       t={t}
+      rowMarks={rowMarks}
     />
   )
 })
 
 /** Automatic compaction keyed Chat renderer. */
-export const CompactionNodeView = memo(function CompactionNodeView({ node, t }: ChatNodeViewProps<'compaction'>) {
+export const CompactionNodeView = memo(function CompactionNodeView({ node, t, rowMarks }: ChatNodeViewProps<'compaction'>) {
   return (
     <CompactionItem
       node={node.data}
       kind="compaction"
       title={t('message.compaction')}
       t={t}
+      rowMarks={rowMarks}
     />
   )
 })
 
 /** Correlated retry-chain keyed Chat renderer. */
-export const RetryNodeView = memo(function RetryNodeView({ node, t }: ChatNodeViewProps<'model-retry'>) {
+export const RetryNodeView = memo(function RetryNodeView({ node, t, rowMarks }: ChatNodeViewProps<'model-retry'>) {
   const data = node.data
-  return <ModelRetryItem node={data.current} active={data.current.retryState === 'scheduled'} t={t} />
+  return <ModelRetryItem node={data.current} active={data.current.retryState === 'scheduled'} t={t} rowMarks={rowMarks} />
 })
 
 /** Terminal turn-error keyed Chat renderer. */
-export const TurnErrorNodeView = memo(function TurnErrorNodeView({ node, t }: ChatNodeViewProps<'turn-error'>) {
-  return <TurnErrorItem node={node.data} t={t} />
+export const TurnErrorNodeView = memo(function TurnErrorNodeView({ node, t, rowMarks }: ChatNodeViewProps<'turn-error'>) {
+  return <TurnErrorItem node={node.data} t={t} rowMarks={rowMarks} />
 })
 
 /** Max-tokens turn-end notice keyed Chat renderer. */
-export const TurnMaxTokensNodeView = memo(function TurnMaxTokensNodeView({ t }: ChatNodeViewProps<'turn-max-tokens'>) {
-  return <TurnMaxTokensItem t={t} />
+export const TurnMaxTokensNodeView = memo(function TurnMaxTokensNodeView({ t, rowMarks }: ChatNodeViewProps<'turn-max-tokens'>) {
+  return <TurnMaxTokensItem t={t} rowMarks={rowMarks} />
 })
 
 /** Explicit unknown-surface keyed Chat renderer. */
-export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNodeViewProps<'unknown'>) {
+export const UnknownNodeView = memo(function UnknownNodeView({ node, t, rowMarks }: ChatNodeViewProps<'unknown'>) {
   const data = node.data
   return (
     <PceRow
@@ -411,6 +419,7 @@ export const UnknownNodeView = memo(function UnknownNodeView({ node, t }: ChatNo
       glyph="add"
       title={t('message.unknownBlock')}
       state="stopped"
+      marks={rowMarks !== false}
       body={(
         <div className={css.contextRow}>
           <JsonBlock

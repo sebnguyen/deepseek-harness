@@ -19,14 +19,16 @@ function cardDescription(description: string | undefined, fallback: string): str
 
 /**
  * Render independent file actions without nesting buttons inside a clickable card.
- * @param props - durable file metadata, Sidebar preview, Host capabilities, gesture status, and localized copy.
+ * @param props - durable file metadata, Sidebar preview availability, Host capabilities, gesture status, and localized copy.
  * @returns the file card and its anchored action menu.
  */
-export function PresentedFileCard({ file, cwd, phase, host, onPreview, onAction, t }: {
+export function PresentedFileCard({ file, cwd, phase, host, previewable, onPreview, onAction, t }: {
   file: PresentedPath
   cwd: string | undefined
   phase: PresentedOpenPhase | undefined
   host: PresentedHost | null
+  /** Whether the hosting shell renders the Sidebar the preview opens. */
+  previewable: boolean
   onPreview: () => void
   onAction: (action: PresentedAction) => void
 } & PropsLocale<typeof NS>) {
@@ -48,9 +50,9 @@ export function PresentedFileCard({ file, cwd, phase, host, onPreview, onAction,
     : t(reveal === 'directory' && phase === 'revealed' ? 'presented.directoryOpened'
       : reveal === 'directory' && phase === 'revealing' ? 'presented.directoryOpening'
         : reveal === 'directory' && phase === 'revealError' ? 'presented.directoryError' : `presented.${phase}`)
-  return <div className={css.file} data-presented-file>
-    <button type="button" className={css.cardPreview} title={resolveWorkspacePath(cwd, file.path)}
-      aria-label={t('presented.previewCard', { name: file.path })} onClick={onPreview} />
+  return <div className={css.file} data-presented-file data-previewable={previewable || undefined}>
+    {previewable && <button type="button" className={css.cardPreview} title={resolveWorkspacePath(cwd, file.path)}
+      aria-label={t('presented.previewCard', { name: file.path })} onClick={onPreview} />}
     <span className={css.fileIcon}><FileTypeIcon path={file.path} size={20} /></span>
     <div className={css.fileBody}>
       <div className={css.details}>
@@ -58,13 +60,13 @@ export function PresentedFileCard({ file, cwd, phase, host, onPreview, onAction,
         <span className={css.description} role={phase === undefined ? undefined : 'status'}
           data-error={phase === 'error' || phase === 'revealError' || phase === 'nativeUnavailable' ? true : undefined}>
           <span className={css.secondaryText}>{status}</span>
-          <span className={css.previewHint}>{t('presented.preview')}</span>
+          {previewable && <span className={css.previewHint}>{t('presented.preview')}</span>}
         </span>
       </div>
       <div className={css.split}>
-        <button ref={previewRef} type="button" className={css.open}
+        {previewable && <button ref={previewRef} type="button" className={css.open}
           aria-label={t('presented.previewButton', { name: file.path })}
-          onClick={onPreview}>{t('presented.action')}</button>
+          onClick={onPreview}>{t('presented.action')}</button>}
         <Menu className={css.menuAnchor} open={menuOpen && !menuDisabled} autoFocus portal align="end" onClose={() => { setMenuOpen(false) }}
           anchor={<button type="button" className={css.chevron} disabled={menuDisabled}
             aria-haspopup="menu" aria-expanded={menuOpen && !menuDisabled}

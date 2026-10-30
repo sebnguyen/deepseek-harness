@@ -50,28 +50,69 @@
   min-height: 0;
 }
 
-.tile[data-drop]::after {
-  content: 'Split here';
+/* Every cell carries a hairline outline drawn inside its own box. It rides a
+   positioned pseudo-element rather than the pane itself: an outline on
+   .mosaic-window paints beneath its opaque toolbar and body, and the overlay
+   keeps the stroke out of the mosaic's geometry (no border, no layout shift). */
+.tile::before {
+  content: '';
   position: absolute;
-  z-index: 20;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  outline: 1px solid var(--dsw-alias-border-l3);
+  outline-offset: -1px;
+}
+
+/* One landing indicator for every drop that splits a cell: a Session row
+   dragged in (native DnD, `data-drop` on the tile) and a cell moved by its
+   title bar (react-mosaic's own `.drop-target` inside the window). The
+   library's default — `rgba(0, 0, 0, 0.2)` under a 2px black frame — was
+   nearly invisible on the shell's dark ground, so both draw the accent frame,
+   the tinted half, and the caption naming the split they would make. */
+.tile[data-drop]::after,
+.canvas :global(.mosaic-drop-target .drop-target-container .drop-target) {
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
+  color: var(--dsw-alias-label-primary);
   border: 2px solid var(--dsw-alias-state-business-primary);
   border-radius: 4px;
   background: color-mix(in srgb, var(--dsw-alias-label-secondary) 18%, transparent);
-  color: var(--dsw-alias-label-primary);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.tile[data-drop='left']::after { content: 'Split left'; inset: 0 50% 0 0; }
-.tile[data-drop='right']::after { content: 'Split right'; inset: 0 0 0 50%; }
-.tile[data-drop='top']::after { content: 'Split above'; inset: 0 0 50% 0; }
-.tile[data-drop='bottom']::after { content: 'Split below'; inset: 50% 0 0 0; }
+/* The native overlay is a pseudo-element that owns its half; the library's
+   target is a positioned element the mosaic sizes, so only the pseudo-element
+   takes these. */
+.tile[data-drop]::after {
+  content: 'Split here';
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.tile[data-drop='left']::after,
+.canvas :global(.mosaic-drop-target .drop-target-container .drop-target.left)::after { content: 'Split left'; }
+
+.tile[data-drop='right']::after,
+.canvas :global(.mosaic-drop-target .drop-target-container .drop-target.right)::after { content: 'Split right'; }
+
+.tile[data-drop='top']::after,
+.canvas :global(.mosaic-drop-target .drop-target-container .drop-target.top)::after { content: 'Split above'; }
+
+.tile[data-drop='bottom']::after,
+.canvas :global(.mosaic-drop-target .drop-target-container .drop-target.bottom)::after { content: 'Split below'; }
+
+/* The native half the pointer chose; the library sizes its own target. */
+.tile[data-drop='left']::after { inset: 0 50% 0 0; }
+.tile[data-drop='right']::after { inset: 0 0 0 50%; }
+.tile[data-drop='top']::after { inset: 0 0 50% 0; }
+.tile[data-drop='bottom']::after { inset: 50% 0 0 0; }
 
 .empty,
 .zero {
@@ -148,21 +189,6 @@
 .controlButton:hover {
   color: var(--dsw-alias-label-primary);
   background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.notice {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  z-index: 50;
-  padding: 6px 12px;
-  border: 1px solid var(--dsw-alias-border-l3);
-  border-radius: 999px;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-base);
-  box-shadow: var(--dsw-elevation-panel);
-  font-size: 11px;
-  transform: translateX(-50%);
 }
 
 /* The library renders a preview inside every window; our window body is opaque
@@ -257,6 +283,30 @@
 
 .canvas :global(.mosaic-split:hover) {
   background: var(--dsw-alias-interactive-bg-hover);
+}
+
+/* Divider control: click equalises this split's children. It rides the
+   library's handle seat and stops the press, so a click is not a drag. */
+.rebalance {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 50%;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-base);
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.rebalance:hover,
+.rebalance:focus-visible {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

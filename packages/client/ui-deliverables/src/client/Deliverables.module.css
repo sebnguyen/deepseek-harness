@@ -18,13 +18,16 @@
 .description { overflow: hidden; color: var(--dsw-alias-label-tertiary); font-size: 10px; font-weight: 400; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 .description[data-error='true'] { color: var(--dsw-alias-state-error-primary); }
 .previewHint { display: none; }
-.file:hover .secondaryText { display: none; }
-.file:hover .previewHint { display: inline; }
+/* The hover swap belongs to the Sidebar-preview gesture. A shell without that
+   gesture (Turbo) keeps the description visible and shows no preview hint. */
+.file[data-previewable]:hover .secondaryText { display: none; }
+.file[data-previewable]:hover .previewHint { display: inline; }
 .split { display: inline-flex; flex: none; align-items: stretch; box-sizing: border-box; height: 28px; overflow: hidden; pointer-events: auto; border: 0.5px solid var(--dsw-alias-border-l3); background: var(--dsw-alias-button-floating-fill); }
 .menuAnchor { align-self: stretch; }
 .open, .chevron { display: inline-flex; align-items: center; justify-content: center; border: 0; background: none; color: var(--dsw-alias-label-primary); cursor: pointer; font-family: var(--dsw-font-family); }
 .open { padding: 4px 8px; font-size: 12px; line-height: 18px; }
 .chevron { padding: 4px 5px; border-left: 0.5px solid var(--dsw-alias-border-l3); color: var(--dsw-alias-label-secondary); }
+.file:not([data-previewable]) .chevron { border-left: 0; }
 .open:hover, .open:focus-visible, .chevron:hover:not(:disabled), .chevron:focus-visible { background: var(--dsw-alias-interactive-bg-hover); }
 .chevron:disabled { color: var(--dsw-alias-label-dimmed); cursor: not-allowed; }
 .menuActionIcon { display: block; width: 16px; height: 16px; }

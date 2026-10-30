@@ -23,7 +23,7 @@ export interface GenericToolCardProps extends ToolCallOwnerProps {
   t: ToolTreeProps['t']
 }
 
-export function GenericToolCard({ toolName, block, cwd, home, openFile, t }: GenericToolCardProps) {
+export function GenericToolCard({ toolName, block, cwd, home, openFile, t, rowMarks }: GenericToolCardProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const terminal = terminalCardModel(block, cwd)
   const read = readCardModel(block, cwd, home)
@@ -59,6 +59,7 @@ export function GenericToolCard({ toolName, block, cwd, home, openFile, t }: Gen
       state={state}
       filePath={model.filePath}
       onOpenFile={singleFile ? openFile : undefined}
+      rowMarks={rowMarks}
     />
   )
 }

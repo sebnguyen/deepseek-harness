@@ -8,6 +8,8 @@ import { GenericCommandCard } from './GenericCommandCard.tsx'
 
 interface CompactionCommandCardProps extends CommandRowOwnerProps {
   t: ChatViewSlotProps['t']
+  /** Suppress the PCE row marks in a dense alternate shell. */
+  rowMarks?: boolean | undefined
 }
 
 /** The row outcome a manual compaction mirrors from its owning command. */
@@ -17,7 +19,7 @@ function stateOf(outcome: CommandRowOwnerProps['node']['outcome']): PceState {
 }
 
 /** Render one manual compaction lifecycle without duplicating its checkpoint marker. */
-export function CompactionCommandCard({ node, compaction, t }: CompactionCommandCardProps) {
+export function CompactionCommandCard({ node, compaction, t, rowMarks }: CompactionCommandCardProps) {
   if (compaction !== undefined) {
     return (
       <CompactionItem
@@ -27,6 +29,7 @@ export function CompactionCommandCard({ node, compaction, t }: CompactionCommand
         fallbackSummary={node.outcome?.text ?? null}
         state={stateOf(node.outcome)}
         t={t}
+        rowMarks={rowMarks}
       />
     )
   }

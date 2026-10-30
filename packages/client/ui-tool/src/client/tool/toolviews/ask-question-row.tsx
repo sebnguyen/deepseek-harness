@@ -136,7 +136,7 @@ function answeredSummary(text: string, t: AskQuestionRowProps['t']): string | nu
 type AskQuestionRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 
 /** Summarizes a pending, answered, cancelled, or interrupted question set. */
-export function AskQuestionRow({ toolName, block, t }: AskQuestionRowProps) {
+export function AskQuestionRow({ toolName, block, t, rowMarks }: AskQuestionRowProps) {
   const model = toolRowModel(toolName, block)
   // Composer verdicts settle the call as specific UserQuestionErrors
   // (ask_user_question handler): 'ASK_CANCELLED' is the user's own
@@ -190,6 +190,7 @@ export function AskQuestionRow({ toolName, block, t }: AskQuestionRowProps) {
       output={transcript === null ? model.output : null}
       askQuestion={transcript}
       state={state}
+      rowMarks={rowMarks}
     />
   )
 }

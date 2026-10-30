@@ -23,7 +23,10 @@ export type UseChat = SnapshotSelectorHook<ChatSnapshot>
 /** Per-key selector hook over one Chat Node. */
 export type UseChatNode = KeyedSnapshotSelectorHook<ChatConversationViewNode | undefined>
 
-/** Where in a file an open should land. */
+/**
+ * Where in a file an open should land. These are right-Sidebar navigation
+ * semantics; an alternate shell that opens on the Host desktop ignores them.
+ */
 export interface OpenFileOptions {
   /** 1-based line to reveal; absent = the file's beginning. */
   readonly line?: number
@@ -109,6 +112,12 @@ export interface ChatNodeOwnerProps {
   loadImage: MessageImageLoader
   renderMessageImages: RenderMessageImages
   fileMentions: (owner: TurnTailOwnerProps) => MarkdownFileMentions | undefined
+  /**
+   * Render the PCE row's pixel marks (leading kind glyph and trailing state
+   * mark). False in an alternate shell that mounts many conversations; absent
+   * keeps the marks.
+   */
+  rowMarks?: boolean | undefined
 }
 
 /** Full props of one keyed Chat renderer. */
@@ -147,6 +156,7 @@ export interface ChatViewInjected {
   }
   /** Open the current source file of a skill referenced by a sent message. */
   openSkill: (name: string) => void
+  /** Open one source file; the active shell chooses the right Sidebar or the Host desktop. */
   openFile: (path: string, options?: OpenFileOptions) => Promise<void>
   /** Reveal one file in the session's explorer column; absent when ui-sidebar-files is unmounted. */
   revealFile?: ((path: string) => void) | undefined

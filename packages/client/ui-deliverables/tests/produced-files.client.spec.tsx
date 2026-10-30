@@ -34,11 +34,17 @@ import { en, zh } from '../src/client/locales.ts'
 import { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SessionEvent } from '@deepseek-ai/dsh-session/types'
 
-function openProps(controller = new PresentedOpenController()) {
+type TestShellMode = { phase: 'choosing' | 'active'; mode: string }
+
+function openProps(
+  controller = new PresentedOpenController(),
+  shellMode: TestShellMode = { phase: 'active', mode: 'default' },
+) {
   controller.host.set({ name: 'desktop', available: true, fileManager: 'finder' })
   const sessions: SessionListState = { ids: [], byId: {}, current: undefined, phase: 'ready', subagentsByParent: {}, jobsBySession: {}, jobOutputBySession: {}, currentAddress: undefined }
   return {
     useSessions: <T,>(select: (state: SessionListState) => T): T => select(sessions),
+    useLayoutMode: <T,>(select: (state: TestShellMode) => T): T => select(shellMode),
     reloadPresentedHost: vi.fn(() => controller.loadHost()),
     usePresentedHost: <T,>(select: (state: ReturnType<typeof controller.host.getSnapshot>) => T): T =>
       select(controller.host.getSnapshot()),
@@ -720,6 +726,25 @@ describe('presented files', () => {
     fireEvent.click(view.getByRole('button', { name: 'Collapse delivered files' }))
     expect(view.container.querySelectorAll('[data-presented-file]')).toHaveLength(4)
     expect(view.queryByText('Files changed')).toBeNull()
+  })
+
+  it('quiets the Sidebar preview while Turbo is the pinned shell', () => {
+    const preview = vi.fn()
+    const props = openProps(undefined, { phase: 'active', mode: 'turbo' })
+    const view = render(<Deliverables {...props} matched={{ produced: [], presented: [
+      { path: 'report.txt', seq: 2, index: 0 },
+    ] }} openFile={preview} sessionId={SessionId('session')} t={makeTranslate(en)} />)
+    // Turbo has no right-Sidebar column, so the preview gesture and its hover
+    // hint are gone instead of becoming a Host-desktop open.
+    expect(view.queryByRole('button', { name: 'Preview report.txt in sidebar' })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Open report.txt in sidebar' })).toBeNull()
+    expect(view.queryByText('Preview in sidebar')).toBeNull()
+    fireEvent.click(view.getByText('report.txt'))
+    expect(preview).not.toHaveBeenCalled()
+    // The explicit desktop actions still name the destination they open.
+    fireEvent.click(view.getByRole('button', { name: 'More file actions for report.txt' }))
+    fireEvent.click(view.getByRole('menuitem', { name: 'Open in default app' }))
+    expect(props.openPresented).toHaveBeenCalledWith('session', 2, 0, 'open')
   })
 })
 

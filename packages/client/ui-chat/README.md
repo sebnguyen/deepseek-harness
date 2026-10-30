@@ -6,7 +6,7 @@ kind: "package-reference"
 
 ## Summary
 
-Use this package to render a browser chat from recorded Session conversations, including historical images, localized actions, and restored scroll position. Each assistant Step renders as a span whose reasoning, Tool, retry, and message rows stand inline between the Step's boundary rows. Local transcript and steering submissions appear immediately, remain in their original surface, and disappear atomically when authoritative Session records arrive, while queued submissions stay outside Chat. The package does not assemble or modify model requests.
+Use this package to render a browser chat from recorded Session conversations, including historical images, localized actions, and restored scroll position. Each assistant Step renders as a span whose reasoning, Tool, retry, and message rows stand inline between the Step's boundary rows. Local transcript and steering submissions appear immediately, remain in their original surface, and disappear atomically when authoritative Session records arrive, while queued submissions stay outside Chat. The package does not assemble or modify model requests. An alternate shell that mounts many conversations at once suppresses each row's pixel marks through the owner's `rowMarks` flag, so the grid does not pay the decorative glyph DOM per row.
 
 File-mention providers receive the viewed Session ID with the closing-turn owner, so links into inherited history can address the fork itself.
 
@@ -26,7 +26,7 @@ File-mention providers receive the viewed Session ID with the closing-turn owner
 <a id="reference-previews"></a>
 ## Reference previews
 
-Sent file references and skills confirmed by the message’s logged invocation open in the right Sidebar. File paths use the viewed Session; skill names resolve through its current input-trigger source. Both use the prose file-link dotted underline on hover or focus. Sessions, directories, and command labels remain non-navigating references.
+Sent file references confirmed by the message’s logged invocation open in the right Sidebar, or on the Host desktop while an alternate shell without a right-Sidebar column is active. File paths use the viewed Session; skill names resolve through its current input-trigger source. Both use the prose file-link dotted underline on hover or focus. Sessions, directories, and command labels remain non-navigating references.
 
 <a id="system-prompt-row"></a>
 ## System prompt row

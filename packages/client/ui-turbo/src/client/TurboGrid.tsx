@@ -4,18 +4,21 @@
  * state is the Mosaic tree; cell assignments live in a separate id map so a
  * drag/reorder/remove never has to remap Session ownership.
  */
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { DragEvent, ReactNode } from 'react'
 import {
   getLeaves, Mosaic, MosaicContext, MosaicWindow, MosaicWindowContext,
 } from 'react-mosaic-component'
 import type { MosaicNode } from 'react-mosaic-component'
 import './react-mosaic.css'
-import { Button, DigitalOceanLogo } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, DigitalOceanLogo, IconRefreshOutline16, IconWarningOutline16, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { PropsLocale, PropsRenderSlots, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TurboModeInjected } from './contract.ts'
-import { appendCell, dropPosition, insertCell, type CellId, type DropPosition } from './surface.ts'
+import {
+  appendCell, dividerSplitPaths, dropPosition, insertCell, rebalanceSplit, removeCells,
+  type CellId, type DropPosition,
+} from './surface.ts'
 import css from './TurboGrid.module.css'
 
 type Runtime = PropsRuntime<'layout.mode.entry'>
@@ -38,33 +41,51 @@ export type TurboGridProps =
 /** Render the shared sidebar and the tiling canvas. */
 export function TurboGrid({
   renderConversation, renderSidebar, useSessions, PinnedSessionProvider,
-  createSession, openSession, retainSession, t,
+  createSession, openSession, clearSession, retainSession, t,
 }: TurboGridProps) {
   const sessions = useSessions(state => state)
   const [tree, setTree] = useState<MosaicNode<CellId> | null>(INITIAL_CELL)
   const [cells, setCells] = useState<Map<CellId, SessionId | undefined>>(
     () => new Map([[INITIAL_CELL, sessions.current as SessionId | undefined]]),
   )
+  // The blank-append effect must see assignments written earlier in the same
+  // tick; session-store notifications can render before React commits setCells.
+  const cellsRef = useRef(cells)
+  const writeCells = useCallback((next: Map<CellId, SessionId | undefined>): void => {
+    cellsRef.current = next
+    setCells(next)
+  }, [])
   const nextCell = useRef(2)
   const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  // The seq keys the shared banner, so repeating the same refusal replays it
+  // instead of leaving the first one silently in place.
+  const toastSeq = useRef(0)
+  const [toast, setToast] = useState<{ seq: number; text: string } | null>(null)
+  const showToast = useCallback((text: string): void => {
+    toastSeq.current += 1
+    setToast({ seq: toastSeq.current, text })
+  }, [])
+  // Stable identity: Toast restarts its lifetime whenever onDone changes, and
+  // this grid re-renders on every session-store notification.
+  const dismissToast = useCallback((): void => { setToast(null) }, [])
   const [dropTarget, setDropTarget] = useState<{ cellId: CellId; position: DropPosition } | null>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
 
   const cellId = useCallback((): CellId => `cell-${nextCell.current++}`, [])
 
   const addCell = useCallback((sessionId?: SessionId): CellId => {
     const id = cellId()
-    setCells(current => new Map(current).set(id, sessionId))
+    writeCells(new Map(cellsRef.current).set(id, sessionId))
     return id
-  }, [cellId])
+  }, [cellId, writeCells])
 
   const createNode = useCallback((): CellId => addCell(), [addCell])
 
   const appendSessionCell = useCallback((sessionId: SessionId) => {
     const id = cellId()
-    setCells(current => new Map(current).set(id, sessionId))
+    writeCells(new Map(cellsRef.current).set(id, sessionId))
     setTree(current => appendCell(current, id))
-  }, [cellId])
+  }, [cellId, writeCells])
 
   // The shared sidebar's New Session action creates or reuses a blank Session
   // and makes it current. Give an unassigned blank Session a cell once; a
@@ -72,25 +93,31 @@ export function TurboGrid({
   useEffect(() => {
     if (sessions.phase !== 'ready' || sessions.current === undefined) return
     const current = sessions.current as SessionId
-    if ([...cells.values()].includes(current)) return
+    if ([...cellsRef.current.values()].includes(current)) return
     const summary = sessions.byId[current] as { blank?: boolean } | undefined
     if (summary?.blank === true) appendSessionCell(current)
-  }, [appendSessionCell, cells, sessions.byId, sessions.current, sessions.phase])
+  }, [appendSessionCell, sessions.byId, sessions.current, sessions.phase])
 
-  const newSessionForCell = async (target: CellId): Promise<void> => {
+  const newSessionForCell = useCallback(async (target: CellId): Promise<void> => {
     if (busy) return
     setBusy(true)
     try {
-      const source = cells.get(target)
+      const source = cellsRef.current.get(target)
       const created = await createSession(source === undefined ? undefined : { sourceSessionId: source })
-      setCells(current => new Map(current).set(target, created))
+      writeCells(new Map(cellsRef.current).set(target, created))
       openSession(created)
     } catch {
-      setNotice(t('error.create'))
+      showToast(t('error.create'))
     } finally {
       setBusy(false)
     }
-  }
+  }, [busy, createSession, openSession, showToast, t, writeCells])
+
+  // Void adapter: the prop is a click handler, and an async function here trips
+  // the lint rule even though React would ignore the returned promise.
+  const createSessionInCell = useCallback((target: CellId): void => {
+    void newSessionForCell(target)
+  }, [newSessionForCell])
 
   const newSessionAndCell = async (): Promise<void> => {
     if (busy) return
@@ -101,7 +128,7 @@ export function TurboGrid({
       setTree(current => appendCell(current, id))
       openSession(created)
     } catch {
-      setNotice(t('error.create'))
+      showToast(t('error.create'))
     } finally {
       setBusy(false)
     }
@@ -109,24 +136,38 @@ export function TurboGrid({
 
   const changeTree = (next: MosaicNode<CellId> | null, meta?: { type: string; node?: MosaicNode<CellId> }): void => {
     if (meta?.type === 'remove' && meta.node !== undefined) {
-      const removed = new Set(getLeaves(meta.node))
-      setCells((current) => {
-        const following = new Map(current)
-        for (const id of removed) following.delete(id)
-        return following
-      })
+      const current = sessions.current
+      const summary = current === undefined
+        ? undefined
+        : sessions.byId[current] as { blank?: boolean } | undefined
+      const removal = removeCells(cellsRef.current, getLeaves(meta.node), current, summary?.blank === true)
+      if (removal.clearsCurrent) clearSession()
+      writeCells(removal.cells)
     }
     setTree(next)
   }
 
+  // A divider's DOM position matches the order MosaicRoot renders dividers, so
+  // the clicked split is looked up by index in this layout's divider paths.
+  const rebalanceAt = useCallback((handle: HTMLElement): void => {
+    const split = handle.closest('.mosaic-split')
+    const root = canvasRef.current?.querySelector('.mosaic-root')
+    if (split === null || !root || !root.contains(split)) return
+    const index = Array.from(root.querySelectorAll('.mosaic-split')).indexOf(split)
+    setTree((prev) => {
+      const path = dividerSplitPaths(prev)[index]
+      return path === undefined ? prev : rebalanceSplit(prev, path)
+    })
+  }, [])
+
   const dropSession = (target: CellId, sessionId: SessionId, position: DropPosition): void => {
-    if ([...cells.values()].includes(sessionId)) {
-      setNotice(t('notice.duplicate'))
+    if ([...cellsRef.current.values()].includes(sessionId)) {
+      showToast(t('notice.duplicate'))
       openSession(sessionId)
       return
     }
-    if (cells.get(target) === undefined) {
-      setCells(current => new Map(current).set(target, sessionId))
+    if (cellsRef.current.get(target) === undefined) {
+      writeCells(new Map(cellsRef.current).set(target, sessionId))
       openSession(sessionId)
       return
     }
@@ -174,14 +215,20 @@ export function TurboGrid({
   return (
     <div className={css.root}>
       <div className={css.sidebar}>{renderSidebar()}</div>
-      <div className={css.canvas}>
+      <div className={css.canvas} ref={canvasRef}>
         <Mosaic<CellId>
           className={css.mosaic ?? ''}
           value={tree}
           onChange={changeTree}
           createNode={createNode}
           zeroStateView={zeroState}
-          resize={{ minimumPaneSizePx: { row: 300, column: 220 }, preview: true }}
+          resize={{
+            minimumPaneSizePx: { row: 300, column: 220 },
+            preview: true,
+            renderSplitHandle: () => (
+              <RebalanceHandle label={t('split.rebalance')} onRebalance={rebalanceAt} />
+            ),
+          }}
           renderTile={(target, path) => {
             const current = dropTarget?.cellId === target ? dropTarget.position : undefined
             return (
@@ -207,7 +254,7 @@ export function TurboGrid({
                     renderConversation={renderConversation}
                     PinnedSessionProvider={PinnedSessionProvider}
                     retainSession={retainSession}
-                    onNew={() => { void newSessionForCell(target) }}
+                    onNew={createSessionInCell}
                     busy={busy}
                     t={t}
                   />
@@ -216,7 +263,14 @@ export function TurboGrid({
             )
           }}
         />
-        {notice !== null && <div className={css.notice} role="status">{notice}</div>}
+        {toast !== null && (
+          <Toast
+            key={toast.seq}
+            text={toast.text}
+            icon={<IconWarningOutline16 />}
+            onDone={dismissToast}
+          />
+        )}
       </div>
     </div>
   )
@@ -244,7 +298,40 @@ function CellControls() {
   )
 }
 
-function CellBody({
+/** Round control centered on a split border; clicking it equalises that split. */
+function RebalanceHandle({ label, onRebalance }: {
+  label: string
+  onRebalance: (handle: HTMLElement) => void
+}) {
+  const ref = useRef<HTMLButtonElement>(null)
+  // The split starts a touch drag from a native listener on its bar; stop the
+  // gesture at the button so a tap stays a tap.
+  useEffect(() => {
+    const handle = ref.current
+    if (handle === null) return
+    const stop = (event: Event): void => { event.stopPropagation() }
+    handle.addEventListener('touchstart', stop)
+    return () => { handle.removeEventListener('touchstart', stop) }
+  }, [])
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className={css.rebalance}
+      aria-label={label}
+      title={label}
+      onMouseDown={(event) => { event.stopPropagation() }}
+      onClick={(event) => { event.stopPropagation(); onRebalance(event.currentTarget) }}
+    >
+      <IconRefreshOutline16 size={12} />
+    </button>
+  )
+}
+
+/** Memoized so a session-store notification re-renders the grid chrome without
+ * re-rendering every mounted conversation: a cell only changes when its own
+ * assignment or busy state changes. */
+const CellBody = memo(function CellBody({
   cellId, sessionId, renderConversation, PinnedSessionProvider, retainSession, onNew, busy, t,
 }: {
   cellId: CellId
@@ -252,7 +339,7 @@ function CellBody({
   renderConversation: () => ReactNode
   PinnedSessionProvider: PinnedSeat
   retainSession: (id: SessionId) => () => void
-  onNew: () => void
+  onNew: (cellId: CellId) => void
   busy: boolean
   t: (key: 'cell.empty.title' | 'cell.empty.action') => string
 }) {
@@ -262,7 +349,7 @@ function CellBody({
       <div className={css.empty} data-cell-body data-cell={cellId}>
         <DigitalOceanLogo size={48} className={css.emptyMark} />
         <span className={css.emptyTitle}>{t('cell.empty.title')}</span>
-        <button type="button" className={css.emptyButton} disabled={busy} onClick={onNew}>
+        <button type="button" className={css.emptyButton} disabled={busy} onClick={() => { onNew(cellId) }}>
           {t('cell.empty.action')}
         </button>
       </div>
@@ -275,4 +362,4 @@ function CellBody({
         : <PinnedSessionProvider sessionId={sessionId}>{renderConversation()}</PinnedSessionProvider>}
     </div>
   )
-}
+})

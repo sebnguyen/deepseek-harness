@@ -14,6 +14,7 @@ export const zh = {
   'error.create': '无法新建会话',
   'cell.empty.title': '空槽位',
   'cell.empty.action': '新建会话',
+  'split.rebalance': '平衡窗格',
   'option.title': 'Turbo 布局',
   'option.body': '与 Sammy 一起冲刺上线：为并行而生的多智能体聊天布局。',
 } satisfies Record<string, string>
@@ -35,6 +36,7 @@ export const en = {
   'error.create': 'Could not create a session',
   'cell.empty.title': 'Empty Slot',
   'cell.empty.action': 'New Session',
+  'split.rebalance': 'Rebalance panes',
   'option.title': 'Turbo layout',
   'option.body': 'Race Sammy to production with our multi-agent chat layout, built for parallelism',
 } satisfies Record<TurboKey, string>

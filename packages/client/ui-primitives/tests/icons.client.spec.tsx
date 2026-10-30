@@ -76,3 +76,16 @@ describe('DigitalOceanLogo', () => {
     expect(container.innerHTML).toContain('currentColor')
   })
 })
+
+describe('PixelMark64', () => {
+  it('renders the 64-grid mark with hard edges at a 64-multiple size', () => {
+    const { container } = render(<primitives.PixelMark64 size={256} />)
+    const svg = container.querySelector('svg')!
+    expect(svg.getAttribute('width')).toBe('256')
+    expect(svg.getAttribute('height')).toBe('256')
+    expect(svg.getAttribute('viewBox')).toBe('0 0 64 64')
+    expect(svg.getAttribute('shape-rendering')).toBe('crispEdges')
+    expect(container.querySelectorAll('path')).toHaveLength(1)
+    expect(container.innerHTML).toContain('currentColor')
+  })
+})

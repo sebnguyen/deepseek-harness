@@ -382,12 +382,12 @@ describe('ToolRow', () => {
     expect(view.getByText('List files')).toBeTruthy()
   })
 
-  it('orders the head as mark, kind, interpunct, description, elapsed slot, state, toggle', () => {
+  it('orders the head as mark, kind, description, elapsed slot, state, toggle', () => {
     const view = render(<ToolRow {...rowProps} summarySuffix="1.2s" />)
     const head = view.container.querySelector('.pce-head')
     const slots = [...head!.children].map(child => child.classList[0])
     expect(slots).toEqual([
-      'pce-mark', 'pce-identity', 'pce-dot', 'pce-description',
+      'pce-mark', 'pce-identity', 'pce-description',
       'pce-time', 'pce-head-state', 'pce-toggle',
     ])
     // The kind leads the line; the description truncates against the row.

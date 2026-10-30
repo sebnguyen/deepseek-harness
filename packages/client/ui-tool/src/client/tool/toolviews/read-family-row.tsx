@@ -35,7 +35,7 @@ export type ReadFamilyCard = Pick<ToolRowProps, 'read' | 'image' | 'renderSlot' 
  * @returns the assembled ToolRow.
  */
 export function readFamilyRow(
-  { toolName, block, cwd, home, openFile, t }: ReadFamilyRowProps,
+  { toolName, block, cwd, home, openFile, t, rowMarks }: ReadFamilyRowProps,
   card: ReadFamilyCard,
 ): ReactNode {
   const model = toolRowModel(toolName, block, cwd, home)
@@ -68,6 +68,7 @@ export function readFamilyRow(
         ? card.filePathLine
         : firstRead !== undefined && firstRead.kind === 'read' ? firstRead.read.line : undefined}
       onOpenFile={openFile}
+      rowMarks={rowMarks}
     />
   )
 }

@@ -36,6 +36,8 @@ export interface ToolRowProps {
   pceKind?: PceKind | undefined
   /** Catalog glyph; defaults from the kind. */
   glyph?: PixelSymbolName | undefined
+  /** Suppress the row's PCE pixel marks in a dense alternate shell. */
+  rowMarks?: boolean | undefined
   title: string
   summary: string
   summarySuffix?: string | null | undefined
@@ -202,7 +204,7 @@ export function ToolRow({
   t, variant, toolName, title, summary, summarySuffix, bodyRaw, output, askQuestion,
   errorSummary, terminal, diff, read, image, renderSlot, loadImage, search, web, todos,
   state, filePath, filePathLine, onOpenFile, frames,
-  pceKind, glyph,
+  pceKind, glyph, rowMarks,
 }: ToolRowProps) {
   const terminalLabels = useMemo(() => terminalBlockLabels(t), [t])
   const diffLabels = useMemo(() => diffBlockLabels(t), [t])
@@ -325,6 +327,7 @@ export function ToolRow({
         state={state}
         stateLabel={pceStateLabel(state, t)}
         onOpenSummary={fileLink ? () => openPath(filePath) : undefined}
+        marks={rowMarks !== false}
         body={body}
       />
     </div>

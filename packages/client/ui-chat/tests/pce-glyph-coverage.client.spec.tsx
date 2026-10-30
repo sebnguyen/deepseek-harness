@@ -37,6 +37,7 @@ const KIND_GLYPH: Record<PceKind, PixelSymbolName> = {
   unknown: 'add',
   'step-boundary': 'pause',
   inbox: 'folder-open',
+  present: 'folder-open',
 }
 
 /** The six affordance glyphs plus the two extra catalog symbols. */

@@ -1,5 +1,5 @@
 /** The built-in default shell, presented through the same card roster as every mode. */
-import { ChoiceCard, PixelMark } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ChoiceCard, PixelMark32 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 
 type DefaultOptionProps = PropsRuntime<'layout.mode.option'> & PropsLocale<'layout-mode'>
@@ -10,7 +10,7 @@ export function DefaultOption({ choose, t }: DefaultOptionProps) {
     <ChoiceCard
       value="default"
       accent="#7BB4BC"
-      logo={<PixelMark size={144} />}
+      logo={<PixelMark32 size={128} />}
       title={t('choose.default')}
       onSelect={() => { choose('default') }}
     >

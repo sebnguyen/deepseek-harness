@@ -18,4 +18,21 @@ describe('Turbo session target policy', () => {
     expect(createTarget([], { sourceSessionId: 's1' as SessionId })).toBeUndefined()
     expect(createTarget([], undefined)).toBeUndefined()
   })
+
+  it('falls back to the sidebar default Workspace when the target names none', () => {
+    expect(createTarget([], undefined, 'w3' as WorkspaceId)).toEqual({ workspaceId: 'w3' })
+    expect(createTarget([], {}, 'w3' as WorkspaceId)).toEqual({ workspaceId: 'w3' })
+    expect(createTarget([], undefined)).toBeUndefined()
+  })
+
+  it('keeps explicit, source-owned, and directory targets ahead of the default', () => {
+    const workspace: WorkspaceOwner = {
+      workspaceId: 'w1' as WorkspaceId,
+      sessionIds: ['s1' as SessionId],
+    }
+    const fallback = 'w3' as WorkspaceId
+    expect(createTarget([workspace], { workspaceId: 'w2' as WorkspaceId }, fallback)).toEqual({ workspaceId: 'w2' })
+    expect(createTarget([workspace], { sourceSessionId: 's1' as SessionId }, fallback)).toEqual({ workspaceId: 'w1' })
+    expect(createTarget([], { sourceSessionId: 's1' as SessionId, cwd: '/work/a' }, fallback)).toEqual({ cwd: '/work/a' })
+  })
 })

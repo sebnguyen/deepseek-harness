@@ -17,6 +17,18 @@ function declarations(selector: string): string[] {
   return (rule[1] ?? '').split(';').map(part => part.trim()).filter(Boolean)
 }
 
+describe('PceRow.css identity column', () => {
+  it('keeps a fixed label column and truncates a longer kind', () => {
+    expect(declarations('.pce-identity')).toEqual(expect.arrayContaining([
+      'flex: 0 0 auto',
+      'width: 9ch',
+      'overflow: hidden',
+      'text-overflow: ellipsis',
+      'white-space: nowrap',
+    ]))
+  })
+})
+
 describe('PceRow.css expanded body', () => {
   it('insets only the expanded body inside the row top and bottom', () => {
     expect(declarations('.pce-body').some(part => part.startsWith('margin'))).toBe(false)

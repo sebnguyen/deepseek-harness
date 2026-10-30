@@ -10,7 +10,7 @@ import { GenericCommandCard } from './GenericCommandCard.tsx'
 type CommandNodeViewProps = ChatNodeViewProps<'command'> & PropsRenderSlots<'conversation.chat.commandview'>
 
 /** Ordinary command lifecycle renderer with command-name keyed specialization. */
-export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot, t }: CommandNodeViewProps) {
+export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot, t, rowMarks }: CommandNodeViewProps) {
   const command = node.data
   const owner = useMemo<CommandRowOwnerProps>(() => ({ node: command }), [command])
   return (
@@ -19,6 +19,7 @@ export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot,
       glyph="adjust"
       title={t('message.command')}
       state="ok"
+      marks={rowMarks !== false}
       collapsible={false}
       body={(
         <div>
@@ -34,7 +35,7 @@ export const CommandNodeView = memo(function CommandNodeView({ node, renderSlot,
 
 /** One integrated `/compact` command and compaction transaction renderer. */
 export const ManualCompactionNodeView = memo(function ManualCompactionNodeView({
-  node, t,
+  node, t, rowMarks,
 }: ChatNodeViewProps<'manual-compaction'>) {
   const data = node.data
   return (
@@ -42,6 +43,7 @@ export const ManualCompactionNodeView = memo(function ManualCompactionNodeView({
       node={data.command}
       {...data.compaction === null ? {} : { compaction: data.compaction }}
       t={t}
+      rowMarks={rowMarks}
     />
   )
 })

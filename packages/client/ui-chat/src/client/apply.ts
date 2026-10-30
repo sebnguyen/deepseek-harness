@@ -11,12 +11,12 @@ import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 // The `file` entry of `SidebarRightResourceParamsMap`, which types `{ params: { line } }` below.
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/client'
-import { fileAddressFor, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
+import { fileAddressFor, isAbsoluteWorkspacePath, resolveWorkspacePath } from '@deepseek-ai/dsh-util-workspace-path'
 import { SessionSeq } from '@deepseek-ai/dsh-session/types'
 // Type-only service and declaration merges used by the apply world.
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
+import type { LayoutModeInfo } from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
@@ -46,6 +46,11 @@ const CHAT_NODE_INJECT: ChatNodeTurnDataInjected = {
 
 /** Services required by the Chat target and its presentation registrations. */
 import { TurnChipRow, type TurnChipsInjected } from './chat/TurnChipRow.tsx'
+
+/** The shell-mode slice a file open needs; absent means the default shell. */
+interface ShellModeFace {
+  readonly info: { getSnapshot(): LayoutModeInfo }
+}
 
 export const inject = [
   'slots', 'sessions', 'uiSession', 'uiConversation', 'locale',
@@ -129,13 +134,28 @@ export function apply(ctx: Context): void {
           // A line travels as a navigation parameter, not as part of the
           // address: the file is one piece of content whether it is opened at
           // its top or at line 400, so the same tab is revealed and told where
-          // to land.
+          // to land. An alternate shell (Turbo) renders no right-Sidebar
+          // column, so this one seam opens the resolved source on the Host
+          // desktop instead of writing into a surface nobody draws.
           openFile: async (path, options) => {
             const cwd = ctx.sessions.list.getSnapshot().byId[sessionId]?.cwd
             const url = fileAddressFor(sessionId, cwd, path)
+            const shell = ctx.get('layoutMode') as ShellModeFace | undefined
+            const mode = shell?.info.getSnapshot()
+            const alternateShell = mode !== undefined && mode.phase === 'active' && mode.mode !== 'default'
             // Lifeline breadcrumb (info level): proves the click gesture
-            // reached the code path at all, and which address it resolved.
-            console.info('[ui-chat] openFile', { path, url, options: options ?? null })
+            // reached the code path at all, which address it resolved, and
+            // which destination this shell chose.
+            console.info('[ui-chat] openFile', { path, url, options: options ?? null, alternateShell })
+            if (alternateShell) {
+              // Sidebar navigation parameters have no meaning on the desktop.
+              if (cwd === undefined && !isAbsoluteWorkspacePath(path)) throw new Error(t('fileOpen.unknown'))
+              const result = await ctx.remote.session.openWorkspacePath({
+                path: resolveWorkspacePath(cwd, path),
+              })
+              if (!result.ok) throw new Error(result.error.message)
+              return
+            }
             if (options?.display === 'changes') {
               ctx.sidebarRight.openResource(url, {
                 params: options.stop === undefined

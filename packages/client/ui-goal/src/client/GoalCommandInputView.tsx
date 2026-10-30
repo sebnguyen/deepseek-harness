@@ -15,7 +15,7 @@ type GoalCommandInputViewProps =
  * the objective, `/goal` mentions included, as plain text.
  */
 export const GoalCommandInputView = memo(function GoalCommandInputView({
-  node, t,
+  node, t, rowMarks,
 }: GoalCommandInputViewProps) {
   const data: GoalCommandInputData = node.data
   // Only the leading token is the executed command; the rest of the line is
@@ -35,6 +35,7 @@ export const GoalCommandInputView = memo(function GoalCommandInputView({
         glyph="send"
         title={t('commandInput.aria')}
         state="ok"
+        marks={rowMarks !== false}
         collapsible={false}
         body={(
           <div className={css.stack}>

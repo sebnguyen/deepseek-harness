@@ -109,7 +109,7 @@ function ReadDetached(props: {
  * Lets users expand a completed read result and open its reported path at the
  * line the call started from.
  */
-export function ReadRow({ toolName, block, cwd, home, openFile, inspect, revealFile, t }: ReadRowProps) {
+export function ReadRow({ toolName, block, cwd, home, openFile, inspect, revealFile, t, rowMarks }: ReadRowProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const frames = readFramesRowModel(block, cwd, home)
   const card = readCardModel(block, cwd, home)
@@ -206,6 +206,7 @@ export function ReadRow({ toolName, block, cwd, home, openFile, inspect, revealF
       detail={card === null ? null : cardMeta(card, t) ?? null}
       state={state}
       stateLabel={pceStateLabel(state, t)}
+      marks={rowMarks !== false}
       onOpenSummary={firstPath === undefined
         ? undefined
         : () => {

@@ -32,9 +32,15 @@ function reasoningExcerpt(text: string): string {
  * @param props.text - complete or streaming reasoning text.
  * @param props.running - whether this block is the streaming tail.
  * @param props.t - conversation locale seat for the status labels.
+ * @param props.rowMarks - suppress the row's pixel marks in a dense alternate shell.
  * @returns the reasoning pce row.
  */
-export function ReasoningRow({ text, running, t }: { text: string; running: boolean; t: ChatViewSlotProps['t'] }) {
+export function ReasoningRow({ text, running, t, rowMarks }: {
+  text: string
+  running: boolean
+  t: ChatViewSlotProps['t']
+  rowMarks?: boolean | undefined
+}) {
   const stateLabel = running ? t('message.think.streaming') : t('message.think.finished')
   return (
     <div className={css.root} data-variant="think" data-state={running ? 'running' : 'ok'}>
@@ -45,6 +51,7 @@ export function ReasoningRow({ text, running, t }: { text: string; running: bool
         summary={reasoningExcerpt(text)}
         state={running ? 'running' : 'ok'}
         stateLabel={stateLabel}
+        marks={rowMarks !== false}
         body={<div className={css.thinkBody}>{text}</div>}
       />
     </div>

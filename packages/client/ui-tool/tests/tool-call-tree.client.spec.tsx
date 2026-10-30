@@ -98,4 +98,11 @@ describe('ToolCallTree', () => {
     const view = render(<ToolCallTree {...props(block, 'w1', '/h')} />)
     expect(view.getByText('~/docs/a.ts')).toBeTruthy()
   })
+
+  it('suppresses the pixel row marks when the owning shell asks for dense rows', () => {
+    const block = root('w1', { name: 'read', argsRaw: '{"path":"a.ts"}' })
+    const view = render(<ToolCallTree {...props(block)} rowMarks={false} />)
+    expect(view.container.querySelector('.pce-mark')).toBeNull()
+    expect(view.container.querySelector('.pce-head-state')).toBeNull()
+  })
 })

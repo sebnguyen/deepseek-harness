@@ -12,7 +12,7 @@ type FileMutationRowProps = ToolCallViewProps & PropsLocale<'conversation'>
 /**
  * Lets users expand an applied file diff and open the reported path.
  */
-export function FileMutationRow({ toolName, block, cwd, home, openFile, t }: FileMutationRowProps) {
+export function FileMutationRow({ toolName, block, cwd, home, openFile, t, rowMarks }: FileMutationRowProps) {
   const model = toolRowModel(toolName, block, cwd, home)
   const diff = diffCardModel(block)
   // A batched `write` stacks one diff card per element (plus detach lines)
@@ -38,6 +38,7 @@ export function FileMutationRow({ toolName, block, cwd, home, openFile, t }: Fil
       filePath={filePath}
       summarySuffix={frames !== null && frames.stat !== null ? `+${frames.stat.added} -${frames.stat.removed}` : undefined}
       onOpenFile={openFile}
+      rowMarks={rowMarks}
     />
   )
 }

@@ -45,7 +45,7 @@ export function measureContentBox(el: HTMLElement): number {
 /** Subscribe to one stable node key and dispatch it to its keyed renderer. */
 export const ChatNodeSeat = memo(function ChatNodeSeat({
   nodeKey, live, woke, heights, useChatNode, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
-  loadImage, renderMessageImages, fileMentions, renderSlot, t,
+  loadImage, renderMessageImages, fileMentions, rowMarks, renderSlot, t,
 }: ChatNodeSeatProps) {
   const node = useChatNode(nodeKey)
   const routedNode = node as ChatNode | undefined
@@ -64,9 +64,10 @@ export const ChatNodeSeat = memo(function ChatNodeSeat({
       loadImage,
       renderMessageImages,
       fileMentions,
+      rowMarks,
     }, [
     node, cwd, openFile, openSkill, inspectCall, revealFile, forkAt,
-    loadImage, renderMessageImages, fileMentions,
+    loadImage, renderMessageImages, fileMentions, rowMarks,
   ])
 
   // Measure whenever the content is committed: on mount and each time the row

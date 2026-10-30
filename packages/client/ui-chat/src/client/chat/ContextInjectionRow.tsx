@@ -12,6 +12,8 @@ export interface ContextInjectionRowProps {
   provenance: ContextMessageNode['provenance']
   /** Producer-declared information form; null renders the opaque body. */
   form: ContextMessageNode['form']
+  /** Suppress the PCE row marks in a dense alternate shell. */
+  rowMarks?: boolean | undefined
   /** The owning view's locale seat, passed down as a plain prop. */
   t: ChatViewSlotProps['t']
 }
@@ -27,7 +29,7 @@ export interface ContextInjectionRowProps {
  * @param props - Durable content, its projected producer role/name and form, and the locale seat.
  * @returns A collapsed context row with a bounded, form-specific body.
  */
-export function ContextInjectionRow({ content, source, provenance, form, t }: ContextInjectionRowProps) {
+export function ContextInjectionRow({ content, source, provenance, form, t, rowMarks }: ContextInjectionRowProps) {
   // Resolved rather than declared: a form whose fields are unreadable renders
   // the opaque body, and the marker must say what the row actually shows.
   const { rendered, summary, body } = contextBody(form, { content, source, t })
@@ -43,6 +45,7 @@ export function ContextInjectionRow({ content, source, provenance, form, t }: Co
         summaryData="data-context-source"
         detailData="data-context-summary"
         state="ok"
+        marks={rowMarks !== false}
         body={(
           <div className={css.body} data-context-injection-body data-context-form={rendered ?? undefined}>
             {provenance.role === 'recall' && (

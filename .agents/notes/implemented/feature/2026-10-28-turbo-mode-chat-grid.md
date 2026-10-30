@@ -64,7 +64,12 @@ rail.
 `react-mosaic-component`. Every leaf is a stable cell id; the Mosaic tree owns
 geometry, while a separate `Map<CellId, SessionId | undefined>` owns Session
 assignment. Splitting adds a sibling and closing removes a leaf without
-rewriting Session identity.
+rewriting Session identity. Closing the cell that holds the current provisional
+blank Session clears the selection first; otherwise the blank-append effect
+would give the closed Session a fresh cell. The effect reads the latest
+assignment map through a ref, so a Session created and assigned in one tick
+gains one cell, not two. Closing every cell leaves the canvas on its zero state,
+the empty view with the New Session action.
 
 Each populated cell pins its Session with `PinnedSessionProvider`, so the keyed
 `main.conversation` entry and every session-scoped child below it resolve
@@ -157,7 +162,8 @@ cell, and create a blank Session with a cell. A reload returns to the chooser an
 a fresh grid.
 
 Client tests cover mode immutability, unregistered ids, fallback to `default`,
-the Turbo tiling helpers, the shared sidebar pass-through, the default-only
+the Turbo tiling helpers including removal and provisional-selection clearing,
+the shared sidebar pass-through, the default-only
 header contributions, and Turbo's session-target policy. A browser pass over the
 built client verifies the chooser, dynamic tiles, the shared overlay sidebar, the
 filled split-drop preview, and the suppression of default-only header chrome.
@@ -175,3 +181,4 @@ filled split-drop preview, and the suppression of default-only header chrome.
 - [Turbo Mode walkthrough](./2026-10-28-turbo-mode-chat-grid.mock.html)
   — the earlier prototype illustration, superseded by the chooser and dynamic
 tiling design above.
+- [Turbo rebalances a split from a button on its border](./2026-10-29-turbo-split-rebalance.md) — the per-split rebalance control that refines the tiling above.

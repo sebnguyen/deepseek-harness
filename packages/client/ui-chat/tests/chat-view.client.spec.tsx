@@ -566,6 +566,24 @@ describe('ChatView', () => {
     expect(h.toolOwners[0]).toMatchObject({ callId: 'w1', toolName: '' })
   })
 
+  it('drops the pixel row marks in an alternate layout mode', () => {
+    const h = makeHarness({ nodes: [retry(2)] }, { running: true })
+    const turbo = bindSnapshotSelector(createSnapshotStore<{ phase: 'choosing' | 'active'; mode: string }>({
+      phase: 'active',
+      mode: 'turbo',
+    }))
+    const view = render(<h.ChatView {...h.props} useLayoutMode={turbo} />)
+    expect(view.container.querySelector('.pce-mark')).toBeNull()
+    expect(view.container.querySelector('.pce-head-state')).toBeNull()
+  })
+
+  it('keeps the pixel row marks in the default layout mode', () => {
+    const h = makeHarness({ nodes: [retry(2)] }, { running: true })
+    const view = render(<h.ChatView {...h.props} />)
+    expect(view.container.querySelector('.pce-mark')).not.toBeNull()
+    expect(view.container.querySelector('.pce-head-state')).not.toBeNull()
+  })
+
   it('prepend keeps the reader\'s latest pending-request scroll position anchored', () => {
     const h = makeHarness(
       { nodes: [user(9, 'first visible'), user(10, 'next visible')] },
@@ -1277,9 +1295,11 @@ describe('ChatView', () => {
     const h = makeHarness({ nodes: [user(1, 'try'), turnError(2, 'AUTH'), turnError(3)] })
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
+    // The head's own gap separates the kind from the description; the row
+    // renders no separator character between them.
     expect(statuses.map(status => status.textContent)).toEqual([
-      '本轮运行失败·API 密钥无效AUTH',
-      '本轮运行失败·plugin exploded',
+      '本轮运行失败API 密钥无效AUTH',
+      '本轮运行失败plugin exploded',
     ])
     // One row per failure: the head owns the message and there is no second copy.
     expect(view.getAllByText('API 密钥无效')).toHaveLength(1)
@@ -1291,7 +1311,7 @@ describe('ChatView', () => {
     const view = render(<h.ChatView {...h.props} />)
     const statuses = view.getAllByRole('status')
     expect(statuses.map(status => status.textContent)).toEqual([
-      '已达到输出 token 上限·回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。',
+      '已达到输出 token 上限回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。',
     ])
     expect(view.getAllByText('回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。')).toHaveLength(1)
     expect(view.queryByText('本轮运行失败')).toBeNull()

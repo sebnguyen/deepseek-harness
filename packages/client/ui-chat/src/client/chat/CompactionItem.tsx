@@ -20,6 +20,8 @@ interface CompactionItemProps {
   fallbackSummary?: string | null
   /** Manual command outcome; automatic markers are always `ok`. */
   state?: PceState
+  /** Suppress the PCE row marks in a dense alternate shell. */
+  rowMarks?: boolean | undefined
   /** The owning view's locale seat. */
   t: ChatViewSlotProps['t']
 }
@@ -36,6 +38,7 @@ export const CompactionItem = memo(function CompactionItem({
   fallbackSummary,
   state = 'ok',
   t,
+  rowMarks,
 }: CompactionItemProps) {
   const labels = useMemo(() => markdownLabels(t), [t])
   const summary = node.shadowedItemCount !== null && node.shadowedTokenCount !== null
@@ -52,6 +55,7 @@ export const CompactionItem = memo(function CompactionItem({
       title={title}
       summary={summary}
       state={state}
+      marks={rowMarks !== false}
       body={node.summary === null
         ? null
         : <div className={css.compactionBody}><MarkdownText text={node.summary} labels={labels} /></div>}

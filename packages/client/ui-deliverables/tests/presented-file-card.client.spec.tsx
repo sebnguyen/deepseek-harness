@@ -12,6 +12,7 @@ const props = () => ({
   file: { path: 'out/report.pdf', description: 'Final report', seq: 4, index: 1 },
   host: { name: 'remote-desktop', available: true, fileManager: 'finder' as const },
   phase: undefined,
+  previewable: true,
   onPreview: vi.fn(),
   onAction: vi.fn(),
   t: makeTranslate(en),
@@ -71,6 +72,19 @@ it('opens the right sidebar from either the card or its primary button', () => {
   fireEvent.click(view.getByRole('button', { name: 'Open out/report.pdf in sidebar' }))
   expect(p.onPreview).toHaveBeenCalledTimes(2)
   expect(p.onAction).not.toHaveBeenCalled()
+})
+
+it('drops the Sidebar preview when the hosting shell has no Sidebar', () => {
+  const p = props()
+  const view = render(<PresentedFileCard {...p} previewable={false} />)
+  expect(view.queryByRole('button', { name: 'Preview out/report.pdf in sidebar' })).toBeNull()
+  expect(view.queryByRole('button', { name: 'Open out/report.pdf in sidebar' })).toBeNull()
+  expect(view.queryByText('Preview in sidebar')).toBeNull()
+  expect(view.queryByTitle('out/report.pdf')).toBeNull()
+  // The explicit native actions still name the desktop they act on.
+  fireEvent.click(view.getByRole('button', { name: 'More file actions for out/report.pdf' }))
+  fireEvent.click(view.getByRole('menuitem', { name: 'Open in default app' }))
+  expect(p.onAction).toHaveBeenCalledWith('open')
 })
 
 it('localizes reveal failures and accurately reports a directory-only action', () => {

@@ -422,6 +422,25 @@ describe('UiWorkspaceService', () => {
     })
   })
 
+  it('resolves the default Workspace from the current Session, then recency, then nothing', () => {
+    const current = summary('current', { updatedAt: 1 })
+    const recent = summary('recent', { updatedAt: 2 })
+    const b = bench({
+      sessions: sessionState([current, recent], current.id),
+      workspaces: workspaceState([
+        workspace('current-home', [current.id]),
+        workspace('recent-home', [recent.id]),
+      ]),
+    })
+    expect(b.uiWorkspace.defaultWorkspaceId()).toBe(wid('current-home'))
+
+    b.sessions.clear()
+    expect(b.uiWorkspace.defaultWorkspaceId()).toBe(wid('recent-home'))
+
+    const pending = bench()
+    expect(pending.uiWorkspace.defaultWorkspaceId()).toBeUndefined()
+  })
+
   it('opens the recent Workspace after both baselines arrive', async () => {
     const b = bench()
     b.sessions.create.mockResolvedValue(sid('initial'))

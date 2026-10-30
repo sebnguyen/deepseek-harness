@@ -7,6 +7,24 @@ const body = <span>expanded body</span>
 
 afterEach(cleanup)
 
+describe('PceRow pixel marks', () => {
+  it('renders the leading kind glyph and the trailing state mark by default', () => {
+    const { container } = render(
+      <PceRow kind="bash" glyph="bash" title="Bash" state="ok" body={null} />,
+    )
+    expect(container.querySelector('.pce-mark')).not.toBeNull()
+    expect(container.querySelector('.pce-head-state')).not.toBeNull()
+  })
+
+  it('omits both pixel marks when marks is false', () => {
+    const { container } = render(
+      <PceRow kind="bash" glyph="bash" title="Bash" state="ok" marks={false} body={null} />,
+    )
+    expect(container.querySelector('.pce-mark')).toBeNull()
+    expect(container.querySelector('.pce-head-state')).toBeNull()
+  })
+})
+
 describe('PceRow expanded-body marker', () => {
   it('marks a toggled-open body so only it takes the inset', () => {
     const { container } = render(<PceRow kind="bash" glyph="bash" title="Bash" body={body} defaultOpen />)

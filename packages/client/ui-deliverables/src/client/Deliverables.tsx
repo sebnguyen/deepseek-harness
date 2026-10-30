@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { Button, IconChevronDownOutline14, IconChevronUpOutline14 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { GlobalStandardProps, InjectFace, PropsLocale, SessionStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { ObservableSnapshot, SnapshotSelectorHook } from '@deepseek-ai/dsh-client-store'
 import type { PresentedOpenController } from './present-open.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
 import { presentedForClosing, selectProducedFiles, type PresentedPath } from './turn-deliverables.ts'
@@ -15,6 +15,18 @@ import css from './Deliverables.module.css'
 interface DeliverablesMatch { produced: readonly string[]; presented: readonly PresentedPath[] }
 
 const COLLAPSED_PRESENTED_COUNT = 4
+
+/** Shell mode as `ui-layout` declares it; `default` renders the three-column frame. */
+interface ShellModeInfo {
+  readonly phase: 'choosing' | 'active'
+  readonly mode: string
+}
+
+/** Optional root selector hook supplied by `ui-layout-mode` at boot. */
+type UseShellMode = SnapshotSelectorHook<ShellModeInfo>
+
+const FALLBACK_LAYOUT_MODE: ShellModeInfo = { phase: 'active', mode: 'default' }
+const useFallbackShellMode: UseShellMode = select => select(FALLBACK_LAYOUT_MODE)
 
 /** Native-open callbacks and shared gesture status supplied by the plugin. */
 export interface DeliverablesInjected {
@@ -42,13 +54,20 @@ export function selectDeliverables(owner: TurnTailOwnerProps): DeliverablesMatch
  * @param props - matched files, workspace opener, and localized copy.
  * @returns the closing turn's file rows.
  */
-export function Deliverables({ matched, openFile, t, sessionId, useSessions, openPresented, usePresentedOpen, usePresentedHost, reloadPresentedHost }: Pick<TurnTailOwnerProps, 'openFile'> & {
+export function Deliverables({ matched, openFile, t, sessionId, useSessions, useLayoutMode, openPresented, usePresentedOpen, usePresentedHost, reloadPresentedHost }: Pick<TurnTailOwnerProps, 'openFile'> & {
   matched: DeliverablesMatch
-} & PropsLocale<typeof NS> & Pick<SessionStandardProps, 'sessionId'> & Pick<GlobalStandardProps, 'useSessions'> & InjectFace<DeliverablesInjected>) {
+} & PropsLocale<typeof NS> & Pick<SessionStandardProps, 'sessionId'> & Pick<GlobalStandardProps, 'useSessions'>
+  & { useLayoutMode?: UseShellMode }
+  & InjectFace<DeliverablesInjected>) {
   const [expanded, setExpanded] = useState(false)
   const cwd = useSessions(state => state.byId[sessionId]?.cwd)
   const states = usePresentedOpen(value => value)
   const host = usePresentedHost(value => value)
+  // The card preview is Sidebar navigation. An alternate shell (Turbo) has no
+  // Sidebar column, so this gesture is quiet there instead of falling through
+  // to the Host desktop; the card's explicit menu still names its desktop action.
+  const shellMode = (useLayoutMode ?? useFallbackShellMode)(state => state)
+  const alternateShell = shellMode.phase === 'active' && shellMode.mode !== 'default'
   const collapsible = matched.presented.length > COLLAPSED_PRESENTED_COUNT
   const presented = collapsible && !expanded
     ? matched.presented.slice(0, COLLAPSED_PRESENTED_COUNT)
@@ -70,7 +89,7 @@ export function Deliverables({ matched, openFile, t, sessionId, useSessions, ope
       <div className={css.presented} data-presented-files-row data-single={matched.presented.length === 1 ? true : undefined}>
         {presented.map(file => <PresentedFileCard key={`${file.seq}:${file.index}`} file={file} cwd={cwd}
           phase={states[presentedFileUrl(sessionId, file.seq, file.index)]}
-          host={host === 'error' ? null : host} t={t}
+          host={host === 'error' ? null : host} t={t} previewable={!alternateShell}
           onPreview={() => { openFile(file.path) }}
           onAction={(action) => { void openPresented(sessionId, file.seq, file.index, action) }} />)}
       </div>

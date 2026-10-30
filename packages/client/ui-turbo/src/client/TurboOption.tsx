@@ -11,7 +11,7 @@ export function TurboOption({ choose, t }: TurboOptionProps) {
     <ChoiceCard
       value="turbo"
       accent="#7BB4BC"
-      logo={<SammyLogo size={144} />}
+      logo={<SammyLogo size={128} />}
       title={t('option.title')}
       onSelect={() => { choose('turbo') }}
     >

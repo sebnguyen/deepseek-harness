@@ -13,6 +13,9 @@
     "**/.node-next-types-*/**",
     "website/.generated/**",
     "packages/client/ui-primitives/src/pixel-loader/generated.ts", // Regenerated minified sweep tables; design/pixel-do-loader-gen.mjs owns their formatting.
+    "packages/client/ui-primitives/src/pixel-loader/mark-32.ts", // Generated 32-grid DO path table; minified, not hand-formatted.
+    "packages/client/ui-primitives/src/pixel-loader/mark-64.ts", // Generated 64-grid DO path table; minified, not hand-formatted.
+    "packages/client/ui-turbo/src/client/SammyLogo32.ts", // Generated 32-grid Sammy path table; minified, not hand-formatted.
     "vendor/**",
     "native/**",
     "**/*.js",

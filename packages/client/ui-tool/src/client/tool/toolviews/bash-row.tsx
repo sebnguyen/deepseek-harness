@@ -256,7 +256,7 @@ function SingleTerminal(props: {
 }
 
 /** Renders Bash output: pce terminal blocks over the proposed chat element head. */
-export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }: BashRowProps) {
+export function BashRow({ toolName, block, sessionId, useSessions, inspect, t, rowMarks }: BashRowProps) {
   const model = toolRowModel(toolName, block)
   // An omitted shell workdir is the session workspace; relative values resolve
   // against it before reaching the terminal block.
@@ -317,6 +317,7 @@ export function BashRow({ toolName, block, sessionId, useSessions, inspect, t }:
       detail={suffix}
       state={state}
       stateLabel={pceStateLabel(state, t)}
+      marks={rowMarks !== false}
       body={body}
     />
   )

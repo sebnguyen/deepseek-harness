@@ -2,12 +2,11 @@
  * The turn-tail chip row: one chip per register slot scoped to the turn —
  * the files the agent changed with their `+n −n` badge, and any note a
  * producer stamped into the same turn. Click-through opens the file on
- * the frozen Changes stop the chip names, and a freshly closed turn
- * launches its first changed file straight onto that stop without waiting
- * for the click. The row never writes; counts are `blob` reads of the
- * slot's recorded digests.
+ * the frozen Changes stop the chip names; nothing opens on its own.
+ * The row never writes; counts are `blob` reads of the slot's recorded
+ * digests.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { frameDiff } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
@@ -33,14 +32,6 @@ interface Chip {
   readonly counts?: { readonly added: number; readonly removed: number }
 }
 
-/**
- * How long after its closing a turn still counts as fresh enough to
- * auto-launch its first changed file. Live turns resolve their chips
- * within milliseconds of `turn/end`; anything older is replayed history
- * and keeps its click-to-open behavior.
- */
-const AUTO_OPEN_WINDOW_MS = 10_000
-
 /** The trailing path segment a chip shows. */
 export function chipLabel(path: string): string {
   return path.split('/').at(-1) ?? path
@@ -60,13 +51,6 @@ function chipOptions(chip: Chip): OpenFileOptions | undefined {
  */
 export function TurnChipRow({ turn, openFile, slots, blob, t }: TurnChipRowProps): ReactNode {
   const [chips, setChips] = useState<Chip[] | undefined>(undefined)
-  // One auto-launch per row lifetime: the first worktree chip of a freshly
-  // closed turn opens its frozen Changes stop on its own.
-  const autoOpenArmed = useRef(
-    turn.status === 'closed'
-      && turn.end !== undefined
-      && Date.now() - turn.end.time <= AUTO_OPEN_WINDOW_MS,
-  )
 
   useEffect(() => {
     const controller = new AbortController()
@@ -88,13 +72,6 @@ export function TurnChipRow({ turn, openFile, slots, blob, t }: TurnChipRowProps
         }
       }
       setChips(held)
-      if (autoOpenArmed.current) {
-        const chip = held.find(candidate => candidate.callId !== undefined)
-        if (chip !== undefined) {
-          autoOpenArmed.current = false
-          openFile(chip.path, chipOptions(chip))
-        }
-      }
       for (const chip of held) {
         const source = timelines
           .flatMap(timeline => timeline.slots)

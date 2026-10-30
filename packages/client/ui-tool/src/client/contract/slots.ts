@@ -84,6 +84,11 @@ export interface ToolCallOwnerProps {
    * trajectory Inspect chip.
    */
   revealFile?: ((path: string) => void) | undefined
+  /**
+   * Suppress the PCE row's pixel marks in an alternate shell that mounts many
+   * conversations. Absent keeps them.
+   */
+  rowMarks?: boolean | undefined
 }
 
 /** Full props of a registered atomic Tool view. */

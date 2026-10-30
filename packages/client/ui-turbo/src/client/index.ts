@@ -12,6 +12,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout-mode/client'
 import type {} from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-api-workspace-controller/client'
+import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import { createTarget, type TurboModeInjected } from './contract.ts'
 import { en, zh, type TurboKey } from './locales.ts'
 import { TurboMode } from './TurboMode.tsx'
@@ -28,7 +29,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 }
 
 /** Services required by the mode plugin. */
-export const inject = ['slots', 'sessions', 'workspaces', 'locale']
+export const inject = ['slots', 'sessions', 'workspaces', 'uiWorkspace', 'locale']
 
 const NS = 'turbo'
 
@@ -37,16 +38,21 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'ui-turbo: dictionaries')
 
   const createSession = (target?: Parameters<TurboModeInjected['createSession']>[0]) => ctx.sessions.create(
-    createTarget(ctx.workspaces.list.getSnapshot().items, target) ?? {},
+    createTarget(
+      ctx.workspaces.list.getSnapshot().items,
+      target,
+      ctx.uiWorkspace.defaultWorkspaceId(),
+    ) ?? {},
   )
   const openSession = (id: Parameters<TurboModeInjected['openSession']>[0]): void => { ctx.sessions.open(id) }
+  const clearSession = (): void => { ctx.sessions.clear() }
   const retainSession = (id: Parameters<TurboModeInjected['retainSession']>[0]) => ctx.sessions.retain(id)
 
   ctx.slots.inject('layout.mode.entry', () => ctx.slots.register({
     name: 'layout.mode.entry',
     key: 'turbo',
     locale: NS,
-    inject: (): TurboModeInjected => ({ createSession, openSession, retainSession }),
+    inject: (): TurboModeInjected => ({ createSession, openSession, clearSession, retainSession }),
   }, TurboMode))
 
   ctx.slots.inject('layout.mode.option', () => ctx.slots.register({

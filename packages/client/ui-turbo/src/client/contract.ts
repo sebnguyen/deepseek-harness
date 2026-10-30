@@ -30,14 +30,17 @@ export interface WorkspaceOwner {
 
 /**
  * Resolve where a Turbo-created Session goes: the Workspace that accounts for
- * the source Session, otherwise the inherited directory.
+ * the source Session, otherwise the inherited directory, otherwise the
+ * Workspace the sidebar New Session would inherit.
  * @param workspaces - live Workspace rows.
  * @param target - inherited source Session and directory.
+ * @param defaultWorkspaceId - Workspace a New Session inherits when the target names none.
  * @returns create options, or undefined to let the host use its default.
  */
 export function createTarget(
   workspaces: readonly WorkspaceOwner[],
   target: TurboSessionTarget | undefined,
+  defaultWorkspaceId?: WorkspaceId,
 ): TurboCreateTarget | undefined {
   if (target?.workspaceId !== undefined) return { workspaceId: target.workspaceId }
   const source = target?.sourceSessionId
@@ -45,7 +48,8 @@ export function createTarget(
     const owner = workspaces.find(item => item.sessionIds.includes(source))
     if (owner !== undefined) return { workspaceId: owner.workspaceId }
   }
-  return target?.cwd === undefined ? undefined : { cwd: target.cwd }
+  if (target?.cwd !== undefined) return { cwd: target.cwd }
+  return defaultWorkspaceId === undefined ? undefined : { workspaceId: defaultWorkspaceId }
 }
 
 /** Registrant-private callbacks the mode component receives from its inject face. */
@@ -54,6 +58,8 @@ export interface TurboModeInjected {
   createSession: (target?: TurboSessionTarget) => Promise<SessionId>
   /** Make a Session current without changing the layout panel. */
   openSession: (id: SessionId) => void
+  /** Clear the current Session selection so a closed provisional cell stays closed. */
+  clearSession: () => void
   /** Retain a Session binding while a cell displays it; release on reassign/unmount. */
   retainSession: (id: SessionId) => () => void
 }

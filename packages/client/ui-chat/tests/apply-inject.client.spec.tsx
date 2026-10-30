@@ -148,6 +148,65 @@ describe('Chat inject API', () => {
     await b.runtime.dispose()
   })
 
+  it('opens files on the Host desktop while an alternate shell has no right Sidebar', async () => {
+    const b = await bench()
+    b.runtime.ctx.provide('layoutMode', {
+      info: {
+        getSnapshot: () => ({ phase: 'active', mode: 'turbo' }),
+        subscribe: () => () => {},
+      },
+      select: () => {},
+    } as never)
+    const { injected } = b.chatViewApi(ROOT)
+    await injected.openFile('src/a.ts')
+    // Turbo renders no right-Sidebar column, so the one file-open seam sends
+    // the resolved source to the Host desktop instead of an address nobody draws.
+    expect(b.openWorkspacePath).toHaveBeenCalledWith({ path: '/proj/src/a.ts' })
+    expect(b.sidebarRight.openResource).not.toHaveBeenCalled()
+
+    // Sidebar-only navigation is dropped by the native opener.
+    await injected.openFile('src/a.ts', { line: 7 })
+    expect(b.openWorkspacePath).toHaveBeenLastCalledWith({ path: '/proj/src/a.ts' })
+    await b.runtime.dispose()
+  })
+
+  it('surfaces a Host desktop refusal to the caller', async () => {
+    const b = await bench()
+    b.runtime.ctx.provide('layoutMode', {
+      info: {
+        getSnapshot: () => ({ phase: 'active', mode: 'turbo' }),
+        subscribe: () => () => {},
+      },
+    } as never)
+    b.openWorkspacePath.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'gateway/internal', message: 'Host desktop unavailable.' },
+    } as never)
+    await expect(b.chatViewApi(ROOT).injected.openFile('src/a.ts'))
+      .rejects.toThrow('Host desktop unavailable.')
+    expect(b.sidebarRight.openResource).not.toHaveBeenCalled()
+    await b.runtime.dispose()
+  })
+
+  it('refuses a relative Host open without a Session workspace', async () => {
+    const b = await bench()
+    b.runtime.ctx.provide('layoutMode', {
+      info: {
+        getSnapshot: () => ({ phase: 'active', mode: 'turbo' }),
+        subscribe: () => () => {},
+      },
+    } as never)
+    const NO_CWD = 'root-2' as SessionId
+    await b.runtime.sessions.add({
+      id: NO_CWD,
+      summary: { title: 'N', displayTitle: 'N' },
+      session: sessionFakeFor(),
+    }, { current: false })
+    await expect(b.chatViewApi(NO_CWD).injected.openFile('src/a.ts')).rejects.toThrow()
+    expect(b.openWorkspacePath).not.toHaveBeenCalled()
+    await b.runtime.dispose()
+  })
+
   it('wires revealFile to the explorer reveal face only while it is provided', async () => {
     const revealIn = vi.fn<(sessionId: SessionId, path: string) => void>()
     const withReveal = await bench(revealIn)
