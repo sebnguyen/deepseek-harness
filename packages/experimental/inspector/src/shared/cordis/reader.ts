@@ -1,6 +1,7 @@
 /** Environment-independent Cordis runtime tree reader. */
 
 import type { CordisRuntimeTree } from './model.ts'
+import type { CordisServiceGetQuery, CordisServicePreview } from '../bridge/messages/query/commands.ts'
 
 /** Read-only access to the latest committed consumer-neutral Cordis tree. */
 export interface CordisRuntimeTreeReader {
@@ -10,6 +11,9 @@ export interface CordisRuntimeTreeReader {
    * @throws When the source transport is unavailable, closes, times out, or rejects the query.
    */
   getTree(): Promise<CordisRuntimeTree>
+
+  /** Read one selected service fresh from its owning realm when requested. */
+  getService(query: CordisServiceGetQuery): Promise<CordisServicePreview>
 }
 
 /**
@@ -19,6 +23,13 @@ export interface CordisRuntimeTreeReader {
  */
 export function createCordisRuntimeTreeReader(
   read: () => CordisRuntimeTree | Promise<CordisRuntimeTree>,
+  readService?: (query: CordisServiceGetQuery) => Promise<CordisServicePreview>,
 ): CordisRuntimeTreeReader {
-  return { getTree: async () => await read() }
+  return {
+    getTree: async () => await read(),
+    getService: async (query) => {
+      if (readService === undefined) throw new Error('Cordis service evaluation is not configured')
+      return readService(query)
+    },
+  }
 }

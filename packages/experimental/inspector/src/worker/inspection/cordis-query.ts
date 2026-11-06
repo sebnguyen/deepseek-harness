@@ -13,5 +13,6 @@ export async function executeInspectorQuery(
   reader: CordisRuntimeTreeReader,
   query: InspectorQuery,
 ): Promise<InspectorQueryResult> {
-  return { op: query.op, tree: await reader.getTree() }
+  if (query.op === 'cordis-tree/get') return { op: query.op, tree: await reader.getTree() }
+  return { op: query.op, preview: await reader.getService(query) }
 }

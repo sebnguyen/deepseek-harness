@@ -10,6 +10,7 @@ import { inspectorId } from '../../src/shared/bridge/ids.ts'
 import type { InspectorClientBootstrap } from '../../src/shared/bridge/messages/control.ts'
 import type { InspectorJsonValue } from '../../src/shared/json.ts'
 import { createInspectorService } from '../../src/shared/service.ts'
+import type { CordisServiceGetQuery } from '../../src/shared/bridge/messages/query/commands.ts'
 
 interface ClientFixtureInput {
   readonly bootstrap: InspectorClientBootstrap
@@ -29,6 +30,7 @@ interface ClientFixtureRequest {
     | 'close'
     | 'disconnect'
     | 'get-tree'
+    | 'get-service'
     | 'log-cordis'
     | 'log-value'
     | 'publish'
@@ -41,6 +43,7 @@ interface ClientFixtureRequest {
   readonly value?: InspectorJsonValue
   readonly marker?: string
   readonly topic?: string
+  readonly query?: CordisServiceGetQuery
 }
 
 const port = parentPort
@@ -50,7 +53,10 @@ globalThis.WebSocket = WebSocket as unknown as typeof globalThis.WebSocket
 console.log = () => {}
 
 const context = new Context()
-const childFiber = context.plugin({ name: 'client-child', apply() {} })
+const childFiber = context.plugin({
+  name: 'client-child',
+  apply(ctx: Context) { ctx.provide('clientShell', { state: 'client-ready' }) },
+})
 await childFiber.await()
 Reflect.set(globalThis, '__cordisClientProbe', context)
 Reflect.set(globalThis, '__cordisClientFiberProbe', childFiber)
@@ -108,6 +114,9 @@ async function dispatch(message: ClientFixtureRequest): Promise<unknown> {
       return undefined
     case 'get-tree':
       return await service.cordis.getTree()
+    case 'get-service':
+      if (message.query === undefined) throw new Error('service query is required')
+      return await service.cordis.getService(message.query)
     case 'set-ingest-paused': {
       const socket = Reflect.get(source, 'socket') as WebSocket | undefined
       if (socket === undefined) throw new Error('Inspector Client ingest socket is unavailable')

@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Context } from '@deepseek-ai/cordis'
+import type { CordisRuntimeContext, CordisRuntimeFiber } from '../src/shared/cordis/model.ts'
 import Include from '@deepseek-ai/cordis-plugin-include'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import WebServer from '@deepseek-ai/dsh-host-webserver'
@@ -73,6 +74,14 @@ describe('experimental Inspector through a real Loader composition', () => {
       expect((await context!.inspector.cordis.getTree()).host?.source.kind).toBe('host')
     })
 
+    const runtimeTree = await context.inspector.cordis.getTree()
+    const inspectorNode = findFiberByEntry(runtimeTree.host!.root, '@deepseek-ai/dsh-experimental-inspector')
+    expect(inspectorNode).toMatchObject({
+      kind: 'fiber',
+      pluginName: 'experimental-inspector',
+      state: 'active',
+    })
+
     const inspectorEntry = [...context.loader.entries()]
       .find(entry => entry.options.name === '@deepseek-ai/dsh-experimental-inspector')
     expect(inspectorEntry?.fiber).toBeDefined()
@@ -80,3 +89,14 @@ describe('experimental Inspector through a real Loader composition', () => {
     expect(context.get('inspector')).toBeUndefined()
   })
 })
+
+function findFiberByEntry(root: CordisRuntimeContext, entryName: string): CordisRuntimeFiber | undefined {
+  for (const node of root.children) {
+    if (node.kind === 'fiber' && node.entryName === entryName) return node
+    for (const context of node.kind === 'fiber' ? node.children : [node]) {
+      const found = findFiberByEntry(context, entryName)
+      if (found !== undefined) return found
+    }
+  }
+  return undefined
+}

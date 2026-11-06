@@ -4230,6 +4230,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type CordisDynamicRunMode = \'run\' | \'update\';',
   },
   {
+    name: 'CordisFiberDetails',
+    declaration: 'export interface CordisFiberDetails {\n    readonly pluginName: string | null;\n    readonly entryName: string | null;\n    readonly state: CordisFiberState;\n    readonly inject: readonly string[];\n    readonly store: readonly CordisFiberStoreEntry[] | null;\n    readonly provides: readonly string[];\n}',
+  },
+  {
+    name: 'CordisFiberState',
+    declaration: 'export type CordisFiberState = typeof CORDIS_FIBER_STATES[number];',
+  },
+  {
+    name: 'CordisFiberStoreEntry',
+    declaration: 'export interface CordisFiberStoreEntry {\n    readonly name: string;\n    readonly providerUid: number | null;\n}',
+  },
+  {
     name: 'CordisInspectQueryRequest',
     declaration: 'export interface CordisInspectQueryRequest {\n    requestId: CordisInspectRequestId;\n    agentId: SessionId;\n    provider: string;\n    method: string;\n    input?: JsonValue;\n}',
   },
@@ -4251,7 +4263,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CordisRuntimeFiber',
-    declaration: 'export interface CordisRuntimeFiber {\n    readonly kind: \'fiber\';\n    readonly uid: number;\n    readonly children: readonly [\n        CordisRuntimeContext\n    ];\n}',
+    declaration: 'export interface CordisRuntimeFiber extends CordisFiberDetails {\n    readonly kind: \'fiber\';\n    readonly uid: number;\n    readonly children: readonly [\n        CordisRuntimeContext\n    ];\n}',
   },
   {
     name: 'CordisRuntimeNode',
@@ -4279,7 +4291,15 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CordisRuntimeTreeReader',
-    declaration: 'export interface CordisRuntimeTreeReader {\n    getTree(): Promise<CordisRuntimeTree>;\n}',
+    declaration: 'export interface CordisRuntimeTreeReader {\n    getTree(): Promise<CordisRuntimeTree>;\n    getService(query: CordisServiceGetQuery): Promise<CordisServicePreview>;\n}',
+  },
+  {
+    name: 'CordisServiceGetQuery',
+    declaration: 'export type CordisServiceGetQuery = {\n    readonly op: \'cordis-service/get\';\n    readonly targetSourceId: string;\n    readonly kind: \'injected\';\n    readonly fiberUid: number;\n    readonly name: string;\n    readonly providerUid: number | null;\n} | {\n    readonly op: \'cordis-service/get\';\n    readonly targetSourceId: string;\n    readonly kind: \'provided\';\n    readonly fiberUid: number;\n    readonly name: string;\n    readonly ordinal: number;\n    readonly occurrences: number;\n};',
+  },
+  {
+    name: 'CordisServicePreview',
+    declaration: 'export type CordisServicePreview = {\n    readonly kind: \'json\';\n    readonly value: InspectorJsonValue;\n} | {\n    readonly kind: \'summary\';\n    readonly text: string;\n};',
   },
   {
     name: 'CreateAgentOptions',

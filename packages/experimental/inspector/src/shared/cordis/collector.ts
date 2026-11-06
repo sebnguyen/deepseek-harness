@@ -1,6 +1,8 @@
 /** Shared Host/Client projection from live Cordis objects to a bounded semantic tree. */
 
-import { Context, type Fiber } from '@deepseek-ai/cordis'
+import { Context, type Fiber, type FiberState } from '@deepseek-ai/cordis'
+import type {} from '@deepseek-ai/cordis-plugin-loader'
+import type { CordisFiberState } from './fiber-details.ts'
 import { jsonByteLength, type InspectorJsonValue } from '../json.ts'
 import {
   CORDIS_TREE_SCHEMA_VERSION,
@@ -12,6 +14,14 @@ import type { InspectorObjectHandle } from './ids.ts'
 import { RealmObjectRegistry } from './object-registry.ts'
 
 const SHADOW = Symbol.for('cordis.shadow')
+const FIBER_STATE_NAMES = {
+  0: 'pending',
+  1: 'loading',
+  2: 'active',
+  3: 'failed',
+  4: 'disposed',
+  5: 'unloading',
+} as const satisfies Record<FiberState, CordisFiberState>
 
 /** Bounds applied before one snapshot enters a source frame. */
 export interface CordisTreeLimits {
@@ -53,6 +63,15 @@ export class CordisTreeCollector {
     const objects = this.objects.begin()
     let nodeCount = 0
     let truncated = collected.truncated
+    const provides = new Map<Fiber, string[]>()
+    for (const key of Reflect.ownKeys(this.root.reflect.store)) {
+      const impl = this.root.reflect.store[key as symbol]
+      if (impl === undefined) continue
+      const names = provides.get(impl.fiber) ?? []
+      names.push(impl.name)
+      provides.set(impl.fiber, names)
+    }
+    for (const names of provides.values()) names.sort()
 
     const contextNode = (info: ContextInfo): MutableContextNode | undefined => {
       if (nodeCount >= this.limits.maxNodes) {
@@ -88,6 +107,15 @@ export class CordisTreeCollector {
         kind: 'fiber',
         objectHandle: objects.retain(fiber).handle,
         uid: fiber.uid,
+        pluginName: fiber.runtime?.name ?? null,
+        entryName: fiber.entry?.options.name ?? null,
+        state: FIBER_STATE_NAMES[fiber.state],
+        inject: Object.keys(fiber.inject),
+        store: fiber.store === undefined ? null : Object.values(fiber.store).map(impl => ({
+          name: impl.name,
+          providerUid: impl.fiber.uid,
+        })),
+        provides: provides.get(fiber) ?? [],
         children: [context],
       }
     }

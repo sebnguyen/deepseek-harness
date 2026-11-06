@@ -30,7 +30,7 @@ describe('consumer-neutral Cordis tree', () => {
       monotonicMs: 1,
       topic: 'cordis/tree',
       payload: asJson({
-        schemaVersion: 0,
+        schemaVersion: 1,
         revision: 3,
         objectRegistryId: 'registry-1',
         truncated: false,
@@ -41,6 +41,12 @@ describe('consumer-neutral Cordis tree', () => {
             kind: 'fiber',
             uid: 12,
             objectHandle: 'fiber-1',
+            pluginName: 'providerPlugin',
+            entryName: '@fixture/provider',
+            state: 'active',
+            inject: ['shell'],
+            store: [{ name: 'shell', providerUid: 0 }],
+            provides: ['visitor'],
             children: [{ kind: 'context', objectHandle: 'context-2', children: [] }],
           }],
         },
@@ -49,7 +55,7 @@ describe('consumer-neutral Cordis tree', () => {
 
     const tree = store.readTree()
     expect(tree).toEqual({
-      schemaVersion: 0,
+      schemaVersion: 1,
       host: {
         source: { sourceId: 'host-1', kind: 'host', label: 'host-1' },
         connection: { state: 'connected' },
@@ -57,7 +63,17 @@ describe('consumer-neutral Cordis tree', () => {
         truncated: false,
         root: {
           kind: 'context',
-          children: [{ kind: 'fiber', uid: 12, children: [{ kind: 'context', children: [] }] }],
+          children: [{
+            kind: 'fiber',
+            uid: 12,
+            pluginName: 'providerPlugin',
+            entryName: '@fixture/provider',
+            state: 'active',
+            inject: ['shell'],
+            store: [{ name: 'shell', providerUid: 0 }],
+            provides: ['visitor'],
+            children: [{ kind: 'context', children: [] }],
+          }],
         },
       },
       clients: [],
@@ -74,7 +90,7 @@ describe('consumer-neutral Cordis tree', () => {
       monotonicMs: 2,
       topic: 'cordis/tree',
       payload: asJson({
-        schemaVersion: 0,
+        schemaVersion: 1,
         revision: 4,
         objectRegistryId: 'registry-2',
         truncated: false,
@@ -128,6 +144,65 @@ describe('Inspector query protocol', () => {
         },
       },
     })).toThrow('unknown field')
+  })
+
+  it('parses scoped service queries and detached preview responses', () => {
+    const provided = {
+      op: 'cordis-service/get',
+      targetSourceId: 'host-runtime',
+      kind: 'provided',
+      fiberUid: 3,
+      name: 'shell',
+      ordinal: 1,
+      occurrences: 2,
+    }
+    expect(parseInspectorQueryRequestFrame({
+      v: 0,
+      t: 'query/request',
+      sourceId: 'host-1',
+      generation: 'generation-1',
+      requestId: 'query-service',
+      query: provided,
+    })).toMatchObject({ query: provided })
+    expect(parseInspectorQueryRequestFrame({
+      v: 0,
+      t: 'query/request',
+      sourceId: 'host-1',
+      generation: 'generation-1',
+      requestId: 'query-injected',
+      query: { ...provided, kind: 'injected', providerUid: 1, ordinal: undefined, occurrences: undefined },
+    })).toMatchObject({ query: { kind: 'injected', providerUid: 1 } })
+    const response = parseInspectorQueryResponseFrame({
+      v: 0,
+      t: 'query/response',
+      sourceId: 'host-1',
+      generation: 'generation-1',
+      requestId: 'query-service',
+      outcome: { ok: true, result: { op: 'cordis-service/get', preview: { kind: 'json', value: { ready: true } } } },
+    })
+    expect(response.outcome).toMatchObject({ ok: true, result: { preview: { kind: 'json', value: { ready: true } } } })
+    for (const query of [
+      { ...provided, kind: 'unknown' },
+      { ...provided, fiberUid: 0 },
+      { ...provided, name: 3 },
+      { ...provided, kind: 'injected', providerUid: undefined, ordinal: undefined, occurrences: undefined },
+      { ...provided, kind: 'injected', providerUid: 1, ordinal: 0, occurrences: undefined },
+      { ...provided, occurrences: 0 },
+      { ...provided, extra: true },
+    ]) {
+      expect(() => parseInspectorQueryRequestFrame({
+        v: 0,
+        t: 'query/request',
+        sourceId: 'host-1',
+        generation: 'generation-1',
+        requestId: 'query-invalid',
+        query,
+      })).toThrow('inspector protocol:')
+    }
+    expect(parseInspectorQueryResponseFrame({
+      ...response,
+      outcome: { ok: true, result: { op: 'cordis-service/get', preview: { kind: 'summary', text: 'function' } } },
+    }).outcome).toMatchObject({ ok: true, result: { preview: { kind: 'summary', text: 'function' } } })
   })
 
   it('correlates results and clears stale, malformed, timed-out, and closed requests', async () => {
@@ -270,6 +345,100 @@ describe('Cordis query service integration', () => {
       expect(tree.clients[0]?.connection.state).toBe('disconnected')
     })
   })
+
+  it('reads exact current Host and Client service values only when selected', async () => {
+    inspector = await startInspector({
+      port: 0,
+      captureFetch: false,
+      queryTimeoutMs: 1_000,
+      maxCordisNodes: 100,
+    })
+    const hostContext = new Context()
+    function provider(ctx: Context): void {
+      ctx.provide('shell', { state: 'ready', nested: { count: 2 } })
+      ctx.isolate('shell').provide('shell', 'isolated')
+      ctx.provide('callback', () => 42)
+    }
+    const providerFiber = hostContext.plugin(provider)
+    const consumerFiber = hostContext.inject(['shell'], () => undefined)
+    try {
+      await Promise.all([providerFiber.await(), consumerFiber.await()])
+      const providerUid = providerFiber.uid
+      const consumerUid = consumerFiber.uid
+      if (providerUid === null || consumerUid === null) throw new Error('mounted test Fibers did not receive uids')
+      observers.push(publishHostCordisTree(hostContext, inspector.source, { maxNodes: 100, maxBytes: 64 * 1_024 }))
+      const hostService = createInspectorService(inspector.source)
+      clientSource = await InspectorClientFixture.start(inspector.endpoint.client, { label: 'Value Client' })
+
+      const tree = await vi.waitFor(async () => {
+        const [hostTree] = await Promise.all([
+          hostService.cordis.getTree(),
+          clientSource!.getCordisTree(),
+        ])
+        expect(hostTree.clients).toHaveLength(1)
+        expect(hostTree.clients[0]?.connection.state).toBe('connected')
+        return hostTree
+      })
+      if (tree.host === null) throw new Error('test Host tree did not arrive')
+      const targetSourceId = tree.host.source.sourceId
+      await expect(hostService.cordis.getService({
+        op: 'cordis-service/get',
+        targetSourceId,
+        kind: 'provided',
+        fiberUid: providerUid,
+        name: 'shell',
+        ordinal: 0,
+        occurrences: 2,
+      })).resolves.toEqual({ kind: 'json', value: { state: 'ready', nested: { count: 2 } } })
+      await expect(hostService.cordis.getService({
+        op: 'cordis-service/get',
+        targetSourceId,
+        kind: 'provided',
+        fiberUid: providerUid,
+        name: 'shell',
+        ordinal: 1,
+        occurrences: 2,
+      })).resolves.toEqual({ kind: 'json', value: 'isolated' })
+      await expect(hostService.cordis.getService({
+        op: 'cordis-service/get',
+        targetSourceId,
+        kind: 'injected',
+        fiberUid: consumerUid,
+        name: 'shell',
+        providerUid,
+      })).resolves.toEqual({ kind: 'json', value: { state: 'ready', nested: { count: 2 } } })
+      await expect(hostService.cordis.getService({
+        op: 'cordis-service/get',
+        targetSourceId,
+        kind: 'provided',
+        fiberUid: providerUid,
+        name: 'callback',
+        ordinal: 0,
+        occurrences: 1,
+      })).resolves.toEqual({ kind: 'summary', text: 'TypeError: value is not JSON serializable' })
+      await expect(hostService.cordis.getService({
+        op: 'cordis-service/get',
+        targetSourceId,
+        kind: 'provided',
+        fiberUid: providerUid,
+        name: 'shell',
+        ordinal: 2,
+        occurrences: 2,
+      })).resolves.toEqual({ kind: 'summary', text: 'stale-source' })
+
+      await expect(clientSource.getService({
+        op: 'cordis-service/get',
+        targetSourceId: tree.clients[0]!.source.sourceId,
+        kind: 'provided',
+        fiberUid: clientSource.fiberUid,
+        name: 'clientShell',
+        ordinal: 0,
+        occurrences: 1,
+      })).resolves.toEqual({ kind: 'json', value: { state: 'client-ready' } })
+    } finally {
+      await hostContext.fiber.dispose()
+    }
+  })
 })
 
 function sourceDescriptor(
@@ -297,7 +466,7 @@ function generation(value: string): InspectorSourceDescriptor['generation'] {
 
 function runtimeTree(root: CordisRuntimeContext = { kind: 'context', children: [] }): CordisRuntimeTree {
   return {
-    schemaVersion: 0,
+    schemaVersion: 1,
     host: {
       source: { sourceId: cordisRuntimeSourceId('host-1'), kind: 'host', label: 'Host' },
       connection: { state: 'connected' },

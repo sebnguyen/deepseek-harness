@@ -10,6 +10,7 @@ import { CordisDomBackend } from './cdp/domains/dom/index.ts'
 import { ClientRuntimeRouter } from './bridge/runtime-rpc.ts'
 import { ClientSourceRouter } from './bridge/source-rpc.ts'
 import { CordisTreeStore } from './inspection/cordis-store.ts'
+import { CordisServiceEvaluator } from './inspection/cordis-service.ts'
 import { InspectorEndpoint, type InspectorEndpointInfo } from './bridge/endpoint.ts'
 import { InspectorQueryRouter } from './inspection/query-router.ts'
 import { InspectorRealmRegistry } from './inspection/realm-store.ts'
@@ -51,7 +52,11 @@ export async function startInspectorWorker(boot: InspectorWorkerBoot<MessagePort
   )
   const realms = new InspectorRealmRegistry(new HostInspectorRealm('Host'), clientRuntime, clientSources)
   const cordisDom = new CordisDomBackend(cordisTrees)
-  const cordisReader = createCordisRuntimeTreeReader(() => cordisTrees.readTree())
+  const cordisService = new CordisServiceEvaluator(cordisTrees, realms)
+  const cordisReader = createCordisRuntimeTreeReader(
+    () => cordisTrees.readTree(),
+    query => cordisService.getService(query),
+  )
   const queries = new InspectorQueryRouter(cordisReader, boot.config.maxSourceFrameBytes)
   const unsubscribeQueries = sources.subscribeEvents((event) => {
     if (event.type === 'closed') queries.disconnect(event.source)

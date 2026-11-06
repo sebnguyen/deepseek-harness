@@ -73,6 +73,12 @@ function projectNode(node: CordisTreeNode): CordisRuntimeNode {
   return {
     kind: 'fiber',
     uid: node.uid,
+    pluginName: node.pluginName,
+    entryName: node.entryName,
+    state: node.state,
+    inject: node.inject,
+    store: node.store,
+    provides: node.provides,
     children: [projectContext(node.children[0])],
   }
 }

@@ -97,7 +97,7 @@ describe('experimental Inspector Client plugin', () => {
     })
     expect(JSON.parse(socket.sent[1]!) as unknown).toMatchObject({
       t: 'source/replace',
-      records: [{ topic: 'cordis/tree', payload: { schemaVersion: 0, truncated: false } }],
+      records: [{ topic: 'cordis/tree', payload: { schemaVersion: 1, truncated: false } }],
     })
 
     const treePromise = ctx.inspector.cordis.getTree()
@@ -112,10 +112,10 @@ describe('experimental Inspector Client plugin', () => {
       requestId: treeRequest!.requestId,
       outcome: {
         ok: true,
-        result: { op: 'cordis-tree/get', tree: { schemaVersion: 0, host: null, clients: [] } },
+        result: { op: 'cordis-tree/get', tree: { schemaVersion: 1, host: null, clients: [] } },
       },
     })
-    await expect(treePromise).resolves.toEqual({ schemaVersion: 0, host: null, clients: [] })
+    await expect(treePromise).resolves.toEqual({ schemaVersion: 1, host: null, clients: [] })
 
     ctx.inspector.publish('client/probe', { ready: true }, 7)
     const append = socket.sent.map(value => JSON.parse(value) as {

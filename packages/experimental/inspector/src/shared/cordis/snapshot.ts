@@ -6,9 +6,14 @@ import {
 } from './ids.ts'
 import { isPlainObject } from '../json.ts'
 import { exactKeys, exactObject, wireId } from '../validation.ts'
+import {
+  CORDIS_FIBER_DETAIL_KEYS,
+  parseCordisFiberDetails,
+  type CordisFiberDetails,
+} from './fiber-details.ts'
 
 /** Current serialized Cordis tree model version. */
-export const CORDIS_TREE_SCHEMA_VERSION = 0 as const
+export const CORDIS_TREE_SCHEMA_VERSION = 1 as const
 
 /** Maximum nesting accepted from one realm snapshot. */
 export const CORDIS_TREE_MAX_DEPTH = 256
@@ -24,7 +29,7 @@ export interface CordisContextTreeNode extends CordisTreeNodeBase {
 }
 
 /** One Fiber entity in a Cordis tree snapshot. */
-export interface CordisFiberTreeNode extends CordisTreeNodeBase {
+export interface CordisFiberTreeNode extends CordisTreeNodeBase, CordisFiberDetails {
   readonly kind: 'fiber'
   readonly uid: number
   readonly children: readonly [CordisContextTreeNode]
@@ -93,7 +98,7 @@ function parseNode(value: unknown, state: ParseState, maxNodes: number, depth: n
       children: value.children.map(child => parseNode(child, state, maxNodes, depth + 1)),
     }
   }
-  exactKeys(value, ['kind', 'objectHandle', 'uid', 'children'], 'Fiber tree node')
+  exactKeys(value, ['kind', 'objectHandle', 'uid', ...CORDIS_FIBER_DETAIL_KEYS, 'children'], 'Fiber tree node')
   if (!Number.isSafeInteger(value.uid) || (value.uid as number) < 1) {
     throw new Error('inspector protocol: Cordis Fiber uid must be a positive safe integer')
   }
@@ -106,6 +111,7 @@ function parseNode(value: unknown, state: ParseState, maxNodes: number, depth: n
     kind: 'fiber',
     objectHandle,
     uid: value.uid as number,
+    ...parseCordisFiberDetails(value),
     children: [context],
   }
 }

@@ -1,8 +1,10 @@
-# Built-artifact overlay for the experimental inspector:
+# Built-artifact overlay for the experimental inspector and its global sidebar tab:
 #   node apps/cli/lib/bin.js web --patch ./packages/experimental/inspector/cordis.patch.yml
-# The relative entry is anchored to this file, so the private package does not
+# Relative entries are anchored to this file, so the private packages do not
 # need to be installed into the selected profile. Run `pnpm run build` first.
 
 - insert:
     - id: experimental-inspector
       name: './lib/index.js'
+    - id: experimental-inspector-sidebar
+      name: '../client-ui-inspector/lib/index.js'

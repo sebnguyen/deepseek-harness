@@ -6,6 +6,9 @@ import { createInspectorService, type InspectorService as SharedInspectorService
 import { publishCordisTree } from './inspection/cordis.ts'
 import { startInspectorClient } from './bridge/controller.ts'
 
+export type { CordisFiberState, CordisFiberStoreEntry } from '../shared/cordis/fiber-details.ts'
+export type { CordisServiceGetQuery, CordisServicePreview } from '../shared/bridge/messages/query/commands.ts'
+
 export type { CordisRuntimeTreeReader } from '../shared/cordis/reader.ts'
 export type {
   CordisRuntimeConnection,
@@ -14,6 +17,7 @@ export type {
   CordisRuntimeNode,
   CordisRuntimeRealm,
   CordisRuntimeSource,
+  CordisRuntimeSourceId,
   CordisRuntimeTree,
 } from '../shared/cordis/model.ts'
 

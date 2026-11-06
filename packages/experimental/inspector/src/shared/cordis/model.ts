@@ -4,9 +4,14 @@ import { CORDIS_TREE_MAX_DEPTH } from './snapshot.ts'
 import { inspectorId, type InspectorId } from '../identity.ts'
 import { isPlainObject } from '../json.ts'
 import { exactKeys, exactObject, wireId } from '../validation.ts'
+import {
+  CORDIS_FIBER_DETAIL_KEYS,
+  parseCordisFiberDetails,
+  type CordisFiberDetails,
+} from './fiber-details.ts'
 
 /** Current consumer-neutral Cordis tree version. */
-export const CORDIS_RUNTIME_TREE_SCHEMA_VERSION = 0 as const
+export const CORDIS_RUNTIME_TREE_SCHEMA_VERSION = 1 as const
 
 /** Consumer-visible identity of one inspected Cordis runtime. */
 export type CordisRuntimeSourceId = InspectorId<'CordisRuntimeSourceId'>
@@ -33,7 +38,7 @@ export interface CordisRuntimeContext {
 }
 
 /** One Fiber and its owned Context in a consumer-neutral Cordis tree. */
-export interface CordisRuntimeFiber {
+export interface CordisRuntimeFiber extends CordisFiberDetails {
   readonly kind: 'fiber'
   readonly uid: number
   readonly children: readonly [CordisRuntimeContext]
@@ -140,7 +145,7 @@ function parseNode(value: unknown, state: ParseState, depth: number): CordisRunt
     throw new Error('inspector protocol: Cordis runtime node must have a known kind')
   }
   const record = exactObject(value, value.kind === 'fiber'
-    ? ['kind', 'uid', 'children']
+    ? ['kind', 'uid', ...CORDIS_FIBER_DETAIL_KEYS, 'children']
     : ['kind', 'children'], 'Cordis runtime node')
   if (!Array.isArray(record.children)) throw new Error('inspector protocol: Cordis runtime node children must be an array')
   if (record.kind === 'context') {
@@ -156,5 +161,5 @@ function parseNode(value: unknown, state: ParseState, depth: number): CordisRunt
   state.fiberUids.add(uid)
   const context = parseNode(record.children[0], state, depth + 1)
   if (context.kind !== 'context') throw new Error('inspector protocol: Cordis runtime Fiber child must be a Context')
-  return { kind: 'fiber', uid, children: [context] }
+  return { kind: 'fiber', uid, ...parseCordisFiberDetails(record), children: [context] }
 }

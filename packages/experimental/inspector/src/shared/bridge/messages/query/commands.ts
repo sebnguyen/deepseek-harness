@@ -1,14 +1,38 @@
 /** Closed non-CDP Inspector query and result model. */
 
 import type { CordisRuntimeTree } from '../../../cordis/model.ts'
+import type { InspectorJsonValue } from '../../../json.ts'
 
 /** Read the latest committed Cordis runtime tree. */
 export interface CordisTreeGetQuery {
   readonly op: 'cordis-tree/get'
 }
 
+/** One selected service's current detached preview. */
+export type CordisServicePreview =
+  | { readonly kind: 'json'; readonly value: InspectorJsonValue }
+  | { readonly kind: 'summary'; readonly text: string }
+
+/** Read one exact service without entering its value into periodic snapshots. */
+export type CordisServiceGetQuery = {
+  readonly op: 'cordis-service/get'
+  readonly targetSourceId: string
+  readonly kind: 'injected'
+  readonly fiberUid: number
+  readonly name: string
+  readonly providerUid: number | null
+} | {
+  readonly op: 'cordis-service/get'
+  readonly targetSourceId: string
+  readonly kind: 'provided'
+  readonly fiberUid: number
+  readonly name: string
+  readonly ordinal: number
+  readonly occurrences: number
+}
+
 /** Query operations accepted by the Inspector Worker. */
-export type InspectorQuery = CordisTreeGetQuery
+export type InspectorQuery = CordisTreeGetQuery | CordisServiceGetQuery
 
 /** Result of reading the latest committed Cordis runtime tree. */
 export interface CordisTreeGetResult {
@@ -16,8 +40,14 @@ export interface CordisTreeGetResult {
   readonly tree: CordisRuntimeTree
 }
 
+/** Result of reading one selected service value on demand. */
+export interface CordisServiceGetResult {
+  readonly op: 'cordis-service/get'
+  readonly preview: CordisServicePreview
+}
+
 /** Results correlated to {@link InspectorQuery} by `op`. */
-export type InspectorQueryResult = CordisTreeGetResult
+export type InspectorQueryResult = CordisTreeGetResult | CordisServiceGetResult
 
 /** Result member corresponding to one query member. */
 export type InspectorQueryResultFor<Query extends InspectorQuery> = Extract<InspectorQueryResult, { op: Query['op'] }>

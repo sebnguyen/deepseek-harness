@@ -11,15 +11,24 @@ import { parseInspectorObjectReference } from '../src/shared/cordis/object-refer
 import { projectCordisRuntimeTree } from '../src/shared/cordis/projector.ts'
 import { parseCordisTreeSnapshot, type CordisTreeSnapshot } from '../src/shared/cordis/snapshot.ts'
 
+const FIBER_DETAILS = {
+  pluginName: 'namedPlugin',
+  entryName: '@fixture/named-plugin',
+  state: 'active',
+  inject: ['shell'],
+  store: [{ name: 'shell', providerUid: 0 }],
+  provides: ['visitor'],
+} as const
+
 describe('Cordis runtime tree model', () => {
   it('parses connected and disconnected realms and rejects duplicate source identities', () => {
     const tree = {
-      schemaVersion: 0,
+      schemaVersion: 1,
       host: realm('host-1', 'host', { state: 'connected' }),
       clients: [realm('client-1', 'client', { state: 'disconnected', reason: 'offline' })],
     }
     expect(parseCordisRuntimeTree(tree)).toEqual(tree)
-    expect(parseCordisRuntimeTree({ schemaVersion: 0, host: null, clients: [] }).host).toBeNull()
+    expect(parseCordisRuntimeTree({ schemaVersion: 1, host: null, clients: [] }).host).toBeNull()
     expect(() => parseCordisRuntimeTree({
       ...tree,
       clients: [realm('host-1', 'client', { state: 'connected' })],
@@ -27,29 +36,30 @@ describe('Cordis runtime tree model', () => {
   })
 
   it.each([
-    [{ schemaVersion: 1, host: null, clients: [] }, 'invalid Cordis runtime tree'],
-    [{ schemaVersion: 0, host: null, clients: {} }, 'invalid Cordis runtime tree'],
-    [{ schemaVersion: 0, host: realm('host-1', 'client', { state: 'connected' }), clients: [] }, 'invalid host Cordis runtime source'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'connected' }, { source: { sourceId: 'host-1', kind: 'host', label: '' } }), clients: [] }, 'invalid host Cordis runtime source'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'connected' }, { source: { sourceId: 'host-1', kind: 'host', label: 'x'.repeat(257) } }), clients: [] }, 'invalid host Cordis runtime source'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'connected' }, { revision: 0 }), clients: [] }, 'invalid Cordis runtime realm header'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'connected' }, { truncated: 'no' }), clients: [] }, 'invalid Cordis runtime realm header'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', null), clients: [] }, 'connection must be an object'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'disconnected', reason: 1 }), clients: [] }, 'invalid Cordis runtime connection'],
-    [{ schemaVersion: 0, host: realm('host-1', 'host', { state: 'unknown' }), clients: [] }, 'invalid Cordis runtime connection'],
+    [{ schemaVersion: 99, host: null, clients: [] }, 'invalid Cordis runtime tree'],
+    [{ schemaVersion: 1, host: null, clients: {} }, 'invalid Cordis runtime tree'],
+    [{ schemaVersion: 1, host: realm('host-1', 'client', { state: 'connected' }), clients: [] }, 'invalid host Cordis runtime source'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'connected' }, { source: { sourceId: 'host-1', kind: 'host', label: '' } }), clients: [] }, 'invalid host Cordis runtime source'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'connected' }, { source: { sourceId: 'host-1', kind: 'host', label: 'x'.repeat(257) } }), clients: [] }, 'invalid host Cordis runtime source'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'connected' }, { revision: 0 }), clients: [] }, 'invalid Cordis runtime realm header'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'connected' }, { truncated: 'no' }), clients: [] }, 'invalid Cordis runtime realm header'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', null), clients: [] }, 'connection must be an object'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'disconnected', reason: 1 }), clients: [] }, 'invalid Cordis runtime connection'],
+    [{ schemaVersion: 1, host: realm('host-1', 'host', { state: 'unknown' }), clients: [] }, 'invalid Cordis runtime connection'],
   ])('rejects malformed runtime tree headers %#', (value, message) => {
     expect(() => parseCordisRuntimeTree(value)).toThrow(message)
   })
 
   it('rejects malformed runtime nodes, duplicate Fiber ids, and excessive depth', () => {
     const withRoot = (root: unknown): unknown => ({
-      schemaVersion: 0,
+      schemaVersion: 1,
       host: realm('host-1', 'host', { state: 'connected' }, { root }),
       clients: [],
     })
     const fiber = (uid: unknown, children: unknown[] = [{ kind: 'context', children: [] }]): unknown => ({
       kind: 'fiber',
       uid,
+      ...FIBER_DETAILS,
       children,
     })
     const invalid = [
@@ -81,7 +91,7 @@ describe('Cordis snapshot model', () => {
   })
 
   it.each([
-    [{ ...routedSnapshot(), schemaVersion: 1 }, 'invalid Cordis tree header'],
+    [{ ...routedSnapshot(), schemaVersion: 99 }, 'invalid Cordis tree header'],
     [{ ...routedSnapshot(), revision: 0 }, 'invalid Cordis tree header'],
     [{ ...routedSnapshot(), truncated: 'no' }, 'invalid Cordis tree header'],
     [{ ...routedSnapshot(), root: routedFiber(1, 'fiber-root', routedContext('fiber-child')) }, 'root must be a Context'],
@@ -100,6 +110,22 @@ describe('Cordis snapshot model', () => {
     ]) }, 'Fiber child must be a Context'],
   ])('rejects malformed routed snapshots %#', (value, message) => {
     expect(() => parseCordisTreeSnapshot(value, 10)).toThrow(message)
+  })
+
+  it.each([
+    ['pluginName', undefined],
+    ['entryName', undefined],
+    ['state', 'running'],
+    ['inject', [1]],
+    ['store', {}],
+    ['store', [{ name: 'shell', providerUid: -1 }]],
+    ['store', [{ name: 'shell', providerUid: null, extra: true }]],
+    ['provides', [false]],
+  ])('rejects malformed Fiber metadata %s', (key, value) => {
+    const fiber = routedFiber(1, 'fiber-details', routedContext('owned'))
+    Reflect.set(fiber, key, value)
+    expect(() => parseCordisTreeSnapshot(routedSnapshot(routedContext('root', [fiber])), 10))
+      .toThrow('inspector protocol:')
   })
 
   it('enforces node and depth limits', () => {
@@ -125,7 +151,7 @@ describe('Cordis runtime projection', () => {
     })
 
     expect(projected).toEqual({
-      schemaVersion: 0,
+      schemaVersion: 1,
       host: null,
       clients: [{
         source: { sourceId: 'client-1', kind: 'client', label: 'Client' },
@@ -136,7 +162,7 @@ describe('Cordis runtime projection', () => {
           kind: 'context',
           children: [
             { kind: 'context', children: [] },
-            { kind: 'fiber', uid: 1, children: [{ kind: 'context', children: [] }] },
+            { kind: 'fiber', uid: 1, ...FIBER_DETAILS, children: [{ kind: 'context', children: [] }] },
           ],
         },
       }],
@@ -194,7 +220,7 @@ function realm(
     connection,
     revision: 1,
     truncated: false,
-    root: { kind: 'context', children: [{ kind: 'fiber', uid: 1, children: [{ kind: 'context', children: [] }] }] },
+    root: { kind: 'context', children: [{ kind: 'fiber', uid: 1, ...FIBER_DETAILS, children: [{ kind: 'context', children: [] }] }] },
     ...overrides,
   }
 }
@@ -209,14 +235,14 @@ function routedFiber(
   context: unknown,
   children: unknown[] = [context],
 ): Record<string, unknown> {
-  return { kind: 'fiber', uid, objectHandle, children }
+  return { kind: 'fiber', uid, objectHandle, ...FIBER_DETAILS, children }
 }
 
 function routedSnapshot(root: unknown = routedContext('context-1', [
   routedFiber(1, 'fiber-1', routedContext('context-2')),
 ])): Record<string, unknown> {
   return {
-    schemaVersion: 0,
+    schemaVersion: 1,
     revision: 1,
     objectRegistryId: 'registry-1',
     root,

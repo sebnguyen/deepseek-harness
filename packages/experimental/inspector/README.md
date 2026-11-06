@@ -54,7 +54,7 @@ The Host plugin injects `webServer` and accepts these fields:
 | `maxBodyChunkBytes` | 48 KiB | Raw bytes carried by one body record before base64 encoding |
 | `maxJournalBytes` | 256 MiB | Worker-retained request and response body bytes |
 | `maxRetainedRequests` | `2000` | Active and completed requests retained by the Worker |
-| `maxSourceFrameBytes` | 128 KiB | Encoded source-frame limit |
+| `maxSourceFrameBytes` | 1 MiB | Encoded source-frame and complete composed query-result limit |
 | `maxSourceRecordsPerFrame` | `128` | Records in one source batch |
 | `maxQueuedRecords` | `2048` | Per-producer records waiting for transport |
 | `maxQueuedBytes` | 16 MiB | Per-producer queued encoded bytes |
@@ -89,16 +89,27 @@ declare const jsonPayload: InspectorJsonValue
 
 ctx.inspector.publish(topic, jsonPayload)
 await ctx.inspector.cordis.getTree()
+await ctx.inspector.cordis.getService({
+  op: 'cordis-service/get',
+  targetSourceId: 'host-runtime',
+  kind: 'provided',
+  fiberUid: 1,
+  name: 'shell',
+  ordinal: 0,
+  occurrences: 1,
+})
 ```
 
-Publishing validates lossless JSON and schedules delivery without waiting for the Worker. Each source has a bounded queue. Overflow is reported as a sequence gap and never delays the observed application operation. `cordis.getTree()` reads the Worker's latest detached semantic snapshot without creating a CDP session or enabling Runtime, Debugger, or Sources.
+Publishing validates lossless JSON and schedules delivery without waiting for the Worker. `cordis.getService()` evaluates only the selected service in its owning realm using a disposable session: an `injected` selection identifies its consumer-owned Context via `fiberUid`, while a `provided` selection identifies provider `fiberUid`, service `name`, and an ordinal within identically named isolated services. Injected entries additionally verify the expected provider uid. A stale occurrence count produces a summary rather than an implicit cross-scope name match. Results contain lossless JSON values when bounded inspection supports them, or text summaries for functions, class instances, accessors, circular structures, excess nesting, and other unsupported values. The existing frame and response time limits apply. No service value joins periodic tree snapshots or observation frames. Selected values may include secrets and are evaluated only by an explicit caller request, using the same loopback-only authority as the Inspector. `cordis.getTree()` reads the Worker's latest detached semantic snapshot without creating a CDP session or enabling Runtime, Debugger, or Sources.
 
 <a id="cordis-tree-inspection"></a>
 ## Cordis tree inspection
 
 The Elements document has fixed `<host>` and `<clients>` containers. `<host>` contains the Host root Context; `<clients>` contains one `<client>` per Client source, and each `<client>` contains that realm's root Context. The Cordis root Fiber is omitted. Every other Fiber is a child of `fiber.parent`, owns exactly one Context child for `fiber.ctx`, and carries only `uid="<Cordis Fiber.uid>"`; Context elements have no attributes. Context-only `extend()`, `isolate()`, and `intercept()` layers remain direct Context descendants.
 
-Host and Client publish the same nested `CordisTreeSnapshot` type. Context and Fiber nodes carry opaque object handles for realm-local object lookup; Fiber nodes additionally carry Cordis `uid`. The Worker composes those realm snapshots into one `{ host, clients }` inspection tree. It assigns `BackendNodeId` values per source generation; each DevTools connection assigns its own `NodeId` values; `DOM.resolveNode` asks the owning Host or Client Runtime for a connection-local `RemoteObjectId`. `DOM.requestNode` maps that object id back to the same Elements node. `ctx.inspector.cordis.getTree()` and `DSHInspector.getCordisTree` read the detached consumer-neutral tree without routing handles or CDP ids.
+The opt-in overlays also mount the [Web global-sidebar tree](../client-ui-inspector/README.md), which renders the same consumer-neutral snapshots without opening DevTools.
+
+Host and Client publish the same nested version-1 `CordisTreeSnapshot` type. Context and Fiber nodes carry opaque object handles for realm-local object lookup. Fiber nodes additionally carry Cordis `uid`, runtime and Loader entry identities when available, lifecycle, declared dependency names, uncompressed service cache metadata, and provided-service names. Injected cache entries contain service names and provider uids, never service values or plugin configs. The Worker composes those realm snapshots into one `{ host, clients }` inspection tree. It assigns `BackendNodeId` values per source generation; each DevTools connection assigns its own `NodeId` values; `DOM.resolveNode` asks the owning Host or Client Runtime for a connection-local `RemoteObjectId`. `DOM.requestNode` maps that object id back to the same Elements node. `ctx.inspector.cordis.getTree()` and `DSHInspector.getCordisTree` read the detached consumer-neutral tree without routing handles or CDP ids.
 
 Node delivery is depth-limited per DevTools connection: `DOM.getDocument` serves three document levels when the caller omits `depth`, withheld levels advertise `childNodeCount`, and expansion fetches them through `DOM.requestChildNodes` (`depth: -1` for a whole subtree). NodeIds leaving through `DOM.performSearch`, `DOM.requestNode`, or `DOM.pushNodesByBackendIdsToFrontend` first push the not-yet-sent ancestor levels as `DOM.setChildNodes` events.
 

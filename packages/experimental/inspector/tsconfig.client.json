@@ -67,6 +67,7 @@
     "src/shared/cdp/remote-object.ts",
     "src/shared/cdp/sources.ts",
     "src/shared/cordis/collector.ts",
+    "src/shared/cordis/fiber-details.ts",
     "src/shared/cordis/ids.ts",
     "src/shared/cordis/model.ts",
     "src/shared/cordis/object-reference.ts",
@@ -75,6 +76,7 @@
     "src/shared/cordis/publisher.ts",
     "src/shared/cordis/projector.ts",
     "src/shared/cordis/reader.ts",
+    "src/shared/cordis/service-value.ts",
     "src/shared/cordis/snapshot.ts",
     "src/shared/identity.ts",
     "src/shared/index.ts",
@@ -90,6 +92,9 @@
     },
     {
       "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../../../vendor/loader"
     },
     {
       "path": "../../util/crypto"

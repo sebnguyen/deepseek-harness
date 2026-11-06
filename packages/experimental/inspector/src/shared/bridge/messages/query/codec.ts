@@ -1,6 +1,7 @@
 /** Exact decoders for non-CDP Inspector query frames. */
 
 import { parseCordisRuntimeTree } from '../../../cordis/model.ts'
+import { parseCordisServicePreview } from '../../../cordis/service-value.ts'
 import { isPlainObject } from '../../../json.ts'
 import { exactKeys, exactObject, wireId } from '../../../validation.ts'
 import { INSPECTOR_PROTOCOL_VERSION } from '../../version.ts'
@@ -94,11 +95,49 @@ export function parseInspectorQueryResponseFrame(value: unknown): InspectorQuery
 }
 
 function parseQuery(value: unknown): InspectorQuery {
-  const record = exactObject(value, ['op'], 'Inspector query')
-  if (record.op !== 'cordis-tree/get') {
+  const record = exactObject(value, [
+    'op', 'targetSourceId', 'kind', 'fiberUid', 'name', 'providerUid', 'ordinal', 'occurrences',
+  ], 'Inspector query')
+  if (record.op === 'cordis-tree/get') {
+    exactKeys(record, ['op'], 'Cordis tree query')
+    return { op: 'cordis-tree/get' }
+  }
+  if (record.op !== 'cordis-service/get') {
     throw new Error(`inspector protocol: unknown query operation ${JSON.stringify(record.op)}`)
   }
-  return { op: 'cordis-tree/get' }
+  const service = record
+  if (typeof service.targetSourceId !== 'string' || typeof service.name !== 'string'
+    || !Number.isSafeInteger(service.fiberUid) || (service.fiberUid as number) < 1) {
+    throw new Error('inspector protocol: invalid Cordis service query')
+  }
+  if (service.kind === 'injected') {
+    if (service.ordinal !== undefined || service.occurrences !== undefined
+      || (service.providerUid !== null && (!Number.isSafeInteger(service.providerUid) || (service.providerUid as number) < 0))) {
+      throw new Error('inspector protocol: invalid Cordis service query')
+    }
+    return {
+      op: 'cordis-service/get',
+      targetSourceId: service.targetSourceId,
+      kind: 'injected',
+      fiberUid: service.fiberUid as number,
+      name: service.name,
+      providerUid: service.providerUid as number | null,
+    }
+  }
+  if (service.kind !== 'provided' || !Number.isSafeInteger(service.ordinal) || (service.ordinal as number) < 0
+    || !Number.isSafeInteger(service.occurrences) || (service.occurrences as number) < 1
+    || service.providerUid !== undefined) {
+    throw new Error('inspector protocol: invalid Cordis service query')
+  }
+  return {
+    op: 'cordis-service/get',
+    targetSourceId: service.targetSourceId,
+    kind: 'provided',
+    fiberUid: service.fiberUid as number,
+    name: service.name,
+    ordinal: service.ordinal as number,
+    occurrences: service.occurrences as number,
+  }
 }
 
 function parseResult(value: unknown): InspectorQueryResult {
@@ -109,6 +148,9 @@ function parseResult(value: unknown): InspectorQueryResult {
     case 'cordis-tree/get':
       exactKeys(value, ['op', 'tree'], 'Cordis tree query result')
       return { op: 'cordis-tree/get', tree: parseCordisRuntimeTree(value.tree) }
+    case 'cordis-service/get':
+      exactKeys(value, ['op', 'preview'], 'Cordis service query result')
+      return { op: 'cordis-service/get', preview: parseCordisServicePreview(value.preview) }
     default:
       throw new Error(`inspector protocol: unknown query result ${JSON.stringify(value.op)}`)
   }

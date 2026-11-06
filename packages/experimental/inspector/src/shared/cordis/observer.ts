@@ -35,6 +35,7 @@ export function observeCordisTree(
   const disposers = [
     ctx.on('internal/plugin', schedule, { global: true }),
     ctx.on('internal/status', schedule, { global: true }),
+    ctx.on('internal/service', schedule, { global: true }),
   ]
   publish()
   return () => {

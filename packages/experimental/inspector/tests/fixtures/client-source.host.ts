@@ -3,6 +3,7 @@
 import { Worker } from 'node:worker_threads'
 import type { InspectorClientBootstrap } from '../../src/shared/bridge/messages/control.ts'
 import type { CordisRuntimeTree } from '../../src/shared/cordis/model.ts'
+import type { CordisServiceGetQuery, CordisServicePreview } from '../../src/shared/bridge/messages/query/commands.ts'
 import type { InspectorJsonValue } from '../../src/shared/json.ts'
 
 /** Optional source artifact exposed by the Client fixture. */
@@ -96,6 +97,11 @@ export class InspectorClientFixture {
   /** Read the consumer-neutral Cordis tree through the Client service. */
   async getCordisTree(): Promise<CordisRuntimeTree> {
     return await this.request({ op: 'get-tree' }) as CordisRuntimeTree
+  }
+
+  /** Read one selected service value in the Client realm. */
+  async getService(query: CordisServiceGetQuery): Promise<CordisServicePreview> {
+    return await this.request({ op: 'get-service', query }) as CordisServicePreview
   }
 
   /**

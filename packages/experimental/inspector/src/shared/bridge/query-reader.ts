@@ -14,5 +14,9 @@ export function createQueryCordisRuntimeTreeReader(requester: InspectorQueryRequ
       const result = await requester.request({ op: 'cordis-tree/get' })
       return result.tree
     },
+    async getService(query) {
+      const result = await requester.request(query)
+      return result.preview
+    },
   }
 }

@@ -207,6 +207,52 @@ describe('Cordis tree inspection', () => {
     await fiber.dispose()
   })
 
+  it('collects plugin identity, lifecycle, dependencies, and provider links without service values', async () => {
+    const root = new Context()
+    const scope = root.isolate('probe')
+    function providerPlugin(ctx: Context): void {
+      ctx.provide('probe', { secret: 'must-not-serialize' })
+    }
+    function consumerPlugin(): void {}
+    const provider = scope.plugin(providerPlugin)
+    const consumer = scope.plugin({ name: 'consumerPlugin', inject: ['probe'], apply: consumerPlugin })
+    const waiting = scope.plugin({ name: 'consumerPlugin', inject: ['probe', 'missing'], apply: consumerPlugin })
+    fibers.push(provider, consumer, waiting)
+    await Promise.all([provider.await(), consumer.await()])
+    const collector = new CordisTreeCollector(root, { maxNodes: 100, maxBytes: 64 * 1_024 })
+
+    const snapshot = collector.snapshot()
+    const nodes = treeNodes(snapshot.root).filter(node => node.kind === 'fiber')
+    expect(nodes.find(node => node.uid === provider.uid)).toMatchObject({
+      pluginName: 'providerPlugin',
+      entryName: null,
+      state: 'active',
+      provides: ['probe'],
+    })
+    const consumerNode = nodes.find(node => node.uid === consumer.uid)
+    if (consumerNode?.kind !== 'fiber') throw new Error('expected consumer Fiber')
+    expect(consumerNode).toMatchObject({
+      pluginName: 'consumerPlugin',
+      entryName: null,
+      state: 'active',
+      provides: [],
+    })
+    expect(consumerNode.inject).toEqual(expect.arrayContaining(['probe']))
+    expect(consumerNode.store).toEqual(expect.arrayContaining([{ name: 'probe', providerUid: provider.uid }]))
+    const waitingNode = nodes.find(node => node.uid === waiting.uid)
+    if (waitingNode?.kind !== 'fiber') throw new Error('expected waiting Fiber')
+    expect(waitingNode).toMatchObject({
+      pluginName: 'consumerPlugin',
+      state: 'pending',
+      store: null,
+      provides: [],
+    })
+    expect(waitingNode.inject).toEqual(expect.arrayContaining(['probe', 'missing']))
+    expect(JSON.stringify(snapshot)).not.toContain('must-not-serialize')
+    expect(parseCordisTreeSnapshot(snapshot, 100)).toEqual(snapshot)
+    collector.close()
+  })
+
   it('bounds snapshots by node count and encoded byte size', async () => {
     const root = new Context()
     const parent = root.isolate('parent')
@@ -277,11 +323,15 @@ describe('Cordis tree inspection', () => {
     await Promise.resolve()
     expect(listener).toHaveBeenCalledTimes(2)
 
+    root.emit('internal/service', 'probe', {})
+    await Promise.resolve()
+    expect(listener).toHaveBeenCalledTimes(3)
+
     root.emit('internal/plugin', root.fiber)
     dispose()
     dispose()
     await Promise.resolve()
-    expect(listener).toHaveBeenCalledTimes(2)
+    expect(listener).toHaveBeenCalledTimes(3)
   })
 
   it('ignores disposed Fibers and non-Context listener owners while unwrapping Cordis shadows', async () => {
@@ -363,14 +413,23 @@ describe('Cordis tree inspection', () => {
       objectHandle,
       children,
     })
+    const fiberDetails = {
+      pluginName: 'fixturePlugin',
+      entryName: '@fixture/plugin',
+      state: 'active',
+      inject: [],
+      store: [],
+      provides: [],
+    } as const
     const fiber = (uid: number, objectHandle: string): Record<string, unknown> => ({
       kind: 'fiber',
       uid,
       objectHandle,
+      ...fiberDetails,
       children: [context(`${objectHandle}-context`)],
     })
     const snapshot = (revision: number, children: unknown[]): InspectorJsonValue => ({
-      schemaVersion: 0,
+      schemaVersion: 1,
       revision,
       objectRegistryId: 'registry',
       root: context('root', children),
@@ -411,7 +470,7 @@ describe('Cordis tree inspection', () => {
     ])
 
     changes.length = 0
-    replace(8, [{ kind: 'fiber', uid: 3, objectHandle: 'context-a', children: [context('changed-kind')] }])
+    replace(8, [{ kind: 'fiber', uid: 3, objectHandle: 'context-a', ...fiberDetails, children: [context('changed-kind')] }])
     expect(changes).toEqual([
       expect.objectContaining({ type: 'tree-mutated', mutations: [{ type: 'document-updated' }] }),
     ])
