@@ -103,12 +103,13 @@
           cacheWritePerMillionUsd: 0.27
           # DO serverless inference per-model rates, from
           # https://docs.digitalocean.com/products/inference/details/pricing/
-          # (docs verified 2026-10-14). Rates are the Standard processing mode;
-          # long-context (>200K/272K) and cache-write-(1h) tiers are not modeled.
-          # Cache writes are the 5-minute retention rate. Models DO bills
-          # per unit other than a token (nemotron-3-diarization per audio
-          # second, qwen3-tts-voicedesign per character, stable-diffusion-3.5-
-          # large per image, wan2-2-t2v-a14b per video) and the router:* ids
+          # (docs verified 2026-11-09). Rates are the Standard processing mode;
+          # long-context (>100K/200K/272K), Fast/Flex, and cache-write-(1h)
+          # tiers are not modeled. Cache writes are the 5-minute retention
+          # rate. Models DO bills per unit other than a token (fal compute/
+          # megapixel/character, nemotron-3-diarization per audio second,
+          # qwen3-tts-voicedesign per character, stable-diffusion-3.5-large
+          # per image, wan2-2-t2v-a14b per video) and the router:* ids
           # (billed at whichever model serves) have no $/Mtok rate and are
           # absent on purpose.
           models:
@@ -212,6 +213,11 @@
               outputPerMillionUsd: 0.28
               cacheReadPerMillionUsd: 0.028
               cacheWritePerMillionUsd: 0
+            'deepseek-v4-flash-0731':
+              inputPerMillionUsd: 0.14
+              outputPerMillionUsd: 0.28
+              cacheReadPerMillionUsd: 0.028
+              cacheWritePerMillionUsd: 0
             'deepseek-v4-pro':
               inputPerMillionUsd: 1.74
               outputPerMillionUsd: 3.48
@@ -227,10 +233,10 @@
               outputPerMillionUsd: 1.2
               cacheReadPerMillionUsd: 0.006
               cacheWritePerMillionUsd: 0
-            'deepseek-v4-flash-0731':
-              inputPerMillionUsd: 0.14
-              outputPerMillionUsd: 0.28
-              cacheReadPerMillionUsd: 0.028
+            'deepseek-v4.1-flash-1017':
+              inputPerMillionUsd: 0.3
+              outputPerMillionUsd: 1.2
+              cacheReadPerMillionUsd: 0.006
               cacheWritePerMillionUsd: 0
             'e5-large-v2':
               inputPerMillionUsd: 0.02
@@ -272,6 +278,11 @@
               outputPerMillionUsd: 15
               cacheReadPerMillionUsd: 0.3
               cacheWritePerMillionUsd: 0
+            'kimi-k3.1-pro':
+              inputPerMillionUsd: 2
+              outputPerMillionUsd: 10
+              cacheReadPerMillionUsd: 0.2
+              cacheWritePerMillionUsd: 0
             'llama-4-maverick':
               inputPerMillionUsd: 0.25
               outputPerMillionUsd: 0.87
@@ -286,6 +297,11 @@
               inputPerMillionUsd: 0.3
               outputPerMillionUsd: 1.2
               cacheReadPerMillionUsd: 0.06
+              cacheWritePerMillionUsd: 0
+            'minimax-m3.1-flash':
+              inputPerMillionUsd: 0.15
+              outputPerMillionUsd: 0.6
+              cacheReadPerMillionUsd: 0.015
               cacheWritePerMillionUsd: 0
             'mistral-3-14B':
               inputPerMillionUsd: 0.2
@@ -306,6 +322,11 @@
               inputPerMillionUsd: 0.9
               outputPerMillionUsd: 1.7
               cacheReadPerMillionUsd: 0.18
+              cacheWritePerMillionUsd: 0
+            'nemotron-3.5-super-vl':
+              inputPerMillionUsd: 0.3
+              outputPerMillionUsd: 0.65
+              cacheReadPerMillionUsd: 0.06
               cacheWritePerMillionUsd: 0
             'nemotron-nano-12b-v2-vl':
               inputPerMillionUsd: 0.2
@@ -402,6 +423,11 @@
               outputPerMillionUsd: 10
               cacheReadPerMillionUsd: 0.1
               cacheWritePerMillionUsd: 2.5
+            'openai-gpt-6.1-terra':
+              inputPerMillionUsd: 1
+              outputPerMillionUsd: 5
+              cacheReadPerMillionUsd: 0.05
+              cacheWritePerMillionUsd: 1.25
             'openai-gpt-6-astra':
               inputPerMillionUsd: 10
               outputPerMillionUsd: 50
@@ -473,6 +499,11 @@
               inputPerMillionUsd: 2
               outputPerMillionUsd: 6
               cacheReadPerMillionUsd: 0.2
+              cacheWritePerMillionUsd: 0
+            'reflection-beam':
+              inputPerMillionUsd: 0.4
+              outputPerMillionUsd: 1.2
+              cacheReadPerMillionUsd: 0.04
               cacheWritePerMillionUsd: 0
             # TypeSafe Jev prices input only; output carries no rate.
             'typesafe-jev-1.13.0':
@@ -620,6 +651,11 @@
     # the shared sidebar; each tile pins its own Session.
     - id: ui-turbo
       name: '@deepseek-ai/dsh-client-ui-turbo'
+
+    # Orchestration mode: two pinned Sessions beside the shared sidebar, with
+    # the direct parent/child handoff relation projected between them.
+    - id: ui-orchestration
+      name: '@deepseek-ai/dsh-client-ui-orchestration'
 
     # Center-column carousel: eager prev/next conversation panes that wrap
     # the keyed `main` slot and slide between sessions.

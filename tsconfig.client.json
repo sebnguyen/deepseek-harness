@@ -73,6 +73,7 @@
     { "path": "./packages/client/ui-layout" },
     { "path": "./packages/client/ui-layout-mode" },
     { "path": "./packages/client/ui-turbo" },
+    { "path": "./packages/client/ui-orchestration" },
     { "path": "./packages/client/ui-sidebar" },
     { "path": "./packages/client/ui-brand-official" },
     { "path": "./packages/client/ui-approval" },

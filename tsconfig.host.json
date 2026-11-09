@@ -133,7 +133,10 @@
     "scripts/*.client.spec.ts",
     "scripts/client-bundle-css.spec.ts",
     "packages/typert/generator/tests/fixtures/**",
-    "scripts/client-bundle-purity.spec.ts"
+    "scripts/client-bundle-purity.spec.ts",
+    // Coral packages are not host project references; their tests would pull
+    // unlisted source into this program.
+    "packages/coral/**"
   ],
   "references": [
     { "path": "./packages/claim/claim" },

@@ -1,0 +1,33 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "lib"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../coral"
+    },
+    {
+      "path": "../client-standard-registry"
+    },
+    {
+      "path": "../client-registry"
+    },
+    {
+      "path": "../host-registry"
+    },
+    {
+      "path": "../transport-registry"
+    },
+    {
+      "path": "../../../vendor/cordis"
+    },
+    {
+      "path": "../server-standard-registry"
+    }
+  ]
+}
