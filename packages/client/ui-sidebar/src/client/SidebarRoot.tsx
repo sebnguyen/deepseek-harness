@@ -335,51 +335,32 @@ export function SidebarRoot({
     >
       {/* body of the panel */}
       <div className={css.logoRow}>
+        {/* The brand is presentational in both folds: no click, focus, or
+            pointer affordance. New Session has its own control below. */}
         {wide ? (
-          <>
-            {/* Expanded, the brand doubles as a New Session shortcut; the
-                collapsed rail's logo is the expand toggle below instead. */}
-            <button
-              type="button"
-              className={clsx(css.brand, css.wide)}
-              aria-label={collapsed ? t('toggle.open') : t('session.new.label')}
-              onClick={() => {
-                // Collapsed, the mark is the sidebar's open control: hover already
-                // previews the panel, so a click pins it open.
-                if (collapsed) { toggleSidebar(); return }
-                startSession()
-              }}
-            >
-              <span className={css.brandIdentity} aria-hidden="true">
-                <span className={css.brandMark}>
-                  {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
-                </span>
-                <span className={css.brandName}>
-                  {renderSlot('sidebar.brand.name', {}, {
-                    fallback: buildVersion === undefined
-                      ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
-                      : (
-                        <span className={css.localBuildBrand}>
-                          <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
-                          <span className={css.buildVersion}>{buildVersion}</span>
-                        </span>
-                      ),
-                  })}
-                </span>
+          <div className={clsx(css.brand, css.wide)}>
+            <span className={css.brandIdentity} aria-hidden="true">
+              <span className={css.brandMark}>
+                {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
               </span>
-            </button>
-          </>
-        ) : (
-          <button
-            type="button"
-            className={css.iconButton}
-            aria-label={t('toggle.open')}
-            onClick={() => { toggleSidebar() }}
-          >
-            <span className={css.railMark} aria-hidden="true">
-              {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
+              <span className={css.brandName}>
+                {renderSlot('sidebar.brand.name', {}, {
+                  fallback: buildVersion === undefined
+                    ? <span className={css.fallbackBrandName}>{t('brand.localBuild')}</span>
+                    : (
+                      <span className={css.localBuildBrand}>
+                        <span className={css.localBuildTitle}>{t('brand.localBuild')}</span>
+                        <span className={css.buildVersion}>{buildVersion}</span>
+                      </span>
+                    ),
+                })}
+              </span>
             </span>
-          </button>
+          </div>
+        ) : (
+          <span className={css.railMark} aria-hidden="true">
+            {renderSlot('sidebar.brand.mark', { size: 24 }, { fallback: <PixelMark size={24} /> })}
+          </span>
         )}
       </div>
 

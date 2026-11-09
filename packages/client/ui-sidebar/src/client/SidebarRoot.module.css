@@ -7,27 +7,23 @@
 .contentHidden>*{opacity:0;pointer-events:none}
 .contentIn>*{animation:content-in 120ms var(--ds-ease-in-out)}
 @keyframes content-in{from{opacity: 0;}}
-.railIn .iconButton,.railIn .newSession,.railIn .panelList,.railIn .regionArea{animation:rail-in 150ms var(--ds-ease-in-out) backwards}
+.railIn .railMark,.railIn .newSession,.railIn .panelList,.railIn .regionArea{animation:rail-in 150ms var(--ds-ease-in-out) backwards}
 .railIn .footArea{animation:rail-fade-in 150ms var(--ds-ease-in-out) backwards}
 @keyframes rail-in{from{opacity: 0;transform: translateX(49px);}}
 @keyframes rail-fade-in{from{opacity: 0;}}
 .logoRow{box-sizing:border-box;flex:none;justify-content:flex-end;align-items:center;gap:8px;height:60px;margin-bottom:8px;padding:8px 0 8px 4px;display:flex;overflow:hidden}
 .collapsed .logoRow{justify-content:flex-start;height:36px;margin-bottom:12px;padding:0}
-.brand{min-width:0;color:inherit;cursor:pointer;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}
+.brand{min-width:0;color:inherit;background:0 0;border:none;flex:1;align-items:center;padding:0;display:inline-flex;overflow:hidden}
 .brandIdentity{align-items:center;gap:8px;min-width:0;height:24px;display:inline-flex}
 .brandMark{flex:none;justify-content:center;align-items:center;display:inline-flex}
 .brandName{letter-spacing:.04em;align-items:center;gap:6px;min-width:0;height:24px;font-size:18px;font-weight:600;line-height:24px;display:inline-flex}
 .fallbackBrandName{letter-spacing:0;white-space:nowrap;font-size:17px}
 .localBuildBrand{white-space:nowrap;flex-direction:column;flex:none;justify-content:center;align-items:flex-start;gap:1px;height:24px;display:inline-flex}
 .localBuildTitle{letter-spacing:0;font-size:12px;line-height:13px}
-.iconButton{cursor:pointer;width:28px;height:28px;color:var(--dsw-alias-label-secondary);background:0 0;border:none;flex:none;justify-content:center;align-items:center;padding:0;display:inline-flex}
-.iconButton:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.collapsed .iconButton{width:36px;height:36px}
 .collapsed .toggle .panelIcon{display:none}
 .collapsed .toggle:hover .panelIcon{display:inline}
 .collapsed .toggle:hover .railMark{display:none}
 .railMark{justify-content:center;align-items:center;display:inline-flex}
-.collapsed .iconButton{color:var(--dsw-alias-label-primary)}
 .buildVersion{height:10px;color:var(--dsw-alias-label-primary-inverted);background:var(--dsw-alias-label-primary);font-family:var(--ds-font-family-code);white-space:nowrap;flex:none;align-items:center;padding:0 3px;font-size:6px;font-weight:500;line-height:10px;display:inline-flex}
 .newSession{box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-button-elevated-fill);height:38px;color:var(--dsw-alias-label-primary);cursor:pointer;flex:none;justify-content:center;align-items:center;gap:6px;margin:0 2px 8px;padding:8px 16px;font-size:14px;font-weight:500;line-height:22px;display:flex;overflow:hidden}
 .newSession:hover{background:var(--dsw-alias-button-floating-hover)}
@@ -52,11 +48,10 @@
 .footerActions{flex:none;margin-left:auto;display:flex}
 .collapsed .footArea{flex-direction:column;align-items:center;gap:6px}
 .collapsed .footerActions{margin-left:0}
-@media (prefers-reduced-motion:reduce){.wide,.fading>*,.contentIn>*,.railIn .iconButton,.railIn .newSession,.railIn .panelList,.railIn .footArea,.railIn .regionArea{transition:none;animation:none}
+@media (prefers-reduced-motion:reduce){.wide,.fading>*,.contentIn>*,.railIn .railMark,.railIn .newSession,.railIn .panelList,.railIn .footArea,.railIn .regionArea{transition:none;animation:none}
 }
 .root[data-collapsed] > :not(.logoRow){visibility:hidden}
 .root[data-collapsed] .brandName{display:none}
 .root[data-collapsed] .logoRow{width:100%;height:60px;padding:8px 0 8px 16px;margin-bottom:8px;justify-content:flex-start}
-.root[data-collapsed] .iconButton{width:24px;height:24px;justify-content:flex-start}
 .root[data-collapsed] .regionArea{display:none}
 .root[data-collapsed] .toggle{display:none}

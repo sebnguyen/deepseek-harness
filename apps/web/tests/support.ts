@@ -173,6 +173,25 @@ export async function writeComposerDraft(
   else await page.keyboard.type(text)
 }
 
+/**
+ * Reveal a collapsed sidebar through its hover preview. The rail mark is
+ * presentational, so a narrow frame has no pinned-open control.
+ * @param page - page containing the sidebar shell.
+ */
+export async function revealSidebar(page: Page): Promise<void> {
+  const sidebar = page.locator('[data-dsh-sidebar]')
+  if (await sidebar.getAttribute('data-collapsed') === null) return
+  await sidebar.hover()
+  // The panel slides its width; wait for the rendered edge to reach the
+  // inline target before callers measure the column.
+  await sidebar.evaluate(async (element) => {
+    const target = Number.parseFloat((element as HTMLElement).style.width)
+    while (Math.abs(element.getBoundingClientRect().width - target) > 0.5) {
+      await new Promise<void>((resolve) => { requestAnimationFrame(() => { resolve() }) })
+    }
+  })
+}
+
 /** Failure evidence goes to the gitignored .artifacts/ (repo convention). */
 export async function saveFailureShot(page: Page, name: string): Promise<void> {
   const dir = fileURLToPath(new URL('../../../.artifacts', import.meta.url))

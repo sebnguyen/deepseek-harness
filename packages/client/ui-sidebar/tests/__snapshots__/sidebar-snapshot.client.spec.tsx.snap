@@ -6,65 +6,33 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
   style="display: contents;"
 >
   <div
-    class="root fading quietBars"
+    class="root collapsed railIn quietBars"
     data-collapsed="true"
     data-dsh-sidebar=""
+    data-sidebar-collapsed="true"
     style="width: 56px;"
   >
     <div
       class="logoRow"
     >
-      <button
-        aria-label="Open sidebar"
-        class="brand wide"
-        type="button"
+      <span
+        aria-hidden="true"
+        class="railMark"
       >
-        <span
-          aria-hidden="true"
-          class="brandIdentity"
+        <div
+          data-slot="sidebar.brand.mark"
+          style="display: contents;"
         >
-          <span
-            class="brandMark"
-          >
-            <div
-              data-slot="sidebar.brand.mark"
-              style="display: contents;"
-            >
-              <svg
-                aria-hidden="true"
-                data-content="822a4641"
-                fill="currentColor"
-                height="24"
-                viewBox="0 0 16 16"
-                width="24"
-              />
-            </div>
-          </span>
-          <span
-            class="brandName"
-          >
-            <div
-              data-slot="sidebar.brand.name"
-              style="display: contents;"
-            >
-              <span
-                class="localBuildBrand"
-              >
-                <span
-                  class="localBuildTitle"
-                >
-                  DigitalOcean Harness
-                </span>
-                <span
-                  class="buildVersion"
-                >
-                  1.2.3-rc.4-abc1234-dirty
-                </span>
-              </span>
-            </div>
-          </span>
-        </span>
-      </button>
+          <svg
+            aria-hidden="true"
+            data-content="822a4641"
+            fill="currentColor"
+            height="24"
+            viewBox="0 0 16 16"
+            width="24"
+          />
+        </div>
+      </span>
     </div>
     <button
       aria-label="New session"
@@ -74,20 +42,15 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
       <svg
         data-content="c0ce4dcc"
         fill="none"
-        height="14"
+        height="18"
         viewBox="0 0 16 16"
-        width="14"
+        width="18"
         xmlns="http://www.w3.org/2000/svg"
       />
-      <span
-        class="newSessionLabel wide"
-      >
-        New Session
-      </span>
     </button>
     <div
       class="regionBox"
-      style="width: 276px;"
+      style=""
     >
       <div
         class="regionArea"
@@ -127,15 +90,15 @@ exports[`sidebar shell snapshots > renders the collapsed rail after the crossfad
           <button
             aria-label="Swap editor and chat columns"
             aria-pressed="true"
-            class="root"
+            class="root rail"
             type="button"
           >
             <svg
               data-content="76e5b0a4"
               fill="none"
-              height="13"
+              height="14"
               viewBox="0 0 16 16"
-              width="13"
+              width="14"
               xmlns="http://www.w3.org/2000/svg"
             />
           </button>
@@ -159,10 +122,8 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
     <div
       class="logoRow"
     >
-      <button
-        aria-label="New session"
+      <div
         class="brand wide"
-        type="button"
       >
         <span
           aria-hidden="true"
@@ -209,7 +170,7 @@ exports[`sidebar shell snapshots > renders the expanded column (wordmark, capsul
             </div>
           </span>
         </span>
-      </button>
+      </div>
     </div>
     <button
       aria-label="New session"
@@ -304,10 +265,8 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
     <div
       class="logoRow"
     >
-      <button
-        aria-label="新建会话"
+      <div
         class="brand wide"
-        type="button"
       >
         <span
           aria-hidden="true"
@@ -354,7 +313,7 @@ exports[`sidebar shell snapshots > renders the expanded column in the default lo
             </div>
           </span>
         </span>
-      </button>
+      </div>
     </div>
     <button
       aria-label="新建会话"

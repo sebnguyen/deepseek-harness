@@ -4,7 +4,6 @@
 export const zh = {
   'session.new': '新会话',
   'session.new.label': '新建会话',
-  'toggle.open': '打开侧边栏',
   'toggle.collapse': '收起侧边栏',
   'layout.swap': '交换编辑器与对话栏位置',
   'panels.label': '全局面板',
@@ -17,7 +16,6 @@ export type SidebarKey = keyof typeof zh
 export const en = {
   'session.new': 'New Session',
   'session.new.label': 'New session',
-  'toggle.open': 'Open sidebar',
   'toggle.collapse': 'Collapse sidebar',
   'layout.swap': 'Swap editor and chat columns',
   'panels.label': 'Global panels',

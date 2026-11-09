@@ -107,15 +107,26 @@ function slideStub(playState: AnimationPlayState = 'running'): SlideStub {
 }
 
 describe('SidebarRoot shell', () => {
-  it('routes New Session (capsule + wordmark)', () => {
+  it('routes New Session through the capsule only', () => {
     const b = mountShell()
     expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
     expect(screen.getByTestId('custom-brand-name')).toBeTruthy()
-    // Expanded, both the wordmark and the capsule start a session.
+    // The brand is presentational; the capsule is the one New Session action.
     const starters = screen.getAllByRole('button', { name: 'New session' })
-    expect(starters).toHaveLength(2)
-    for (const button of starters) fireEvent.click(button)
-    expect(b.startSession).toHaveBeenCalledTimes(2)
+    expect(starters).toHaveLength(1)
+    expect(screen.getByTestId('custom-brand-mark').closest('button')).toBeNull()
+    fireEvent.click(screen.getByTestId('custom-brand-name'))
+    fireEvent.click(starters[0]!)
+    expect(b.startSession).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders the rail mark without an expand control', () => {
+    const b = mountShell({ collapsed: true, width: 56 })
+    expect(screen.getByTestId('custom-brand-mark')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Open sidebar' })).toBeNull()
+    fireEvent.click(screen.getByTestId('custom-brand-mark'))
+    expect(b.toggleSidebar).not.toHaveBeenCalled()
+    expect(b.startSession).not.toHaveBeenCalled()
   })
 
   it('renders generic brand fallbacks when no package fills the slots', () => {
@@ -395,7 +406,9 @@ describe('SidebarRoot width slide', () => {
     // The close canceled the enter, and the settled rail drops the hold.
     expect(hasClass(root, 'contentIn')).toBe(false)
     expect(hasClass(root, 'contentHidden')).toBe(false)
-    expect(screen.getByRole('button', { name: 'Open sidebar' })).toBeTruthy()
+    expect(root.hasAttribute('data-collapsed')).toBe(true)
+    // The rail's mark is presentational; there is no expand button.
+    expect(screen.queryByRole('button', { name: 'Open sidebar' })).toBeNull()
   })
 
   it('shows the expanded content immediately without the width API', () => {

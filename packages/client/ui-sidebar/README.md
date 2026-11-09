@@ -7,7 +7,7 @@ kind: "package-reference"
 
 ## Summary
 
-The dsh web client sidebar lets users recognize the active build, start a new session, collapse navigation to a 56px rail, browse Workspaces and Sessions, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session uses an explicitly selected Workspace, then the current Session's Workspace, then the most recently active Workspace; if none exists, it opens a blank New Session page. Deployments can replace the brand mark or name while retaining the navigation controls and rail geometry.
+The dsh web client sidebar lets users recognize the active build, start a new session, collapse navigation to a 56px rail, browse Workspaces and Sessions, and open Settings. It preserves a bottom-pinned Settings entry and hides idle scrollbars without moving browser rows. New Session uses an explicitly selected Workspace, then the current Session's Workspace, then the most recently active Workspace; if none exists, it opens a blank New Session page. The brand row is presentational: it carries no click, focus, or pointer affordance, so it neither starts a session nor expands the rail. Deployments can replace the brand mark or name while retaining the navigation controls and rail geometry.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ The sidebar is the navigation shell: users see the brand, start new sessions, co
 
 ### Brand and New Session
 
-The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as independent single slots; the collapsed rail renders the same mark slot. Without occupants, the shell uses the DigitalOcean mark and a localized product label. A complete build stacks a code badge below the label as `version[-commit][-dirty]`, using `DSH_CLIENT_VERSION`, the optional 7-character `DSH_CLIENT_COMMIT_HASH`, and `DSH_CLIENT_GIT_DIRTY=true`; missing version metadata omits the badge. New Session targets the explicit Workspace used by a scoped action, otherwise the current Session's Workspace, otherwise the most recently active Workspace; when none exists it clears into the blank New Session page.
+The expanded brand row renders `sidebar.brand.mark` and `sidebar.brand.name` as independent single slots; the collapsed rail renders the same mark slot. Both renders are presentational; New Session is the adjacent capsule. Without occupants, the shell uses the DigitalOcean mark and a localized product label. A complete build stacks a code badge below the label as `version[-commit][-dirty]`, using `DSH_CLIENT_VERSION`, the optional 7-character `DSH_CLIENT_COMMIT_HASH`, and `DSH_CLIENT_GIT_DIRTY=true`; missing version metadata omits the badge. New Session targets the explicit Workspace used by a scoped action, otherwise the current Session's Workspace, otherwise the most recently active Workspace; when none exists it clears into the blank New Session page.
 
 ### Global panel entries
 
@@ -35,7 +35,7 @@ Plugins add an icon component to the root-scoped `sidebar.panellist` list with a
 
 ### Collapse behavior
 
-During a live collapse, the expanded content fades out, the upper controls share one fade and leftward translation into the 56px rail, and the panel slides its own width down to the rail on the theme's 300ms ease-in-out curve. Expansion runs the same slide in reverse but holds the wide content concealed until the width lands, then enters it on one quick 120ms ease; a width retarget while it is still held (pinning a hover preview) restarts the hold, and a close cancels it. A page that starts collapsed or expanded renders its state statically, and reduced-motion mode skips the slide and the fades. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation. While collapsed, the rail opens a hover preview that closes only once the pointer and focus have both left the column, so neither a session click (which moves focus to the composer) nor a session drag dismisses the panel under the pointer.
+During a live collapse, the expanded content fades out, the upper controls share one fade and leftward translation into the 56px rail, and the panel slides its own width down to the rail on the theme's 300ms ease-in-out curve. Expansion runs the same slide in reverse but holds the wide content concealed until the width lands, then enters it on one quick 120ms ease; a width retarget while it is still held (pinning a hover preview) restarts the hold, and a close cancels it. A page that starts collapsed or expanded renders its state statically, and reduced-motion mode skips the slide and the fades. The bottom-pinned `sidebar.settings` control shares the fade timing but has no horizontal translation. While collapsed, the rail opens a hover preview that closes only once the pointer and focus have both left the column, so neither a session click (which moves focus to the composer) nor a session drag dismisses the panel under the pointer. The mark in the rail is presentational, so this preview is the only way to reveal the panel from the rail.
 
 ### Scrollbars
 

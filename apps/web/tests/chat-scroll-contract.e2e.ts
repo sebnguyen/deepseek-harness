@@ -21,7 +21,7 @@ import {
   watchConsole,
   type WebScaffold,
 } from './scaffold.ts'
-import { expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
+import { expandOwningTurnProcess, newEnglishPage, revealSidebar, saveFailureShot } from './support.ts'
 
 const HISTORY_SESSION_ID = 'chat-scroll-history-e2e'
 const TOOL_SESSION_ID = 'chat-scroll-tool-e2e'
@@ -269,6 +269,9 @@ async function loadedFlowRows(page: Page): Promise<number> {
 }
 
 async function openSeed(page: Page, fixture: ChatScrollFixture, tailMarker?: string): Promise<void> {
+  // A narrow frame collapses the sidebar; reveal its hover preview before
+  // reaching into the browsing region.
+  await revealSidebar(page)
   // Search collapsed into a header action; expand it before filling.
   const searchButton = page.getByRole('button', { name: 'Search sessions' })
   if (await searchButton.getAttribute('aria-expanded') !== 'true') await searchButton.click()
@@ -776,11 +779,12 @@ describe('web e2e: long Chat scroll contract', () => {
       await world.page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
       await world.page.getByLabel('Trajectory timeline').waitFor({ timeout: 30_000 })
       await world.page.setViewportSize({ width: 700, height: 900 })
-      // The narrow breakpoint auto-collapses the sidebar. Re-open it because
-      // this scenario switches sessions while pinning the narrow Chat scroll owner.
-      await world.page.getByRole('button', { name: 'Open sidebar', exact: true }).click()
+      // The narrow breakpoint auto-collapses the sidebar. Reveal the rail's
+      // hover preview so the measured column matches the session-switch state
+      // that follows (the preview closes when the pointer leaves the column).
       await world.page.getByRole('tab', { name: 'Chat', exact: true }).click()
       await nextPaint(world.page)
+      await revealSidebar(world.page)
       await expectSameFlowTop(world.page, sessionAnchor, RESPONSIVE_REFLOW_TOLERANCE)
       const narrowSessionAnchor = await visibleFlowAnchor(world.page)
 

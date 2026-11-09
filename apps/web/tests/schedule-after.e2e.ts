@@ -32,6 +32,7 @@ import {
   REPO_ROOT,
   connectFreshWorkspace,
   conversationContextKey,
+  revealSidebar,
   saveFailureShot,
 } from './support.ts'
 
@@ -232,6 +233,7 @@ async function liveAgent(scaffold: WebScaffold, sessionId: SessionId): Promise<A
 
 /** Expand the first Workspace row and open the named Session. */
 async function openSession(page: Page, title: string): Promise<void> {
+  await revealSidebar(page)
   const workspace = page.locator('[role="treeitem"]').first()
   await workspace.waitFor({ timeout: 15_000 })
   const deadline = Date.now() + 5_000
@@ -633,11 +635,9 @@ describe('web e2e: active Schedule catalog', () => {
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
     await page.evaluate(() => { document.body.removeAttribute('data-ds-dark-theme') })
-    const openSidebar = page.getByRole('button', { name: 'Open sidebar' })
-    if (await openSidebar.isVisible()) {
-      await openSidebar.click()
-      await page.getByRole('button', { name: 'Collapse sidebar' }).waitFor({ timeout: 10_000 })
-    }
+    // A narrow frame collapses the sidebar; the rail mark is presentational,
+    // so reveal the panel through its hover preview before reading the tree.
+    await revealSidebar(page)
     const workspaceRow = page.locator('[role="treeitem"]').first()
     await workspaceRow.waitFor({ timeout: 15_000 })
     const expansionDeadline = Date.now() + 5_000
@@ -680,6 +680,7 @@ describe('web e2e: active Schedule catalog', () => {
     const catalogRow = page.getByRole('treeitem', { name: new RegExp(CATALOG_TITLE) })
     expect(await catalogRow.getByRole('img', { name: ACTIVE_SCHEDULE_LABEL }).count()).toBe(1)
 
+    await revealSidebar(page)
     await page.getByRole('button', { name: 'Search sessions' }).click()
     const search = page.getByPlaceholder('Search sessions', { exact: false })
     await search.fill(CATALOG_TITLE)
@@ -694,12 +695,15 @@ describe('web e2e: active Schedule catalog', () => {
 
     await page.getByRole('button', { name: 'View options' }).click()
     await page.getByRole('menuitem', { name: 'In one list' }).click()
+    // The menu is portalled outside the column, so the preview closed under it.
+    await revealSidebar(page)
     const flatRow = page.getByRole('treeitem', { name: new RegExp(CATALOG_TITLE) })
     await flatRow.waitFor({ timeout: 15_000 })
     expect(await flatRow.getByRole('img', { name: ACTIVE_SCHEDULE_LABEL }).count()).toBe(1)
 
     await page.getByRole('button', { name: 'View options' }).click()
     await page.getByRole('menuitem', { name: 'WorkSpace' }).click()
+    await revealSidebar(page)
     await catalogRow.waitFor({ timeout: 15_000 })
     expect(await catalogRow.getByRole('img', { name: ACTIVE_SCHEDULE_LABEL }).count()).toBe(1)
 

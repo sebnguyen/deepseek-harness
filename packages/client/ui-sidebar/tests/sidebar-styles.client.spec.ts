@@ -43,7 +43,7 @@ describe('SidebarRoot.module.css', () => {
   it('moves the four upper controls while the settings seat only fades', () => {
     const animation = 'rail-in 150ms var(--ds-ease-in-out) backwards'
     for (const selector of [
-      '.railIn .iconButton',
+      '.railIn .railMark',
       '.railIn .newSession',
       '.railIn .regionArea',
     ]) {
