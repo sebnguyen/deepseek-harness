@@ -170,6 +170,8 @@ export function PceRow({
       data-pce={kind}
       data-variant={kind}
       data-state={state}
+      data-pce-marks={marks ? undefined : 'false'}
+      data-pce-description={summaryText === null ? undefined : ''}
     >
       {/* The state mark is the visible signal when marks render; the localized
           state rides a visually-hidden span on the article so the toggle's
@@ -180,7 +182,14 @@ export function PceRow({
         : <span className="pce-state-text">{stateLabel}</span>}
       {head}
       {expanded
-        ? <div className="pce-body" key="open" data-pce-expanded={showToggle ? '' : undefined}>{content}</div>
+        ? (
+          <div className="pce-body" key="open" data-pce-expanded={showToggle ? '' : undefined}>
+            {/* The gutter mirrors the head's leading cells so the body starts
+                on the description column instead of the article edge. */}
+            <span className="pce-body-gutter" aria-hidden="true" />
+            <div className="pce-body-content">{content}</div>
+          </div>
+        )
         : keepMounted && expandable
           ? (
             <div
@@ -188,7 +197,8 @@ export function PceRow({
               key="hidden"
               ref={(element) => { element?.setAttribute('hidden', 'until-found') }}
             >
-              {typeof body === 'function' ? null : body}
+              <span className="pce-body-gutter" aria-hidden="true" />
+              <div className="pce-body-content">{typeof body === 'function' ? null : body}</div>
             </div>
           )
           : null}

@@ -39,3 +39,26 @@ describe('PceRow.css expanded body', () => {
     expect(declarations('.pce-body[hidden]')).toEqual(expect.arrayContaining(['margin: 0', 'padding: 0']))
   })
 })
+
+describe('PceRow.css expanded body alignment', () => {
+  it('starts the body on the description column through a flex gutter', () => {
+    expect(declarations('.pce-body')).toEqual(expect.arrayContaining([
+      'display: flex',
+      'align-items: flex-start',
+    ]))
+    expect(declarations('.pce-body-gutter')).toEqual(expect.arrayContaining([
+      'flex: 0 0 auto',
+      'width: calc(16px + 8px)',
+    ]))
+    expect(declarations('.pce[data-pce-description] .pce-body-gutter')).toEqual(expect.arrayContaining([
+      'width: calc(16px + 16px + 9ch)',
+    ]))
+  })
+
+  it('drops the mark column when the row renders no marks', () => {
+    expect(declarations(".pce[data-pce-marks='false'] .pce-body-gutter")).toEqual(expect.arrayContaining(['width: 0']))
+    expect(declarations(".pce[data-pce-marks='false'][data-pce-description] .pce-body-gutter")).toEqual(expect.arrayContaining([
+      'width: calc(9ch + 8px)',
+    ]))
+  })
+})

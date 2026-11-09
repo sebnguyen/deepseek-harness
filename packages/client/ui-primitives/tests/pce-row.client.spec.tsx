@@ -25,6 +25,35 @@ describe('PceRow pixel marks', () => {
   })
 })
 
+describe('PceRow expanded-body gutter', () => {
+  it('wraps the body so the description column owns the indent', () => {
+    const { container } = render(
+      <PceRow kind="bash" glyph="bash" title="Bash" summary="List files" body={body} defaultOpen />,
+    )
+    const article = container.querySelector('.pce')
+    expect(article?.hasAttribute('data-pce-description')).toBe(true)
+    expect(article?.hasAttribute('data-pce-marks')).toBe(false)
+    const bodyElement = container.querySelector('.pce-body')
+    expect(bodyElement?.firstElementChild?.classList.contains('pce-body-gutter')).toBe(true)
+    expect(bodyElement?.querySelector('.pce-body-content')?.textContent).toBe('expanded body')
+  })
+
+  it('marks a summary-less row for the mark-only gutter', () => {
+    const { container } = render(
+      <PceRow kind="bash" glyph="bash" title="Bash" body={body} defaultOpen />,
+    )
+    expect(container.querySelector('.pce')?.hasAttribute('data-pce-description')).toBe(false)
+  })
+
+  it('marks a marks-off row so the gutter drops the glyph cell', () => {
+    const { container } = render(
+      <PceRow kind="bash" glyph="bash" title="Bash" summary="List files" marks={false} body={body} defaultOpen />,
+    )
+    expect(container.querySelector('.pce')?.getAttribute('data-pce-marks')).toBe('false')
+    expect(container.querySelector('.pce-body .pce-body-gutter')).not.toBeNull()
+  })
+})
+
 describe('PceRow expanded-body marker', () => {
   it('marks a toggled-open body so only it takes the inset', () => {
     const { container } = render(<PceRow kind="bash" glyph="bash" title="Bash" body={body} defaultOpen />)

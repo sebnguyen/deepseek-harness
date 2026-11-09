@@ -284,8 +284,42 @@
 .pce-body {
   min-width: 0;
   flex: 0 1 auto;
+  display: flex;
+  align-items: flex-start;
   padding: 0;
   overflow: visible;
+}
+
+/* The body starts on the head's description column: an empty gutter occupies
+   the leading mark and fixed identity cells, so expanded content lines up with
+   the summary instead of the article edge. A row without a summary aligns the
+   body after the mark, and a marks-off row drops the mark cell too. The
+   gutter's `ch` unit is measured against the identity's own code face, so the
+   Settings font-size axis moves both columns together. */
+.pce-body-gutter {
+  flex: 0 0 auto;
+  width: calc(16px + 8px);
+  font-family: var(--ds-font-family-code);
+  font-size: calc(11px + var(--dsh-content-font-delta-secondary, 0px));
+  font-weight: 600;
+  line-height: 0;
+}
+
+.pce[data-pce-description] .pce-body-gutter {
+  width: calc(16px + 16px + 9ch);
+}
+
+.pce[data-pce-marks='false'] .pce-body-gutter {
+  width: 0;
+}
+
+.pce[data-pce-marks='false'][data-pce-description] .pce-body-gutter {
+  width: calc(9ch + 8px);
+}
+
+.pce-body-content {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* The inset belongs to the toggled-open body only. The keepMounted body stays
@@ -311,7 +345,7 @@
    margins (CodeBlock, ReadBlock, TerminalBlock, ToolMaster, image bodies)
    must not add a tool-specific offset.
    The sibling rules below still own the 6px between stacked code blocks. */
-.pce .pce-body > * {
+.pce .pce-body-content > * {
   margin-top: 0;
   margin-bottom: 0;
 }
