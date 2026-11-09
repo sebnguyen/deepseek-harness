@@ -39,6 +39,15 @@ import { SessionAssistantStreamAccumulator } from './assistant-stream.ts'
  * pages instead of hiding behind the message-only count. */
 const DEFAULT_MAX_EVENTS = 200
 
+/** Serialized-byte budget for one history page. The transport writes a whole
+ * page into one WebSocket text frame, and `JSON.stringify` throws
+ * `RangeError: Invalid string length` past V8's ~512 MiB string ceiling. An
+ * event count cannot bound that: tool results carry whole files, so a
+ * 200-event page of a large Session measured 546 MB. The budget stays far
+ * below the ceiling but above one ordinary large tool result, so a page is not
+ * starved to the newest few trivial records. */
+const DEFAULT_MAX_PAGE_BYTES = 32 * 1024 * 1024
+
 /** Implements cold-safe history operations delegated by the Session Controller. */
 export class SessionHistoryController {
   private readonly closeFollowers = new Set<() => void>()
@@ -382,12 +391,15 @@ function rejectNotFound(address: SessionAddress): never {
 }
 
 /**
- * Cut one tail page out of a log window on an EVENT budget: the page is the
- * last `maxEvents` events before `beforeSeq`/`throughSeq`, a plain positional
- * cut on the append-only log. Citations (sourceEventSeqs) never widen the
- * cut: the chat window mounts events in seq order and needs no citation
- * envelope, and transitive descent through compaction chains unrolled nearly
- * the whole log into every page (history-journal paging).
+ * Cut one tail page out of a log window on an EVENT and BYTE budget: the page
+ * is the newest events before `beforeSeq`/`throughSeq` that fit both
+ * `maxEvents` and {@link DEFAULT_MAX_PAGE_BYTES}. The walk starts at the
+ * newest event, so a page always carries at least one record even when that
+ * record alone exceeds the byte budget; the transport still has to encode it.
+ * Citations (sourceEventSeqs) never widen the cut: the chat window mounts
+ * events in seq order and needs no citation envelope, and transitive descent
+ * through compaction chains unrolled nearly the whole log into every page
+ * (history-journal paging).
  */
 function paginate(
   events: readonly SessionEvent[],
@@ -396,8 +408,22 @@ function paginate(
   throughSeq: SessionSeqCursor = events.at(-1)?.seq ?? -1,
 ): { readonly events: SessionEvent[]; readonly hasMore: boolean } {
   const end = SessionLogOffset(Math.min(throughSeq + 1, beforeSeq ?? throughSeq + 1))
-  const cut = SessionLogOffset(Math.max(0, end - maxEvents))
-  return { events: events.slice(cut, end), hasMore: cut > 0 }
+  const floor = Math.max(0, end - maxEvents)
+  let start: number = end
+  let bytes = 0
+  while (start > floor) {
+    const candidate = events[start - 1] as SessionEvent
+    const size = serializedEventBytes(candidate)
+    if (start < end && bytes + size > DEFAULT_MAX_PAGE_BYTES) break
+    bytes += size
+    start -= 1
+  }
+  return { events: events.slice(start, end), hasMore: start > 0 }
+}
+
+/** Serialized size of one wire event; the page budget measures the JSON text the transport writes. */
+function serializedEventBytes(event: SessionEvent): number {
+  return JSON.stringify(event).length
 }
 
 /** Translate current logical Session metadata to the browser wire. */

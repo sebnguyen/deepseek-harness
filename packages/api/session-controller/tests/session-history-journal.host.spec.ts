@@ -791,6 +791,34 @@ describe('Session history raw journal', () => {
     expect(response.value.hasMore).toBe(true)
   })
 
+  it('cuts pages on a serialized-byte budget so one frame cannot pass the string ceiling', async () => {
+    const { ctx } = await harness()
+    const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })
+    const session = ctx.sessions.create(undefined, { meta: { cwd: '/workspace' } })
+    session.append('turn/start', { turn: 1 })
+    appendUserText(session, 'small prompt')
+    // Each message serializes to about 12 MB (content plus its compact stream):
+    // two fit the 32 MiB page budget and the third would cross it, so the event
+    // budget of 200 never binds.
+    const big1 = appendAssistantText(session, 'a'.repeat(6_000_000), 1)
+    const big2 = appendAssistantText(session, 'b'.repeat(6_000_000), 2)
+    const big3 = appendAssistantText(session, 'c'.repeat(6_000_000), 3)
+
+    const response = await remote.page({
+      address: { kind: 'session', sessionId: session.id },
+      throughSeq: session.seq - 1,
+      maxEvents: 200,
+    })
+    if (!response.ok) throw new Error('unreachable')
+    const page = pageEvents(response.value)
+    expect(page.map(event => event.seq)).toEqual([big2.seq, big3.seq])
+    expect(page.length).toBeLessThan(200)
+    expect(page.some(event => event.seq === big1.seq)).toBe(false)
+    expect(response.value.hasMore).toBe(true)
+    const pageBytes = page.reduce((sum, event) => sum + JSON.stringify(event).length, 0)
+    expect(pageBytes).toBeLessThanOrEqual(32 * 1024 * 1024)
+  })
+
   it('pages past stacked compaction citations as plain positional cuts', async () => {
     const { ctx } = await harness()
     const remote = createSessionTestRemote(ctx, { defaultModelSelection: () => ({ provider: 'p', model: 'm' }), cwd: '/tmp' })

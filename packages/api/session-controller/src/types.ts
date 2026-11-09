@@ -488,7 +488,7 @@ export interface SessionWireEvent {
   readonly surfaceOp?: JsonValue
 }
 
-/** One event-banded backwards-history request. */
+/** One backwards-history request; a page is cut on both an event count and a serialized-byte budget. */
 export interface SessionPageRequest {
   readonly address: SessionAddress
   /** Inclusive log cut obtained from the corresponding follow opening frame. */
