@@ -12,6 +12,7 @@ import { parseArgs } from 'node:util'
 import { publint, type Message, type PackFile } from 'publint'
 import { formatMessage } from 'publint/utils'
 import ts from 'typescript'
+import { isSourceOnlyPackageDirectory } from './source-only-package-policy.ts'
 
 const CONCURRENCY_ENV = 'DSH_PUBLINT_CONCURRENCY'
 const repositoryRoot = resolve(import.meta.dirname, '..')
@@ -52,6 +53,7 @@ type PublintResult =
 function workspacePackages(): PackageTarget[] {
   return globSync('packages/*/*/package.json', { cwd: packagesRoot })
     .sort()
+    .filter(manifestPath => !isSourceOnlyPackageDirectory(dirname(manifestPath)))
     .map((manifestPath) => {
       const absoluteManifestPath = resolve(packagesRoot, manifestPath)
       const manifest = JSON.parse(readFileSync(absoluteManifestPath, 'utf8')) as PackageManifest

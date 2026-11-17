@@ -1,5 +1,6 @@
 import { defineConfig } from 'tsdown'
 import { typertPlugin } from './packages/typert/generator/lib/types/tsdown-plugin.js'
+import { SOURCE_ONLY_PACKAGE_DIRECTORY_ROOTS } from './scripts/source-only-package-policy.ts'
 
 type BuildFace = 'host' | 'client' | 'vscode' | undefined
 
@@ -38,13 +39,12 @@ export default defineConfig(({ env }) => {
         ? ['vendor/*', 'packages/*/*', 'apps/cli']
         : ['vendor/*', 'packages/*/*', 'apps/cli', 'apps/desktop', 'apps/desktop-host'],
       // Object form replaces tsdown's default ignore list, so those patterns stay here.
-      // packages/coral is outside the host project graph.
       exclude: [
         '**/node_modules/**',
         '**/dist/**',
         '**/test?(s)/**',
         '**/t?(e)mp/**',
-        'packages/coral/**',
+        ...SOURCE_ONLY_PACKAGE_DIRECTORY_ROOTS.map(directory => `${directory}/**`),
       ],
     },
     entry: client ? '' : ['lib/types/{index,invariant,startup}.js'],

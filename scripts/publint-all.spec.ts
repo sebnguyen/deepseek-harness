@@ -133,6 +133,23 @@ describe('publint package runner', () => {
     expect(result.stdout).toContain('All good!')
   })
 
+  it('skips source-only package roots', async ({ signal }) => {
+    const root = fixture()
+    const sourceOnlyDirectory = join(root, 'packages/coral/unfinished')
+    mkdirSync(sourceOnlyDirectory, { recursive: true })
+    writeFileSync(join(sourceOnlyDirectory, 'package.json'), `${JSON.stringify({
+      name: '@deepseek-ai/dsh-coral-unfinished',
+      version: '0.0.1',
+      private: true,
+      exports: { '.': { default: './lib/missing.js' } },
+    }, null, 2)}\n`)
+
+    const result = await run(root, signal)
+    expect(result.exitCode, result.stderr).toBe(0)
+    expect(result.stdout).toContain('linting 1 package(s)')
+    expect(result.stdout).not.toContain('coral/unfinished')
+  })
+
   it('rejects an export that exists in the workspace but is not published', async ({ signal }) => {
     const result = await run(fixture({ exportPath: './unpublished.js' }), signal)
     expect(result.exitCode).toBe(1)

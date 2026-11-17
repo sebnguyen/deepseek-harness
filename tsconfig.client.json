@@ -38,7 +38,9 @@
   // belongs to the host aggregate, which excludes this program's `*.client.*`
   // in turn. `exclude` wins over `include`, so the test glob above stays broad.
   "exclude": [
-    "packages/client/*/tests/**/*.host.spec.ts"
+    "packages/client/*/tests/**/*.host.spec.ts",
+    // Source-only package: keep its tests and source out of the root build.
+    "packages/client/ui-orchestration/**"
   ],
   "references": [
     // Producer-to-UI spill tests execute the real nested dispatch worker.
@@ -73,7 +75,6 @@
     { "path": "./packages/client/ui-layout" },
     { "path": "./packages/client/ui-layout-mode" },
     { "path": "./packages/client/ui-turbo" },
-    { "path": "./packages/client/ui-orchestration" },
     { "path": "./packages/client/ui-sidebar" },
     { "path": "./packages/client/ui-brand-official" },
     { "path": "./packages/client/ui-approval" },

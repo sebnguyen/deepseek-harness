@@ -652,11 +652,6 @@
     - id: ui-turbo
       name: '@deepseek-ai/dsh-client-ui-turbo'
 
-    # Orchestration mode: two pinned Sessions beside the shared sidebar, with
-    # the direct parent/child handoff relation projected between them.
-    - id: ui-orchestration
-      name: '@deepseek-ai/dsh-client-ui-orchestration'
-
     # Center-column carousel: eager prev/next conversation panes that wrap
     # the keyed `main` slot and slide between sessions.
 

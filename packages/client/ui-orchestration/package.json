@@ -2,9 +2,7 @@
   "name": "@deepseek-ai/dsh-client-ui-orchestration",
   "description": "Orchestration layout mode: two pinned session projections with a direct handoff rail.",
   "version": "0.1.0",
-  "publishConfig": {
-    "access": "public"
-  },
+  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",

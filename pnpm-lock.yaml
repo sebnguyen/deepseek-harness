@@ -2096,9 +2096,6 @@ importers:
       '@deepseek-ai/dsh-client-ui-open-in-app':
         specifier: workspace:^
         version: link:../../client/ui-open-in-app
-      '@deepseek-ai/dsh-client-ui-orchestration':
-        specifier: workspace:^
-        version: link:../../client/ui-orchestration
       '@deepseek-ai/dsh-client-ui-permission-presets':
         specifier: workspace:^
         version: link:../../client/ui-permission-presets

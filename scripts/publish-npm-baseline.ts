@@ -20,6 +20,10 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { PUBLIC_EXPERIMENTAL_PACKAGE_DIRECTORIES } from './experimental-package-policy.ts'
 import { validateTarballPayload } from './publication-payload.ts'
+import {
+  isSourceOnlyPackageDirectory,
+  SOURCE_ONLY_PACKAGE_DIRECTORY_ROOTS,
+} from './source-only-package-policy.ts'
 
 const DEFAULT_REGISTRY = 'https://registry.npm.harnessment.com'
 const DEFAULT_OUTPUT_DIRECTORY = '.artifacts/npm-baseline'
@@ -256,6 +260,7 @@ class WorkspacePackageSet {
       throw new Error(`package.json must have a stable X.Y.Z version, got ${baseVersion}`)
     }
     for (const manifestPath of manifestPaths) {
+      if (isSourceOnlyPackageDirectory(dirname(manifestPath))) continue
       const manifest = readObject(resolve(root, manifestPath))
       const name = expectString(manifest, 'name', manifestPath)
       const version = expectString(manifest, 'version', manifestPath)
@@ -573,6 +578,7 @@ class BaselinePackager {
         '--filter', './vendor/**',
         '--filter', './packages/**',
         '--filter', './apps/**',
+        ...SOURCE_ONLY_PACKAGE_DIRECTORY_ROOTS.flatMap(directory => ['--filter', `!./${directory}/**`]),
         '--recursive',
         'pack',
         '--pack-destination', artifactDirectory,
